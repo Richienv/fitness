@@ -1,0 +1,3675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Richie — Interactive Fitness Companion</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #1a1a1a;
+    --border: #222222;
+    --accent: #e8ff47;
+    --accent2: #ff6b35;
+    --accent3: #47ffb8;
+    --text: #f0f0f0;
+    --muted: #666666;
+    --danger: #ff4747;
+    --green: #47ff8a;
+    --purple: #8b47ff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ========== HERO ========== */
+  .hero {
+    padding: 80px 40px 60px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: 'RECOMP';
+    position: absolute;
+    top: -20px;
+    right: -20px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 200px;
+    color: #ffffff06;
+    letter-spacing: -10px;
+    pointer-events: none;
+  }
+  .hero-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .hero h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(60px, 10vw, 120px);
+    letter-spacing: 2px;
+    line-height: 0.9;
+    margin-bottom: 24px;
+  }
+  .hero h1 span { color: var(--accent); }
+  .hero-sub {
+    color: var(--muted);
+    font-size: 15px;
+    max-width: 500px;
+    margin-bottom: 40px;
+  }
+  .stats-row {
+    display: flex;
+    gap: 40px;
+    flex-wrap: wrap;
+  }
+  .stat {
+    display: flex;
+    flex-direction: column;
+  }
+  .stat-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 36px;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .stat-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 4px;
+  }
+  .week-badge {
+    position: absolute;
+    top: 30px;
+    right: 40px;
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    padding: 8px 18px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 24px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    z-index: 2;
+  }
+
+  /* ========== NAV ========== */
+  .tab-nav {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 100;
+  }
+  .tab-nav::-webkit-scrollbar { display: none; }
+  .tab-btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 16px 24px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    transition: all 0.2s;
+    min-height: 44px;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+  .tab-btn.settings-btn {
+    margin-left: auto;
+    font-size: 16px;
+    padding: 16px 20px;
+    letter-spacing: 0;
+  }
+
+  /* ========== CONTENT ========== */
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .section {
+    padding: 48px 40px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section:last-child { border-bottom: none; }
+
+  .section-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .section-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 42px;
+    letter-spacing: 1px;
+    margin-bottom: 32px;
+    line-height: 1;
+  }
+
+  /* ========== DAILY SCHEDULE ========== */
+  .schedule-grid {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 0;
+  }
+  .time-block {
+    padding: 16px 16px 16px 0;
+    border-right: 1px solid var(--border);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: right;
+    padding-right: 20px;
+  }
+  .event-block {
+    padding: 12px 0 12px 24px;
+    border-bottom: 1px solid #ffffff08;
+    margin-left: 0;
+  }
+  .event-title {
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+  .event-detail {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .tag {
+    display: inline-block;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 2px;
+    margin-right: 6px;
+    margin-bottom: 6px;
+  }
+  .tag-gym { background: #e8ff4715; color: var(--accent); border: 1px solid #e8ff4730; }
+  .tag-food { background: #ff6b3515; color: var(--accent2); border: 1px solid #ff6b3530; }
+  .tag-school { background: #47ffb815; color: var(--accent3); border: 1px solid #47ffb830; }
+  .tag-rest { background: #66666615; color: var(--muted); border: 1px solid #66666630; }
+  .tag-danger { background: #ff474715; color: var(--danger); border: 1px solid #ff474730; }
+  .tag-green { background: #47ff8a15; color: var(--green); border: 1px solid #47ff8a30; }
+
+  /* ========== CARDS ========== */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 8px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px;
+    height: 100%;
+  }
+  .card.yellow::before { background: var(--accent); }
+  .card.orange::before { background: var(--accent2); }
+  .card.green::before { background: var(--accent3); }
+  .card.red::before { background: var(--danger); }
+  .card.teal::before { background: var(--green); }
+
+  .card-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 60px;
+    line-height: 1;
+    opacity: 0.08;
+    position: absolute;
+    top: 8px;
+    right: 16px;
+  }
+  .card h3 {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .card p, .card li {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .card ul { padding-left: 16px; }
+  .card li { margin-bottom: 4px; }
+
+  /* ========== MONTH PHASES ========== */
+  .month-header {
+    display: flex;
+    align-items: flex-end;
+    gap: 24px;
+    margin-bottom: 32px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .month-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 100px;
+    line-height: 1;
+    color: var(--accent);
+    opacity: 0.3;
+  }
+  .month-info h2 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 48px;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .month-info p {
+    color: var(--muted);
+    font-size: 13px;
+    max-width: 500px;
+  }
+
+  /* ========== WEEK ROWS ========== */
+  .week-row {
+    display: grid;
+    grid-template-columns: 100px 1fr 200px;
+    gap: 24px;
+    padding: 20px 0;
+    border-bottom: 1px solid #ffffff06;
+    align-items: start;
+  }
+  .week-label {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 24px;
+    color: var(--muted);
+  }
+  .week-focus h4 {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .week-focus p {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .week-metric {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: right;
+  }
+  .week-metric strong {
+    display: block;
+    color: var(--accent);
+    font-size: 18px;
+    font-family: 'Bebas Neue', sans-serif;
+    letter-spacing: 1px;
+  }
+
+  /* ========== GYM SPLIT ========== */
+  .split-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+  @media (max-width: 700px) { .split-grid { grid-template-columns: 1fr 1fr; } }
+  .split-day {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 20px 16px;
+  }
+  .split-day-name {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .split-day-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    color: var(--accent);
+    line-height: 1.1;
+    margin-bottom: 12px;
+  }
+  .split-day ul {
+    list-style: none;
+    padding: 0;
+  }
+  .split-day ul li {
+    font-size: 11px;
+    color: var(--muted);
+    padding: 3px 0;
+    border-bottom: 1px solid #ffffff06;
+  }
+  .split-day ul li:last-child { border-bottom: none; }
+
+  /* ========== NUTRITION ========== */
+  .macro-bar {
+    margin-bottom: 20px;
+  }
+  .macro-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+  .macro-label span:first-child { color: var(--text); font-weight: 500; }
+  .macro-label span:last-child { font-family: 'DM Mono', monospace; color: var(--muted); }
+  .bar-track {
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.6s ease;
+  }
+  .bar-protein { background: var(--accent); width: 85%; }
+  .bar-carbs { background: var(--accent2); width: 65%; }
+  .bar-fat { background: var(--accent3); width: 45%; }
+  .bar-cal { background: #8b47ff; width: 75%; }
+
+  .meal-row {
+    display: grid;
+    grid-template-columns: 100px 1fr auto;
+    gap: 16px;
+    padding: 16px 0;
+    border-bottom: 1px solid #ffffff06;
+    align-items: start;
+  }
+  .meal-time {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .meal-name {
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .meal-items {
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .meal-macros {
+    text-align: right;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .meal-macros strong {
+    display: block;
+    color: var(--accent);
+    font-size: 13px;
+    font-family: 'Bebas Neue', sans-serif;
+  }
+
+  /* ========== RULES ========== */
+  .rules-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 600px) { .rules-grid { grid-template-columns: 1fr; } }
+  .rule-block {
+    padding: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+  .rule-block.do { border-top: 3px solid var(--green); }
+  .rule-block.dont { border-top: 3px solid var(--danger); }
+  .rule-block h3 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    margin-bottom: 16px;
+  }
+  .rule-block.do h3 { color: var(--green); }
+  .rule-block.dont h3 { color: var(--danger); }
+  .rule-item {
+    display: flex;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid #ffffff06;
+    font-size: 12px;
+    color: var(--muted);
+    align-items: flex-start;
+  }
+  .rule-item:last-child { border-bottom: none; }
+  .rule-icon { flex-shrink: 0; margin-top: 1px; }
+
+  /* ========== PROGRESS ========== */
+  .progress-timeline {
+    position: relative;
+    padding-left: 32px;
+  }
+  .progress-timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--border);
+  }
+  .progress-item {
+    position: relative;
+    padding-bottom: 40px;
+  }
+  .progress-item::before {
+    content: '';
+    position: absolute;
+    left: -28px;
+    top: 4px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .progress-week {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .progress-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .progress-body {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .progress-body strong { color: var(--text); }
+
+  /* ========== FOOTER ========== */
+  .footer {
+    padding: 40px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .footer p { font-size: 11px; color: var(--muted); }
+  .footer strong { color: var(--accent); }
+
+  /* ========== DIVIDER ========== */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 32px 0;
+  }
+
+  /* ========== HIGHLIGHT BOX ========== */
+  .highlight {
+    background: #e8ff4708;
+    border: 1px solid #e8ff4720;
+    border-left: 3px solid var(--accent);
+    padding: 16px 20px;
+    margin: 20px 0;
+    font-size: 13px;
+  }
+  .highlight strong { color: var(--accent); }
+
+  /* ========== TABLE ========== */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-top: 16px;
+  }
+  th {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 12px;
+    border-bottom: 1px solid #ffffff06;
+    color: var(--muted);
+    vertical-align: top;
+  }
+  td:first-child { color: var(--text); font-weight: 500; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #ffffff03; }
+
+  /* ============================================================ */
+  /* ========== NEW INTERACTIVE STYLES ========== */
+  /* ============================================================ */
+
+  /* ========== TRACKER TAB ========== */
+  .tracker-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .tracker-date {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 1px;
+  }
+  .day-toggle {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .day-toggle-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color 0.2s;
+  }
+  .day-toggle-label.active-label { color: var(--accent); }
+  .toggle-switch {
+    position: relative;
+    width: 52px;
+    height: 28px;
+    cursor: pointer;
+  }
+  .toggle-switch input { display: none; }
+  .toggle-slider {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--green);
+    border-radius: 14px;
+    transition: background 0.3s;
+  }
+  .toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--bg);
+    top: 3px;
+    left: 3px;
+    transition: transform 0.3s;
+  }
+  .toggle-switch input:checked + .toggle-slider {
+    background: var(--muted);
+  }
+  .toggle-switch input:checked + .toggle-slider::before {
+    transform: translateX(24px);
+  }
+
+  /* Checklist */
+  .checklist-section { margin-bottom: 32px; }
+  .checklist-progress {
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .checklist-progress-fill {
+    height: 100%;
+    background: var(--green);
+    border-radius: 3px;
+    transition: width 0.4s ease;
+    width: 0%;
+  }
+  .checklist-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  @media (max-width: 600px) { .checklist-grid { grid-template-columns: 1fr; } }
+  .check-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.2s;
+    min-height: 50px;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .check-item:hover { border-color: #333; }
+  .check-item.checked {
+    background: #47ff8a08;
+    border-color: #47ff8a30;
+  }
+  .check-item.gym-only { display: flex; }
+  .check-item.gym-only.hidden-item { display: none; }
+  .check-box {
+    width: 22px;
+    height: 22px;
+    border: 2px solid var(--muted);
+    border-radius: 4px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  .check-item.checked .check-box {
+    background: var(--green);
+    border-color: var(--green);
+  }
+  .check-box-tick {
+    display: none;
+    color: var(--bg);
+    font-weight: 700;
+    font-size: 14px;
+  }
+  .check-item.checked .check-box-tick { display: block; }
+  .check-text { font-size: 13px; }
+
+  /* Meal Tracker Cards */
+  .meal-tracker { margin-bottom: 32px; }
+  .meal-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    margin-bottom: 8px;
+    transition: all 0.2s;
+  }
+  .meal-card.eaten {
+    background: #47ff8a06;
+    border-color: #47ff8a25;
+  }
+  .meal-card.gym-only-meal { display: flex; }
+  .meal-card.gym-only-meal.hidden-meal { display: none; }
+  .meal-check-btn {
+    width: 44px;
+    height: 44px;
+    border: 2px solid var(--border);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--muted);
+    font-size: 18px;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  .meal-card.eaten .meal-check-btn {
+    background: var(--green);
+    border-color: var(--green);
+    color: var(--bg);
+  }
+  .meal-card-info { flex: 1; }
+  .meal-card-name {
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 2px;
+  }
+  .meal-card-items {
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .meal-card-macros {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-align: right;
+    white-space: nowrap;
+  }
+  .meal-card-macros strong {
+    display: block;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    color: var(--accent);
+  }
+  .meal-edit-btn {
+    width: 36px;
+    height: 36px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  .meal-edit-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* Running Macro Totals */
+  .macro-totals { margin-bottom: 16px; }
+  .macro-total-row {
+    margin-bottom: 12px;
+  }
+  .macro-total-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+  .macro-total-header .label { font-weight: 500; }
+  .macro-total-header .values {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .macro-total-bar {
+    height: 8px;
+    background: var(--surface2);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .macro-total-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.6s ease;
+  }
+  .macro-total-fill.cal { background: var(--purple); }
+  .macro-total-fill.pro { background: var(--accent); }
+  .macro-total-fill.carb { background: var(--accent2); }
+  .macro-total-fill.fat { background: var(--accent3); }
+
+  /* ========== WORKOUT TAB ========== */
+  .split-selector {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  @media (min-width: 700px) { .split-selector { grid-template-columns: repeat(5, 1fr); } }
+  .split-select-btn {
+    padding: 20px 16px;
+    background: var(--surface);
+    border: 2px solid var(--border);
+    color: var(--text);
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  .split-select-btn:hover { border-color: #444; }
+  .split-select-btn.suggested {
+    border-color: var(--accent);
+    background: #e8ff4708;
+  }
+  .split-select-btn.selected {
+    border-color: var(--accent);
+    background: #e8ff4715;
+  }
+  .split-select-btn .split-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    line-height: 1;
+  }
+  .split-select-btn .split-sub {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .suggested-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    color: var(--accent);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  /* Rest Timer */
+  .rest-timer {
+    position: sticky;
+    top: 48px;
+    z-index: 90;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    display: none;
+  }
+  .rest-timer.visible { display: block; }
+  .rest-timer-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .timer-display {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 48px;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .timer-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .timer-btn {
+    padding: 8px 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    min-height: 44px;
+    min-width: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  .timer-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .timer-btn.active-timer { border-color: var(--accent); color: var(--accent); }
+  .timer-bar-track {
+    height: 4px;
+    background: var(--surface2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .timer-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.2s linear;
+    width: 100%;
+  }
+
+  /* Exercise Cards */
+  .exercise-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .exercise-header {
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .exercise-name {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 2px;
+  }
+  .exercise-target {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .exercise-badges {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .pr-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    padding: 3px 8px;
+    background: #e8ff4715;
+    border: 1px solid #e8ff4730;
+    color: var(--accent);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .prev-data {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    padding: 0 20px 8px;
+    opacity: 0.6;
+  }
+  .set-rows { padding: 0 20px 12px; }
+  .set-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid #ffffff06;
+    transition: all 0.2s;
+  }
+  .set-row.saved {
+    border-left: 3px solid var(--green);
+    padding-left: 8px;
+    margin-left: -8px;
+    background: #47ff8a04;
+  }
+  .set-row:last-child { border-bottom: none; }
+  .set-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    width: 30px;
+    flex-shrink: 0;
+  }
+  .set-input {
+    width: 70px;
+    padding: 10px 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    text-align: center;
+    min-height: 44px;
+    border-radius: 4px;
+    -moz-appearance: textfield;
+  }
+  .set-input::-webkit-outer-spin-button,
+  .set-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .set-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .set-input-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .set-save-btn {
+    padding: 10px 16px;
+    background: var(--accent);
+    border: none;
+    color: var(--bg);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    min-height: 44px;
+    min-width: 44px;
+    border-radius: 4px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    transition: all 0.2s;
+  }
+  .set-save-btn:hover { background: #d4eb3e; }
+  .set-row.saved .set-save-btn {
+    background: var(--green);
+  }
+  .exercise-notes-toggle {
+    padding: 8px 20px 12px;
+  }
+  .notes-toggle-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 11px;
+    cursor: pointer;
+    padding: 4px 0;
+    font-family: 'DM Mono', monospace;
+  }
+  .notes-toggle-btn:hover { color: var(--text); }
+  .exercise-notes-area {
+    display: none;
+    padding: 0 20px 16px;
+  }
+  .exercise-notes-area.open { display: block; }
+  .exercise-notes-area textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    resize: vertical;
+    min-height: 60px;
+    border-radius: 4px;
+  }
+  .exercise-notes-area textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .overload-nudge {
+    padding: 8px 20px 12px;
+    font-size: 12px;
+    color: var(--green);
+    display: none;
+  }
+  .overload-nudge.visible { display: block; }
+
+  /* Session Summary */
+  .session-summary {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--accent);
+    padding: 24px;
+    margin-top: 24px;
+    display: none;
+  }
+  .session-summary.visible { display: block; }
+  .summary-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .summary-stat {
+    text-align: center;
+  }
+  .summary-stat-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 32px;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .summary-stat-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .finish-btn {
+    width: 100%;
+    padding: 16px;
+    background: var(--accent);
+    border: none;
+    color: var(--bg);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-height: 50px;
+  }
+  .finish-btn:hover { background: #d4eb3e; }
+  .back-to-splits-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    cursor: pointer;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    margin-bottom: 20px;
+    transition: all 0.2s;
+  }
+  .back-to-splits-btn:hover { color: var(--text); border-color: #444; }
+
+  /* ========== JOURNAL TAB ========== */
+  .calendar-strip {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 16px 0;
+    margin-bottom: 24px;
+    scrollbar-width: none;
+  }
+  .calendar-strip::-webkit-scrollbar { display: none; }
+  .cal-day {
+    min-width: 52px;
+    padding: 10px 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .cal-day:hover { border-color: #444; }
+  .cal-day.today { border-color: var(--accent); }
+  .cal-day.selected {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+  }
+  .cal-day.selected .cal-day-name,
+  .cal-day.selected .cal-day-num { color: var(--bg); }
+  .cal-day-name {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .cal-day-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    line-height: 1.2;
+  }
+  .cal-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin: 4px auto 0;
+    display: none;
+  }
+  .cal-day.has-entry .cal-dot { display: block; }
+
+  .journal-form { max-width: 600px; }
+  .journal-field {
+    margin-bottom: 24px;
+  }
+  .journal-field label {
+    display: block;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .journal-field input[type="number"] {
+    width: 120px;
+    padding: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 16px;
+    min-height: 44px;
+    border-radius: 4px;
+  }
+  .journal-field input:focus,
+  .journal-field textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .mood-scale {
+    display: flex;
+    gap: 8px;
+  }
+  .mood-btn {
+    width: 50px;
+    height: 50px;
+    background: var(--surface);
+    border: 2px solid var(--border);
+    color: var(--text);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-radius: 4px;
+  }
+  .mood-btn:hover { border-color: #444; }
+  .mood-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+  }
+  .journal-field textarea {
+    width: 100%;
+    min-height: 100px;
+    padding: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    resize: vertical;
+    border-radius: 4px;
+  }
+
+  /* Weekly Summary Card */
+  .weekly-summary {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--accent);
+    padding: 24px;
+    margin-top: 24px;
+    display: none;
+  }
+  .weekly-summary.visible { display: block; }
+  .weekly-summary h3 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 24px;
+    margin-bottom: 16px;
+    color: var(--accent);
+  }
+  .weekly-summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .ws-item {
+    padding: 12px;
+    background: var(--surface2);
+    border-radius: 4px;
+  }
+  .ws-item-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .ws-item-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 4px;
+  }
+
+  /* ========== SETTINGS ========== */
+  #settings .section { max-width: 600px; }
+  .setting-row {
+    padding: 20px 0;
+    border-bottom: 1px solid #ffffff06;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .setting-label {
+    font-weight: 500;
+    font-size: 14px;
+  }
+  .setting-desc {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .setting-input {
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    min-height: 44px;
+    border-radius: 4px;
+  }
+  .setting-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .setting-btn {
+    padding: 12px 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    cursor: pointer;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    min-height: 44px;
+    border-radius: 4px;
+  }
+  .setting-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .setting-btn.danger {
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+  .setting-btn.danger:hover {
+    background: var(--danger);
+    color: var(--bg);
+  }
+
+  /* ========== MODAL ========== */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.open {
+    display: flex;
+  }
+  .modal-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 32px;
+    max-width: 480px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+  }
+  .modal-close {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 24px;
+    cursor: pointer;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-close:hover { color: var(--text); }
+  .modal-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    margin-bottom: 24px;
+  }
+  .modal-field {
+    margin-bottom: 16px;
+  }
+  .modal-field label {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+  .modal-field input,
+  .modal-field textarea {
+    width: 100%;
+    padding: 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    border-radius: 4px;
+    min-height: 44px;
+  }
+  .modal-field input:focus,
+  .modal-field textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .modal-field textarea {
+    min-height: 60px;
+    resize: vertical;
+  }
+  .modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+  }
+  .modal-save-btn {
+    padding: 12px 24px;
+    background: var(--accent);
+    border: none;
+    color: var(--bg);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    min-height: 44px;
+  }
+  .modal-save-btn:hover { background: #d4eb3e; }
+  .modal-reset-btn {
+    padding: 12px 24px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    min-height: 44px;
+  }
+  .modal-reset-btn:hover { color: var(--text); border-color: #444; }
+
+  /* ========== TOAST ========== */
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 1px;
+    padding: 12px 28px;
+    z-index: 300;
+    transition: transform 0.3s ease;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .toast.show {
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* ========== CONFIRM MODAL ========== */
+  .confirm-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 250;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .confirm-overlay.open { display: flex; }
+  .confirm-card {
+    background: var(--surface);
+    border: 1px solid var(--danger);
+    padding: 32px;
+    max-width: 400px;
+    width: 100%;
+    text-align: center;
+  }
+  .confirm-card h3 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    color: var(--danger);
+    margin-bottom: 12px;
+  }
+  .confirm-card p {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+  .confirm-input {
+    width: 100%;
+    padding: 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    text-align: center;
+    margin-bottom: 20px;
+    border-radius: 4px;
+    min-height: 44px;
+  }
+  .confirm-input:focus { outline: none; border-color: var(--danger); }
+  .confirm-actions { display: flex; gap: 12px; justify-content: center; }
+
+  /* ========== MOBILE RESPONSIVE ========== */
+  @media (max-width: 600px) {
+    .hero { padding: 50px 20px 40px; }
+    .hero h1 { font-size: clamp(40px, 12vw, 80px); }
+    .week-badge { top: 16px; right: 16px; font-size: 18px; padding: 6px 12px; }
+    .stats-row { gap: 20px; }
+    .stat-val { font-size: 28px; }
+    .section { padding: 32px 20px; }
+    .section-title { font-size: 32px; }
+    .tab-btn { padding: 14px 16px; font-size: 10px; }
+    .schedule-grid { grid-template-columns: 60px 1fr; }
+    .time-block { font-size: 10px; padding-right: 12px; }
+    .week-row { grid-template-columns: 60px 1fr; gap: 12px; }
+    .week-metric { display: none; }
+    .month-header { flex-direction: column; align-items: flex-start; }
+    .month-num { font-size: 60px; }
+    .meal-row { grid-template-columns: 1fr auto; }
+    .meal-time { display: none; }
+    .tracker-topbar { flex-direction: column; align-items: flex-start; }
+    .checklist-grid { grid-template-columns: 1fr; }
+    .split-selector { grid-template-columns: 1fr 1fr; }
+    .summary-stats { grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .summary-stat-val { font-size: 24px; }
+    .meal-card { flex-wrap: wrap; }
+    .meal-card-macros { min-width: 80px; }
+    .modal-card { padding: 24px 20px; }
+    .footer { padding: 24px 20px; flex-direction: column; gap: 8px; text-align: center; }
+    .weekly-summary-grid { grid-template-columns: 1fr 1fr; }
+    .set-row { flex-wrap: wrap; }
+    .set-input { width: 60px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ========== HERO ========== -->
+<div class="hero">
+  <div class="week-badge" id="weekBadge">WK 1 / 12</div>
+  <div class="hero-tag">// Richie Recomp Protocol — April–July 2026</div>
+  <h1>3 MONTH<br><span>BODY PLAN</span></h1>
+  <p class="hero-sub">Lean athletic. V-taper. Shoulder:waist >=1.45:1. Stay 70-74kg. Sharp face. Upper abs visible. Built in Hangzhou.</p>
+  <div class="stats-row">
+    <div class="stat"><span class="stat-val">174cm</span><span class="stat-label">Height</span></div>
+    <div class="stat"><span class="stat-val">72kg</span><span class="stat-label">Starting Weight</span></div>
+    <div class="stat"><span class="stat-val">155g</span><span class="stat-label">Protein / day</span></div>
+    <div class="stat"><span class="stat-val">5x</span><span class="stat-label">Gym / week</span></div>
+    <div class="stat"><span class="stat-val">10g</span><span class="stat-label">Creatine / day</span></div>
+    <div class="stat"><span class="stat-val">12wk</span><span class="stat-label">Duration</span></div>
+  </div>
+</div>
+
+<!-- ========== NAV ========== -->
+<div class="tab-nav" id="tabNav">
+  <button class="tab-btn active" data-tab="tracker">Tracker</button>
+  <button class="tab-btn" data-tab="workout">Workout</button>
+  <button class="tab-btn" data-tab="journal">Journal</button>
+  <button class="tab-btn" data-tab="daily">Daily</button>
+  <button class="tab-btn" data-tab="split">Split</button>
+  <button class="tab-btn" data-tab="nutrition">Nutrition</button>
+  <button class="tab-btn" data-tab="month1">M1</button>
+  <button class="tab-btn" data-tab="month2">M2</button>
+  <button class="tab-btn" data-tab="month3">M3</button>
+  <button class="tab-btn" data-tab="rules">Rules</button>
+  <button class="tab-btn" data-tab="progress">Expect</button>
+  <button class="tab-btn settings-btn" data-tab="settings" title="Settings">&#9881;</button>
+</div>
+
+<!-- ========== TRACKER TAB ========== -->
+<div id="tracker" class="tab-content active">
+  <div class="section">
+    <div class="section-label">// Daily Dashboard</div>
+    <div class="section-title">TODAY'S TRACKER</div>
+
+    <div class="tracker-topbar">
+      <div class="tracker-date" id="trackerDate"></div>
+      <div class="day-toggle">
+        <span class="day-toggle-label active-label" id="gymLabel">GYM DAY</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="dayToggle">
+          <span class="toggle-slider"></span>
+        </label>
+        <span class="day-toggle-label" id="restLabel">REST DAY</span>
+      </div>
+    </div>
+
+    <!-- Checklist -->
+    <div class="checklist-section">
+      <div class="section-label">// Non-Negotiables</div>
+      <div class="checklist-progress"><div class="checklist-progress-fill" id="checklistProgress"></div></div>
+      <div class="checklist-grid" id="checklistGrid">
+        <div class="check-item" data-check="eggs" onclick="toggleCheck(this)">
+          <div class="check-box"><span class="check-box-tick">&#10003;</span></div>
+          <span class="check-text">3 eggs breakfast</span>
+        </div>
+        <div class="check-item" data-check="creatine" onclick="toggleCheck(this)">
+          <div class="check-box"><span class="check-box-tick">&#10003;</span></div>
+          <span class="check-text">Creatine 10g</span>
+        </div>
+        <div class="check-item" data-check="water" onclick="toggleCheck(this)">
+          <div class="check-box"><span class="check-box-tick">&#10003;</span></div>
+          <span class="check-text">3L+ water</span>
+        </div>
+        <div class="check-item" data-check="protein" onclick="toggleCheck(this)">
+          <div class="check-box"><span class="check-box-tick">&#10003;</span></div>
+          <span class="check-text">Protein 155g</span>
+        </div>
+        <div class="check-item gym-only" data-check="gym" onclick="toggleCheck(this)">
+          <div class="check-box"><span class="check-box-tick">&#10003;</span></div>
+          <span class="check-text">Gym session</span>
+        </div>
+        <div class="check-item gym-only" data-check="whey" onclick="toggleCheck(this)">
+          <div class="check-box"><span class="check-box-tick">&#10003;</span></div>
+          <span class="check-text">Whey shake</span>
+        </div>
+        <div class="check-item" data-check="sleep" onclick="toggleCheck(this)">
+          <div class="check-box"><span class="check-box-tick">&#10003;</span></div>
+          <span class="check-text">7+ hrs sleep</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Meal Tracker -->
+    <div class="meal-tracker">
+      <div class="section-label">// Meals</div>
+      <div id="mealCards"></div>
+    </div>
+
+    <!-- Macro Totals -->
+    <div class="macro-totals">
+      <div class="section-label">// Running Totals</div>
+      <div id="macroTotals"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== WORKOUT TAB ========== -->
+<div id="workout" class="tab-content">
+  <div class="section">
+    <div class="section-label">// Active Gym Session</div>
+    <div class="section-title">WORKOUT</div>
+
+    <div id="splitSelectorView">
+      <p style="color: var(--muted); margin-bottom: 20px; font-size: 13px;">Select today's split to start logging.</p>
+      <div class="split-selector" id="splitSelector"></div>
+    </div>
+
+    <div id="activeWorkoutView" style="display:none;">
+      <button class="back-to-splits-btn" onclick="backToSplits()">&#8592; Back to Splits</button>
+      <div class="rest-timer" id="restTimer">
+        <div class="rest-timer-top">
+          <div class="timer-display" id="timerDisplay">60</div>
+          <div class="timer-controls">
+            <button class="timer-btn active-timer" data-dur="60" onclick="setTimerDuration(60)">60s</button>
+            <button class="timer-btn" data-dur="90" onclick="setTimerDuration(90)">90s</button>
+            <button class="timer-btn" data-dur="custom" onclick="promptCustomTimer()">...</button>
+            <button class="timer-btn" onclick="skipTimer()">SKIP</button>
+            <button class="timer-btn" id="muteBtn" onclick="toggleMute()">&#128264;</button>
+          </div>
+        </div>
+        <div class="timer-bar-track"><div class="timer-bar-fill" id="timerBarFill"></div></div>
+      </div>
+      <div id="exerciseList"></div>
+      <div class="session-summary" id="sessionSummary">
+        <div class="summary-stats" id="summaryStats"></div>
+        <button class="finish-btn" onclick="finishWorkout()">FINISH WORKOUT</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== JOURNAL TAB ========== -->
+<div id="journal" class="tab-content">
+  <div class="section">
+    <div class="section-label">// Daily Journal</div>
+    <div class="section-title">JOURNAL</div>
+
+    <div class="calendar-strip" id="calendarStrip"></div>
+
+    <div class="journal-form" id="journalForm">
+      <div class="journal-field">
+        <label>Checklist</label>
+        <div class="checklist-grid" id="journalChecklist"></div>
+      </div>
+
+      <div class="journal-field">
+        <label>Body Weight (kg)</label>
+        <input type="number" id="journalWeight" step="0.1" min="40" max="200" inputmode="decimal" placeholder="e.g. 72.5">
+      </div>
+
+      <div class="journal-field">
+        <label>Energy / Mood</label>
+        <div class="mood-scale" id="moodScale">
+          <button class="mood-btn" data-mood="1" onclick="setMood(1)">1</button>
+          <button class="mood-btn" data-mood="2" onclick="setMood(2)">2</button>
+          <button class="mood-btn" data-mood="3" onclick="setMood(3)">3</button>
+          <button class="mood-btn" data-mood="4" onclick="setMood(4)">4</button>
+          <button class="mood-btn" data-mood="5" onclick="setMood(5)">5</button>
+        </div>
+      </div>
+
+      <div class="journal-field">
+        <label>Notes</label>
+        <textarea id="journalNotes" placeholder="How did today go? Any thoughts on training, nutrition, energy..."></textarea>
+      </div>
+    </div>
+
+    <div class="weekly-summary" id="weeklySummary">
+      <h3>WEEKLY SUMMARY</h3>
+      <div class="weekly-summary-grid" id="weeklySummaryGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== DAILY BLUEPRINT ========== -->
+<div id="daily" class="tab-content">
+  <div class="section">
+    <div class="section-label">// 01 — Daily Structure</div>
+    <div class="section-title">GYM DAY</div>
+
+    <div class="schedule-grid">
+      <div class="time-block">06:30</div>
+      <div class="event-block">
+        <div class="event-title">Wake Up — <span class="tag tag-food">Non-negotiable</span></div>
+        <div class="event-detail">Cook 3 eggs immediately. Scrambled, fried, boiled — doesn't matter. This is your #1 habit that changes everything. Don't leave home without eating these. Also take creatine 10g now.</div>
+      </div>
+
+      <div class="time-block">07:00</div>
+      <div class="event-block">
+        <div class="event-title">Cycle to Campus <span class="tag tag-rest">2km</span></div>
+        <div class="event-detail">~8 min ride, ~50 kcal burned. Minimal but consistent.</div>
+      </div>
+
+      <div class="time-block">08:00</div>
+      <div class="event-block">
+        <div class="event-title">Classes Begin <span class="tag tag-school">School</span></div>
+        <div class="event-detail">Stay hydrated — 500ml water by break time. No snacking on junk. If you have a break, drink water or a black coffee (no sugar).</div>
+      </div>
+
+      <div class="time-block">12:00</div>
+      <div class="event-block">
+        <div class="event-title">Lunch <span class="tag tag-food">~575 kcal</span></div>
+        <div class="event-detail">1 whole chicken breast + 4 beef slices + enoki + veggies + 1/4 melon. Eat fully, don't skip. This is your mid-day protein anchor.</div>
+      </div>
+
+      <div class="time-block">14:00</div>
+      <div class="event-block">
+        <div class="event-title">Whey Shake <span class="tag tag-food">Gym days only</span></div>
+        <div class="event-detail">1 scoop whey + water. ~25g protein. Take this during your break or between classes. Non-negotiable on gym days.</div>
+      </div>
+
+      <div class="time-block">17:00</div>
+      <div class="event-block">
+        <div class="event-title">Classes End — Head to Gym <span class="tag tag-gym">50 min</span></div>
+        <div class="event-detail">Go directly after class. Don't go home first — you won't go back out. Keep gym bag with you. Pre-workout if needed: black coffee 30 min before.</div>
+      </div>
+
+      <div class="time-block">17:30</div>
+      <div class="event-block">
+        <div class="event-title">Gym Session <span class="tag tag-gym">Max 50 min</span></div>
+        <div class="event-detail">Follow the day's split. No scrolling between sets. Rest 60-90 sec. Log every weight and reps mentally — report after.</div>
+      </div>
+
+      <div class="time-block">18:30</div>
+      <div class="event-block">
+        <div class="event-title">Cycle Home + Cool Down</div>
+        <div class="event-detail">2km back. Don't crush your joints — easy ride. Shower immediately when you get home.</div>
+      </div>
+
+      <div class="time-block">19:30</div>
+      <div class="event-block">
+        <div class="event-title">Dinner <span class="tag tag-food">~650 kcal</span></div>
+        <div class="event-detail">2 chicken thighs + 3 eggs + enoki + tomato + eggplant + 1/4 melon. Air fry, no oil. Eat within 2 hours of gym for optimal recovery.</div>
+      </div>
+
+      <div class="time-block">20:30</div>
+      <div class="event-block">
+        <div class="event-title">1-2 Bananas <span class="tag tag-food">Post-dinner carbs</span></div>
+        <div class="event-detail">Fills the carb gap. Potassium for muscle recovery. This is your dessert + carb source. Don't skip on gym days.</div>
+      </div>
+
+      <div class="time-block">21:00</div>
+      <div class="event-block">
+        <div class="event-title">Deep Work Block <span class="tag tag-school">OIC / ERP / GMBA</span></div>
+        <div class="event-detail">Your late-night work session. Keep water nearby. No more eating after bananas.</div>
+      </div>
+
+      <div class="time-block">23:30</div>
+      <div class="event-block">
+        <div class="event-title">Sleep — Minimum 7 hours <span class="tag tag-rest">Recovery</span></div>
+        <div class="event-detail">Muscle grows during sleep, not during gym. Skimping on sleep = sabotaging gains. Aim 7-8 hours always.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">// 01B — Daily Structure</div>
+    <div class="section-title">REST DAY</div>
+
+    <div class="schedule-grid">
+      <div class="time-block">07:00</div>
+      <div class="event-block">
+        <div class="event-title">Wake Up <span class="tag tag-food">Still 3 eggs</span></div>
+        <div class="event-detail">Even on rest days. 3 eggs. Creatine 10g. Non-negotiable every single day.</div>
+      </div>
+      <div class="time-block">12:00</div>
+      <div class="event-block">
+        <div class="event-title">Lunch — same as usual <span class="tag tag-food">~575 kcal</span></div>
+        <div class="event-detail">Same food. No extra carbs since no gym today.</div>
+      </div>
+      <div class="time-block">15:00</div>
+      <div class="event-block">
+        <div class="event-title">NO whey shake today <span class="tag tag-rest">Rest day</span></div>
+        <div class="event-detail">Skip the shake on rest days — you don't need the extra calories. Target is 1,600-1,700 kcal instead of 2,200.</div>
+      </div>
+      <div class="time-block">19:00</div>
+      <div class="event-block">
+        <div class="event-title">Dinner — same as usual <span class="tag tag-food">~650 kcal</span></div>
+        <div class="event-detail">Same dinner. Maybe skip one banana if you feel full. Total rest day target: 1,600 kcal.</div>
+      </div>
+      <div class="time-block">All day</div>
+      <div class="event-block">
+        <div class="event-title">Active Recovery only</div>
+        <div class="event-detail">Walk, cycle easy, stretch. No intense cardio. Your muscles are repairing — let them. This is when growth actually happens.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== GYM SPLIT ========== -->
+<div id="split" class="tab-content">
+  <div class="section">
+    <div class="section-label">// 02 — Training</div>
+    <div class="section-title">5-DAY GYM SPLIT</div>
+    <p style="color: var(--muted); margin-bottom: 32px; font-size: 13px;">Since you can train weekends, do 5 days on, 2 days off (any 2 days). Rotate through the split sequentially — don't skip days out of order.</p>
+
+    <div class="split-grid">
+      <div class="split-day">
+        <div class="split-day-name">Day 1</div>
+        <div class="split-day-title">PUSH A<br>Chest Focus</div>
+        <ul>
+          <li>Bench Press 4x8-10</li>
+          <li>Incline DB Press 3x10</li>
+          <li>Cable Lateral Raise 3x15</li>
+          <li>OHP 3x10</li>
+          <li>Tricep Pushdown 3x12</li>
+          <li>Dips 3x10</li>
+        </ul>
+      </div>
+      <div class="split-day">
+        <div class="split-day-name">Day 2</div>
+        <div class="split-day-title">PULL A<br>Back Width</div>
+        <ul>
+          <li>Lat Pulldown 4x8-10</li>
+          <li>Cable Row 3x10-12</li>
+          <li>Seated Row Machine 3x10-12</li>
+          <li>Face Pull 3x15</li>
+          <li>Barbell/Machine Curl 3x10-12</li>
+          <li>Hammer Curl 3x12</li>
+        </ul>
+      </div>
+      <div class="split-day">
+        <div class="split-day-name">Day 3</div>
+        <div class="split-day-title">LEGS<br>+ ABS</div>
+        <ul>
+          <li>Squat 4x8-10</li>
+          <li>RDL 3x10</li>
+          <li>Leg Press 3x12</li>
+          <li>Leg Curl 3x12</li>
+          <li>Calf Raise 4x15</li>
+          <li>Ab Superset x3</li>
+        </ul>
+      </div>
+      <div class="split-day">
+        <div class="split-day-name">Day 4</div>
+        <div class="split-day-title">PUSH B<br>Shoulder Focus</div>
+        <ul>
+          <li>Seated DB Press 4x10</li>
+          <li>Lateral Raise 5x15</li>
+          <li>Incline Barbell 3x10</li>
+          <li>Pec Deck 3x12</li>
+          <li>Overhead Tricep 3x12</li>
+          <li>Lateral Burnout x1</li>
+        </ul>
+      </div>
+      <div class="split-day">
+        <div class="split-day-name">Day 5</div>
+        <div class="split-day-title">PULL B<br>Back Thickness</div>
+        <ul>
+          <li>Deadlift / RDL 3x8</li>
+          <li>Wide Grip Pulldown 4x10</li>
+          <li>Cable Row (wide) 3x12</li>
+          <li>DB Row 3x10 each</li>
+          <li>Face Pull 3x15</li>
+          <li>Incline Curl 3x12</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="highlight">
+      <strong>Progressive Overload Rule:</strong> Every session, either add 1-2 reps OR add weight compared to last time you did this day. If you hit the top of the rep range on ALL sets -> add weight next session. If stuck 2+ sessions -> drop 10%, rebuild.
+    </div>
+
+    <div class="section-label" style="margin-top: 32px;">// Progressive Overload Targets — Months 1->3</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Exercise</th>
+          <th>Month 1 Target</th>
+          <th>Month 2 Target</th>
+          <th>Month 3 Target</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Lat Pulldown</td><td>30-35kg x 10</td><td>40-45kg x 10</td><td>50-55kg x 8-10</td></tr>
+        <tr><td>Cable Row</td><td>30-35kg x 10</td><td>40kg x 10-12</td><td>45-50kg x 10</td></tr>
+        <tr><td>Seated Row Machine</td><td>40-45kg x 10</td><td>50-55kg x 10</td><td>60kg x 10</td></tr>
+        <tr><td>Bicep Curl Machine</td><td>40-45kg x 12</td><td>50kg x 10-12</td><td>55-60kg x 10</td></tr>
+        <tr><td>Bench Press</td><td>50-60kg x 8</td><td>65-70kg x 8</td><td>75-80kg x 6-8</td></tr>
+        <tr><td>OHP / DB Press</td><td>30-35kg x 10</td><td>40kg x 10</td><td>45kg x 8-10</td></tr>
+        <tr><td>Squat</td><td>40-50kg x 10</td><td>60kg x 10</td><td>70-80kg x 8</td></tr>
+        <tr><td>RDL</td><td>40-50kg x 10</td><td>60kg x 10</td><td>70kg x 8-10</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ========== NUTRITION ========== -->
+<div id="nutrition" class="tab-content">
+  <div class="section">
+    <div class="section-label">// 03 — Nutrition</div>
+    <div class="section-title">DAILY MACROS</div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; flex-wrap: wrap;">
+      <div>
+        <p style="color: var(--muted); font-size: 12px; margin-bottom: 20px;">GYM DAYS (5x/week)</p>
+        <div class="macro-bar">
+          <div class="macro-label"><span>Calories</span><span>2,200 kcal</span></div>
+          <div class="bar-track"><div class="bar-fill bar-cal"></div></div>
+        </div>
+        <div class="macro-bar">
+          <div class="macro-label"><span>Protein</span><span>155g min</span></div>
+          <div class="bar-track"><div class="bar-fill bar-protein"></div></div>
+        </div>
+        <div class="macro-bar">
+          <div class="macro-label"><span>Carbs</span><span>200-260g</span></div>
+          <div class="bar-track"><div class="bar-fill bar-carbs"></div></div>
+        </div>
+        <div class="macro-bar">
+          <div class="macro-label"><span>Fat</span><span>65-75g</span></div>
+          <div class="bar-track"><div class="bar-fill bar-fat"></div></div>
+        </div>
+      </div>
+      <div>
+        <p style="color: var(--muted); font-size: 12px; margin-bottom: 20px;">REST DAYS (2x/week)</p>
+        <div class="macro-bar">
+          <div class="macro-label"><span>Calories</span><span>1,600-1,700 kcal</span></div>
+          <div class="bar-track"><div class="bar-fill" style="background:#8b47ff; width: 60%;"></div></div>
+        </div>
+        <div class="macro-bar">
+          <div class="macro-label"><span>Protein</span><span>155g min (same)</span></div>
+          <div class="bar-track"><div class="bar-fill bar-protein" style="width:85%;"></div></div>
+        </div>
+        <div class="macro-bar">
+          <div class="macro-label"><span>Carbs</span><span>120-150g</span></div>
+          <div class="bar-track"><div class="bar-fill bar-carbs" style="width:40%;"></div></div>
+        </div>
+        <div class="macro-bar">
+          <div class="macro-label"><span>Fat</span><span>55-65g</span></div>
+          <div class="bar-track"><div class="bar-fill bar-fat" style="width:38%;"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-label">// Daily Meal Structure</div>
+
+    <div class="meal-row">
+      <div class="meal-time">06:30-07:00</div>
+      <div>
+        <div class="meal-name">Breakfast — Non-negotiable</div>
+        <div class="meal-items">3 whole eggs (any style) + Creatine 10g</div>
+      </div>
+      <div class="meal-macros"><strong>~250 kcal</strong>21g protein</div>
+    </div>
+    <div class="meal-row">
+      <div class="meal-time">12:00-13:00</div>
+      <div>
+        <div class="meal-name">Lunch</div>
+        <div class="meal-items">1 whole chicken breast + 4 beef slices + enoki + tomato + eggplant + 1/4 melon. Air fry, soy + oyster sauce.</div>
+      </div>
+      <div class="meal-macros"><strong>~575 kcal</strong>67g protein</div>
+    </div>
+    <div class="meal-row">
+      <div class="meal-time">14:00-15:00</div>
+      <div>
+        <div class="meal-name">Whey Shake <span class="tag tag-gym">Gym days only</span></div>
+        <div class="meal-items">1 scoop whey protein + water</div>
+      </div>
+      <div class="meal-macros"><strong>~120 kcal</strong>25g protein</div>
+    </div>
+    <div class="meal-row">
+      <div class="meal-time">19:00-20:00</div>
+      <div>
+        <div class="meal-name">Dinner</div>
+        <div class="meal-items">2 chicken thighs + 3 eggs + enoki + tomato + eggplant + 1/4 melon. Air fry, no oil.</div>
+      </div>
+      <div class="meal-macros"><strong>~650 kcal</strong>61g protein</div>
+    </div>
+    <div class="meal-row">
+      <div class="meal-time">20:30</div>
+      <div>
+        <div class="meal-name">Post-dinner <span class="tag tag-gym">Gym days only</span></div>
+        <div class="meal-items">1-2 bananas (carb refuel + potassium)</div>
+      </div>
+      <div class="meal-macros"><strong>~180 kcal</strong>2g protein</div>
+    </div>
+
+    <div class="highlight" style="margin-top: 24px;">
+      <strong>Gym Day Total: ~1,775 kcal / 176g protein</strong> — slightly under 2,200 target but hitting protein solidly. If you want to close the gap, add peanut butter (1 tbsp = 100 kcal, 4g protein) or a second banana.
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-label">// Supplements</div>
+    <table>
+      <thead><tr><th>Supplement</th><th>Dose</th><th>Timing</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>Creatine Monohydrate</td><td>10g / day</td><td>Morning with breakfast — every day, no exceptions</td><td>Strength, power, muscle fullness</td></tr>
+        <tr><td>Whey Protein</td><td>1 scoop / day</td><td>Afternoon between classes — gym days only</td><td>Closes protein gap, convenient</td></tr>
+        <tr><td>Water</td><td>3-4L / day</td><td>Throughout the day — more on gym days</td><td>Recovery, performance, skin</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ========== MONTH 1 ========== -->
+<div id="month1" class="tab-content">
+  <div class="section">
+    <div class="month-header">
+      <div class="month-num">01</div>
+      <div class="month-info">
+        <h2>FOUNDATION</h2>
+        <p>April - May 2026. Build habits. Learn your weights. Don't miss a session. You will not look dramatically different yet — and that's fine. This month is about laying the groundwork for months 2 and 3.</p>
+      </div>
+    </div>
+
+    <div class="section-label">// Week by Week</div>
+
+    <div class="week-row">
+      <div class="week-label">WK 1</div>
+      <div class="week-focus">
+        <h4>Calibration Week</h4>
+        <p>Find your working weights on every machine and exercise. Don't go to failure — learn the movements. 3 eggs every morning without fail. Log all weights. Take a starting photo this Sunday morning (front, side, back relaxed).</p>
+      </div>
+      <div class="week-metric"><strong>--</strong>No weight change expected</div>
+    </div>
+
+    <div class="week-row">
+      <div class="week-label">WK 2</div>
+      <div class="week-focus">
+        <h4>First Overload Week</h4>
+        <p>Now try to beat last week's reps or weight on at least 2 exercises per session. Start hitting 2,200 kcal properly on gym days — breakfast + lunch + whey + dinner + bananas. Your body starts adapting.</p>
+      </div>
+      <div class="week-metric"><strong>+0-0.5kg</strong>scale may go up (creatine water weight)</div>
+    </div>
+
+    <div class="week-row">
+      <div class="week-label">WK 3</div>
+      <div class="week-focus">
+        <h4>Groove the Habit</h4>
+        <p>If you've been eating and training right, you'll start feeling stronger. Pump in the gym feels better. You might feel slightly tighter in the waist. Sleep is critical this week — you're asking a lot of your body.</p>
+      </div>
+      <div class="week-metric"><strong>70-74kg</strong>weight stabilizes</div>
+    </div>
+
+    <div class="week-row">
+      <div class="week-label">WK 4</div>
+      <div class="week-focus">
+        <h4>First Check-In</h4>
+        <p>Sunday morning: weigh yourself, look in the mirror. Compare to week 1 photo. You probably won't see dramatic visual change — but you should feel notably stronger, especially on pull exercises. That IS progress.</p>
+      </div>
+      <div class="week-metric"><strong>Photo</strong>compare to week 1</div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="cards">
+      <div class="card yellow">
+        <div class="card-num">01</div>
+        <h3>Month 1 Goals</h3>
+        <ul>
+          <li>3 eggs breakfast every single day</li>
+          <li>Hit 155g protein daily</li>
+          <li>Zero missed gym sessions</li>
+          <li>Learn every machine and form</li>
+          <li>Creatine 10g every day</li>
+          <li>Sunday weigh-in ritual established</li>
+        </ul>
+      </div>
+      <div class="card orange">
+        <div class="card-num">02</div>
+        <h3>What To Feel</h3>
+        <ul>
+          <li>Week 1-2: Sore everywhere. Normal.</li>
+          <li>Week 2-3: Less soreness, more pump</li>
+          <li>Week 3-4: Noticeably stronger on row/pull movements</li>
+          <li>Energy more stable throughout day</li>
+          <li>Sleep quality improves</li>
+        </ul>
+      </div>
+      <div class="card green">
+        <div class="card-num">03</div>
+        <h3>What To Look Like</h3>
+        <ul>
+          <li>Scale: 70-74kg, possibly +0.5-1kg (creatine)</li>
+          <li>Mirror: slightly fuller shoulders, no dramatic change</li>
+          <li>Face: same — don't expect change yet</li>
+          <li>Waist: possibly 0.5-1cm tighter by week 4</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== MONTH 2 ========== -->
+<div id="month2" class="tab-content">
+  <div class="section">
+    <div class="month-header">
+      <div class="month-num" style="color: var(--accent2); opacity: 0.3;">02</div>
+      <div class="month-info">
+        <h2>MOMENTUM</h2>
+        <p>May - June 2026. This is when it starts showing. Weights climbing, shoulders visibly wider, waist tighter. People might start noticing. Push harder, eat smarter.</p>
+      </div>
+    </div>
+
+    <div class="section-label">// Week by Week</div>
+
+    <div class="week-row">
+      <div class="week-label">WK 5</div>
+      <div class="week-focus">
+        <h4>Strength Spike</h4>
+        <p>Neuromuscular adaptation is done — now actual strength kicks in. Expect significant weight jumps on most exercises this week. Push for new PRs on lat pulldown, bench, seated row. This is the most satisfying week.</p>
+      </div>
+      <div class="week-metric"><strong>+5-10%</strong>strength jump expected</div>
+    </div>
+
+    <div class="week-row">
+      <div class="week-label">WK 6</div>
+      <div class="week-focus">
+        <h4>Visual Change Begins</h4>
+        <p>Shoulders start to look rounder and wider from the front. Clothes fit differently on the shoulders — shirts may feel tighter on top. Keep protein at 155g+. Don't celebrate by eating junk.</p>
+      </div>
+      <div class="week-metric"><strong>Shoulder</strong>visibly wider</div>
+    </div>
+
+    <div class="week-row">
+      <div class="week-label">WK 7</div>
+      <div class="week-focus">
+        <h4>Mid-program Check</h4>
+        <p>Measure waist and shoulders. If shoulder:waist ratio hasn't moved, check your lateral raises — increase volume. If weight crept above 74kg, drop rest day calories by 100 kcal and cut one banana.</p>
+      </div>
+      <div class="week-metric"><strong>Measure</strong>waist + shoulders</div>
+    </div>
+
+    <div class="week-row">
+      <div class="week-label">WK 8</div>
+      <div class="week-focus">
+        <h4>Fatigue Management</h4>
+        <p>8 weeks of 5x training is demanding. If you feel beat up, take an extra rest day — it won't hurt. Sleep 8 hours this week. Eat at the high end of calories. Deload if everything hurts. One week of lighter weight is worth 4 weeks of injury.</p>
+      </div>
+      <div class="week-metric"><strong>Rest</strong>if needed this week</div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="cards">
+      <div class="card yellow">
+        <div class="card-num">01</div>
+        <h3>Month 2 Goals</h3>
+        <ul>
+          <li>Add 5-10% weight to all main lifts</li>
+          <li>Lateral raises 5x15 every Push B</li>
+          <li>Upper abs starting to show in good light</li>
+          <li>Shoulder measurement up vs month 1</li>
+          <li>Zero missed gym sessions</li>
+        </ul>
+      </div>
+      <div class="card orange">
+        <div class="card-num">02</div>
+        <h3>What To Feel</h3>
+        <ul>
+          <li>Genuine pump — back and shoulders feel thick</li>
+          <li>Hunger increases — feed it with protein, not carbs</li>
+          <li>Possible fatigue around week 7-8 — normal</li>
+          <li>Confidence boost from strength gains</li>
+          <li>More vascular in arms after training</li>
+        </ul>
+      </div>
+      <div class="card green">
+        <div class="card-num">03</div>
+        <h3>What To Look Like</h3>
+        <ul>
+          <li>Shoulders visibly rounder and wider</li>
+          <li>Lats visible from behind in a T-shirt</li>
+          <li>Face still sharp — good sign</li>
+          <li>Upper abs visible when flexed in good lighting</li>
+          <li>Waist slightly tighter</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== MONTH 3 ========== -->
+<div id="month3" class="tab-content">
+  <div class="section">
+    <div class="month-header">
+      <div class="month-num" style="color: var(--accent3); opacity: 0.3;">03</div>
+      <div class="month-info">
+        <h2>PEAK</h2>
+        <p>June - July 2026. Compounding payoff. V-taper visible. Abs showing. Strength significantly above starting point. This is when the transformation becomes undeniable.</p>
+      </div>
+    </div>
+
+    <div class="section-label">// Week by Week</div>
+
+    <div class="week-row">
+      <div class="week-label">WK 9</div>
+      <div class="week-focus">
+        <h4>Strength Plateau & Break Through</h4>
+        <p>You may stall on some lifts. Use the ATLAS rule — drop 10%, rebuild over 2 sessions. Add a 4th set to lagging exercises (usually lateral raises + face pulls). Eat at 2,200 kcal every gym day without exception this week.</p>
+      </div>
+      <div class="week-metric"><strong>Reload</strong>break plateaus</div>
+    </div>
+
+    <div class="week-row">
+      <div class="week-label">WK 10</div>
+      <div class="week-focus">
+        <h4>Ab Reveal Week</h4>
+        <p>If you've been consistent, upper abs will be visible relaxed in good lighting. Continue calorie deficit on rest days. Increase water intake. Cut sodium slightly this week — no extra soy sauce. This week you take a serious progress photo.</p>
+      </div>
+      <div class="week-metric"><strong>Abs</strong>visible relaxed</div>
+    </div>
+
+    <div class="week-row">
+      <div class="week-label">WK 11</div>
+      <div class="week-focus">
+        <h4>Peak Volume Week</h4>
+        <p>Hardest week of the program. Push every exercise near your limit. This is the week that builds the most muscle if you eat and sleep right. Don't miss a session. Prioritize 8 hours sleep all week.</p>
+      </div>
+      <div class="week-metric"><strong>Max</strong>volume week</div>
+    </div>
+
+    <div class="week-row">
+      <div class="week-label">WK 12</div>
+      <div class="week-focus">
+        <h4>Final Check-In + Next Cycle Plan</h4>
+        <p>Sunday: weigh in, measure waist + shoulders, take 4 photos. Compare to week 1 photo. Calculate shoulder:waist ratio. If >=1.45:1 -> you hit the goal. Plan next 12-week cycle with heavier starting weights.</p>
+      </div>
+      <div class="week-metric"><strong>Goal</strong>1.45:1 ratio</div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="cards">
+      <div class="card yellow">
+        <div class="card-num">01</div>
+        <h3>Month 3 Goals</h3>
+        <ul>
+          <li>Shoulder:waist ratio >=1.45:1</li>
+          <li>Upper abs visible relaxed in normal light</li>
+          <li>Lat pulldown 50-55kg x 10</li>
+          <li>Bench 75-80kg x 6-8</li>
+          <li>Shoulder width 110-116cm</li>
+          <li>Waist 74-78cm</li>
+        </ul>
+      </div>
+      <div class="card orange">
+        <div class="card-num">02</div>
+        <h3>What To Feel</h3>
+        <ul>
+          <li>Gym feels natural — habits are automatic</li>
+          <li>Strong and capable, not just "fit"</li>
+          <li>No more soreness after normal sessions</li>
+          <li>Confidence is different — you carry yourself differently</li>
+          <li>Food feels like fuel, not reward or stress</li>
+        </ul>
+      </div>
+      <div class="card green">
+        <div class="card-num">03</div>
+        <h3>What To Look Like</h3>
+        <ul>
+          <li>V-taper clearly visible from front and back</li>
+          <li>Muka tajam — face sharp, defined jaw</li>
+          <li>Upper abs visible at rest in good light</li>
+          <li>Arms look fuller and more defined</li>
+          <li>Shirts fit completely differently on shoulders</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== RULES ========== -->
+<div id="rules" class="tab-content">
+  <div class="section">
+    <div class="section-label">// 04 — Discipline</div>
+    <div class="section-title">DO / DON'T</div>
+
+    <div class="rules-grid">
+      <div class="rule-block do">
+        <h3>DO</h3>
+        <div class="rule-item"><span class="rule-icon">&#9745;</span><span><strong>3 eggs every morning.</strong> No exceptions, even weekends, even if you're lazy. Cook them in 5 minutes.</span></div>
+        <div class="rule-item"><span class="rule-icon">&#9745;</span><span><strong>Creatine 10g every day.</strong> Including rest days. Consistency matters more than timing.</span></div>
+        <div class="rule-item"><span class="rule-icon">&#9745;</span><span><strong>Bring gym bag to school.</strong> Go straight from class. Don't go home first — you won't come back out.</span></div>
+        <div class="rule-item"><span class="rule-icon">&#9745;</span><span><strong>3-4L water daily.</strong> Creatine requires water to work. Dehydration = no pump, no strength.</span></div>
+        <div class="rule-item"><span class="rule-icon">&#9745;</span><span><strong>Log your weights mentally.</strong> Remember what you lifted last session. Beat it this session.</span></div>
+        <div class="rule-item"><span class="rule-icon">&#9745;</span><span><strong>7-8 hours sleep.</strong> Growth hormone peaks during deep sleep. Late nights are killing your gains.</span></div>
+        <div class="rule-item"><span class="rule-icon">&#9745;</span><span><strong>Eat bananas on gym days.</strong> Your calorie gap is real. Bananas close it fast.</span></div>
+        <div class="rule-item"><span class="rule-icon">&#9745;</span><span><strong>Weekly photo every Sunday morning.</strong> Mirror lies — photos don't. This is your real data.</span></div>
+        <div class="rule-item"><span class="rule-icon">&#9745;</span><span><strong>Rest 60-90 sec between sets.</strong> Not 3 minutes on your phone. Set a timer.</span></div>
+        <div class="rule-item"><span class="rule-icon">&#9745;</span><span><strong>3 second negative on every rep.</strong> Especially lat pulldown, bicep curl. Slow down = more muscle.</span></div>
+      </div>
+      <div class="rule-block dont">
+        <h3>DON'T</h3>
+        <div class="rule-item"><span class="rule-icon">&#10005;</span><span><strong>Don't eat rice.</strong> Your rule, your goal. Bananas and veggies are your carbs. Stick to it.</span></div>
+        <div class="rule-item"><span class="rule-icon">&#10005;</span><span><strong>Don't scroll between sets.</strong> You lose rest timing and mental focus. Music yes, scrolling no.</span></div>
+        <div class="rule-item"><span class="rule-icon">&#10005;</span><span><strong>Don't go home before gym.</strong> You will not go back out. This is a known pattern — don't test it.</span></div>
+        <div class="rule-item"><span class="rule-icon">&#10005;</span><span><strong>Don't skip breakfast.</strong> Skipping = 155g protein becomes impossible. The whole day collapses.</span></div>
+        <div class="rule-item"><span class="rule-icon">&#10005;</span><span><strong>Don't weigh yourself daily.</strong> Water fluctuations will mess with your head. Sundays only.</span></div>
+        <div class="rule-item"><span class="rule-icon">&#10005;</span><span><strong>Don't train injured muscles.</strong> Pain != gains. Soreness is fine. Sharp or joint pain = stop immediately.</span></div>
+        <div class="rule-item"><span class="rule-icon">&#10005;</span><span><strong>Don't eat junk to fill calorie gap.</strong> The gap is real but fill it with bananas, eggs, peanut butter — not fried food.</span></div>
+        <div class="rule-item"><span class="rule-icon">&#10005;</span><span><strong>Don't add cardio "to burn fat."</strong> Your cycling is enough. Extra cardio = more calories needed = harder to maintain muscle.</span></div>
+        <div class="rule-item"><span class="rule-icon">&#10005;</span><span><strong>Don't ego-lift.</strong> Wrong form with heavy weight builds nothing. 8 reps clean > 5 reps ugly.</span></div>
+        <div class="rule-item"><span class="rule-icon">&#10005;</span><span><strong>Don't under-eat on gym days.</strong> 1,200 kcal on a training day = muscle breakdown. You did this today — never again.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== WHAT TO EXPECT ========== -->
+<div id="progress" class="tab-content">
+  <div class="section">
+    <div class="section-label">// 05 — Timeline</div>
+    <div class="section-title">WHAT TO EXPECT</div>
+    <p style="color: var(--muted); margin-bottom: 40px; font-size: 13px;">Week by week — realistic expectations. No hype, no lies.</p>
+
+    <div class="progress-timeline">
+      <div class="progress-item">
+        <div class="progress-week">// Week 1-2</div>
+        <div class="progress-title">Soreness & Calibration</div>
+        <div class="progress-body">
+          You will be sore. Especially legs after Day 3, and back after Pull A. This is normal — DOMS (delayed onset muscle soreness) peaks 24-48 hours after training. <strong>Don't skip the next session because you're sore</strong> — training sore muscles with lighter weight actually helps recovery. Scale might go up 0.5-1kg from creatine pulling water into muscles. This is NOT fat gain. You will not look different yet. Focus only on habits.
+        </div>
+      </div>
+
+      <div class="progress-item">
+        <div class="progress-week">// Week 3-4</div>
+        <div class="progress-title">Strength Jumps, First Signs</div>
+        <div class="progress-body">
+          Soreness decreases dramatically. You'll notice you can lift more than week 1 — this is neuromuscular adaptation (your brain getting better at recruiting muscle). <strong>Pump in the gym feels real now.</strong> In the mirror, shoulders might look slightly fuller. Face stays the same. Waist possibly 0.5cm tighter. This week you take your first progress photo Sunday morning — you probably won't see much but it's the baseline that matters at week 12.
+        </div>
+      </div>
+
+      <div class="progress-item">
+        <div class="progress-week">// Week 5-6</div>
+        <div class="progress-title">The Turn — People Start Noticing</div>
+        <div class="progress-body">
+          <strong>This is the first week it becomes real.</strong> Actual muscle protein synthesis is compounding. Shoulders look rounder and wider from the front. When you wear a fitted shirt, the shoulder-to-waist silhouette is different. Clothes fit differently. Renita might comment. You'll look at your back in the gym mirror and see lats emerging. Scale stays 70-74kg — good, this means you're gaining muscle while losing fat (recomp working). Energy throughout the day is higher.
+        </div>
+      </div>
+
+      <div class="progress-item">
+        <div class="progress-week">// Week 7-8</div>
+        <div class="progress-title">Potential Fatigue + Mid-program Plateau</div>
+        <div class="progress-body">
+          <strong>This is the hardest mental week.</strong> Progress feels slower. Some lifts might stall. You might feel more tired than usual. This is normal — your body is under cumulative stress from 7-8 weeks of hard training. Do NOT cut calories here. Eat at 2,200 kcal on all gym days. Sleep 8 hours every night this week. If everything hurts — take an extra rest day. One extra rest day is worth more than training with 60% effort. If you push through week 7-8, week 9 will feel electric.
+        </div>
+      </div>
+
+      <div class="progress-item">
+        <div class="progress-week">// Week 9-10</div>
+        <div class="progress-title">Second Strength Spike + Abs Appear</div>
+        <div class="progress-body">
+          <strong>Upper abs visible in good lighting, flexed.</strong> Possibly visible relaxed if body fat has dropped. Lateral raise and face pull volume is now paying off — shoulder width is notably wider than month 1. Strength on lat pulldown, seated row, bench all significantly above starting point. You carry yourself differently — posture is better because lats and rear delts are actually developed now. Face still sharp — this is the key indicator that body fat is where it should be.
+        </div>
+      </div>
+
+      <div class="progress-item">
+        <div class="progress-week">// Week 11-12</div>
+        <div class="progress-title">V-Taper Unlocked</div>
+        <div class="progress-body">
+          <strong>This is the transformation payoff week.</strong> V-taper clearly visible from the front — wide shoulders, narrow waist. Lats visible through a T-shirt from behind. Upper abs visible at rest in normal lighting. Arms look fuller and more defined. Face is sharp — jaw more defined. When you take the week 12 photo next to the week 1 photo, the difference will be undeniable. Shoulder:waist ratio should be approaching or exceeding 1.45:1. You are now in shape. The next 12-week cycle builds on this foundation with heavier weights and more volume.
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="highlight">
+      <strong>Most important thing to remember:</strong> Progress is not linear. There will be weeks you feel flat, weeks you feel invincible. Trust the process, hit your protein, don't miss sessions. The transformation at week 12 is a mathematical certainty if you execute consistently. The only variable is you.
+    </div>
+  </div>
+</div>
+
+<!-- ========== SETTINGS ========== -->
+<div id="settings" class="tab-content">
+  <div class="section">
+    <div class="section-label">// Configuration</div>
+    <div class="section-title">SETTINGS</div>
+
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">Program Start Date</div>
+        <div class="setting-desc">Used to calculate current week (WK 1-12)</div>
+      </div>
+      <input type="date" class="setting-input" id="settingStartDate" value="2026-04-07" onchange="updateStartDate(this.value)">
+    </div>
+
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">Default Rest Timer</div>
+        <div class="setting-desc">Seconds between sets during workout</div>
+      </div>
+      <input type="number" class="setting-input" id="settingRestTimer" value="60" min="10" max="300" style="width:100px;" onchange="updateRestTimer(this.value)">
+    </div>
+
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">Export All Data</div>
+        <div class="setting-desc">Download a JSON backup of all your data</div>
+      </div>
+      <button class="setting-btn" onclick="exportData()">EXPORT JSON</button>
+    </div>
+
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">Import Data</div>
+        <div class="setting-desc">Restore from a JSON backup file</div>
+      </div>
+      <div>
+        <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importData(event)">
+        <button class="setting-btn" onclick="document.getElementById('importFile').click()">IMPORT JSON</button>
+      </div>
+    </div>
+
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">Reset Meal Plan</div>
+        <div class="setting-desc">Restore all meals to original defaults</div>
+      </div>
+      <button class="setting-btn" onclick="resetMeals()">RESET MEALS</button>
+    </div>
+
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">Clear All Data</div>
+        <div class="setting-desc">Permanently delete all saved data</div>
+      </div>
+      <button class="setting-btn danger" onclick="showClearConfirm()">CLEAR ALL</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== MEAL EDIT MODAL ========== -->
+<div class="modal-overlay" id="mealModal">
+  <div class="modal-card">
+    <button class="modal-close" onclick="closeMealModal()">&times;</button>
+    <div class="modal-title">EDIT MEAL</div>
+    <div class="modal-field">
+      <label>Meal Name</label>
+      <input type="text" id="modalMealName">
+    </div>
+    <div class="modal-field">
+      <label>Food Items</label>
+      <textarea id="modalMealItems"></textarea>
+    </div>
+    <div class="modal-field">
+      <label>Calories (kcal)</label>
+      <input type="number" id="modalMealKcal" inputmode="numeric">
+    </div>
+    <div class="modal-field">
+      <label>Protein (g)</label>
+      <input type="number" id="modalMealProtein" inputmode="numeric">
+    </div>
+    <div class="modal-field">
+      <label>Carbs (g)</label>
+      <input type="number" id="modalMealCarbs" inputmode="numeric">
+    </div>
+    <div class="modal-field">
+      <label>Fat (g)</label>
+      <input type="number" id="modalMealFat" inputmode="numeric">
+    </div>
+    <div class="modal-actions">
+      <button class="modal-save-btn" onclick="saveMealEdit()">SAVE</button>
+      <button class="modal-reset-btn" onclick="resetSingleMeal()">RESET DEFAULT</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== CLEAR CONFIRM MODAL ========== -->
+<div class="confirm-overlay" id="clearConfirm">
+  <div class="confirm-card">
+    <h3>CLEAR ALL DATA</h3>
+    <p>This will permanently delete all tracker, workout, journal, and settings data. Type DELETE to confirm.</p>
+    <input type="text" class="confirm-input" id="clearConfirmInput" placeholder="Type DELETE">
+    <div class="confirm-actions">
+      <button class="setting-btn danger" onclick="confirmClearAll()">CONFIRM</button>
+      <button class="setting-btn" onclick="closeClearConfirm()">CANCEL</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== TOAST ========== -->
+<div class="toast" id="toast"></div>
+
+<!-- ========== FOOTER ========== -->
+<div class="footer">
+  <p>Richie Recomp Protocol — <strong>April-July 2026</strong> — Hangzhou, China</p>
+  <p>Goal: <strong>Shoulder:waist >=1.45:1</strong> | 155g protein daily | 5x gym weekly</p>
+</div>
+
+<!-- ========== JAVASCRIPT ========== -->
+<script>
+// ============================================================
+// --- CONSTANTS ---
+// ============================================================
+const SPLIT_DATA = {
+  push_a: {
+    name: 'Push A', sub: 'Chest Focus',
+    exercises: [
+      { name: 'Bench Press', sets: 4, repsLow: 8, repsHigh: 10 },
+      { name: 'Incline DB Press', sets: 3, repsLow: 10, repsHigh: 10 },
+      { name: 'Cable Lateral Raise', sets: 3, repsLow: 15, repsHigh: 15 },
+      { name: 'OHP', sets: 3, repsLow: 10, repsHigh: 10 },
+      { name: 'Tricep Pushdown', sets: 3, repsLow: 12, repsHigh: 12 },
+      { name: 'Dips', sets: 3, repsLow: 10, repsHigh: 10 }
+    ]
+  },
+  pull_a: {
+    name: 'Pull A', sub: 'Back Width',
+    exercises: [
+      { name: 'Lat Pulldown', sets: 4, repsLow: 8, repsHigh: 10 },
+      { name: 'Cable Row', sets: 3, repsLow: 10, repsHigh: 12 },
+      { name: 'Seated Row Machine', sets: 3, repsLow: 10, repsHigh: 12 },
+      { name: 'Face Pull', sets: 3, repsLow: 15, repsHigh: 15 },
+      { name: 'Barbell/Machine Curl', sets: 3, repsLow: 10, repsHigh: 12 },
+      { name: 'Hammer Curl', sets: 3, repsLow: 12, repsHigh: 12 }
+    ]
+  },
+  legs: {
+    name: 'Legs', sub: '+ Abs',
+    exercises: [
+      { name: 'Squat', sets: 4, repsLow: 8, repsHigh: 10 },
+      { name: 'RDL', sets: 3, repsLow: 10, repsHigh: 10 },
+      { name: 'Leg Press', sets: 3, repsLow: 12, repsHigh: 12 },
+      { name: 'Leg Curl', sets: 3, repsLow: 12, repsHigh: 12 },
+      { name: 'Calf Raise', sets: 4, repsLow: 15, repsHigh: 15 },
+      { name: 'Ab Superset', sets: 3, repsLow: 1, repsHigh: 99 }
+    ]
+  },
+  push_b: {
+    name: 'Push B', sub: 'Shoulder Focus',
+    exercises: [
+      { name: 'Seated DB Press', sets: 4, repsLow: 10, repsHigh: 10 },
+      { name: 'Lateral Raise', sets: 5, repsLow: 15, repsHigh: 15 },
+      { name: 'Incline Barbell', sets: 3, repsLow: 10, repsHigh: 10 },
+      { name: 'Pec Deck', sets: 3, repsLow: 12, repsHigh: 12 },
+      { name: 'Overhead Tricep', sets: 3, repsLow: 12, repsHigh: 12 },
+      { name: 'Lateral Burnout', sets: 1, repsLow: 1, repsHigh: 99 }
+    ]
+  },
+  pull_b: {
+    name: 'Pull B', sub: 'Back Thickness',
+    exercises: [
+      { name: 'Deadlift/RDL', sets: 3, repsLow: 8, repsHigh: 8 },
+      { name: 'Wide Grip Pulldown', sets: 4, repsLow: 10, repsHigh: 10 },
+      { name: 'Cable Row Wide', sets: 3, repsLow: 12, repsHigh: 12 },
+      { name: 'DB Row', sets: 3, repsLow: 10, repsHigh: 10 },
+      { name: 'Face Pull', sets: 3, repsLow: 15, repsHigh: 15 },
+      { name: 'Incline Curl', sets: 3, repsLow: 12, repsHigh: 12 }
+    ]
+  }
+};
+
+const SPLIT_ORDER = ['push_a', 'pull_a', 'legs', 'push_b', 'pull_b'];
+
+const DEFAULT_MEALS = {
+  breakfast: { name: 'Breakfast', items: '3 whole eggs (any style) + Creatine 10g', kcal: 250, protein: 21, carbs: 30, fat: 12 },
+  lunch:     { name: 'Lunch', items: '1 chicken breast + 4 beef slices + enoki + veggies + 1/4 melon', kcal: 575, protein: 67, carbs: 45, fat: 20 },
+  whey:      { name: 'Whey Shake', items: '1 scoop whey protein + water', kcal: 120, protein: 25, carbs: 2, fat: 1 },
+  dinner:    { name: 'Dinner', items: '2 chicken thighs + 3 eggs + enoki + tomato + eggplant + 1/4 melon', kcal: 650, protein: 61, carbs: 35, fat: 25 },
+  postDinner:{ name: 'Post-dinner Bananas', items: '1-2 bananas (carb refuel + potassium)', kcal: 180, protein: 2, carbs: 46, fat: 1 }
+};
+
+const GYM_TARGETS = { kcal: 2200, protein: 155, carbs: 230, fat: 70 };
+const REST_TARGETS = { kcal: 1650, protein: 155, carbs: 135, fat: 59 };
+
+const MEAL_KEYS = ['breakfast', 'lunch', 'whey', 'dinner', 'postDinner'];
+const GYM_ONLY_MEALS = ['whey', 'postDinner'];
+const CHECK_ITEMS = ['eggs', 'creatine', 'water', 'protein', 'gym', 'whey', 'sleep'];
+const GYM_ONLY_CHECKS = ['gym', 'whey'];
+
+// ============================================================
+// --- DATA LAYER ---
+// ============================================================
+function lsGet(key, fallback) {
+  try {
+    const v = localStorage.getItem(key);
+    return v ? JSON.parse(v) : fallback;
+  } catch(e) { return fallback; }
+}
+function lsSet(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) {}
+}
+
+function getSettings() {
+  return lsGet('richie_settings', { programStartDate: '2026-04-07', defaultRestTimer: 60, timerMuted: false });
+}
+function saveSettings(s) { lsSet('richie_settings', s); }
+
+function getMeals() {
+  return lsGet('richie_meals', JSON.parse(JSON.stringify(DEFAULT_MEALS)));
+}
+function saveMeals(m) { lsSet('richie_meals', m); }
+
+function getTracker(date) {
+  const all = lsGet('richie_tracker', {});
+  return all[date] || null;
+}
+function saveTracker(date, data) {
+  const all = lsGet('richie_tracker', {});
+  all[date] = data;
+  lsSet('richie_tracker', all);
+}
+
+function getWorkout(date) {
+  const all = lsGet('richie_workouts', {});
+  return all[date] || null;
+}
+function saveWorkout(date, data) {
+  const all = lsGet('richie_workouts', {});
+  all[date] = data;
+  lsSet('richie_workouts', all);
+}
+function getAllWorkouts() { return lsGet('richie_workouts', {}); }
+
+function getJournal(date) {
+  const all = lsGet('richie_journal', {});
+  return all[date] || null;
+}
+function saveJournal(date, data) {
+  const all = lsGet('richie_journal', {});
+  all[date] = data;
+  lsSet('richie_journal', all);
+}
+function getAllJournals() { return lsGet('richie_journal', {}); }
+
+function getPRs() { return lsGet('richie_prs', {}); }
+function savePRs(p) { lsSet('richie_prs', p); }
+
+// ============================================================
+// --- UTILITY ---
+// ============================================================
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function dateStr(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function formatDateDisplay(ds) {
+  const d = new Date(ds + 'T00:00:00');
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return days[d.getDay()] + ' ' + d.getDate() + ' ' + months[d.getMonth()];
+}
+
+function getWeekNumber() {
+  const s = getSettings();
+  const start = new Date(s.programStartDate + 'T00:00:00');
+  const now = new Date();
+  const diff = Math.floor((now - start) / (1000*60*60*24));
+  const wk = Math.floor(diff / 7) + 1;
+  return Math.max(1, Math.min(wk, 12));
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ============================================================
+// --- TAB NAVIGATION ---
+// ============================================================
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const tab = this.getAttribute('data-tab');
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(tab).classList.add('active');
+    this.classList.add('active');
+    if (tab === 'tracker') renderTracker();
+    if (tab === 'journal') renderJournal();
+    if (tab === 'workout') renderWorkoutTab();
+    if (tab === 'settings') renderSettings();
+  });
+});
+
+// ============================================================
+// --- WEEK BADGE ---
+// ============================================================
+function updateWeekBadge() {
+  document.getElementById('weekBadge').textContent = 'WK ' + getWeekNumber() + ' / 12';
+}
+
+// ============================================================
+// --- TRACKER ---
+// ============================================================
+let currentTrackerDate = todayStr();
+
+function getOrCreateTracker(date) {
+  let t = getTracker(date);
+  if (!t) {
+    t = {
+      isGymDay: true,
+      checklist: { eggs: false, creatine: false, water: false, protein: false, gym: false, whey: false, sleep: false },
+      mealsEaten: { breakfast: false, lunch: false, whey: false, dinner: false, postDinner: false }
+    };
+  }
+  return t;
+}
+
+function renderTracker() {
+  currentTrackerDate = todayStr();
+  const td = getOrCreateTracker(currentTrackerDate);
+  const settings = getSettings();
+
+  // Date display
+  const wk = getWeekNumber();
+  document.getElementById('trackerDate').textContent = formatDateDisplay(currentTrackerDate) + ' — WK ' + wk + ' / 12';
+
+  // Day toggle
+  const toggle = document.getElementById('dayToggle');
+  toggle.checked = !td.isGymDay;
+  updateDayToggleLabels(!td.isGymDay);
+
+  // Checklist
+  renderChecklist(td);
+
+  // Meals
+  renderMealCards(td);
+
+  // Macro totals
+  renderMacroTotals(td);
+}
+
+function updateDayToggleLabels(isRest) {
+  document.getElementById('gymLabel').classList.toggle('active-label', !isRest);
+  document.getElementById('restLabel').classList.toggle('active-label', isRest);
+}
+
+document.getElementById('dayToggle').addEventListener('change', function() {
+  const td = getOrCreateTracker(currentTrackerDate);
+  td.isGymDay = !this.checked;
+  saveTracker(currentTrackerDate, td);
+  updateDayToggleLabels(this.checked);
+  renderChecklist(td);
+  renderMealCards(td);
+  renderMacroTotals(td);
+});
+
+function renderChecklist(td) {
+  const grid = document.getElementById('checklistGrid');
+  grid.querySelectorAll('.check-item').forEach(item => {
+    const key = item.getAttribute('data-check');
+    item.classList.toggle('checked', !!td.checklist[key]);
+
+    if (GYM_ONLY_CHECKS.includes(key)) {
+      item.classList.toggle('hidden-item', !td.isGymDay);
+    }
+  });
+  updateChecklistProgress(td);
+}
+
+function toggleCheck(el) {
+  const key = el.getAttribute('data-check');
+  const td = getOrCreateTracker(currentTrackerDate);
+  td.checklist[key] = !td.checklist[key];
+  saveTracker(currentTrackerDate, td);
+  el.classList.toggle('checked', td.checklist[key]);
+  updateChecklistProgress(td);
+}
+
+function updateChecklistProgress(td) {
+  let total = 0, done = 0;
+  CHECK_ITEMS.forEach(k => {
+    if (GYM_ONLY_CHECKS.includes(k) && !td.isGymDay) return;
+    total++;
+    if (td.checklist[k]) done++;
+  });
+  const pct = total ? Math.round((done/total)*100) : 0;
+  document.getElementById('checklistProgress').style.width = pct + '%';
+}
+
+function renderMealCards(td) {
+  const meals = getMeals();
+  const container = document.getElementById('mealCards');
+  container.innerHTML = '';
+
+  MEAL_KEYS.forEach(key => {
+    const m = meals[key];
+    const isGymOnly = GYM_ONLY_MEALS.includes(key);
+    const eaten = !!td.mealsEaten[key];
+
+    const card = document.createElement('div');
+    card.className = 'meal-card' + (eaten ? ' eaten' : '') + (isGymOnly ? ' gym-only-meal' : '') + (isGymOnly && !td.isGymDay ? ' hidden-meal' : '');
+
+    card.innerHTML =
+      '<button class="meal-check-btn" onclick="toggleMealEaten(\'' + key + '\')">' + (eaten ? '&#10003;' : '') + '</button>' +
+      '<div class="meal-card-info">' +
+        '<div class="meal-card-name">' + m.name + (isGymOnly ? ' <span class="tag tag-gym">gym only</span>' : '') + '</div>' +
+        '<div class="meal-card-items">' + m.items + '</div>' +
+      '</div>' +
+      '<div class="meal-card-macros">' +
+        '<strong>' + m.kcal + ' kcal</strong>' +
+        m.protein + 'P / ' + m.carbs + 'C / ' + m.fat + 'F' +
+      '</div>' +
+      '<button class="meal-edit-btn" onclick="openMealModal(\'' + key + '\')" title="Edit meal">&#9998;</button>';
+
+    container.appendChild(card);
+  });
+}
+
+function toggleMealEaten(key) {
+  const td = getOrCreateTracker(currentTrackerDate);
+  td.mealsEaten[key] = !td.mealsEaten[key];
+  saveTracker(currentTrackerDate, td);
+  renderMealCards(td);
+  renderMacroTotals(td);
+}
+
+function renderMacroTotals(td) {
+  const meals = getMeals();
+  const targets = td.isGymDay ? GYM_TARGETS : REST_TARGETS;
+
+  let eaten = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+  MEAL_KEYS.forEach(key => {
+    if (GYM_ONLY_MEALS.includes(key) && !td.isGymDay) return;
+    if (td.mealsEaten[key]) {
+      const m = meals[key];
+      eaten.kcal += m.kcal;
+      eaten.protein += m.protein;
+      eaten.carbs += m.carbs;
+      eaten.fat += m.fat;
+    }
+  });
+
+  const container = document.getElementById('macroTotals');
+  const macros = [
+    { key: 'kcal', label: 'Calories', cls: 'cal', unit: 'kcal' },
+    { key: 'protein', label: 'Protein', cls: 'pro', unit: 'g' },
+    { key: 'carbs', label: 'Carbs', cls: 'carb', unit: 'g' },
+    { key: 'fat', label: 'Fat', cls: 'fat', unit: 'g' }
+  ];
+
+  container.innerHTML = macros.map(m => {
+    const pct = targets[m.key] ? Math.min(Math.round((eaten[m.key]/targets[m.key])*100), 100) : 0;
+    return '<div class="macro-total-row">' +
+      '<div class="macro-total-header">' +
+        '<span class="label">' + m.label + '</span>' +
+        '<span class="values">' + eaten[m.key] + ' / ' + targets[m.key] + ' ' + m.unit + '</span>' +
+      '</div>' +
+      '<div class="macro-total-bar">' +
+        '<div class="macro-total-fill ' + m.cls + '" style="width:' + pct + '%"></div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+// ============================================================
+// --- MEAL EDITOR MODAL ---
+// ============================================================
+let editingMealKey = null;
+
+function openMealModal(key) {
+  editingMealKey = key;
+  const meals = getMeals();
+  const m = meals[key];
+  document.getElementById('modalMealName').value = m.name;
+  document.getElementById('modalMealItems').value = m.items;
+  document.getElementById('modalMealKcal').value = m.kcal;
+  document.getElementById('modalMealProtein').value = m.protein;
+  document.getElementById('modalMealCarbs').value = m.carbs;
+  document.getElementById('modalMealFat').value = m.fat;
+  document.getElementById('mealModal').classList.add('open');
+}
+
+function closeMealModal() {
+  document.getElementById('mealModal').classList.remove('open');
+  editingMealKey = null;
+}
+
+function saveMealEdit() {
+  if (!editingMealKey) return;
+  const meals = getMeals();
+  meals[editingMealKey] = {
+    name: document.getElementById('modalMealName').value,
+    items: document.getElementById('modalMealItems').value,
+    kcal: parseInt(document.getElementById('modalMealKcal').value) || 0,
+    protein: parseInt(document.getElementById('modalMealProtein').value) || 0,
+    carbs: parseInt(document.getElementById('modalMealCarbs').value) || 0,
+    fat: parseInt(document.getElementById('modalMealFat').value) || 0
+  };
+  saveMeals(meals);
+  closeMealModal();
+  renderTracker();
+  showToast('Meal updated');
+}
+
+function resetSingleMeal() {
+  if (!editingMealKey) return;
+  const meals = getMeals();
+  meals[editingMealKey] = JSON.parse(JSON.stringify(DEFAULT_MEALS[editingMealKey]));
+  saveMeals(meals);
+  closeMealModal();
+  renderTracker();
+  showToast('Meal reset to default');
+}
+
+// Close modal on backdrop click
+document.getElementById('mealModal').addEventListener('click', function(e) {
+  if (e.target === this) closeMealModal();
+});
+
+// ============================================================
+// --- WORKOUT TAB ---
+// ============================================================
+let currentSplit = null;
+let currentWorkoutData = null;
+let timerInterval = null;
+let timerRemaining = 0;
+let timerDuration = 60;
+let timerMuted = false;
+
+function renderWorkoutTab() {
+  const s = getSettings();
+  timerDuration = s.defaultRestTimer || 60;
+  timerMuted = !!s.timerMuted;
+  updateMuteBtn();
+
+  if (currentSplit) {
+    renderActiveWorkout();
+  } else {
+    document.getElementById('splitSelectorView').style.display = 'block';
+    document.getElementById('activeWorkoutView').style.display = 'none';
+    renderSplitSelector();
+  }
+}
+
+function getSuggestedSplit() {
+  const workouts = getAllWorkouts();
+  const dates = Object.keys(workouts).sort().reverse();
+  if (dates.length === 0) return 'push_a';
+  const lastSplit = workouts[dates[0]].splitDay;
+  const idx = SPLIT_ORDER.indexOf(lastSplit);
+  return SPLIT_ORDER[(idx + 1) % SPLIT_ORDER.length];
+}
+
+function renderSplitSelector() {
+  const suggested = getSuggestedSplit();
+  const container = document.getElementById('splitSelector');
+  container.innerHTML = '';
+
+  SPLIT_ORDER.forEach(key => {
+    const sd = SPLIT_DATA[key];
+    const isSuggested = key === suggested;
+    const btn = document.createElement('button');
+    btn.className = 'split-select-btn' + (isSuggested ? ' suggested' : '');
+    btn.innerHTML =
+      '<span class="split-name">' + sd.name + '</span>' +
+      '<span class="split-sub">' + sd.sub + '</span>' +
+      (isSuggested ? '<span class="suggested-tag">NEXT UP</span>' : '');
+    btn.onclick = function() { selectSplit(key); };
+    container.appendChild(btn);
+  });
+}
+
+function selectSplit(key) {
+  currentSplit = key;
+  const today = todayStr();
+  let existing = getWorkout(today);
+  if (existing && existing.splitDay === key) {
+    currentWorkoutData = existing;
+  } else {
+    const sd = SPLIT_DATA[key];
+    currentWorkoutData = {
+      splitDay: key,
+      exercises: sd.exercises.map(ex => ({
+        name: ex.name,
+        sets: Array.from({length: ex.sets}, () => ({weight: '', reps: '', notes: ''}))
+      })),
+      completedAt: null
+    };
+  }
+  document.getElementById('splitSelectorView').style.display = 'none';
+  document.getElementById('activeWorkoutView').style.display = 'block';
+  renderActiveWorkout();
+}
+
+function backToSplits() {
+  currentSplit = null;
+  currentWorkoutData = null;
+  stopTimer();
+  document.getElementById('restTimer').classList.remove('visible');
+  document.getElementById('splitSelectorView').style.display = 'block';
+  document.getElementById('activeWorkoutView').style.display = 'none';
+  renderSplitSelector();
+}
+
+function getPreviousSession(splitKey, exerciseName) {
+  const workouts = getAllWorkouts();
+  const dates = Object.keys(workouts).sort().reverse();
+  for (const d of dates) {
+    if (d === todayStr()) continue;
+    const w = workouts[d];
+    if (w.splitDay !== splitKey) continue;
+    const ex = w.exercises.find(e => e.name === exerciseName);
+    if (ex) return ex.sets;
+  }
+  return null;
+}
+
+function renderActiveWorkout() {
+  const sd = SPLIT_DATA[currentSplit];
+  const prs = getPRs();
+  const container = document.getElementById('exerciseList');
+  container.innerHTML = '';
+
+  sd.exercises.forEach((exDef, exIdx) => {
+    const exData = currentWorkoutData.exercises[exIdx];
+    const prev = getPreviousSession(currentSplit, exDef.name);
+    const pr = prs[exDef.name];
+    const repRange = exDef.repsLow === exDef.repsHigh ?
+      exDef.sets + 'x' + exDef.repsLow :
+      exDef.sets + 'x' + exDef.repsLow + '-' + exDef.repsHigh;
+
+    let html = '<div class="exercise-card" id="ex-' + exIdx + '">';
+    html += '<div class="exercise-header">';
+    html += '<div><div class="exercise-name">' + exDef.name + '</div>';
+    html += '<div class="exercise-target">' + repRange + '</div></div>';
+    html += '<div class="exercise-badges">';
+    if (pr) html += '<div class="pr-badge">PR: ' + pr.weight + 'kg x ' + pr.reps + '</div>';
+    html += '</div></div>';
+
+    if (prev) {
+      const prevStr = prev.filter(s => s.weight && s.reps).map(s => s.weight + 'kg x ' + s.reps).join(' | ');
+      if (prevStr) html += '<div class="prev-data">Last: ' + prevStr + '</div>';
+    }
+
+    html += '<div class="set-rows">';
+    exData.sets.forEach((set, sIdx) => {
+      const isSaved = set.weight !== '' && set.reps !== '';
+      const prefillW = set.weight !== '' ? set.weight : (prev && prev[sIdx] ? prev[sIdx].weight : '');
+      const prefillR = set.reps !== '' ? set.reps : (prev && prev[sIdx] ? prev[sIdx].reps : '');
+
+      html += '<div class="set-row' + (isSaved ? ' saved' : '') + '" id="set-' + exIdx + '-' + sIdx + '">';
+      html += '<span class="set-num">S' + (sIdx+1) + '</span>';
+      html += '<div><div class="set-input-label">KG</div><input type="number" class="set-input" inputmode="decimal" id="w-' + exIdx + '-' + sIdx + '" value="' + prefillW + '" placeholder="0"></div>';
+      html += '<div><div class="set-input-label">REPS</div><input type="number" class="set-input" inputmode="numeric" id="r-' + exIdx + '-' + sIdx + '" value="' + prefillR + '" placeholder="0"></div>';
+      html += '<button class="set-save-btn" onclick="saveSet(' + exIdx + ',' + sIdx + ')">' + (isSaved ? '&#10003;' : 'SAVE') + '</button>';
+      html += '</div>';
+    });
+    html += '</div>';
+
+    // Overload nudge
+    html += '<div class="overload-nudge" id="nudge-' + exIdx + '"></div>';
+
+    // Notes
+    html += '<div class="exercise-notes-toggle">';
+    html += '<button class="notes-toggle-btn" onclick="toggleExNotes(' + exIdx + ')">+ Notes</button>';
+    html += '</div>';
+    html += '<div class="exercise-notes-area" id="notes-area-' + exIdx + '">';
+    const noteVal = exData.sets[0] && exData.sets[0].notes ? exData.sets[0].notes : '';
+    html += '<textarea id="notes-' + exIdx + '" placeholder="Add notes..." onchange="saveExNote(' + exIdx + ')">' + noteVal + '</textarea>';
+    html += '</div>';
+
+    html += '</div>';
+    container.innerHTML += html;
+  });
+
+  updateSessionSummary();
+  checkOverloadNudges();
+}
+
+function saveSet(exIdx, sIdx) {
+  const wInput = document.getElementById('w-' + exIdx + '-' + sIdx);
+  const rInput = document.getElementById('r-' + exIdx + '-' + sIdx);
+  const w = parseFloat(wInput.value) || 0;
+  const r = parseInt(rInput.value) || 0;
+
+  if (w <= 0 || r <= 0) return;
+
+  currentWorkoutData.exercises[exIdx].sets[sIdx].weight = w;
+  currentWorkoutData.exercises[exIdx].sets[sIdx].reps = r;
+
+  saveWorkout(todayStr(), currentWorkoutData);
+
+  // Update PR
+  const exName = SPLIT_DATA[currentSplit].exercises[exIdx].name;
+  const prs = getPRs();
+  const volume = w * r;
+  if (!prs[exName] || (prs[exName].weight * prs[exName].reps) < volume) {
+    prs[exName] = { weight: w, reps: r, date: todayStr() };
+    savePRs(prs);
+  }
+
+  // Visual feedback
+  const row = document.getElementById('set-' + exIdx + '-' + sIdx);
+  row.classList.add('saved');
+  row.querySelector('.set-save-btn').innerHTML = '&#10003;';
+
+  // Start rest timer
+  startTimer();
+
+  updateSessionSummary();
+  checkOverloadNudges();
+  showToast('Set saved');
+}
+
+function saveExNote(exIdx) {
+  const val = document.getElementById('notes-' + exIdx).value;
+  currentWorkoutData.exercises[exIdx].sets[0].notes = val;
+  saveWorkout(todayStr(), currentWorkoutData);
+}
+
+function toggleExNotes(exIdx) {
+  document.getElementById('notes-area-' + exIdx).classList.toggle('open');
+}
+
+function checkOverloadNudges() {
+  const sd = SPLIT_DATA[currentSplit];
+  sd.exercises.forEach((exDef, exIdx) => {
+    const exData = currentWorkoutData.exercises[exIdx];
+    const allSaved = exData.sets.every(s => s.weight !== '' && s.reps !== '');
+    if (!allSaved) return;
+
+    const allAtTop = exData.sets.every(s => parseInt(s.reps) >= exDef.repsHigh);
+    const nudge = document.getElementById('nudge-' + exIdx);
+    if (!nudge) return;
+
+    if (allAtTop && exDef.repsHigh < 99) {
+      nudge.textContent = 'All sets at target — add weight next session!';
+      nudge.classList.add('visible');
+    } else {
+      nudge.classList.remove('visible');
+    }
+  });
+}
+
+function updateSessionSummary() {
+  let totalVolume = 0, totalPRs = 0, completedExercises = 0;
+  const prs = getPRs();
+
+  currentWorkoutData.exercises.forEach((ex, idx) => {
+    let exComplete = false;
+    ex.sets.forEach(s => {
+      if (s.weight !== '' && s.reps !== '') {
+        totalVolume += parseFloat(s.weight) * parseInt(s.reps);
+        exComplete = true;
+      }
+    });
+    if (exComplete) completedExercises++;
+  });
+
+  // Count PRs from today
+  Object.values(prs).forEach(pr => {
+    if (pr.date === todayStr()) totalPRs++;
+  });
+
+  const summary = document.getElementById('sessionSummary');
+  const stats = document.getElementById('summaryStats');
+
+  if (completedExercises > 0) {
+    summary.classList.add('visible');
+    stats.innerHTML =
+      '<div class="summary-stat"><div class="summary-stat-val">' + Math.round(totalVolume) + '</div><div class="summary-stat-label">Total Volume (kg)</div></div>' +
+      '<div class="summary-stat"><div class="summary-stat-val">' + totalPRs + '</div><div class="summary-stat-label">PRs Hit</div></div>' +
+      '<div class="summary-stat"><div class="summary-stat-val">' + completedExercises + '/' + currentWorkoutData.exercises.length + '</div><div class="summary-stat-label">Exercises</div></div>';
+  } else {
+    summary.classList.remove('visible');
+  }
+}
+
+function finishWorkout() {
+  currentWorkoutData.completedAt = new Date().toISOString();
+  saveWorkout(todayStr(), currentWorkoutData);
+  showToast('Workout saved!');
+  stopTimer();
+  currentSplit = null;
+  currentWorkoutData = null;
+  document.getElementById('restTimer').classList.remove('visible');
+  document.getElementById('splitSelectorView').style.display = 'block';
+  document.getElementById('activeWorkoutView').style.display = 'none';
+  renderSplitSelector();
+}
+
+// ============================================================
+// --- REST TIMER ---
+// ============================================================
+function startTimer() {
+  stopTimer();
+  timerRemaining = timerDuration;
+  document.getElementById('restTimer').classList.add('visible');
+  updateTimerDisplay();
+
+  timerInterval = setInterval(() => {
+    timerRemaining--;
+    if (timerRemaining <= 0) {
+      stopTimer();
+      timerRemaining = 0;
+      updateTimerDisplay();
+      playBeep();
+    } else {
+      updateTimerDisplay();
+    }
+  }, 1000);
+}
+
+function stopTimer() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+}
+
+function updateTimerDisplay() {
+  document.getElementById('timerDisplay').textContent = timerRemaining;
+  const pct = timerDuration > 0 ? (timerRemaining / timerDuration) * 100 : 0;
+  document.getElementById('timerBarFill').style.width = pct + '%';
+}
+
+function setTimerDuration(dur) {
+  timerDuration = dur;
+  document.querySelectorAll('.timer-btn[data-dur]').forEach(b => {
+    b.classList.toggle('active-timer', parseInt(b.getAttribute('data-dur')) === dur);
+  });
+  // Don't auto-start on duration change, just update for next set
+}
+
+function promptCustomTimer() {
+  const val = prompt('Enter custom timer duration (seconds):', '120');
+  if (val && !isNaN(val) && parseInt(val) > 0) {
+    timerDuration = parseInt(val);
+    document.querySelectorAll('.timer-btn[data-dur]').forEach(b => b.classList.remove('active-timer'));
+  }
+}
+
+function skipTimer() {
+  stopTimer();
+  timerRemaining = 0;
+  updateTimerDisplay();
+}
+
+function toggleMute() {
+  timerMuted = !timerMuted;
+  const s = getSettings();
+  s.timerMuted = timerMuted;
+  saveSettings(s);
+  updateMuteBtn();
+}
+
+function updateMuteBtn() {
+  const btn = document.getElementById('muteBtn');
+  if (btn) btn.innerHTML = timerMuted ? '&#128263;' : '&#128264;';
+}
+
+function playBeep() {
+  if (timerMuted) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 800;
+    osc.type = 'sine';
+    gain.gain.value = 0.3;
+    osc.start();
+    osc.stop(ctx.currentTime + 0.2);
+    // Play second beep
+    setTimeout(() => {
+      try {
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.frequency.value = 800;
+        osc2.type = 'sine';
+        gain2.gain.value = 0.3;
+        osc2.start();
+        osc2.stop(ctx.currentTime + 0.2);
+      } catch(e) {}
+    }, 300);
+  } catch(e) {}
+}
+
+// ============================================================
+// --- JOURNAL ---
+// ============================================================
+let selectedJournalDate = todayStr();
+let journalSaveTimeout = null;
+
+function renderJournal() {
+  renderCalendarStrip();
+  renderJournalEntry();
+}
+
+function renderCalendarStrip() {
+  const container = document.getElementById('calendarStrip');
+  container.innerHTML = '';
+  const today = new Date();
+  const journals = getAllJournals();
+
+  for (let i = -7; i <= 7; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() + i);
+    const ds = dateStr(d);
+    const days = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+
+    const el = document.createElement('div');
+    el.className = 'cal-day';
+    if (ds === todayStr()) el.classList.add('today');
+    if (ds === selectedJournalDate) el.classList.add('selected');
+    if (journals[ds]) el.classList.add('has-entry');
+
+    el.innerHTML =
+      '<div class="cal-day-name">' + days[d.getDay()] + '</div>' +
+      '<div class="cal-day-num">' + d.getDate() + '</div>' +
+      '<div class="cal-dot"></div>';
+
+    el.onclick = function() {
+      selectedJournalDate = ds;
+      renderJournal();
+    };
+    container.appendChild(el);
+  }
+
+  // Scroll to center (today)
+  setTimeout(() => {
+    const selected = container.querySelector('.selected') || container.querySelector('.today');
+    if (selected) selected.scrollIntoView({ inline: 'center', behavior: 'smooth' });
+  }, 50);
+}
+
+function renderJournalEntry() {
+  const entry = getJournal(selectedJournalDate) || {};
+  const trackerData = getTracker(selectedJournalDate);
+
+  // Checklist
+  const checkContainer = document.getElementById('journalChecklist');
+  checkContainer.innerHTML = '';
+  CHECK_ITEMS.forEach(key => {
+    const labels = {
+      eggs: '3 eggs breakfast', creatine: 'Creatine 10g', water: '3L+ water',
+      protein: 'Protein 155g', gym: 'Gym session', whey: 'Whey shake', sleep: '7+ hrs sleep'
+    };
+    // Auto-populate from tracker if available
+    let checked = false;
+    if (entry.checklist && entry.checklist[key] !== undefined) {
+      checked = entry.checklist[key];
+    } else if (trackerData && trackerData.checklist && trackerData.checklist[key]) {
+      checked = true;
+    }
+
+    const el = document.createElement('div');
+    el.className = 'check-item' + (checked ? ' checked' : '');
+    el.setAttribute('data-jcheck', key);
+    el.innerHTML = '<div class="check-box"><span class="check-box-tick">&#10003;</span></div><span class="check-text">' + labels[key] + '</span>';
+    el.onclick = function() {
+      this.classList.toggle('checked');
+      autoSaveJournal();
+    };
+    checkContainer.appendChild(el);
+  });
+
+  // Weight
+  document.getElementById('journalWeight').value = entry.weight || '';
+
+  // Mood
+  document.querySelectorAll('.mood-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.getAttribute('data-mood')) === (entry.energy || 0));
+  });
+
+  // Notes
+  document.getElementById('journalNotes').value = entry.notes || '';
+
+  // Weekly summary for Sundays
+  const selDate = new Date(selectedJournalDate + 'T00:00:00');
+  if (selDate.getDay() === 0) {
+    renderWeeklySummary(selDate);
+  } else {
+    document.getElementById('weeklySummary').classList.remove('visible');
+  }
+}
+
+function setMood(val) {
+  document.querySelectorAll('.mood-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.getAttribute('data-mood')) === val);
+  });
+  autoSaveJournal();
+}
+
+function autoSaveJournal() {
+  if (journalSaveTimeout) clearTimeout(journalSaveTimeout);
+  journalSaveTimeout = setTimeout(() => {
+    const checklist = {};
+    document.querySelectorAll('#journalChecklist .check-item').forEach(el => {
+      checklist[el.getAttribute('data-jcheck')] = el.classList.contains('checked');
+    });
+
+    const weight = parseFloat(document.getElementById('journalWeight').value) || null;
+    let energy = 0;
+    document.querySelectorAll('.mood-btn.active').forEach(b => {
+      energy = parseInt(b.getAttribute('data-mood'));
+    });
+    const notes = document.getElementById('journalNotes').value;
+
+    const entry = { checklist, weight, energy, notes };
+    saveJournal(selectedJournalDate, entry);
+
+    // Update calendar dots
+    renderCalendarStrip();
+    showToast('Saved');
+  }, 500);
+}
+
+// Auto-save listeners
+document.getElementById('journalWeight').addEventListener('input', autoSaveJournal);
+document.getElementById('journalNotes').addEventListener('input', autoSaveJournal);
+
+function renderWeeklySummary(sunday) {
+  const container = document.getElementById('weeklySummary');
+  const grid = document.getElementById('weeklySummaryGrid');
+
+  // Get the week: Mon before this Sunday through this Sunday
+  const weekDates = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(sunday);
+    d.setDate(d.getDate() - i);
+    weekDates.push(dateStr(d));
+  }
+
+  const trackerAll = lsGet('richie_tracker', {});
+  const journalAll = getAllJournals();
+
+  let gymSessions = 0;
+  let totalProtein = 0;
+  let proteinDays = 0;
+  let checklistTotal = 0;
+  let checklistDone = 0;
+  let weights = [];
+
+  weekDates.forEach(ds => {
+    const t = trackerAll[ds];
+    if (t) {
+      if (t.isGymDay) {
+        // Count if gym check is done
+        if (t.checklist && t.checklist.gym) gymSessions++;
+      }
+
+      // Checklist counts
+      CHECK_ITEMS.forEach(k => {
+        if (GYM_ONLY_CHECKS.includes(k) && t && !t.isGymDay) return;
+        checklistTotal++;
+        if (t.checklist && t.checklist[k]) checklistDone++;
+      });
+
+      // Protein from meals
+      const meals = getMeals();
+      let dayProtein = 0;
+      MEAL_KEYS.forEach(mk => {
+        if (GYM_ONLY_MEALS.includes(mk) && !t.isGymDay) return;
+        if (t.mealsEaten && t.mealsEaten[mk]) dayProtein += meals[mk].protein;
+      });
+      if (dayProtein > 0) {
+        totalProtein += dayProtein;
+        proteinDays++;
+      }
+    }
+
+    const j = journalAll[ds];
+    if (j && j.weight) weights.push(j.weight);
+  });
+
+  const avgProtein = proteinDays > 0 ? Math.round(totalProtein / proteinDays) : 0;
+  const checkPct = checklistTotal > 0 ? Math.round((checklistDone / checklistTotal) * 100) : 0;
+  const weightTrend = weights.length >= 2 ? (weights[weights.length-1] - weights[0]).toFixed(1) : '--';
+
+  grid.innerHTML =
+    '<div class="ws-item"><div class="ws-item-val">' + gymSessions + ' / 5</div><div class="ws-item-label">Gym Sessions</div></div>' +
+    '<div class="ws-item"><div class="ws-item-val">' + avgProtein + 'g</div><div class="ws-item-label">Avg Daily Protein</div></div>' +
+    '<div class="ws-item"><div class="ws-item-val">' + checkPct + '%</div><div class="ws-item-label">Checklist Rate</div></div>' +
+    '<div class="ws-item"><div class="ws-item-val">' + (weights.length > 0 ? weights[weights.length-1] + 'kg' : '--') + '</div><div class="ws-item-label">Weight (' + (typeof weightTrend === 'string' ? weightTrend : (weightTrend >= 0 ? '+' + weightTrend : weightTrend) + 'kg') + ')</div></div>';
+
+  container.classList.add('visible');
+}
+
+// ============================================================
+// --- SETTINGS ---
+// ============================================================
+function renderSettings() {
+  const s = getSettings();
+  document.getElementById('settingStartDate').value = s.programStartDate;
+  document.getElementById('settingRestTimer').value = s.defaultRestTimer;
+}
+
+function updateStartDate(val) {
+  const s = getSettings();
+  s.programStartDate = val;
+  saveSettings(s);
+  updateWeekBadge();
+  showToast('Start date updated');
+}
+
+function updateRestTimer(val) {
+  const s = getSettings();
+  s.defaultRestTimer = parseInt(val) || 60;
+  saveSettings(s);
+  timerDuration = s.defaultRestTimer;
+  showToast('Rest timer updated');
+}
+
+function exportData() {
+  const data = {
+    richie_settings: getSettings(),
+    richie_meals: getMeals(),
+    richie_tracker: lsGet('richie_tracker', {}),
+    richie_workouts: getAllWorkouts(),
+    richie_journal: getAllJournals(),
+    richie_prs: getPRs(),
+    exportDate: new Date().toISOString()
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'richie-fitness-backup-' + todayStr() + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Data exported');
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.richie_settings) lsSet('richie_settings', data.richie_settings);
+      if (data.richie_meals) lsSet('richie_meals', data.richie_meals);
+      if (data.richie_tracker) lsSet('richie_tracker', data.richie_tracker);
+      if (data.richie_workouts) lsSet('richie_workouts', data.richie_workouts);
+      if (data.richie_journal) lsSet('richie_journal', data.richie_journal);
+      if (data.richie_prs) lsSet('richie_prs', data.richie_prs);
+      showToast('Data imported successfully');
+      renderTracker();
+      updateWeekBadge();
+      renderSettings();
+    } catch(err) {
+      showToast('Import failed: invalid file');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function resetMeals() {
+  if (!confirm('Reset all meals to defaults?')) return;
+  saveMeals(JSON.parse(JSON.stringify(DEFAULT_MEALS)));
+  renderTracker();
+  showToast('Meals reset to defaults');
+}
+
+function showClearConfirm() {
+  document.getElementById('clearConfirm').classList.add('open');
+  document.getElementById('clearConfirmInput').value = '';
+  document.getElementById('clearConfirmInput').focus();
+}
+
+function closeClearConfirm() {
+  document.getElementById('clearConfirm').classList.remove('open');
+}
+
+function confirmClearAll() {
+  if (document.getElementById('clearConfirmInput').value !== 'DELETE') {
+    showToast('Type DELETE to confirm');
+    return;
+  }
+  localStorage.removeItem('richie_settings');
+  localStorage.removeItem('richie_meals');
+  localStorage.removeItem('richie_tracker');
+  localStorage.removeItem('richie_workouts');
+  localStorage.removeItem('richie_journal');
+  localStorage.removeItem('richie_prs');
+  closeClearConfirm();
+  renderTracker();
+  updateWeekBadge();
+  renderSettings();
+  showToast('All data cleared');
+}
+
+document.getElementById('clearConfirm').addEventListener('click', function(e) {
+  if (e.target === this) closeClearConfirm();
+});
+
+// ============================================================
+// --- INIT ---
+// ============================================================
+function init() {
+  updateWeekBadge();
+  renderTracker();
+}
+
+init();
+</script>
+</body>
+</html>
