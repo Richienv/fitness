@@ -41,7 +41,7 @@ export const INGREDIENTS: Ingredient[] = [
   { id: "purple-rice",  name: "Purple rice",    zh: "紫米饭",   pinyin: "zǐ mǐ fàn",   unit: "100g",     group: "carb", tag: "recommended", kcal: 180, protein: 4, fat: 1, carbs: 38 },
   { id: "white-rice",   name: "White rice",     zh: "白米饭",   pinyin: "bái mǐ fàn",  unit: "100g",     group: "carb", favorite: true, tag: "limit", kcal: 130, protein: 3, fat: 0, carbs: 28 },
   { id: "brown-rice",   name: "Brown rice",     zh: "糙米",     pinyin: "cāo mǐ",      unit: "100g",     group: "carb", kcal: 150, protein: 3, fat: 1, carbs: 32 },
-  { id: "oats",         name: "Oats (Member's Mark)", zh: "燕麦片", pinyin: "yàn mài piàn", unit: "1 scoop (40g)", group: "carb", tag: "best", step: 0.5, gramsPerUnit: 40, sodium: 20, note: "Contains chia seeds + flaxseeds — omega-3, extra fiber", kcal: 148, protein: 5, fat: 3, carbs: 27 },
+  { id: "oats",         name: "Oats (Member's Mark)", zh: "燕麦片", pinyin: "yàn mài piàn", unit: "1 scoop (30g)", group: "carb", tag: "best", step: 0.5, gramsPerUnit: 30, sodium: 15, note: "Contains chia seeds + flaxseeds — omega-3, extra fiber", kcal: 111, protein: 4, fat: 2, carbs: 20 },
   { id: "granola",      name: "Granola",        zh: "格兰诺拉", pinyin: "gé lán nuò lā", unit: "30g",    group: "carb", kcal: 150, protein: 4, fat: 6, carbs: 20 },
   // Carbs — Potato & root
   { id: "sweet-potato", name: "Sweet potato",   zh: "红薯",     pinyin: "hóng shǔ",    unit: "100g",     group: "carb", tag: "recommended", kcal: 86,  protein: 2, fat: 0, carbs: 20 },
