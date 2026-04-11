@@ -22,8 +22,8 @@ const dmMono = DM_Mono({
   variable: "--font-dm-mono",
 });
 
-const SITE_URL = "https://fitness-repo-lime.vercel.app";
-const OG_IMAGE = `${SITE_URL}/api/og?days=75`;
+const SITE_URL = "https://r2-fit.vercel.app";
+const OG_IMAGE = `${SITE_URL}/api/og?days=75&v=2`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
