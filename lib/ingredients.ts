@@ -5,7 +5,7 @@ export type Macros = {
   carbs: number;
 };
 
-export type IngredientTag = "recommended" | "limit" | "best";
+export type IngredientTag = "recommended" | "limit" | "best" | "good";
 
 export type Ingredient = {
   id: string;
@@ -64,6 +64,12 @@ export const INGREDIENTS: Ingredient[] = [
   { id: "tomato",       name: "Tomato",         zh: "番茄",     pinyin: "fān qié",     unit: "1 whole · 150g",  group: "vegetable", favorite: true, kcal: 27, protein: 1, fat: 0, carbs: 6 },
   { id: "eggplant",     name: "Eggplant",       zh: "茄子",     pinyin: "qié zi",      unit: "½ eggplant · 100g", group: "vegetable", favorite: true, kcal: 35, protein: 1, fat: 0, carbs: 8 },
   { id: "broccoli",     name: "Broccoli",       zh: "西兰花",   pinyin: "xī lán huā",  unit: "¼ head · 75g",    group: "vegetable", favorite: true, kcal: 26, protein: 2, fat: 0, carbs: 5 },
+  // Mushrooms
+  { id: "king-oyster-mushroom", name: "King oyster mushroom", zh: "杏鲍菇", pinyin: "xìng bào gū", unit: "100g", group: "vegetable", tag: "best", step: 0.5, gramsPerUnit: 100, sodium: 2,  note: "Highest protein mushroom. Meaty texture. Best air fried.", kcal: 35, protein: 3.3, fat: 0.4, carbs: 6 },
+  { id: "shiitake-mushroom",    name: "Shiitake mushroom",    zh: "香菇",   pinyin: "xiāng gū",    unit: "100g", group: "vegetable", tag: "best", step: 0.5, gramsPerUnit: 100, sodium: 9,  note: "Immune boost + testosterone support. Rich umami.",        kcal: 34, protein: 2.2, fat: 0.5, carbs: 7 },
+  { id: "oyster-mushroom",      name: "Oyster mushroom",      zh: "平菇",   pinyin: "píng gū",     unit: "100g", group: "vegetable", tag: "good", step: 0.5, gramsPerUnit: 100, sodium: 18, note: "Same protein as king oyster. Cheaper. Good stir fry.",    kcal: 33, protein: 3.3, fat: 0.4, carbs: 6 },
+  { id: "white-button-mushroom",name: "White button mushroom",zh: "白蘑菇", pinyin: "bái mó gū",   unit: "100g", group: "vegetable",              step: 0.5, gramsPerUnit: 100, sodium: 5,  note: "Lowest calories. Decent protein. Less nutritious overall.", kcal: 22, protein: 3.1, fat: 0.3, carbs: 3 },
+  { id: "deer-antler-mushroom", name: "Deer antler mushroom", zh: "鹿茸菇", pinyin: "lù róng gū",  unit: "100g", group: "vegetable",              step: 0.5, gramsPerUnit: 100, sodium: 4,  note: "Similar to enoki. Harder to find. No clear advantage.",   kcal: 32, protein: 2.1, fat: 0.4, carbs: 6 },
   { id: "spinach",      name: "Spinach",        zh: "菠菜",     pinyin: "bō cài",      unit: "100g",            group: "vegetable", kcal: 25, protein: 3, fat: 0, carbs: 3 },
   { id: "okra",         name: "Okra",           zh: "秋葵",     pinyin: "qiū kuí",     unit: "100g",            group: "vegetable", kcal: 33, protein: 2, fat: 0, carbs: 7 },
   { id: "bell-pepper",  name: "Bell pepper",    zh: "彩椒",     pinyin: "cǎi jiāo",    unit: "1 whole · 120g",  group: "vegetable", kcal: 36, protein: 1, fat: 0, carbs: 8 },

@@ -723,7 +723,8 @@ a { color: inherit; text-decoration: none; }
   color: var(--accent);
   margin-right: 2px;
 }
-.tag-best {
+.tag-best,
+.tag-good {
   display: inline-block;
   margin-left: 6px;
   font-family: var(--font-dm-mono), monospace;
@@ -736,6 +737,7 @@ a { color: inherit; text-decoration: none; }
   vertical-align: middle;
   font-weight: 700;
 }
+.tag-good { background: #a8d8a8; }
 .ing-note {
   margin-top: 6px;
   font-size: 10px;
@@ -4143,6 +4145,215 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   letter-spacing: 0.5px;
   flex-shrink: 0;
 }
+
+/* Today page scroll + meal breakdown */
+.today-page { overflow: hidden; }
+.today-page .today-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-right: 2px;
+}
+.today-divider {
+  height: 1px;
+  background: #222;
+  margin: 6px 0 2px;
+}
+.today-meals-label {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: #666;
+}
+.today-meals {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.meal-breakdown-card {
+  background: #0d0d0d;
+  border: 1px solid #222;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.meal-breakdown-card.unlogged { opacity: 0.7; }
+.meal-breakdown-card .mbc-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: transparent;
+  border: none;
+  color: #f0f0f0;
+  text-align: left;
+}
+.mbc-title { display: flex; align-items: center; gap: 10px; }
+.mbc-emoji { font-size: 18px; }
+.mbc-label {
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  color: #f0f0f0;
+}
+.mbc-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mbc-kcal {
+  font-family: var(--font-bebas), "Bebas Neue", sans-serif;
+  font-size: 18px;
+  color: #e8ff47;
+}
+.mbc-chev { color: #666; font-size: 14px; }
+.mbc-unlogged { font-size: 11px; color: #555; letter-spacing: 1px; }
+.mbc-log-now {
+  font-size: 10px;
+  color: #e8ff47;
+  letter-spacing: 1px;
+  text-decoration: none;
+  padding: 4px 8px;
+  border: 1px solid #e8ff4744;
+  border-radius: 6px;
+}
+.mbc-log-now:active { background: #e8ff4715; }
+.mbc-body {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid #1a1a1a;
+}
+.mbc-item {
+  padding: 12px 16px;
+  border-bottom: 1px dashed #1a1a1a;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mbc-item:last-of-type { border-bottom: none; }
+.mbc-item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+.mbc-item-name {
+  color: #f0f0f0;
+  font-size: 13px;
+}
+.mbc-item-kcal {
+  font-size: 11px;
+  color: #888;
+}
+.mbc-item-actions {
+  display: flex;
+  gap: 14px;
+  justify-content: flex-end;
+}
+.mbc-icon-btn {
+  background: transparent;
+  border: none;
+  font-size: 15px;
+  padding: 4px 8px;
+  color: #f0f0f0;
+  cursor: pointer;
+}
+.mbc-icon-btn:active { opacity: 0.5; }
+.mbc-item.editing,
+.mbc-item.confirming {
+  background: #111;
+}
+.mbc-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.mbc-step-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: #181818;
+  border: 1px solid #2a2a2a;
+  color: #f0f0f0;
+  font-size: 16px;
+}
+.mbc-step-btn:active { background: #222; }
+.mbc-edit-qty {
+  min-width: 56px;
+  text-align: center;
+  font-size: 13px;
+  color: #f0f0f0;
+}
+.mbc-edit-kcal {
+  margin-left: auto;
+  font-size: 11px;
+  color: #e8ff47;
+}
+.mbc-step-hint {
+  font-size: 9px;
+  color: #555;
+  letter-spacing: 1px;
+}
+.mbc-edit-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.mbc-cancel,
+.mbc-save,
+.mbc-remove {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-family: var(--font-dm-mono, monospace);
+  font-size: 10px;
+  letter-spacing: 1px;
+  border: 1px solid #2a2a2a;
+  background: #181818;
+  color: #aaa;
+}
+.mbc-save {
+  background: #e8ff47;
+  color: #0a0a0a;
+  border-color: #e8ff47;
+}
+.mbc-remove {
+  color: #ff5a5a;
+  border-color: #ff5a5a55;
+}
+.mbc-remove:active { background: #ff5a5a15; }
+.mbc-confirm-text {
+  font-size: 12px;
+  color: #f0f0f0;
+}
+.mbc-footer-actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid #1a1a1a;
+}
+.mbc-add-more,
+.mbc-edit-meal {
+  flex: 1;
+  text-align: center;
+  padding: 10px;
+  border-radius: 6px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-decoration: none;
+  border: 1px solid #2a2a2a;
+  color: #aaa;
+  background: transparent;
+}
+.mbc-add-more {
+  color: #e8ff47;
+  border-color: #e8ff4744;
+}
+.mbc-add-more:active { background: #e8ff4715; }
+.mbc-edit-meal:active { background: #181818; }
+.today-bottom-spacer { height: 80px; flex-shrink: 0; }
 
 /* Week page */
 .week-chart {

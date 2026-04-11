@@ -417,6 +417,7 @@ export default function MealBuilder({
                           <div className="sel-name">
                             {ing.name}
                             {ing.tag === "best" && <span className="tag-best">✅ BEST</span>}
+                            {ing.tag === "good" && <span className="tag-good">✅ GOOD</span>}
                           </div>
                           <div className="sel-portion">
                             {ing.unit}
@@ -466,6 +467,7 @@ export default function MealBuilder({
                           <div className="food-name">
                             {ing.name}
                             {ing.tag === "best" && <span className="tag-best">✅ BEST</span>}
+                            {ing.tag === "good" && <span className="tag-good">✅ GOOD</span>}
                           </div>
                           <div className="food-portion">{ing.unit}</div>
                         </div>
