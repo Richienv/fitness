@@ -150,9 +150,6 @@ export default function Dashboard() {
     : !gymDay
     ? "rest"
     : "next";
-  const gymAccent =
-    todayWorkout ? SESSION_ACCENT[todayWorkout.sessionType] : SESSION_ACCENT[nextSessionType];
-
   const gymLine1 = todayWorkout
     ? `${getSession(todayWorkout.sessionType)?.name ?? "SESSION"} DONE`
     : !gymDay
@@ -187,12 +184,14 @@ export default function Dashboard() {
           <div className="sc-unit mono">
             kcal · {Math.round((totals.kcal / target.kcal) * 100)}%
           </div>
+          <span className="sc-chev">›</span>
         </Link>
 
         <Link href="/dashboard/week" className="stats-card">
           <div className="sc-label mono">WEEK</div>
           <div className="sc-num">{weekAvg.kcal.toLocaleString()}</div>
           <div className="sc-unit mono">avg kcal</div>
+          <span className="sc-chev">›</span>
         </Link>
 
         <Link href="/dashboard/checklist" className="stats-card">
@@ -201,19 +200,22 @@ export default function Dashboard() {
             {checkedCount}/{CHECKLIST_KEYS.length}
           </div>
           <div className="sc-unit mono">done</div>
+          <span className="sc-chev">›</span>
         </Link>
 
         <Link href="/dashboard/progress" className="stats-card">
           <div className="sc-label mono">PROGRESS</div>
           <div className="sc-num">WK {wk}/12</div>
           <div className="sc-unit mono">V-TAPER</div>
+          <span className="sc-chev">›</span>
         </Link>
       </div>
+
+      <div className="stats-hub-spacer" />
 
       <Link
         href="/dashboard/gym"
         className={`gym-card state-${gymState}`}
-        style={{ borderLeftColor: gymAccent }}
       >
         <div className="gc-left">
           <div className="gc-title mono">
