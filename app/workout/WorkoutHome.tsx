@@ -15,6 +15,7 @@ import {
   type WorkoutSession,
 } from "@/lib/workouts";
 import { useActiveDate } from "@/lib/activeDate";
+import SessionSilhouette from "./SessionSilhouette";
 
 function mondayOf(d: Date): Date {
   const x = new Date(d);
@@ -100,27 +101,28 @@ export default function WorkoutHome() {
 
       <div className="workout-home-bottom">
         <div className="wo-pick-label">PICK YOUR SESSION</div>
-        <div className="wo-session-stack">
-          {SESSIONS.map((s) => {
+        <div className="wo-session-grid">
+          {SESSIONS.map((s, idx) => {
             const isRec = s.id === recommended;
             const done = thisWeekDone.has(s.id);
+            const isLast = idx === SESSIONS.length - 1;
             return (
               <button
                 key={s.id}
                 type="button"
                 onClick={() => pick(s.id)}
-                className={`wo-session-card${isRec ? " rec" : ""}${done ? " done" : ""}`}
+                className={`wo-sc${isRec ? " rec" : ""}${done ? " done" : ""}${isLast ? " wide" : ""}`}
               >
-                <div className="wo-sc-head">
+                <div className="wo-sc-top">
                   <div className="wo-sc-name">{s.name}</div>
-                  <div className="wo-sc-focus">{s.focus}</div>
+                  <div className="wo-sc-focus mono">{s.focus}</div>
                 </div>
-                <div className="wo-sc-blurb">{s.blurb}</div>
-                <div className="wo-sc-foot">
-                  <span className="wo-sc-day">
-                    {done ? "✓ done this week" : s.recommendedLabel}
-                  </span>
-                  <span className="wo-sc-chev">›</span>
+                <div className="wo-sc-silhouette">
+                  <SessionSilhouette highlight={s.primaryMuscles} />
+                </div>
+                <div className="wo-sc-bottom mono">
+                  <span>{s.dayLabel}</span>
+                  {done && <span className="wo-sc-done">✓ DONE</span>}
                 </div>
               </button>
             );

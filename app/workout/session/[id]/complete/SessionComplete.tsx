@@ -7,14 +7,17 @@ import {
   getSession,
   getWorkout,
   getLastSessionOfType,
+  weekNumber,
   workoutVolume,
   type WorkoutSession,
 } from "@/lib/workouts";
+import { renderWorkoutCard, shareBlob } from "@/lib/shareCards";
 
 export default function SessionComplete({ workoutId }: { workoutId: string }) {
   const [workout, setWorkout] = useState<WorkoutSession | null>(null);
   const [prev, setPrev] = useState<WorkoutSession | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     const w = getWorkout(workoutId);
@@ -43,6 +46,52 @@ export default function SessionComplete({ workoutId }: { workoutId: string }) {
   // Next session hint: pick the next session in SESSIONS order after current type
   const idx = SESSIONS.findIndex((s) => s.id === workout.sessionType);
   const nextSession = SESSIONS[(idx + 1) % SESSIONS.length];
+
+  const prCount = (() => {
+    if (!prev || !def) return 0;
+    let n = 0;
+    for (let i = 0; i < workout.exercises.length; i++) {
+      const nowEx = workout.exercises[i];
+      const prevEx = prev.exercises.find((e) => e.exerciseName === def.exercises[i].name);
+      if (!nowEx || !prevEx || nowEx.sets.length === 0 || prevEx.sets.length === 0) continue;
+      const nowBest = nowEx.sets.reduce((a, b) => (b.weight * b.reps > a.weight * a.reps ? b : a));
+      const prevBest = prevEx.sets.reduce((a, b) => (b.weight * b.reps > a.weight * a.reps ? b : a));
+      if (nowBest.weight * nowBest.reps > prevBest.weight * prevBest.reps) n++;
+    }
+    return n;
+  })();
+
+  async function handleShare() {
+    if (!workout || !def) return;
+    setSharing(true);
+    try {
+      const started = new Date(workout.startedAt);
+      const sessionType = def.name.toLowerCase().includes("push")
+        ? "push"
+        : def.name.toLowerCase().includes("pull")
+        ? "pull"
+        : def.name.toLowerCase().includes("leg")
+        ? "legs"
+        : "other";
+      const dateLine = started
+        .toLocaleDateString("en", { weekday: "short", month: "short", day: "numeric" })
+        .toUpperCase() + " · HANGZHOU";
+      const blob = await renderWorkoutCard({
+        sessionName: def.name,
+        sessionType,
+        isPR: prCount > 0,
+        prCount,
+        volumeKg: Math.round(volume),
+        durationMin: workout.durationMin ?? 0,
+        exerciseCount: def.exercises.length,
+        week: weekNumber(started),
+        dateLine,
+      });
+      await shareBlob(blob, `r2fit-${def.name.replace(/\s+/g, "-").toLowerCase()}.png`, `${def.name} done.`);
+    } finally {
+      setSharing(false);
+    }
+  }
 
   return (
     <main className="complete-shell">
@@ -79,6 +128,15 @@ export default function SessionComplete({ workoutId }: { workoutId: string }) {
           <div className="cn-name">{nextSession.name}</div>
           <div className="cn-focus mono">{nextSession.focus}</div>
         </div>
+
+        <button
+          type="button"
+          className="share-btn"
+          onClick={handleShare}
+          disabled={sharing}
+        >
+          {sharing ? "GENERATING…" : "📤 SHARE"}
+        </button>
 
         <div className="complete-actions">
           <Link href="/workout" className="next-btn ghost">WORKOUTS</Link>

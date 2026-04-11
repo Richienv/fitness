@@ -11,10 +11,17 @@ import {
   setActiveWorkoutId,
   getLastSetForExercise,
   getAllWorkouts,
+  exerciseColorGroup,
   type ExerciseDef,
   type SetLog,
   type WorkoutSession,
 } from "@/lib/workouts";
+import {
+  MUSCLE_GROUP_COLOR,
+  MUSCLE_LABEL,
+  muscleColor,
+  type MuscleKey,
+} from "@/lib/muscles";
 import {
   getAlternatives,
   getExerciseDetail,
@@ -133,6 +140,27 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
     }
     return n;
   }, [workout, def]);
+
+  const muscleVolume = useMemo(() => {
+    const map = new Map<MuscleKey, number>();
+    if (!workout || !def) return map;
+    for (let i = 0; i < workout.exercises.length; i++) {
+      const log = workout.exercises[i];
+      const d = def.exercises[i];
+      let vol = 0;
+      for (const s of log.sets) vol += s.weight * s.reps;
+      if (vol <= 0) continue;
+      for (const m of d.primary) map.set(m, (map.get(m) ?? 0) + vol);
+      for (const m of d.secondary) map.set(m, (map.get(m) ?? 0) + vol * 0.5);
+    }
+    return map;
+  }, [workout, def]);
+
+  const muscleVolumeList = useMemo(() => {
+    const arr = Array.from(muscleVolume.entries()).sort((a, b) => b[1] - a[1]);
+    const max = arr[0]?.[1] ?? 1;
+    return arr.map(([m, v]) => ({ m, v, pct: Math.round((v / max) * 100) }));
+  }, [muscleVolume]);
 
   const estRemainingMin = useMemo(() => {
     if (!workout || !def) return 0;
@@ -287,6 +315,13 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
         <div className="session-progress-bar">
           <div className="session-progress-fill" style={{ width: `${sessionProgressPct}%` }} />
         </div>
+        <div className="session-muscle-pills">
+          {def.primaryMuscles.map((m) => (
+            <span key={m} className="muscle-pill" style={{ color: muscleColor(m), borderColor: `${muscleColor(m)}55`, background: `${muscleColor(m)}15` }}>
+              {MUSCLE_LABEL[m].toUpperCase()}
+            </span>
+          ))}
+        </div>
       </div>
 
       <div className="session-body">
@@ -295,8 +330,14 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
           const displayName = log.swappedTo ?? ex.name;
           const last = getLastSetForExercise(workout.sessionType, ex.name, workout.id);
           const isFocus = i === firstIncompleteIdx && !pending;
+          const colorGroup = exerciseColorGroup(ex);
+          const stripColor = MUSCLE_GROUP_COLOR[colorGroup];
           return (
-            <div key={ex.name} className={`ex-card${isFocus ? " focus" : ""}`}>
+            <div
+              key={ex.name}
+              className={`ex-card${isFocus ? " focus" : ""}`}
+              style={{ borderLeft: `4px solid ${stripColor}` }}
+            >
               <div className="ex-head">
                 <div className="ex-name-wrap">
                   <button
@@ -335,6 +376,24 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                   ↔ swapped from {ex.name} · tap to undo
                 </button>
               )}
+              <button
+                type="button"
+                className="ex-muscle-tags"
+                onClick={() => setDetailFor(i)}
+              >
+                {ex.primary.map((m) => (
+                  <span key={m} className="mtag">
+                    <span className="mdot" style={{ background: muscleColor(m) }} />
+                    {MUSCLE_LABEL[m]}
+                  </span>
+                ))}
+                {ex.secondary.map((m) => (
+                  <span key={m} className="mtag dim">
+                    <span className="mdot" style={{ background: muscleColor(m) }} />
+                    {MUSCLE_LABEL[m]}
+                  </span>
+                ))}
+              </button>
               <div className="ex-last mono">
                 {last
                   ? `Last: ${last.weight}kg × ${last.reps} · ${last.daysAgo}d ago`
@@ -366,7 +425,7 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                           {done.weight}×{done.reps} <em>{deltaLabel}</em>
                         </span>
                       ) : (
-                        <span className="ex-set-placeholder">—</span>
+                        <span className="ex-set-placeholder">— / {ex.targetReps}</span>
                       )}
                     </button>
                   );
@@ -375,6 +434,25 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
             </div>
           );
         })}
+
+        {muscleVolumeList.length > 0 && (
+          <div className="muscle-summary">
+            <div className="muscle-summary-head mono">TODAY YOU TRAINED</div>
+            <div className="muscle-summary-list">
+              {muscleVolumeList.map(({ m, pct }) => (
+                <div key={m} className="muscle-summary-row">
+                  <span className="muscle-summary-label mono">{MUSCLE_LABEL[m].toUpperCase()}</span>
+                  <div className="muscle-summary-track">
+                    <div
+                      className="muscle-summary-fill"
+                      style={{ width: `${pct}%`, background: muscleColor(m) }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <button
           type="button"

@@ -12,8 +12,11 @@ const TABS: Tab[] = [
   { href: "/dashboard", label: "STATS",  icon: "📊", match: (p) => p.startsWith("/dashboard") },
 ];
 
+const HIDE_ON_SUBPAGE = /^\/dashboard\/(today|week|checklist|progress)/;
+
 export default function BottomNav() {
   const pathname = usePathname();
+  if (HIDE_ON_SUBPAGE.test(pathname)) return null;
   return (
     <nav className="bottom-nav" aria-label="Primary">
       {TABS.map((t) => {

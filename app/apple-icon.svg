@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+  <rect width="180" height="180" fill="#0a0a0a"/>
+  <rect x="0" y="0" width="8" height="180" fill="#e8ff47"/>
+  <text x="90" y="112" font-family="Impact, 'Arial Narrow', sans-serif" font-size="76" font-weight="900" text-anchor="middle" fill="#f0f0f0" letter-spacing="-2">R2<tspan fill="#e8ff47">·</tspan>FIT</text>
+</svg>

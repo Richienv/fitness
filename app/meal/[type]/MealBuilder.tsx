@@ -79,6 +79,13 @@ export default function MealBuilder({
     setCustomFoods(getCustomFoods());
   }, [mealType]);
 
+  useEffect(() => {
+    document.body.classList.add("no-scroll");
+    return () => {
+      document.body.classList.remove("no-scroll");
+    };
+  }, []);
+
   const step = STEPS[stepIndex];
   const isLast = stepIndex === STEPS.length - 1;
   const favoriteItems = useMemo(

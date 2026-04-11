@@ -10,27 +10,28 @@ import {
   getAllMeals,
   getDaily,
   isCustomItem,
+  setDaily,
   type MealLog,
 } from "@/lib/store";
 import { TARGETS, weekNumber } from "@/lib/targets";
 import { useActiveDate, parseDate } from "@/lib/activeDate";
-import WeeklyGraph from "./WeeklyGraph";
 import DatePicker from "./DatePicker";
 
 type MealInfo = {
   id: MealType;
   emoji: string;
   name: string;
+  nameLines: string[];
   windowStart: number;
   windowEnd: number;
   expectedKcal: number;
 };
 
 const MEALS: MealInfo[] = [
-  { id: "breakfast", emoji: "🌅", name: "BREAKFAST", windowStart: 6,  windowEnd: 10, expectedKcal: 350 },
-  { id: "lunch",     emoji: "☀️", name: "LUNCH",     windowStart: 11, windowEnd: 14, expectedKcal: 700 },
-  { id: "snack",     emoji: "🍎", name: "SNACK",     windowStart: 14, windowEnd: 17, expectedKcal: 250 },
-  { id: "dinner",    emoji: "🌙", name: "DINNER",    windowStart: 17, windowEnd: 21, expectedKcal: 700 },
+  { id: "breakfast", emoji: "🌅", name: "BREAKFAST", nameLines: ["BREAK", "FAST"], windowStart: 6,  windowEnd: 10, expectedKcal: 358 },
+  { id: "lunch",     emoji: "☀️", name: "LUNCH",     nameLines: ["LUNCH"],          windowStart: 11, windowEnd: 14, expectedKcal: 895 },
+  { id: "snack",     emoji: "🍎", name: "SNACK",     nameLines: ["SNACK"],          windowStart: 14, windowEnd: 17, expectedKcal: 250 },
+  { id: "dinner",    emoji: "🌙", name: "DINNER",    nameLines: ["DINNER"],         windowStart: 17, windowEnd: 21, expectedKcal: 900 },
 ];
 
 const EMPTY_MACROS: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
@@ -85,16 +86,29 @@ export default function MealHome() {
   const [gymDay, setGymDay] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [newDayOpen, setNewDayOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     dedupeMeals();
     setAllMeals(getAllMeals());
+    document.body.classList.add("no-scroll");
+    return () => {
+      document.body.classList.remove("no-scroll");
+    };
   }, []);
 
   useEffect(() => {
     if (!activeDate) return;
     setGymDay(getDaily(activeDate).gymDay);
   }, [activeDate]);
+
+  function toggleGym() {
+    if (!activeDate) return;
+    const next = !gymDay;
+    setGymDay(next);
+    const d = getDaily(activeDate);
+    setDaily({ date: activeDate, gymDay: next, checklist: d.checklist ?? {} });
+  }
 
   function handleClearActive() {
     if (typeof window === "undefined" || !activeDate) return;
@@ -104,11 +118,13 @@ export default function MealHome() {
     if (!confirmed) return;
     clearMealsForDate(activeDate);
     setAllMeals(getAllMeals());
+    setSettingsOpen(false);
   }
 
   function handleConfirmNewDay() {
     advanceToNextDay();
     setNewDayOpen(false);
+    setSettingsOpen(false);
   }
 
   const dayMeals = useMemo(
@@ -163,11 +179,21 @@ export default function MealHome() {
         <div className="mh-header">
           <div className="mh-header-row">
             <h1 className="mh-title">🍽️ LOG <span>MEAL</span></h1>
-            {!isToday && (
-              <button type="button" className="mh-today-btn mono" onClick={goToday}>
-                ← TODAY
+            <div className="mh-header-actions">
+              {!isToday && (
+                <button type="button" className="mh-today-btn mono" onClick={goToday}>
+                  ← TODAY
+                </button>
+              )}
+              <button
+                type="button"
+                className="mh-gear-btn"
+                onClick={() => setSettingsOpen(true)}
+                aria-label="Settings"
+              >
+                ⚙️
               </button>
-            )}
+            </div>
           </div>
           <div className="mh-date-nav">
             <button
@@ -201,60 +227,30 @@ export default function MealHome() {
           </div>
         </div>
 
-        <WeeklyGraph meals={allMeals} now={activeDate ? parseDate(activeDate) : null} />
-
-        <div className="today-card">
-          <div className="today-head">
-            <div className="today-label">TODAY&apos;S PROGRESS</div>
-            <div className="today-head-right">
-              <div className="today-tag mono">{gymDay ? "GYM" : "REST"}</div>
-              {dayMeals.length > 0 && (
-                <button
-                  type="button"
-                  className="today-clear-btn mono"
-                  onClick={handleClearActive}
-                  aria-label="Clear meals for selected day"
-                >
-                  CLEAR
-                </button>
-              )}
-              {isToday && (
-                <button
-                  type="button"
-                  className="today-newday-btn mono"
-                  onClick={() => setNewDayOpen(true)}
-                  aria-label="Advance to next day"
-                >
-                  NEW DAY
-                </button>
-              )}
-            </div>
-          </div>
-          <div className="today-bars">
-            {bars.map((b) => {
-              const val = Math.round(totals[b.key]);
-              const tgt = target[b.key];
-              const pct = Math.min(100, Math.round((val / tgt) * 100));
-              const left = Math.max(0, Math.round(tgt - val));
-              return (
-                <div key={b.key} className="tbar-row">
-                  <div className="tbar-label mono">{b.label}</div>
-                  <div className="tbar-nums mono">
-                    <span className="tbar-val">{val.toLocaleString()}</span>
-                    <span className="tbar-sep"> / </span>
-                    <span className="tbar-tgt">{tgt.toLocaleString()}{b.unit}</span>
-                  </div>
-                  <div className="tbar-track">
-                    <div className="tbar-fill" style={{ width: `${pct}%` }} />
-                  </div>
-                  <div className="tbar-foot mono">
-                    <span className="tbar-pct">{pct}%</span>
-                    <span className="tbar-left">{left}{b.unit} left</span>
-                  </div>
+        <div className="slim-bars">
+          {bars.map((b) => {
+            const val = Math.round(totals[b.key]);
+            const tgt = target[b.key];
+            const pct = Math.min(100, Math.round((val / tgt) * 100));
+            const left = Math.max(0, Math.round(tgt - val));
+            return (
+              <div key={b.key} className="slim-row">
+                <div className="slim-head mono">
+                  <span className="slim-label">{b.label}</span>
+                  <span className="slim-nums">
+                    <strong>{val.toLocaleString()}</strong> / {tgt.toLocaleString()}{b.unit}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
+                <div className="slim-track">
+                  <div className="slim-fill" style={{ width: `${pct}%` }} />
+                </div>
+                <div className="slim-foot mono">
+                  <span>{pct}%</span>
+                  <span>{left}{b.unit} left</span>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         <div className="quick-section">
@@ -280,40 +276,33 @@ export default function MealHome() {
           </div>
         </div>
 
-        <div className="meal-stack">
+        <div className="meal-grid">
           {MEALS.map((m) => {
             const bucket = byType[m.id];
             const logged = bucket.macros.kcal > 0;
             const isActive = activeMeal === m.id;
+            const href = `/meal/${m.id}?date=${activeDate}`;
+            const pct = logged
+              ? Math.min(100, Math.round((bucket.macros.kcal / m.expectedKcal) * 100))
+              : 0;
             return (
-              <div
+              <Link
                 key={m.id}
-                className={`meal-row${isActive ? " active" : ""}${logged ? " logged" : ""}`}
+                href={href}
+                className={`meal-card${isActive ? " active" : ""}${logged ? " logged" : ""}`}
               >
-                <Link href={`/meal/${m.id}?date=${activeDate}`} className="meal-row-body">
-                  <span className="meal-emoji">{m.emoji}</span>
-                  <div className="meal-row-main">
-                    <div className="meal-row-name">{m.name}</div>
-                    {logged ? (
-                      <div className="meal-row-stats mono">
-                        ✓ {Math.round(bucket.macros.kcal).toLocaleString()} kcal ·{" "}
-                        {Math.round(bucket.macros.protein)}g protein · {bucket.items} items
-                      </div>
-                    ) : (
-                      <div className="meal-row-stats mono">
-                        TAP TO LOG · ~{m.expectedKcal} kcal expected
-                      </div>
-                    )}
-                  </div>
-                </Link>
-                {logged && (
-                  <div className="meal-row-actions">
-                    <Link href={`/meal/${m.id}?date=${activeDate}`} className="mr-btn">VIEW</Link>
-                    <Link href={`/meal/${m.id}?date=${activeDate}`} className="mr-btn primary">+ ADD</Link>
-                  </div>
-                )}
-                {!logged && <span className="meal-chev">›</span>}
-              </div>
+                <span className="meal-card-emoji">{m.emoji}</span>
+                <div className="meal-card-name">
+                  {m.nameLines.map((l, i) => (
+                    <span key={i} className="meal-card-name-line">
+                      {l}
+                    </span>
+                  ))}
+                </div>
+                <div className="meal-card-bar">
+                  <div className="meal-card-bar-fill" style={{ width: `${pct}%` }} />
+                </div>
+              </Link>
             );
           })}
         </div>
@@ -329,6 +318,53 @@ export default function MealHome() {
           }}
           onClose={() => setPickerOpen(false)}
         />
+      )}
+
+      {settingsOpen && (
+        <div className="set-modal-overlay" onClick={() => setSettingsOpen(false)}>
+          <div className="set-modal mh-settings" onClick={(e) => e.stopPropagation()}>
+            <div className="set-modal-body">
+              <div className="set-modal-head">
+                <div className="set-modal-ex">SETTINGS · {shortDate}</div>
+              </div>
+              <button type="button" className="mh-set-row" onClick={toggleGym}>
+                <span>{gymDay ? "🏋️" : "🧘"}</span>
+                <span className="mh-set-label">{gymDay ? "GYM DAY" : "REST DAY"}</span>
+                <span className="mh-set-hint mono">TAP TO TOGGLE</span>
+              </button>
+              {dayMeals.length > 0 && (
+                <button type="button" className="mh-set-row danger" onClick={handleClearActive}>
+                  <span>🗑️</span>
+                  <span className="mh-set-label">CLEAR TODAY&apos;S DATA</span>
+                  <span className="mh-set-hint mono">{dayMeals.length} meals</span>
+                </button>
+              )}
+              {isToday && (
+                <button
+                  type="button"
+                  className="mh-set-row"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    setNewDayOpen(true);
+                  }}
+                >
+                  <span>🌅</span>
+                  <span className="mh-set-label">START NEW DAY</span>
+                  <span className="mh-set-hint mono">ADVANCE DATE</span>
+                </button>
+              )}
+            </div>
+            <div className="set-modal-actions">
+              <button
+                type="button"
+                className="next-btn ghost"
+                onClick={() => setSettingsOpen(false)}
+              >
+                CLOSE
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {newDayOpen && (
