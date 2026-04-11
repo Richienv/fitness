@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   INGREDIENTS,
   addMacros,
@@ -72,12 +72,26 @@ export default function MealBuilder({
   const [lastMeal, setLastMeal] = useState<MealLog | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+  const [showHint, setShowHint] = useState(true);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const presets = useMemo(() => presetsFor(mealType), [mealType]);
 
   useEffect(() => {
     setLastMeal(getLastMealOfType(mealType));
     setCustomFoods(getCustomFoods());
   }, [mealType]);
+
+  // Magnetic bottom snap: on mount + step change, scroll so YOUR USUAL is in view
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+    setShowHint(true);
+    const t = window.setTimeout(() => setShowHint(false), 2000);
+    return () => window.clearTimeout(t);
+  }, [stepIndex]);
 
   const step = STEPS[stepIndex];
   const isLast = stepIndex === STEPS.length - 1;
@@ -204,7 +218,10 @@ export default function MealBuilder({
   }
 
   return (
-    <main className="meal-builder">
+    <main className="meal-builder" ref={scrollRef}>
+      {showHint && (
+        <div className="mb-scroll-hint mono" aria-hidden="true">↑ SCROLL FOR MORE</div>
+      )}
       <div className="mb-header">
         <Link href="/meal" className="back-link">← Back</Link>
 
@@ -329,6 +346,7 @@ export default function MealBuilder({
 
         {favoriteItems.length > 0 && (
           <div className="mb-section mb-fav-section">
+            <div className="mb-sticky-label mono">// YOUR USUAL</div>
             <div className="fav-grid">
               {favoriteItems.map((ing) => {
                 const qty = selection[ing.id] ?? 0;
@@ -396,6 +414,7 @@ export default function MealBuilder({
 
         {otherItems.length > 0 && (
           <div className="mb-section mb-other-section">
+            <div className="mb-sticky-label mono">// MORE OPTIONS</div>
             <div className="ing-grid">
             {otherItems.map((ing) => {
               const qty = selection[ing.id] ?? 0;
