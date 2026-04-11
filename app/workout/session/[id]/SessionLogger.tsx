@@ -22,6 +22,7 @@ import {
   type ExerciseAlternative,
   type ExerciseDetail,
 } from "@/lib/exerciseData";
+import BodyDiagram from "./BodyDiagram";
 
 type PendingInput = {
   exerciseIdx: number;
@@ -297,13 +298,23 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
           return (
             <div key={ex.name} className={`ex-card${isFocus ? " focus" : ""}`}>
               <div className="ex-head">
-                <button
-                  type="button"
-                  className="ex-name ex-name-btn"
-                  onClick={() => setDetailFor(i)}
-                >
-                  {displayName}
-                </button>
+                <div className="ex-name-wrap">
+                  <button
+                    type="button"
+                    className="ex-name ex-name-btn"
+                    onClick={() => setDetailFor(i)}
+                  >
+                    {displayName}
+                  </button>
+                  <button
+                    type="button"
+                    className="ex-info-btn"
+                    aria-label={`Guide for ${displayName}`}
+                    onClick={() => setDetailFor(i)}
+                  >
+                    i
+                  </button>
+                </div>
                 <div className="ex-head-right">
                   <div className="ex-target mono">{ex.sets} × {ex.repsLabel}</div>
                   <button
@@ -390,36 +401,50 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
         </div>
       )}
 
-      {pending && pendingDef && (
-        <div className="set-modal-overlay" onClick={() => setPending(null)}>
-          <div className="set-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="set-modal-head">
-              <div className="set-modal-ex">{pendingDef.name}</div>
-              <div className="set-modal-set mono">SET {pending.setNumber}</div>
-            </div>
-            <div className="set-modal-row">
-              <div className="set-modal-label mono">KG</div>
-              <div className="set-modal-stepper">
-                <button type="button" onClick={() => adjustWeight(-1)}>−{pendingDef.increment}</button>
-                <span className="set-modal-val">{pending.weight}</span>
-                <button type="button" onClick={() => adjustWeight(1)}>+{pendingDef.increment}</button>
+      {pending && pendingDef && (() => {
+        const lastForPending = getLastSetForExercise(
+          workout.sessionType,
+          pendingDef.name,
+          workout.id
+        );
+        return (
+          <div className="set-modal-overlay" onClick={() => setPending(null)}>
+            <div className="set-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="set-modal-body">
+                <div className="set-modal-head">
+                  <div className="set-modal-ex">{pendingDef.name}</div>
+                  <div className="set-modal-set mono">SET {pending.setNumber}</div>
+                </div>
+                <div className="set-modal-row">
+                  <div className="set-modal-label mono">KG</div>
+                  <div className="set-modal-stepper">
+                    <button type="button" onClick={() => adjustWeight(-1)}>−{pendingDef.increment}</button>
+                    <span className="set-modal-val">{pending.weight}</span>
+                    <button type="button" onClick={() => adjustWeight(1)}>+{pendingDef.increment}</button>
+                  </div>
+                </div>
+                <div className="set-modal-row">
+                  <div className="set-modal-label mono">REPS</div>
+                  <div className="set-modal-stepper">
+                    <button type="button" onClick={() => adjustReps(-1)}>−1</button>
+                    <span className="set-modal-val">{pending.reps}</span>
+                    <button type="button" onClick={() => adjustReps(1)}>+1</button>
+                  </div>
+                </div>
+                <div className="set-modal-last">
+                  {lastForPending
+                    ? `Last session: ${lastForPending.weight}kg × ${lastForPending.reps}`
+                    : "First time — find your working weight"}
+                </div>
               </div>
-            </div>
-            <div className="set-modal-row">
-              <div className="set-modal-label mono">REPS</div>
-              <div className="set-modal-stepper">
-                <button type="button" onClick={() => adjustReps(-1)}>−1</button>
-                <span className="set-modal-val">{pending.reps}</span>
-                <button type="button" onClick={() => adjustReps(1)}>+1</button>
+              <div className="set-modal-actions">
+                <button type="button" className="next-btn ghost" onClick={() => setPending(null)}>CANCEL</button>
+                <button type="button" className="next-btn" onClick={saveSet}>SAVE ✓</button>
               </div>
-            </div>
-            <div className="set-modal-actions">
-              <button type="button" className="next-btn ghost" onClick={() => setPending(null)}>CANCEL</button>
-              <button type="button" className="next-btn" onClick={saveSet}>SAVE ✓</button>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {swapFor !== null && def && (
         <SwapSheet
@@ -531,10 +556,12 @@ function DetailSheet({
     const latest = bestPerSession[bestPerSession.length - 1];
     const first = bestPerSession[0];
     const delta = latest.weight - first.weight;
+    const last3 = bestPerSession.slice(-3).reverse();
     return {
       sessions: bestPerSession.length,
       latest,
       trendKg: delta,
+      last3,
     };
   }, [sessionType, canonicalName]);
 
@@ -552,7 +579,7 @@ function DetailSheet({
     return `You hit ${weight}kg × ${reps} last session. Stick with ${weight}kg and chase ${targetReps} clean reps today before adding weight.`;
   }, [history, exerciseName, targetReps, increment]);
 
-  const mindset = detail ? MINDSET_QUOTES[detail.muscleGroup] : null;
+  const mindset = detail?.mindset ?? (detail ? MINDSET_QUOTES[detail.muscleGroup] : null);
 
   return (
     <div className="sheet-overlay" onClick={onClose}>
@@ -570,6 +597,7 @@ function DetailSheet({
               <div className="detail-row"><span className="dl">Primary:</span> {detail.primary}</div>
               <div className="detail-row"><span className="dl">Secondary:</span> {detail.secondary}</div>
               <div className="detail-row"><span className="dl">Feel it:</span> {detail.feelIt}</div>
+              <BodyDiagram group={detail.muscleGroup} />
             </section>
 
             <section className="detail-section">
@@ -593,27 +621,43 @@ function DetailSheet({
               </section>
             )}
 
-            {history && (
-              <section className="detail-section">
-                <div className="detail-section-head">📊 YOUR HISTORY</div>
-                <div className="detail-row">
-                  <span className="dl">Best:</span> {history.latest.weight}kg × {history.latest.reps} (last session)
-                </div>
-                <div className="detail-row">
-                  <span className="dl">Trend:</span>{" "}
-                  {history.trendKg > 0 ? (
-                    <span style={{ color: "var(--accent3)" }}>↑ +{history.trendKg}kg over {history.sessions} sessions</span>
-                  ) : history.trendKg < 0 ? (
-                    <span style={{ color: "var(--danger)" }}>↓ {history.trendKg}kg over {history.sessions} sessions</span>
-                  ) : (
-                    <span style={{ color: "var(--muted)" }}>= flat over {history.sessions} sessions</span>
-                  )}
-                </div>
-                <div className="detail-row">
-                  <span className="dl">Total sessions:</span> {history.sessions}
-                </div>
-              </section>
-            )}
+            <section className="detail-section">
+              <div className="detail-section-head">📊 YOUR HISTORY</div>
+              {history ? (
+                <>
+                  <div className="detail-row">
+                    <span className="dl">Best:</span> {history.latest.weight}kg × {history.latest.reps} (last session)
+                  </div>
+                  <ul className="history-list">
+                    {history.last3.map((h, i) => {
+                      const d = new Date(h.date);
+                      const label = d.toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                      });
+                      return (
+                        <li key={i}>
+                          <span className="d">{label}</span>
+                          <span>{h.weight}kg × {h.reps}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <div className="detail-row" style={{ marginTop: 6 }}>
+                    <span className="dl">Target today:</span> {targetReps} reps
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="detail-row">
+                    <span className="dl">Best:</span> — (first time)
+                  </div>
+                  <div className="detail-row">
+                    <span className="dl">Target today:</span> {targetReps} reps
+                  </div>
+                </>
+              )}
+            </section>
 
             <section className="detail-section overload">
               <div className="detail-section-head">💡 PROGRESSIVE OVERLOAD TIP</div>

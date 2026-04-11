@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Bebas_Neue, DM_Sans, DM_Mono } from "next/font/google";
 import "./globals.css";
 import BottomNav from "./BottomNav";
+import { ActiveDateProvider } from "@/lib/activeDate";
 
 const bebas = Bebas_Neue({
   subsets: ["latin"],
@@ -42,8 +43,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${bebas.variable} ${dmSans.variable} ${dmMono.variable}`}>
       <body>
-        <div className="app-root">{children}</div>
-        <BottomNav />
+        <ActiveDateProvider>
+          <div className="app-root">{children}</div>
+          <BottomNav />
+        </ActiveDateProvider>
       </body>
     </html>
   );

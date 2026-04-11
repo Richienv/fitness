@@ -19,6 +19,7 @@ export type ExerciseDetail = {
   muscleGroup: MuscleGroup;
   formTips: string[];
   mistakes: string[];
+  mindset?: string;
 };
 
 // ============ Alternatives ============
@@ -141,6 +142,8 @@ export const EXERCISE_DETAILS: Record<string, ExerciseDetail> = {
       "Butt lifting off bench — cheating and injury risk",
       "Partial reps — always full range of motion",
     ],
+    mindset:
+      "Feel the chest stretch at the bottom. Shoulder hurts = grip too wide. Burn in the pec only.",
   },
   "Incline DB Press": {
     primary: "Upper chest (clavicular head)",
@@ -157,6 +160,8 @@ export const EXERCISE_DETAILS: Record<string, ExerciseDetail> = {
       "Bench too steep — turns it into OHP",
       "Dropping DBs fast — losing tension = losing gains",
     ],
+    mindset:
+      "Upper chest is what makes you look wide from the front. Every rep here builds the shelf.",
   },
   "Lat Pulldown": {
     primary: "Latissimus dorsi (back width)",
@@ -175,6 +180,8 @@ export const EXERCISE_DETAILS: Record<string, ExerciseDetail> = {
       "Leaning back too far — turns it into row",
       "Not getting full stretch at top",
     ],
+    mindset:
+      "Hands are hooks. Lats pull. Imagine bending the bar. Feel it under your armpits — that is lat activation.",
   },
   "Cable Row": {
     primary: "Mid-back (rhomboids, middle traps)",
@@ -191,6 +198,8 @@ export const EXERCISE_DETAILS: Record<string, ExerciseDetail> = {
       "Rounding lower back — protect spine",
       "Jerking with momentum — controlled always",
     ],
+    mindset:
+      "Pinch a pencil between your shoulder blades at the end of every rep. Hold 1 second.",
   },
   "Seated Row Machine": {
     primary: "Mid-back (rhomboids, middle traps)",
@@ -207,6 +216,8 @@ export const EXERCISE_DETAILS: Record<string, ExerciseDetail> = {
       "Hunching shoulders forward on return",
       "Using too much arm / bicep",
     ],
+    mindset:
+      "Back, not biceps. Initiate every pull from your mid-back. Arms just hold the handle.",
   },
   "OHP": {
     primary: "Front delts, side delts",
@@ -223,6 +234,8 @@ export const EXERCISE_DETAILS: Record<string, ExerciseDetail> = {
       "Leaning back excessively — turns into incline press",
       "Soft core = wobbly bar = injury",
     ],
+    mindset:
+      "Every overhead rep builds boulder shoulders. Feel the front delt working. Push the ceiling.",
   },
   "Cable Lateral Raise": {
     primary: "Side delts (medial deltoid)",
@@ -240,6 +253,8 @@ export const EXERCISE_DETAILS: Record<string, ExerciseDetail> = {
       "Shrugging — traps take over",
       "Going above shoulder — delts disengage",
     ],
+    mindset:
+      "This exercise builds your V-taper more than anything else. Light weight, perfect form, burn.",
   },
   "Lateral Raise": {
     primary: "Side delts (medial deltoid)",
@@ -272,6 +287,8 @@ export const EXERCISE_DETAILS: Record<string, ExerciseDetail> = {
       "Elbows drifting forward — shoulders take over",
       "Leaning in to push — use triceps only",
     ],
+    mindset:
+      "Elbows don't move. Only forearms move. Squeeze at the bottom like you're cracking a walnut.",
   },
   "Dips": {
     primary: "Lower chest, triceps",
@@ -288,6 +305,8 @@ export const EXERCISE_DETAILS: Record<string, ExerciseDetail> = {
       "Going too deep — shoulder impingement risk",
       "Shrugging shoulders at bottom",
     ],
+    mindset:
+      "Lean forward = chest. Stay upright = triceps. Choose your lean based on what you want to grow.",
   },
   "Squat": {
     primary: "Quads, glutes",
@@ -306,6 +325,8 @@ export const EXERCISE_DETAILS: Record<string, ExerciseDetail> = {
       "Heels lifting — weight on midfoot",
       "Rounding lower back at bottom",
     ],
+    mindset:
+      "Nobody likes squats. Everyone wants the V-taper. Legs support everything. Full depth or nothing.",
   },
   "Romanian Deadlift": {
     primary: "Hamstrings, glutes",
@@ -322,6 +343,8 @@ export const EXERCISE_DETAILS: Record<string, ExerciseDetail> = {
       "Squatting it — knees should stay fixed",
       "Rounding lower back — stop before that point",
     ],
+    mindset:
+      "Feel the hamstring stretch at the bottom. If you don't feel it — you're squatting, not hinging.",
   },
   "Face Pull": {
     primary: "Rear delts, rotator cuff",
@@ -338,6 +361,8 @@ export const EXERCISE_DETAILS: Record<string, ExerciseDetail> = {
       "Pulling to chest — becomes a row",
       "Using too much weight — form breaks",
     ],
+    mindset:
+      "This keeps your shoulders healthy. Every gym session needs face pulls. Never skip this.",
   },
   "Barbell Curl": {
     primary: "Biceps brachii",
@@ -354,6 +379,8 @@ export const EXERCISE_DETAILS: Record<string, ExerciseDetail> = {
       "Swinging from hips — no bicep involvement",
       "Elbows drifting forward — turns into front raise",
     ],
+    mindset:
+      "Slow negative builds more bicep than the curl up. 4 seconds down. Every single rep.",
   },
   "Hammer Curl": {
     primary: "Brachialis, brachioradialis",
@@ -370,6 +397,8 @@ export const EXERCISE_DETAILS: Record<string, ExerciseDetail> = {
       "Rotating wrist at top — becomes a DB curl",
       "Swinging from shoulders",
     ],
+    mindset:
+      "Hammer curl builds arm thickness and forearm. The muscle that makes arms look full from the side.",
   },
   "Leg Press": {
     primary: "Quads, glutes",
@@ -417,6 +446,8 @@ export const EXERCISE_DETAILS: Record<string, ExerciseDetail> = {
       "Bouncing — tendons do the work, not calves",
       "Half ROM — calves need FULL stretch",
     ],
+    mindset:
+      "Calves only respond to high reps with full range. Slow it down. Feel the burn at the top.",
   },
   "Cable Crunch": {
     primary: "Rectus abdominis (upper abs)",
@@ -433,6 +464,8 @@ export const EXERCISE_DETAILS: Record<string, ExerciseDetail> = {
       "Pulling with arms / triceps — hands are hooks",
       "Hip-hinging — abs disengage entirely",
     ],
+    mindset:
+      "Abs are built here. Revealed by diet. Hips don't move. Only your spine flexes.",
   },
 };
 

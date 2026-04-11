@@ -14,7 +14,7 @@ import {
   type SessionType,
   type WorkoutSession,
 } from "@/lib/workouts";
-import { todayKey } from "@/lib/targets";
+import { useActiveDate } from "@/lib/activeDate";
 
 function mondayOf(d: Date): Date {
   const x = new Date(d);
@@ -27,6 +27,7 @@ function mondayOf(d: Date): Date {
 
 export default function WorkoutHome() {
   const router = useRouter();
+  const { activeDate, label: dateLabel } = useActiveDate();
   const [now, setNow] = useState<Date | null>(null);
   const [workouts, setWorkouts] = useState<WorkoutSession[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -38,7 +39,7 @@ export default function WorkoutHome() {
   }, []);
 
   const recommended: SessionType | null = now ? recommendedSessionFor(now) : null;
-  const today = todayKey();
+  const today = activeDate;
 
   const todaysLogged = useMemo(
     () => workouts.find((w) => w.date === today && w.completed),
@@ -63,9 +64,7 @@ export default function WorkoutHome() {
   const activeInProgress = activeWorkout && !activeWorkout.completed ? activeWorkout : null;
 
   const wkNum = now ? weekNumber(now) : 1;
-  const dateStr = now
-    ? now.toLocaleDateString("en", { weekday: "short", month: "short", day: "numeric" }).toUpperCase()
-    : "";
+  const dateStr = dateLabel;
 
   function pick(sessionType: SessionType) {
     if (activeInProgress && activeInProgress.sessionType === sessionType) {

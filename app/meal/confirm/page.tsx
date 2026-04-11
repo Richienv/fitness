@@ -1,8 +1,8 @@
 import ConfirmMeal from "./ConfirmMeal";
 
-type SP = Promise<{ preset?: string }>;
+type SP = Promise<{ preset?: string; date?: string }>;
 
 export default async function ConfirmPage({ searchParams }: { searchParams: SP }) {
-  const { preset } = await searchParams;
-  return <ConfirmMeal presetId={preset ?? ""} />;
+  const { preset, date } = await searchParams;
+  return <ConfirmMeal presetId={preset ?? ""} dateParam={date} />;
 }

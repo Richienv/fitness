@@ -2,15 +2,27 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { getIngredient, macrosFor } from "@/lib/ingredients";
 import { PRESETS } from "@/lib/presets";
 import { saveMeal } from "@/lib/store";
-import { todayKey } from "@/lib/targets";
+import { useActiveDate } from "@/lib/activeDate";
 
-export default function ConfirmMeal({ presetId }: { presetId: string }) {
+export default function ConfirmMeal({
+  presetId,
+  dateParam,
+}: {
+  presetId: string;
+  dateParam?: string;
+}) {
   const router = useRouter();
+  const { activeDate, setActiveDate, short } = useActiveDate();
   const preset = useMemo(() => PRESETS.find((p) => p.id === presetId), [presetId]);
+
+  // Sync context with ?date= query param (URL is the source of truth for linked flows)
+  useEffect(() => {
+    if (dateParam && dateParam !== activeDate) setActiveDate(dateParam);
+  }, [dateParam, activeDate, setActiveDate]);
 
   if (!preset) {
     return (
@@ -35,17 +47,19 @@ export default function ConfirmMeal({ presetId }: { presetId: string }) {
     { kcal: 0, protein: 0, carbs: 0, fat: 0 }
   );
 
+  const saveDate = dateParam ?? activeDate;
+
   function save() {
     saveMeal({
-      date: todayKey(),
+      date: saveDate,
       mealType: preset!.mealType,
       items: preset!.items,
     });
-    router.push("/dashboard");
+    router.push("/meal");
   }
 
   function edit() {
-    const params = new URLSearchParams({ preset: preset!.id });
+    const params = new URLSearchParams({ preset: preset!.id, date: saveDate });
     router.push(`/meal/${preset!.mealType}?${params.toString()}`);
   }
 
@@ -54,7 +68,9 @@ export default function ConfirmMeal({ presetId }: { presetId: string }) {
       <div className="confirm-top">
         <Link href="/meal" className="back-link">← Back</Link>
         <h1 className="confirm-title">{preset.label}</h1>
-        <div className="confirm-sub mono">{preset.mealType.toUpperCase()}</div>
+        <div className="confirm-sub mono">
+          {preset.mealType.toUpperCase()} · {short}
+        </div>
 
         <div className="confirm-items">
           {preset.items.map((it, i) => {

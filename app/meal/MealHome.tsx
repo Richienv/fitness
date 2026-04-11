@@ -4,9 +4,18 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { macrosFor, type Macros } from "@/lib/ingredients";
 import { PRESETS, type MealType } from "@/lib/presets";
-import { getAllMeals, getDaily, isCustomItem, type MealLog } from "@/lib/store";
-import { TARGETS, todayKey, weekNumber } from "@/lib/targets";
+import {
+  clearMealsForDate,
+  dedupeMeals,
+  getAllMeals,
+  getDaily,
+  isCustomItem,
+  type MealLog,
+} from "@/lib/store";
+import { TARGETS, weekNumber } from "@/lib/targets";
+import { useActiveDate, parseDate } from "@/lib/activeDate";
 import WeeklyGraph from "./WeeklyGraph";
+import DatePicker from "./DatePicker";
 
 type MealInfo = {
   id: MealType;
@@ -58,18 +67,54 @@ function addMacros(a: Macros, b: Macros): Macros {
 type MealBucket = { macros: Macros; items: number };
 
 export default function MealHome() {
+  const {
+    activeDate,
+    setActiveDate,
+    goPrevDay,
+    goNextDay,
+    goToday,
+    advanceToNextDay,
+    isToday,
+    canGoNext,
+    label: dateLabel,
+    short: shortDate,
+    todayStr,
+  } = useActiveDate();
+
   const [allMeals, setAllMeals] = useState<MealLog[]>([]);
-  const [now, setNow] = useState<Date | null>(null);
   const [gymDay, setGymDay] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [newDayOpen, setNewDayOpen] = useState(false);
 
   useEffect(() => {
+    dedupeMeals();
     setAllMeals(getAllMeals());
-    setNow(new Date());
-    setGymDay(getDaily(todayKey()).gymDay);
   }, []);
 
-  const today = todayKey();
-  const todayMeals = useMemo(() => allMeals.filter((m) => m.date === today), [allMeals, today]);
+  useEffect(() => {
+    if (!activeDate) return;
+    setGymDay(getDaily(activeDate).gymDay);
+  }, [activeDate]);
+
+  function handleClearActive() {
+    if (typeof window === "undefined" || !activeDate) return;
+    const confirmed = window.confirm(
+      `Clear all meals logged on ${shortDate}? This cannot be undone.`
+    );
+    if (!confirmed) return;
+    clearMealsForDate(activeDate);
+    setAllMeals(getAllMeals());
+  }
+
+  function handleConfirmNewDay() {
+    advanceToNextDay();
+    setNewDayOpen(false);
+  }
+
+  const dayMeals = useMemo(
+    () => allMeals.filter((m) => m.date === activeDate),
+    [allMeals, activeDate]
+  );
 
   const byType = useMemo(() => {
     const m: Record<MealType, MealBucket> = {
@@ -78,12 +123,12 @@ export default function MealHome() {
       snack:     { macros: { ...EMPTY_MACROS }, items: 0 },
       dinner:    { macros: { ...EMPTY_MACROS }, items: 0 },
     };
-    for (const meal of todayMeals) {
+    for (const meal of dayMeals) {
       m[meal.mealType].macros = addMacros(m[meal.mealType].macros, sumMealMacros(meal));
       m[meal.mealType].items += meal.items.length;
     }
     return m;
-  }, [todayMeals]);
+  }, [dayMeals]);
 
   const totals = useMemo<Macros>(() => {
     return (Object.values(byType) as MealBucket[]).reduce(
@@ -93,18 +138,15 @@ export default function MealHome() {
   }, [byType]);
 
   const target = gymDay ? TARGETS.gymDay : TARGETS.restDay;
-  const wk = now ? weekNumber(now) : 1;
+  const wk = activeDate ? weekNumber(parseDate(activeDate)) : 1;
 
-  const currentHour = now?.getHours() ?? -1;
+  // Active-meal highlight: only relevant for today; uses device local hours.
+  const currentHour = isToday ? new Date().getHours() : -1;
   const activeMeal: MealType | null =
     currentHour >= 6 && currentHour < 11 ? "breakfast" :
     currentHour >= 11 && currentHour < 14 ? "lunch" :
     currentHour >= 14 && currentHour < 17 ? "snack" :
     currentHour >= 17 && currentHour < 22 ? "dinner" : null;
-
-  const dateStr = now
-    ? now.toLocaleDateString("en", { weekday: "short", day: "numeric", month: "short" }).toUpperCase()
-    : "";
 
   const bars: { key: keyof Macros; label: string; unit: string }[] = [
     { key: "kcal",    label: "CALORIES", unit: "" },
@@ -121,19 +163,72 @@ export default function MealHome() {
         <div className="mh-header">
           <div className="mh-header-row">
             <h1 className="mh-title">🍽️ LOG <span>MEAL</span></h1>
-            <div className="mh-date mono">{dateStr}</div>
+            {!isToday && (
+              <button type="button" className="mh-today-btn mono" onClick={goToday}>
+                ← TODAY
+              </button>
+            )}
+          </div>
+          <div className="mh-date-nav">
+            <button
+              type="button"
+              className="mh-date-arrow"
+              onClick={goPrevDay}
+              aria-label="Previous day"
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              className="mh-date-btn mono"
+              onClick={() => setPickerOpen(true)}
+              aria-label="Pick date"
+            >
+              {dateLabel} ▾
+            </button>
+            <button
+              type="button"
+              className="mh-date-arrow"
+              onClick={goNextDay}
+              disabled={!canGoNext}
+              aria-label="Next day"
+            >
+              →
+            </button>
           </div>
           <div className="mh-subtitle mono">
             WK {wk} / 12 · {gymDay ? "GYM DAY" : "REST DAY"} · {target.kcal.toLocaleString()} kcal target
           </div>
         </div>
 
-        <WeeklyGraph meals={allMeals} now={now} />
+        <WeeklyGraph meals={allMeals} now={activeDate ? parseDate(activeDate) : null} />
 
         <div className="today-card">
           <div className="today-head">
             <div className="today-label">TODAY&apos;S PROGRESS</div>
-            <div className="today-tag mono">{gymDay ? "GYM" : "REST"}</div>
+            <div className="today-head-right">
+              <div className="today-tag mono">{gymDay ? "GYM" : "REST"}</div>
+              {dayMeals.length > 0 && (
+                <button
+                  type="button"
+                  className="today-clear-btn mono"
+                  onClick={handleClearActive}
+                  aria-label="Clear meals for selected day"
+                >
+                  CLEAR
+                </button>
+              )}
+              {isToday && (
+                <button
+                  type="button"
+                  className="today-newday-btn mono"
+                  onClick={() => setNewDayOpen(true)}
+                  aria-label="Advance to next day"
+                >
+                  NEW DAY
+                </button>
+              )}
+            </div>
           </div>
           <div className="today-bars">
             {bars.map((b) => {
@@ -169,7 +264,7 @@ export default function MealHome() {
               {PRESETS.map((p) => (
                 <Link
                   key={p.id}
-                  href={`/meal/confirm?preset=${p.id}`}
+                  href={`/meal/confirm?preset=${p.id}&date=${activeDate}`}
                   className="quick-chip"
                 >
                   {p.label}
@@ -195,7 +290,7 @@ export default function MealHome() {
                 key={m.id}
                 className={`meal-row${isActive ? " active" : ""}${logged ? " logged" : ""}`}
               >
-                <Link href={`/meal/${m.id}`} className="meal-row-body">
+                <Link href={`/meal/${m.id}?date=${activeDate}`} className="meal-row-body">
                   <span className="meal-emoji">{m.emoji}</span>
                   <div className="meal-row-main">
                     <div className="meal-row-name">{m.name}</div>
@@ -213,8 +308,8 @@ export default function MealHome() {
                 </Link>
                 {logged && (
                   <div className="meal-row-actions">
-                    <Link href={`/meal/${m.id}`} className="mr-btn">VIEW</Link>
-                    <Link href={`/meal/${m.id}`} className="mr-btn primary">+ ADD</Link>
+                    <Link href={`/meal/${m.id}?date=${activeDate}`} className="mr-btn">VIEW</Link>
+                    <Link href={`/meal/${m.id}?date=${activeDate}`} className="mr-btn primary">+ ADD</Link>
                   </div>
                 )}
                 {!logged && <span className="meal-chev">›</span>}
@@ -223,6 +318,50 @@ export default function MealHome() {
           })}
         </div>
       </div>
+
+      {pickerOpen && activeDate && (
+        <DatePicker
+          activeDate={activeDate}
+          todayStr={todayStr}
+          onPick={(d) => {
+            setActiveDate(d);
+            setPickerOpen(false);
+          }}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+
+      {newDayOpen && (
+        <div className="set-modal-overlay" onClick={() => setNewDayOpen(false)}>
+          <div className="set-modal new-day-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="set-modal-body">
+              <div className="set-modal-head">
+                <div className="set-modal-ex">START NEW DAY?</div>
+              </div>
+              <div className="new-day-copy">
+                Start tracking for tomorrow?
+                <br />
+                <strong>Today&apos;s data ({shortDate}) is saved.</strong>
+                <br />
+                The tracker will jump to tomorrow with a fresh page. You can always come
+                back via the date picker.
+              </div>
+            </div>
+            <div className="set-modal-actions">
+              <button
+                type="button"
+                className="next-btn ghost"
+                onClick={() => setNewDayOpen(false)}
+              >
+                CANCEL
+              </button>
+              <button type="button" className="next-btn" onClick={handleConfirmNewDay}>
+                CONFIRM →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

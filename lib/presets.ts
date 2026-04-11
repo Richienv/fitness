@@ -14,6 +14,7 @@ export const PRESETS: MealPreset[] = [
     mealType: "breakfast",
     items: [
       { id: "egg", qty: 3 },
+      { id: "oats", qty: 1 },
       { id: "creatine", qty: 1 },
     ],
   },
@@ -39,6 +40,17 @@ export const PRESETS: MealPreset[] = [
       { id: "enoki", qty: 1 },
       { id: "tomato", qty: 1 },
       { id: "eggplant", qty: 1 },
+    ],
+  },
+  {
+    id: "big-lunch",
+    label: "💪 Big Lunch",
+    mealType: "lunch",
+    items: [
+      { id: "chicken-breast", qty: 1 },
+      { id: "chicken-thigh", qty: 1 },
+      { id: "whey", qty: 1 },
+      { id: "oats", qty: 1.5 },
     ],
   },
   {

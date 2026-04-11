@@ -24,7 +24,7 @@ import {
   type MealLog,
   type Per100g,
 } from "@/lib/store";
-import { todayKey } from "@/lib/targets";
+import { useActiveDate } from "@/lib/activeDate";
 
 type Selection = Record<string, number>;
 
@@ -52,8 +52,19 @@ const STEPS: { key: Ingredient["group"]; title: string; emoji: string }[] = [
 
 const ZERO: CustomMacros = { kcal: 0, protein: 0, fat: 0, carbs: 0, sugar: 0, sodium: 0 };
 
-export default function MealBuilder({ mealType }: { mealType: MealType }) {
+export default function MealBuilder({
+  mealType,
+  dateParam,
+}: {
+  mealType: MealType;
+  dateParam?: string;
+}) {
   const router = useRouter();
+  const { activeDate, setActiveDate, short } = useActiveDate();
+
+  useEffect(() => {
+    if (dateParam && dateParam !== activeDate) setActiveDate(dateParam);
+  }, [dateParam, activeDate, setActiveDate]);
   const [selection, setSelection] = useState<Selection>({});
   const [customEntries, setCustomEntries] = useState<CustomEntry[]>([]);
   const [customFoods, setCustomFoods] = useState<CustomFood[]>([]);
@@ -101,26 +112,36 @@ export default function MealBuilder({ mealType }: { mealType: MealType }) {
   const itemCount =
     Object.values(selection).filter((q) => q > 0).length + customEntries.length;
 
+  function stepFor(id: string): number {
+    return INGREDIENTS.find((i) => i.id === id)?.step ?? 1;
+  }
   function add(id: string) {
-    setSelection((s) => ({ ...s, [id]: (s[id] ?? 0) + 1 }));
+    const step = stepFor(id);
+    setSelection((s) => ({
+      ...s,
+      [id]: Math.round(((s[id] ?? 0) + step) * 100) / 100,
+    }));
   }
   function sub(id: string) {
+    const step = stepFor(id);
     setSelection((s) => {
       const next = { ...s };
       const current = next[id] ?? 0;
-      if (current <= 1) delete next[id];
-      else next[id] = current - 1;
+      const after = Math.round((current - step) * 100) / 100;
+      if (after <= 0) delete next[id];
+      else next[id] = after;
       return next;
     });
   }
   function toggle(id: string) {
+    const step = stepFor(id);
     setSelection((s) => {
       if (s[id]) {
         const next = { ...s };
         delete next[id];
         return next;
       }
-      return { ...s, [id]: 1 };
+      return { ...s, [id]: step };
     });
   }
   function applyPreset(items: { id: string; qty: number }[]) {
@@ -157,7 +178,7 @@ export default function MealBuilder({ mealType }: { mealType: MealType }) {
           };
         }),
       ];
-      saveMeal({ date: todayKey(), mealType, items });
+      saveMeal({ date: dateParam ?? activeDate, mealType, items });
       router.push("/dashboard");
       return;
     }
@@ -202,6 +223,7 @@ export default function MealBuilder({ mealType }: { mealType: MealType }) {
         <h1 className="section-title">
           {LABELS[mealType]} <span>·</span> {step.title}
         </h1>
+        <div className="mh-date mono" style={{ marginTop: 2 }}>{short}</div>
       </div>
 
       <div className="scroll-area">
@@ -319,8 +341,16 @@ export default function MealBuilder({ mealType }: { mealType: MealType }) {
                     <div className="card-selected">
                       <div className="sel-head">
                         <div className="sel-head-text">
-                          <div className="sel-name">{ing.name}</div>
-                          <div className="sel-portion">{ing.unit}</div>
+                          <div className="sel-name">
+                            {ing.name}
+                            {ing.tag === "best" && <span className="tag-best">✅ BEST</span>}
+                          </div>
+                          <div className="sel-portion">
+                            {ing.unit}
+                            {ing.gramsPerUnit && qty > 0 && (
+                              <span className="portion-total"> · {Math.round(ing.gramsPerUnit * qty)}g total</span>
+                            )}
+                          </div>
                         </div>
                         <div className="sel-head-actions">
                           <div className="sel-qty-pill">×{qty}</div>
@@ -360,7 +390,10 @@ export default function MealBuilder({ mealType }: { mealType: MealType }) {
                     <div className="card-top">
                       <div className="card-head-row">
                         <div className="card-name-stack">
-                          <div className="food-name">{ing.name}</div>
+                          <div className="food-name">
+                            {ing.name}
+                            {ing.tag === "best" && <span className="tag-best">✅ BEST</span>}
+                          </div>
                           <div className="food-portion">{ing.unit}</div>
                         </div>
                         <div className="head-right">
@@ -388,6 +421,9 @@ export default function MealBuilder({ mealType }: { mealType: MealType }) {
                         <span className="m-dot">·</span>
                         <span className="m-kcal">{ing.kcal} kcal</span>
                       </div>
+                      {ing.note && (
+                        <div className="ing-note">{ing.note}</div>
+                      )}
                       {isExtra && (ing.sodium !== undefined || (ing.sugar ?? 0) > 0) && (
                         <div className="macro-line">
                           {ing.sodium !== undefined && (

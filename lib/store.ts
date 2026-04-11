@@ -78,15 +78,34 @@ export function getMealsForDate(date: string): MealLog[] {
 }
 
 export function saveMeal(log: Omit<MealLog, "id" | "loggedAt">): MealLog {
+  const all = getAllMeals();
+  const existing = all.find((m) => m.date === log.date && m.mealType === log.mealType);
+  if (existing) {
+    existing.items = [...existing.items, ...log.items];
+    existing.loggedAt = Date.now();
+    write(MEALS_KEY, all);
+    return existing;
+  }
   const entry: MealLog = {
     ...log,
     id: crypto.randomUUID(),
     loggedAt: Date.now(),
   };
-  const all = getAllMeals();
   all.push(entry);
   write(MEALS_KEY, all);
   return entry;
+}
+
+export function updateMealItems(id: string, items: MealItem[]): void {
+  const all = getAllMeals();
+  const idx = all.findIndex((m) => m.id === id);
+  if (idx === -1) return;
+  if (items.length === 0) {
+    all.splice(idx, 1);
+  } else {
+    all[idx] = { ...all[idx], items, loggedAt: Date.now() };
+  }
+  write(MEALS_KEY, all);
 }
 
 export function deleteMeal(id: string): void {
@@ -96,15 +115,58 @@ export function deleteMeal(id: string): void {
   );
 }
 
+export function clearMealsForDate(date: string): void {
+  write(
+    MEALS_KEY,
+    getAllMeals().filter((m) => m.date !== date)
+  );
+}
+
+/**
+ * Collapses any pre-existing duplicate (date, mealType) rows into a single
+ * row per day+type. Idempotent — safe to run on every app load to heal data
+ * written before the merge-on-save fix.
+ */
+export function dedupeMeals(): number {
+  const all = getAllMeals();
+  const keyed = new Map<string, MealLog>();
+  let dupes = 0;
+  for (const m of all) {
+    const k = `${m.date}|${m.mealType}`;
+    const prev = keyed.get(k);
+    if (!prev) {
+      keyed.set(k, { ...m, items: [...m.items] });
+      continue;
+    }
+    dupes++;
+    prev.items.push(...m.items);
+    if (m.loggedAt > prev.loggedAt) prev.loggedAt = m.loggedAt;
+  }
+  if (dupes === 0) return 0;
+  write(MEALS_KEY, Array.from(keyed.values()));
+  return dupes;
+}
+
 export function getLastMealOfType(mealType: MealType): MealLog | null {
   const all = getAllMeals().filter((m) => m.mealType === mealType);
   if (!all.length) return null;
   return all.sort((a, b) => b.loggedAt - a.loggedAt)[0];
 }
 
+/**
+ * Default GYM/REST based on day of week:
+ *   Wed (3) and Sun (0) = REST, all other days = GYM.
+ * Richie trains 5x/week including Saturday.
+ */
+function defaultGymDay(date: string): boolean {
+  const [y, m, d] = date.split("-").map(Number);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return dow !== 0 && dow !== 3;
+}
+
 export function getDaily(date: string): DailyFlags {
   const all = read<Record<string, DailyFlags>>(DAILY_KEY, {});
-  return all[date] ?? { date, gymDay: false, checklist: {} };
+  return all[date] ?? { date, gymDay: defaultGymDay(date), checklist: {} };
 }
 
 export function setDaily(flags: DailyFlags): void {
