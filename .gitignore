@@ -1,3 +1,12 @@
 ._*
 .DS_Store
 .superpowers/
+node_modules
+.next
+out
+.env
+.env.local
+.env*.local
+.vercel
+*.tsbuildinfo
+next-env.d.ts

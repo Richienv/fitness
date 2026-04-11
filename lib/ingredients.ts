@@ -1,0 +1,140 @@
+export type Macros = {
+  kcal: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+};
+
+export type IngredientTag = "recommended" | "limit";
+
+export type Ingredient = {
+  id: string;
+  name: string;
+  zh?: string;
+  pinyin?: string;
+  unit: string;
+  group: "protein" | "carb" | "vegetable" | "extra";
+  favorite?: boolean;
+  tag?: IngredientTag;
+  sodium?: number; // mg
+  sugar?: number;  // g
+} & Macros;
+
+export const INGREDIENTS: Ingredient[] = [
+  // Proteins
+  { id: "egg",          name: "Whole egg",        zh: "鸡蛋",     pinyin: "jī dàn",       unit: "1 egg",           group: "protein", favorite: true, kcal: 70,  protein: 6,  fat: 5,  carbs: 0.5 },
+  { id: "chicken-breast", name: "Chicken breast", zh: "鸡胸肉",   pinyin: "jī xiōng ròu", unit: "1 breast (250g)", group: "protein", favorite: true, kcal: 275, protein: 52, fat: 6,  carbs: 0 },
+  { id: "chicken-thigh", name: "Chicken thigh",   zh: "鸡腿",     pinyin: "jī tuǐ",       unit: "1 thigh (150g)",  group: "protein", favorite: true, kcal: 220, protein: 24, fat: 14, carbs: 0 },
+  { id: "beef-slice",   name: "Beef slice",       zh: "牛肉片",   pinyin: "niú ròu piàn", unit: "1 slice (30g)",   group: "protein", favorite: true, kcal: 54,  protein: 5,  fat: 4,  carbs: 0 },
+  { id: "whey",         name: "Whey scoop",       zh: "乳清蛋白", pinyin: "rǔ qīng dàn bái", unit: "1 scoop",     group: "protein", kcal: 120, protein: 25, fat: 2,  carbs: 3 },
+  { id: "greek-yogurt", name: "Greek yogurt",     zh: "希腊酸奶", pinyin: "xī là suān nǎi", unit: "150g",         group: "protein", kcal: 100, protein: 10, fat: 3,  carbs: 8 },
+  { id: "tofu",         name: "Tofu",             zh: "豆腐",     pinyin: "dòu fu",       unit: "100g",            group: "protein", kcal: 76,  protein: 8,  fat: 4,  carbs: 2 },
+  { id: "salmon",       name: "Salmon",           zh: "三文鱼",   pinyin: "sān wén yú",   unit: "150g",            group: "protein", kcal: 280, protein: 30, fat: 17, carbs: 0 },
+
+  // Carbs — Rice & grains
+  { id: "purple-rice",  name: "Purple rice",    zh: "紫米饭",   pinyin: "zǐ mǐ fàn",   unit: "100g",     group: "carb", tag: "recommended", kcal: 180, protein: 4, fat: 1, carbs: 38 },
+  { id: "white-rice",   name: "White rice",     zh: "白米饭",   pinyin: "bái mǐ fàn",  unit: "100g",     group: "carb", favorite: true, tag: "limit", kcal: 130, protein: 3, fat: 0, carbs: 28 },
+  { id: "brown-rice",   name: "Brown rice",     zh: "糙米",     pinyin: "cāo mǐ",      unit: "100g",     group: "carb", kcal: 150, protein: 3, fat: 1, carbs: 32 },
+  { id: "oats",         name: "Oats",           zh: "燕麦",     pinyin: "yàn mài",     unit: "40g",      group: "carb", tag: "recommended", kcal: 148, protein: 5, fat: 3, carbs: 27 },
+  { id: "granola",      name: "Granola",        zh: "格兰诺拉", pinyin: "gé lán nuò lā", unit: "30g",    group: "carb", kcal: 150, protein: 4, fat: 6, carbs: 20 },
+  // Carbs — Potato & root
+  { id: "sweet-potato", name: "Sweet potato",   zh: "红薯",     pinyin: "hóng shǔ",    unit: "100g",     group: "carb", tag: "recommended", kcal: 86,  protein: 2, fat: 0, carbs: 20 },
+  { id: "potato",       name: "Potato",         zh: "土豆",     pinyin: "tǔ dòu",      unit: "100g",     group: "carb", kcal: 77,  protein: 2, fat: 0, carbs: 17 },
+  // Carbs — Fruit carbs
+  { id: "banana",       name: "Banana",         zh: "香蕉",     pinyin: "xiāng jiāo",  unit: "1 whole",  group: "carb", favorite: true, tag: "recommended", kcal: 105, protein: 1, fat: 0, carbs: 27 },
+  { id: "melon",        name: "Melon",          zh: "哈密瓜",   pinyin: "hā mì guā",   unit: "quarter",  group: "carb", favorite: true, kcal: 50,  protein: 0, fat: 0, carbs: 12 },
+  { id: "apple",        name: "Apple",          zh: "苹果",     pinyin: "píng guǒ",    unit: "1 medium", group: "carb", kcal: 95,  protein: 0, fat: 0, carbs: 25 },
+  { id: "mango",        name: "Mango",          zh: "芒果",     pinyin: "máng guǒ",    unit: "100g",     group: "carb", kcal: 60,  protein: 1, fat: 0, carbs: 15 },
+  { id: "grapes",       name: "Grapes",         zh: "葡萄",     pinyin: "pú táo",      unit: "100g",     group: "carb", kcal: 69,  protein: 1, fat: 0, carbs: 18 },
+  { id: "pineapple",    name: "Pineapple",      zh: "菠萝",     pinyin: "bō luó",      unit: "100g",     group: "carb", kcal: 50,  protein: 0, fat: 0, carbs: 13 },
+  { id: "blueberries",  name: "Blueberries",    zh: "蓝莓",     pinyin: "lán méi",     unit: "50g",      group: "carb", kcal: 29,  protein: 0, fat: 0, carbs: 7 },
+  { id: "mixed-fruits", name: "Mixed fruits",   zh: "什锦水果", pinyin: "shí jǐn shuǐ guǒ", unit: "150g", group: "carb", kcal: 90,  protein: 1, fat: 0, carbs: 22 },
+  // Carbs — Bread & noodles
+  { id: "noodles",      name: "Noodles",        zh: "面条",     pinyin: "miàn tiáo",   unit: "100g dry", group: "carb", favorite: true, tag: "limit", kcal: 350, protein: 12, fat: 2, carbs: 70 },
+  { id: "bread",        name: "Bread",          zh: "面包",     pinyin: "miàn bāo",    unit: "1 slice",  group: "carb", tag: "limit", kcal: 80,  protein: 3, fat: 1, carbs: 15 },
+
+  // Vegetables
+  { id: "enoki",        name: "Enoki",          zh: "金针菇",   pinyin: "jīn zhēn gū", unit: "½ pack · 50g",    group: "vegetable", favorite: true, kcal: 19, protein: 2, fat: 0, carbs: 4 },
+  { id: "tomato",       name: "Tomato",         zh: "番茄",     pinyin: "fān qié",     unit: "1 whole · 150g",  group: "vegetable", favorite: true, kcal: 27, protein: 1, fat: 0, carbs: 6 },
+  { id: "eggplant",     name: "Eggplant",       zh: "茄子",     pinyin: "qié zi",      unit: "½ eggplant · 100g", group: "vegetable", favorite: true, kcal: 35, protein: 1, fat: 0, carbs: 8 },
+  { id: "broccoli",     name: "Broccoli",       zh: "西兰花",   pinyin: "xī lán huā",  unit: "¼ head · 75g",    group: "vegetable", favorite: true, kcal: 26, protein: 2, fat: 0, carbs: 5 },
+  { id: "spinach",      name: "Spinach",        zh: "菠菜",     pinyin: "bō cài",      unit: "100g",            group: "vegetable", kcal: 25, protein: 3, fat: 0, carbs: 3 },
+  { id: "okra",         name: "Okra",           zh: "秋葵",     pinyin: "qiū kuí",     unit: "100g",            group: "vegetable", kcal: 33, protein: 2, fat: 0, carbs: 7 },
+  { id: "bell-pepper",  name: "Bell pepper",    zh: "彩椒",     pinyin: "cǎi jiāo",    unit: "1 whole · 120g",  group: "vegetable", kcal: 36, protein: 1, fat: 0, carbs: 8 },
+
+  // Extras — Supplements
+  { id: "creatine",         name: "Creatine",             zh: "肌酸",     pinyin: "jī suān",         unit: "10g",           group: "extra", favorite: true, kcal: 0,   protein: 0,  fat: 0,  carbs: 0, sodium: 0,   sugar: 0 },
+  { id: "whey-extra",       name: "Whey protein",         zh: "乳清蛋白", pinyin: "rǔ qīng dàn bái", unit: "1 scoop (30g)", group: "extra", favorite: true, kcal: 120, protein: 25, fat: 2,  carbs: 3, sodium: 150, sugar: 2 },
+  // Extras — Seasonings & sauces
+  { id: "soy-sauce",        name: "Soy sauce",            zh: "生抽",     pinyin: "shēng chōu",      unit: "1 tbsp", group: "extra", favorite: true, kcal: 10,  protein: 1,  fat: 0,  carbs: 1, sodium: 900, sugar: 0 },
+  { id: "low-soy-sauce",    name: "Low-sodium soy sauce", zh: "低钠生抽", pinyin: "dī nà shēng chōu",unit: "1 tbsp", group: "extra", kcal: 10,  protein: 1,  fat: 0,  carbs: 1, sodium: 570, sugar: 0 },
+  { id: "oyster-sauce",     name: "Oyster sauce",         zh: "蚝油",     pinyin: "háo yóu",         unit: "1 tbsp", group: "extra", kcal: 18,  protein: 0,  fat: 0,  carbs: 4, sodium: 492, sugar: 2 },
+  { id: "sukiyaki-sauce",   name: "Sukiyaki sauce",       zh: "寿喜烧酱", pinyin: "shòu xǐ shāo jiàng", unit: "1 tbsp", group: "extra", kcal: 25,  protein: 0,  fat: 0,  carbs: 6, sodium: 400, sugar: 5 },
+  { id: "gyudon-sauce",     name: "Gyudon sauce",         zh: "牛丼酱",   pinyin: "niú dǒng jiàng",  unit: "1 tbsp", group: "extra", kcal: 30,  protein: 1,  fat: 0,  carbs: 6, sodium: 450, sugar: 4 },
+  { id: "black-pepper",     name: "Black pepper",         zh: "黑胡椒",   pinyin: "hēi hú jiāo",     unit: "1 tsp",  group: "extra", kcal: 5,   protein: 0,  fat: 0,  carbs: 1, sodium: 0,   sugar: 0 },
+  { id: "garlic-powder",    name: "Garlic powder",        zh: "大蒜粉",   pinyin: "dà suàn fěn",     unit: "1 tsp",  group: "extra", kcal: 10,  protein: 0,  fat: 0,  carbs: 2, sodium: 0,   sugar: 0 },
+  { id: "lemon-juice",      name: "Lemon juice",          zh: "柠檬汁",   pinyin: "níng méng zhī",   unit: "1 tbsp", group: "extra", kcal: 4,   protein: 0,  fat: 0,  carbs: 1, sodium: 0,   sugar: 0 },
+  // Extras — Drinks
+  { id: "water",            name: "Water",                zh: "水",       pinyin: "shuǐ",            unit: "500ml",    group: "extra", kcal: 0,   protein: 0,  fat: 0,  carbs: 0, sodium: 0,   sugar: 0 },
+  { id: "black-coffee",     name: "Black coffee",         zh: "黑咖啡",   pinyin: "hēi kā fēi",      unit: "1 cup",    group: "extra", kcal: 5,   protein: 0,  fat: 0,  carbs: 0, sodium: 5,   sugar: 0 },
+  { id: "matcha-latte",     name: "Matcha latte",         zh: "抹茶拿铁", pinyin: "mǒ chá ná tiě",   unit: "no sugar", group: "extra", kcal: 150, protein: 5,  fat: 6,  carbs: 18, sodium: 120, sugar: 0 },
+  { id: "coconut-latte",    name: "Coconut latte",        zh: "椰子拿铁", pinyin: "yē zi ná tiě",    unit: "no sugar", group: "extra", kcal: 200, protein: 4,  fat: 10, carbs: 22, sodium: 80,  sugar: 0 },
+  { id: "egg-drop-soup",    name: "Egg drop soup",        zh: "蛋花汤",   pinyin: "dàn huā tāng",    unit: "200ml",    group: "extra", favorite: true, kcal: 70,  protein: 3,  fat: 2,  carbs: 6, sodium: 800, sugar: 0 },
+  { id: "yogurt-extra",     name: "Greek yogurt",         zh: "希腊酸奶", pinyin: "xī là suān nǎi",  unit: "150g",     group: "extra", kcal: 100, protein: 10, fat: 3,  carbs: 8, sodium: 60,  sugar: 6 },
+  { id: "protein-bar",      name: "Protein bar",          zh: "蛋白棒",   pinyin: "dàn bái bàng",    unit: "1 bar",    group: "extra", kcal: 200, protein: 20, fat: 8,  carbs: 20, sodium: 180, sugar: 8 },
+  // Extras — Snacks
+  { id: "almonds",          name: "Almonds",              zh: "杏仁",     pinyin: "xìng rén",        unit: "30g",    group: "extra", kcal: 174, protein: 6,  fat: 15, carbs: 6, sodium: 0,   sugar: 1 },
+  { id: "walnuts",          name: "Walnuts",              zh: "核桃",     pinyin: "hé táo",          unit: "30g",    group: "extra", kcal: 196, protein: 5,  fat: 20, carbs: 4, sodium: 0,   sugar: 1 },
+  { id: "beef-jerky",       name: "Beef jerky",           zh: "牛肉干",   pinyin: "niú ròu gān",     unit: "25g",    group: "extra", kcal: 37,  protein: 6,  fat: 1,  carbs: 1, sodium: 229, sugar: 0 },
+  { id: "peanut-butter",    name: "Peanut butter",        zh: "花生酱",   pinyin: "huā shēng jiàng", unit: "1 tbsp", group: "extra", kcal: 94,  protein: 4,  fat: 8,  carbs: 3, sodium: 73,  sugar: 1 },
+];
+
+export const GROUPS: { key: Ingredient["group"]; label: string }[] = [
+  { key: "protein",    label: "Proteins" },
+  { key: "carb",       label: "Carbs" },
+  { key: "vegetable",  label: "Vegetables" },
+  { key: "extra",      label: "Extras" },
+];
+
+export function getIngredient(id: string): Ingredient | undefined {
+  return INGREDIENTS.find((i) => i.id === id);
+}
+
+export function macrosFor(id: string, qty: number): Macros {
+  const ing = getIngredient(id);
+  if (!ing) return { kcal: 0, protein: 0, fat: 0, carbs: 0 };
+  return {
+    kcal: ing.kcal * qty,
+    protein: ing.protein * qty,
+    fat: ing.fat * qty,
+    carbs: ing.carbs * qty,
+  };
+}
+
+export function sumMacros(entries: { id: string; qty: number }[]): Macros {
+  return entries.reduce<Macros>(
+    (acc, e) => {
+      const m = macrosFor(e.id, e.qty);
+      return {
+        kcal: acc.kcal + m.kcal,
+        protein: acc.protein + m.protein,
+        fat: acc.fat + m.fat,
+        carbs: acc.carbs + m.carbs,
+      };
+    },
+    { kcal: 0, protein: 0, fat: 0, carbs: 0 }
+  );
+}
+
+export type CustomMacros = Macros & { sugar: number; sodium: number };
+
+export function addMacros(a: CustomMacros, b: Partial<CustomMacros>): CustomMacros {
+  return {
+    kcal: a.kcal + (b.kcal ?? 0),
+    protein: a.protein + (b.protein ?? 0),
+    fat: a.fat + (b.fat ?? 0),
+    carbs: a.carbs + (b.carbs ?? 0),
+    sugar: a.sugar + (b.sugar ?? 0),
+    sodium: a.sodium + (b.sodium ?? 0),
+  };
+}

@@ -1,0 +1,48 @@
+// Prisma schema — will be migrated to Neon once DATABASE_URL is provisioned.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model DailyLog {
+  id        String   @id @default(cuid())
+  date      String   @unique
+  gymDay    Boolean  @default(false)
+  checklist Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MealEntry {
+  id         String   @id @default(cuid())
+  date       String
+  mealType   String
+  items      Json
+  totals     Json
+  createdAt  DateTime @default(now())
+
+  @@index([date])
+}
+
+model WorkoutSession {
+  id          String     @id @default(cuid())
+  date        String
+  sessionType String
+  totalVolume Float      @default(0)
+  exercises   Exercise[]
+  createdAt   DateTime   @default(now())
+
+  @@index([date])
+}
+
+model Exercise {
+  id        String         @id @default(cuid())
+  sessionId String
+  name      String
+  sets      Json
+  session   WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
