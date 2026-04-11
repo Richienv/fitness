@@ -329,7 +329,6 @@ export default function MealBuilder({
 
         {favoriteItems.length > 0 && (
           <div className="mb-section mb-fav-section">
-            <div className="group-label mb-group-label">// YOUR USUAL</div>
             <div className="fav-grid">
               {favoriteItems.map((ing) => {
                 const qty = selection[ing.id] ?? 0;
@@ -397,7 +396,6 @@ export default function MealBuilder({
 
         {otherItems.length > 0 && (
           <div className="mb-section mb-other-section">
-            <div className="group-label mb-group-label">// OTHER {step.title}</div>
             <div className="ing-grid">
             {otherItems.map((ing) => {
               const qty = selection[ing.id] ?? 0;
@@ -531,25 +529,27 @@ export default function MealBuilder({
       <div className="mb-spacer" aria-hidden="true" />
 
       <div className="mb-sticky-bar">
-        <div className="bottom-totals">
+        <div className="mb-sticky-totals mono">
           {itemCount === 0 ? (
             <span className="bottom-empty">TAP FOOD TO ADD</span>
           ) : (
             <>
               <strong>{Math.round(totals.kcal)} KCAL</strong>
               <span className="m-muted">
-                {Math.round(totals.protein)}p · {Math.round(totals.carbs)}c · {Math.round(totals.fat)}f
+                {" · "}{Math.round(totals.protein)}p · {Math.round(totals.carbs)}c · {Math.round(totals.fat)}f
               </span>
             </>
           )}
         </div>
-        <div className="bottom-actions">
+        <div className="mb-sticky-row">
           {stepIndex > 0 && (
-            <button type="button" className="next-btn ghost" onClick={back}>←</button>
+            <button type="button" className="next-btn ghost mb-back-btn" onClick={back} aria-label="Back">
+              ←
+            </button>
           )}
           <button
             type="button"
-            className="next-btn"
+            className="next-btn mb-next-btn"
             onClick={next}
             disabled={isLast && !itemCount}
           >
