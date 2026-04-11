@@ -14,6 +14,23 @@ import {
 } from "@/lib/store";
 import { TARGETS, weekNumber } from "@/lib/targets";
 import { useActiveDate, parseDate } from "@/lib/activeDate";
+import {
+  getAllWorkouts,
+  getTodaysWorkout,
+  recommendedSessionFor,
+  getSession,
+  workoutVolume,
+  type WorkoutSession,
+  type SessionType,
+} from "@/lib/workouts";
+
+const SESSION_ACCENT: Record<SessionType, string> = {
+  PUSH_A: "#e8ff47",
+  PUSH_B: "#e8ff47",
+  PULL_A: "#47ffb8",
+  PULL_B: "#47ffb8",
+  LEGS:   "#ff6b35",
+};
 
 const EMPTY: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
 
@@ -54,10 +71,13 @@ export default function Dashboard() {
   const [allMeals, setAllMeals] = useState<MealLog[]>([]);
   const [gymDay, setGymDay] = useState(true);
   const [checklist, setChecklist] = useState<Record<string, boolean>>({});
+  const [workouts, setWorkouts] = useState<WorkoutSession[]>([]);
+  const [todayWorkout, setTodayWorkout] = useState<WorkoutSession | null>(null);
 
   useEffect(() => {
     dedupeMeals();
     setAllMeals(getAllMeals());
+    setWorkouts(getAllWorkouts());
     document.body.classList.add("no-scroll");
     return () => document.body.classList.remove("no-scroll");
   }, []);
@@ -68,6 +88,7 @@ export default function Dashboard() {
     const d = getDaily(activeDate);
     setGymDay(d.gymDay);
     setChecklist(d.checklist ?? {});
+    setTodayWorkout(getTodaysWorkout(activeDate));
   }, [activeDate]);
 
   const totals = useMemo<Macros>(
@@ -107,6 +128,40 @@ export default function Dashboard() {
   const wk = activeDate ? weekNumber(parseDate(activeDate)) : 1;
   const target = gymDay ? TARGETS.gymDay : TARGETS.restDay;
   const checkedCount = CHECKLIST_KEYS.filter((k) => checklist[k]).length;
+
+  const weekSessions = useMemo(() => {
+    if (!activeDate) return [] as WorkoutSession[];
+    const now = parseDate(activeDate);
+    const mon = mondayOf(now);
+    return workouts.filter((w) => {
+      const d = parseDate(w.date);
+      return d >= mon && d <= now && w.completed;
+    });
+  }, [workouts, activeDate]);
+
+  const nextSessionType: SessionType = useMemo(
+    () => (activeDate ? recommendedSessionFor(parseDate(activeDate)) : "PUSH_A"),
+    [activeDate]
+  );
+  const nextSession = getSession(nextSessionType);
+
+  const gymState: "done" | "rest" | "next" = todayWorkout
+    ? "done"
+    : !gymDay
+    ? "rest"
+    : "next";
+  const gymAccent =
+    todayWorkout ? SESSION_ACCENT[todayWorkout.sessionType] : SESSION_ACCENT[nextSessionType];
+
+  const gymLine1 = todayWorkout
+    ? `${getSession(todayWorkout.sessionType)?.name ?? "SESSION"} DONE`
+    : !gymDay
+    ? "REST DAY"
+    : `${nextSession?.name ?? ""} NEXT`;
+
+  const gymLine2 = todayWorkout
+    ? `${Math.round(workoutVolume(todayWorkout)).toLocaleString()}kg · ${todayWorkout.durationMin ?? 0} min`
+    : `${weekSessions.length} sessions this week`;
 
   const summary = `${Math.round(totals.kcal)} kcal · ${Math.round(totals.protein)}g P · ${Math.round(totals.carbs)}g C`;
 
@@ -154,6 +209,23 @@ export default function Dashboard() {
           <div className="sc-unit mono">V-TAPER</div>
         </Link>
       </div>
+
+      <Link
+        href="/dashboard/gym"
+        className={`gym-card state-${gymState}`}
+        style={{ borderLeftColor: gymAccent }}
+      >
+        <div className="gc-left">
+          <div className="gc-title mono">
+            GYM SESSION{gymState === "done" && <span className="gc-check">✓</span>}
+          </div>
+          <div className="gc-sub">{gymLine2}</div>
+        </div>
+        <div className="gc-right">
+          <span className="gc-status mono">{gymLine1}</span>
+          <span className="gc-chev">›</span>
+        </div>
+      </Link>
     </main>
   );
 }

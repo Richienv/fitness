@@ -3380,7 +3380,18 @@ body.no-scroll .meal-home-top {
 }
 .meal-builder .presets-inline::-webkit-scrollbar { display: none; }
 .meal-builder .presets-inline .preset-btn { flex: 0 0 auto; }
-.meal-builder .mb-scroll { display: block; }
+.meal-builder .mb-scroll {
+  display: flex;
+  flex-direction: column;
+}
+.meal-builder .mb-section { display: block; }
+.meal-builder .mb-other-section { order: 1; }
+.meal-builder .mb-fav-section { order: 2; margin-top: 24px; }
+.meal-builder .ing-grid {
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.meal-builder .food-card { padding: 12px 14px; min-height: 110px; }
 .meal-builder .mb-group-label {
   font-family: var(--font-dm-mono), "DM Mono", monospace;
   font-size: 11px;
@@ -3722,6 +3733,247 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
   gap: 12px;
+}
+.gym-card {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 64px;
+  padding: 12px 16px;
+  background: #0d0d0d;
+  border: 1px solid #222;
+  border-left: 3px solid #e8ff47;
+  border-radius: 10px;
+  color: #f0f0f0;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+.gym-card:active { background: #161616; }
+.gym-card.state-done { background: #0f0f0a; }
+.gym-card.state-rest { opacity: 0.7; }
+.gym-card .gc-left { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.gym-card .gc-title {
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: #f0f0f0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.gym-card .gc-check { color: #e8ff47; }
+.gym-card .gc-sub { font-size: 12px; color: #888; }
+.gym-card .gc-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.gym-card .gc-status {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #aaa;
+  text-transform: uppercase;
+}
+.gym-card .gc-chev { color: #555; font-size: 20px; line-height: 1; }
+
+/* ============================================================
+   GYM SUB-PAGE
+   ============================================================ */
+.gym-page .gym-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  padding: 14px 8px;
+  background: #0d0d0d;
+  border: 1px solid #222;
+  border-radius: 10px;
+}
+.wd-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.wd-label { font-size: 9px; letter-spacing: 1px; color: #666; }
+.wd-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid #444;
+  background: transparent;
+}
+.wd-dot.filled { border-color: transparent; }
+.wd-cell.today .wd-dot {
+  width: 14px;
+  height: 14px;
+  box-shadow: 0 0 0 2px rgba(232, 255, 71, 0.3);
+}
+.week-summary {
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: #888;
+  padding: 2px 0;
+}
+.gym-group-label {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: #555;
+  text-transform: uppercase;
+  margin: 4px 0 -4px;
+}
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.gym-session-card {
+  background: #0d0d0d;
+  border: 1px solid #222;
+  border-left: 3px solid #e8ff47;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.gsc-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px 8px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.gsc-head-left { display: flex; flex-direction: column; gap: 2px; }
+.gsc-day {
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  color: #f0f0f0;
+}
+.gsc-focus {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: #666;
+}
+.gsc-chev { color: #555; font-size: 12px; }
+.gsc-divider { height: 1px; background: #1f1f1f; margin: 0 14px; }
+.gsc-stats {
+  padding: 8px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--font-dm-mono), "DM Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: #888;
+}
+.gsc-vol { color: #f0f0f0; font-size: 12px; }
+.gsc-pr { color: #e8ff47; font-size: 11px; }
+.gsc-body {
+  padding: 4px 14px 14px;
+  border-top: 1px solid #1a1a1a;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.gsc-ex {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 10px;
+}
+.gsc-ex-name {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #f0f0f0;
+}
+.gsc-ex-empty { font-size: 10px; color: #444; }
+.gsc-sets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  font-family: var(--font-dm-mono), "DM Mono", monospace;
+  font-size: 11px;
+  color: #888;
+}
+.gsc-set.pr { color: #e8ff47; }
+.gsc-pr-tag { color: #e8ff47; font-size: 10px; }
+.vol-chart {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  height: 120px;
+  padding: 10px 8px;
+  background: #0d0d0d;
+  border: 1px solid #222;
+  border-radius: 10px;
+}
+.vc-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.vc-bar-track {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.vc-bar-fill {
+  width: 70%;
+  min-height: 2px;
+  border-radius: 2px 2px 0 0;
+  transition: height 0.3s ease;
+}
+.vc-label {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #666;
+}
+.next-up-card {
+  padding: 16px 16px 18px;
+  background: #0d0d0d;
+  border: 1px solid #222;
+  border-left: 3px solid #e8ff47;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 20px;
+}
+.next-up-card .nu-label {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: #666;
+}
+.next-up-card .nu-name {
+  font-family: var(--font-bebas), "Bebas Neue", sans-serif;
+  font-size: 22px;
+  letter-spacing: 1px;
+  color: #f0f0f0;
+  margin-top: 2px;
+}
+.next-up-card .nu-blurb {
+  font-size: 11px;
+  color: #888;
+  letter-spacing: 0.5px;
 }
 .stats-card {
   background: #111;

@@ -328,7 +328,7 @@ export default function MealBuilder({
         )}
 
         {favoriteItems.length > 0 && (
-          <>
+          <div className="mb-section mb-fav-section">
             <div className="group-label mb-group-label">// YOUR USUAL</div>
             <div className="fav-grid">
               {favoriteItems.map((ing) => {
@@ -392,15 +392,11 @@ export default function MealBuilder({
                 );
               })}
             </div>
-          </>
-        )}
-
-        {favoriteItems.length > 0 && otherItems.length > 0 && (
-          <div className="mb-divider" />
+          </div>
         )}
 
         {otherItems.length > 0 && (
-          <>
+          <div className="mb-section mb-other-section">
             <div className="group-label mb-group-label">// OTHER {step.title}</div>
             <div className="ing-grid">
             {otherItems.map((ing) => {
@@ -528,7 +524,7 @@ export default function MealBuilder({
               );
             })}
             </div>
-          </>
+          </div>
         )}
       </div>
 
