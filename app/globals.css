@@ -3336,6 +3336,99 @@ body.no-scroll .meal-home-top {
   padding-bottom: 0;
   overflow: hidden;
 }
+/* ============================================================
+   MEAL BUILDER — natural scroll page
+   ============================================================ */
+.meal-builder {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: calc(14px + env(safe-area-inset-top)) 16px 0;
+  min-height: 100dvh;
+  -webkit-overflow-scrolling: touch;
+}
+.meal-builder .back-link { display: none; }
+.meal-builder .mb-header { padding-bottom: 6px; }
+.meal-builder .add-custom-btn.full {
+  display: block;
+  width: 100%;
+  margin: 14px 0 10px;
+  padding: 14px;
+  min-height: 44px;
+  background: transparent;
+  color: #e8ff47;
+  border: 1px dashed rgba(232, 255, 71, 0.4);
+  border-radius: 10px;
+  font-family: var(--font-dm-mono), "DM Mono", monospace;
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.meal-builder .add-custom-btn.full:active {
+  background: rgba(232, 255, 71, 0.08);
+  border-color: #e8ff47;
+}
+.meal-builder .presets-inline {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: 6px 0 12px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.meal-builder .presets-inline::-webkit-scrollbar { display: none; }
+.meal-builder .presets-inline .preset-btn { flex: 0 0 auto; }
+.meal-builder .mb-scroll { display: block; }
+.meal-builder .mb-group-label {
+  font-family: var(--font-dm-mono), "DM Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: #666;
+  text-transform: uppercase;
+  margin: 16px 0 10px;
+}
+.meal-builder .mb-divider {
+  height: 1px;
+  background: #1f1f1f;
+  margin: 24px 0 4px;
+}
+.meal-builder .mb-spacer { height: 80px; }
+.meal-builder .mb-sticky-bar {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  margin: 0 -16px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: rgba(10, 10, 10, 0.96);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-top: 0.5px solid #222;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  z-index: 10;
+}
+.meal-builder .mb-sticky-bar .bottom-totals {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+.meal-builder .mb-sticky-bar .bottom-totals strong {
+  font-family: var(--font-bebas), "Bebas Neue", sans-serif;
+  font-size: 18px;
+  letter-spacing: 0.5px;
+  color: #f0f0f0;
+}
+.meal-builder .mb-sticky-bar .bottom-actions {
+  display: flex;
+  gap: 8px;
+}
+
 body.no-scroll .meal-home .back-link { display: none; }
 body.no-scroll .meal-home .mh-header { gap: 2px; }
 body.no-scroll .meal-home .meal-grid {

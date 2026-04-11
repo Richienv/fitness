@@ -79,13 +79,6 @@ export default function MealBuilder({
     setCustomFoods(getCustomFoods());
   }, [mealType]);
 
-  useEffect(() => {
-    document.body.classList.add("no-scroll");
-    return () => {
-      document.body.classList.remove("no-scroll");
-    };
-  }, []);
-
   const step = STEPS[stepIndex];
   const isLast = stepIndex === STEPS.length - 1;
   const favoriteItems = useMemo(
@@ -211,8 +204,8 @@ export default function MealBuilder({
   }
 
   return (
-    <main className="shell shell-fixed">
-      <div className="shell-top">
+    <main className="meal-builder">
+      <div className="mb-header">
         <Link href="/meal" className="back-link">← Back</Link>
 
         <div className="step-head">
@@ -233,7 +226,33 @@ export default function MealBuilder({
         <div className="mh-date mono" style={{ marginTop: 2 }}>{short}</div>
       </div>
 
-      <div className="scroll-area">
+      <button
+        type="button"
+        className="add-custom-btn full"
+        onClick={() => setModalOpen(true)}
+      >
+        + ADD CUSTOM FOOD
+      </button>
+
+      {stepIndex === 0 && (
+        <div className="presets presets-inline">
+          {lastMeal && (
+            <button
+              className="preset-btn last"
+              onClick={() => applyPreset(lastMeal.items.filter((it) => !isCustomItem(it)) as { id: string; qty: number }[])}
+            >
+              🔁 Usual ({lastMeal.items.length})
+            </button>
+          )}
+          {presets.map((p) => (
+            <button key={p.id} className="preset-btn" onClick={() => applyPreset(p.items)}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="mb-scroll">
         {isExtra && customFoods.length > 0 && (
           <>
             <div className="group-label">My foods</div>
@@ -308,29 +327,82 @@ export default function MealBuilder({
           </>
         )}
 
-        {stepIndex === 0 && (
+        {favoriteItems.length > 0 && (
           <>
-            <div className="group-label">Quick fill</div>
-            <div className="presets">
-              {lastMeal && (
-                <button
-                  className="preset-btn last"
-                  onClick={() => applyPreset(lastMeal.items.filter((it) => !isCustomItem(it)) as { id: string; qty: number }[])}
-                >
-                  🔁 Usual ({lastMeal.items.length})
-                </button>
-              )}
-              {presets.map((p) => (
-                <button key={p.id} className="preset-btn" onClick={() => applyPreset(p.items)}>
-                  {p.label}
-                </button>
-              ))}
+            <div className="group-label mb-group-label">// YOUR USUAL</div>
+            <div className="fav-grid">
+              {favoriteItems.map((ing) => {
+                const qty = selection[ing.id] ?? 0;
+                const selected = qty > 0;
+                const isRevealed = !!revealed[ing.id];
+                return (
+                  <div
+                    key={ing.id}
+                    className={`fav-tile${selected ? " selected" : ""}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => add(ing.id)}
+                  >
+                    {selected ? (
+                      <div className="fav-sel">
+                        <div className="fav-sel-head">
+                          <div className="fav-sel-name">{ing.name}</div>
+                          <div className="fav-sel-qty-pill">×{qty}</div>
+                        </div>
+                        <div className="fav-sel-portion">{ing.unit}</div>
+                        <div className="fav-sel-stats">
+                          <div><strong>{Math.round(ing.protein * qty)}g</strong> protein</div>
+                          <div><strong>{Math.round(ing.kcal * qty)}</strong> kcal</div>
+                        </div>
+                        <div className="sel-stepper small" onClick={(e) => e.stopPropagation()}>
+                          <button type="button" onClick={() => sub(ing.id)} aria-label="Remove one">−</button>
+                          <span className="sel-stepper-val">×{qty}</span>
+                          <button type="button" onClick={() => add(ing.id)} aria-label="Add one">+</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="fav-top">
+                          <div className="fav-name">{ing.name}</div>
+                          {ing.zh && (
+                            <button
+                              type="button"
+                              className={`zi-btn${isRevealed ? " on" : ""}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleReveal(ing.id);
+                              }}
+                              aria-label="Show Chinese"
+                            >
+                              字
+                            </button>
+                          )}
+                        </div>
+                        <div className="fav-unit">{ing.unit}</div>
+                        <div className="fav-macros m-muted">{ing.protein}p · {ing.carbs}c · {ing.fat}f · {ing.kcal} kcal</div>
+                        {isRevealed && ing.zh && (
+                          <div className="zh-row">
+                            <span className="zh-chars">{ing.zh}</span>
+                            <span className="zh-pinyin">{ing.pinyin}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </>
         )}
 
+        {favoriteItems.length > 0 && otherItems.length > 0 && (
+          <div className="mb-divider" />
+        )}
+
         {otherItems.length > 0 && (
-          <div className="ing-grid">
+          <>
+            <div className="group-label mb-group-label">// OTHER {step.title}</div>
+            <div className="ing-grid">
             {otherItems.map((ing) => {
               const qty = selection[ing.id] ?? 0;
               const selected = qty > 0;
@@ -455,108 +527,38 @@ export default function MealBuilder({
                 </div>
               );
             })}
-          </div>
+            </div>
+          </>
         )}
       </div>
 
-      <div className="shell-bottom">
-        <button
-          type="button"
-          className="add-custom-btn"
-          onClick={() => setModalOpen(true)}
-        >
-          + ADD CUSTOM FOOD
-        </button>
+      <div className="mb-spacer" aria-hidden="true" />
 
-        <div className="fav-grid">
-          {favoriteItems.map((ing) => {
-            const qty = selection[ing.id] ?? 0;
-            const selected = qty > 0;
-            const isRevealed = !!revealed[ing.id];
-            return (
-              <div
-                key={ing.id}
-                className={`fav-tile${selected ? " selected" : ""}`}
-                role="button"
-                tabIndex={0}
-                onClick={() => add(ing.id)}
-              >
-                {selected ? (
-                  <div className="fav-sel">
-                    <div className="fav-sel-head">
-                      <div className="fav-sel-name">{ing.name}</div>
-                      <div className="fav-sel-qty-pill">×{qty}</div>
-                    </div>
-                    <div className="fav-sel-portion">{ing.unit}</div>
-                    <div className="fav-sel-stats">
-                      <div><strong>{Math.round(ing.protein * qty)}g</strong> protein</div>
-                      <div><strong>{Math.round(ing.kcal * qty)}</strong> kcal</div>
-                    </div>
-                    <div className="sel-stepper small" onClick={(e) => e.stopPropagation()}>
-                      <button type="button" onClick={() => sub(ing.id)} aria-label="Remove one">−</button>
-                      <span className="sel-stepper-val">×{qty}</span>
-                      <button type="button" onClick={() => add(ing.id)} aria-label="Add one">+</button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="fav-top">
-                      <div className="fav-name">{ing.name}</div>
-                      {ing.zh && (
-                        <button
-                          type="button"
-                          className={`zi-btn${isRevealed ? " on" : ""}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleReveal(ing.id);
-                          }}
-                          aria-label="Show Chinese"
-                        >
-                          字
-                        </button>
-                      )}
-                    </div>
-                    <div className="fav-unit">{ing.unit}</div>
-                    <div className="fav-macros m-muted">{ing.protein}p · {ing.carbs}c · {ing.fat}f · {ing.kcal} kcal</div>
-                    {isRevealed && ing.zh && (
-                      <div className="zh-row">
-                        <span className="zh-chars">{ing.zh}</span>
-                        <span className="zh-pinyin">{ing.pinyin}</span>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            );
-          })}
+      <div className="mb-sticky-bar">
+        <div className="bottom-totals">
+          {itemCount === 0 ? (
+            <span className="bottom-empty">TAP FOOD TO ADD</span>
+          ) : (
+            <>
+              <strong>{Math.round(totals.kcal)} KCAL</strong>
+              <span className="m-muted">
+                {Math.round(totals.protein)}p · {Math.round(totals.carbs)}c · {Math.round(totals.fat)}f
+              </span>
+            </>
+          )}
         </div>
-
-        <div className="bottom-bar">
-          <div className="bottom-totals">
-            {itemCount === 0 ? (
-              <span className="bottom-empty">TAP FOOD TO ADD</span>
-            ) : (
-              <>
-                <strong>{Math.round(totals.kcal)} KCAL</strong>
-                <span className="m-muted">
-                  {Math.round(totals.protein)}p · {Math.round(totals.carbs)}c · {Math.round(totals.fat)}f
-                </span>
-              </>
-            )}
-          </div>
-          <div className="bottom-actions">
-            {stepIndex > 0 && (
-              <button type="button" className="next-btn ghost" onClick={back}>←</button>
-            )}
-            <button
-              type="button"
-              className="next-btn"
-              onClick={next}
-              disabled={isLast && !itemCount}
-            >
-              {isLast ? "SAVE" : "NEXT →"}
-            </button>
-          </div>
+        <div className="bottom-actions">
+          {stepIndex > 0 && (
+            <button type="button" className="next-btn ghost" onClick={back}>←</button>
+          )}
+          <button
+            type="button"
+            className="next-btn"
+            onClick={next}
+            disabled={isLast && !itemCount}
+          >
+            {isLast ? "SAVE" : "NEXT →"}
+          </button>
         </div>
       </div>
 

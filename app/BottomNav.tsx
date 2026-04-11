@@ -12,7 +12,7 @@ const TABS: Tab[] = [
   { href: "/dashboard", label: "STATS",  icon: "📊", match: (p) => p.startsWith("/dashboard") },
 ];
 
-const HIDE_ON_SUBPAGE = /^\/dashboard\/(today|week|checklist|progress)/;
+const HIDE_ON_SUBPAGE = /^\/dashboard\/(today|week|checklist|progress)|^\/meal\/(breakfast|lunch|snack|dinner|confirm)/;
 
 export default function BottomNav() {
   const pathname = usePathname();
