@@ -2103,13 +2103,14 @@ a { color: inherit; text-decoration: none; }
   padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
 }
 .bottom-nav {
+  overflow: visible;
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
   z-index: 100;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   background: rgba(10, 10, 10, 0.95);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -2142,6 +2143,37 @@ a { color: inherit; text-decoration: none; }
 }
 .bn-item.active { color: var(--accent); }
 .bn-item.active .bn-icon { filter: none; }
+
+/* Raised center OS button (QRIS-style) */
+.bn-os-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.bn-os-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: #f0f0f0;
+  color: #080808;
+  border: none;
+  cursor: pointer;
+  font-family: Impact, "Arial Narrow", sans-serif;
+  font-size: 16px;
+  letter-spacing: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-12px);
+  box-shadow: 0 -4px 16px rgba(232, 255, 71, 0.2);
+  transition: transform 100ms, box-shadow 100ms;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.bn-os-btn:active {
+  transform: translateY(-12px) scale(0.92);
+  box-shadow: 0 -2px 6px rgba(232, 255, 71, 0.1);
+}
 
 /* ============================================================
    MEAL HOME — rebuilt (tight stack)
