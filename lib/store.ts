@@ -1,6 +1,7 @@
 "use client";
 
 import type { MealType } from "./presets";
+import { macrosFor, type Macros } from "./ingredients";
 
 export type CustomMealItem = {
   custom: true;
@@ -53,6 +54,52 @@ export type DailyFlags = {
 const MEALS_KEY = "richie.meals.v1";
 const DAILY_KEY = "richie.daily.v1";
 const CUSTOM_KEY = "richie.customfoods.v1";
+const MEALS_SYNCED_KEY = "richie.meals.synced.v1";
+
+function sumItemsMacros(items: MealItem[]): Macros {
+  return items.reduce<Macros>(
+    (acc, it) => {
+      const m = isCustomItem(it)
+        ? { kcal: it.kcal, protein: it.protein, fat: it.fat, carbs: it.carbs }
+        : macrosFor(it.id, it.qty);
+      return {
+        kcal: acc.kcal + m.kcal,
+        protein: acc.protein + m.protein,
+        fat: acc.fat + m.fat,
+        carbs: acc.carbs + m.carbs,
+      };
+    },
+    { kcal: 0, protein: 0, fat: 0, carbs: 0 }
+  );
+}
+
+function mealPayload(m: MealLog) {
+  return {
+    id: m.id,
+    date: m.date,
+    mealType: m.mealType,
+    items: m.items,
+    totals: sumItemsMacros(m.items),
+  };
+}
+
+function postMeal(m: MealLog): void {
+  if (typeof window === "undefined") return;
+  fetch("/api/meals", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(mealPayload(m)),
+    keepalive: true,
+  }).catch(() => {});
+}
+
+function deleteMealRemote(id: string): void {
+  if (typeof window === "undefined") return;
+  fetch(`/api/meals?id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    keepalive: true,
+  }).catch(() => {});
+}
 
 function read<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -84,6 +131,7 @@ export function saveMeal(log: Omit<MealLog, "id" | "loggedAt">): MealLog {
     existing.items = [...existing.items, ...log.items];
     existing.loggedAt = Date.now();
     write(MEALS_KEY, all);
+    postMeal(existing);
     return existing;
   }
   const entry: MealLog = {
@@ -93,6 +141,7 @@ export function saveMeal(log: Omit<MealLog, "id" | "loggedAt">): MealLog {
   };
   all.push(entry);
   write(MEALS_KEY, all);
+  postMeal(entry);
   return entry;
 }
 
@@ -102,10 +151,13 @@ export function updateMealItems(id: string, items: MealItem[]): void {
   if (idx === -1) return;
   if (items.length === 0) {
     all.splice(idx, 1);
-  } else {
-    all[idx] = { ...all[idx], items, loggedAt: Date.now() };
+    write(MEALS_KEY, all);
+    deleteMealRemote(id);
+    return;
   }
+  all[idx] = { ...all[idx], items, loggedAt: Date.now() };
   write(MEALS_KEY, all);
+  postMeal(all[idx]);
 }
 
 export function deleteMeal(id: string): void {
@@ -113,6 +165,31 @@ export function deleteMeal(id: string): void {
     MEALS_KEY,
     getAllMeals().filter((m) => m.id !== id)
   );
+  deleteMealRemote(id);
+}
+
+export async function syncMealsToDbOnce(): Promise<{ synced: number } | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    if (window.localStorage.getItem(MEALS_SYNCED_KEY) === "1") return null;
+    const all = getAllMeals();
+    if (all.length === 0) {
+      window.localStorage.setItem(MEALS_SYNCED_KEY, "1");
+      return { synced: 0 };
+    }
+    const payload = all.map(mealPayload);
+    const res = await fetch("/api/meals/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { synced: number };
+    window.localStorage.setItem(MEALS_SYNCED_KEY, "1");
+    return { synced: data.synced };
+  } catch {
+    return null;
+  }
 }
 
 export function clearMealsForDate(date: string): void {
