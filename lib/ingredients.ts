@@ -110,6 +110,29 @@ export const INGREDIENTS: Ingredient[] = [
   { id: "walnuts",          name: "Walnuts",              zh: "核桃",     pinyin: "hé táo",          unit: "30g",    group: "extra", kcal: 196, protein: 5,  fat: 20, carbs: 4, sodium: 0,   sugar: 1 },
   { id: "beef-jerky",       name: "Beef jerky",           zh: "牛肉干",   pinyin: "niú ròu gān",     unit: "25g",    group: "extra", kcal: 37,  protein: 6,  fat: 1,  carbs: 1, sodium: 229, sugar: 0 },
   { id: "peanut-butter",    name: "Peanut butter",        zh: "花生酱",   pinyin: "huā shēng jiàng", unit: "1 tbsp", group: "extra", kcal: 94,  protein: 4,  fat: 8,  carbs: 3, sodium: 73,  sugar: 1 },
+
+  // Chinese cafeteria — protein-forward
+  { id: "xiao-long-bao",    name: "Xiao long bao",        zh: "小笼包",   pinyin: "xiǎo lóng bāo",   unit: "6 pieces",        group: "protein", note: "Cafeteria",       kcal: 280, protein: 14, fat: 10, carbs: 32 },
+  { id: "jiaozi",           name: "Jiaozi / dumplings",   zh: "饺子",     pinyin: "jiǎo zi",         unit: "8 pieces",        group: "protein", note: "Cafeteria",       kcal: 320, protein: 16, fat: 9,  carbs: 38 },
+  { id: "wonton-soup",      name: "Wonton soup",          zh: "馄饨汤",   pinyin: "hún tun tāng",    unit: "6 wontons + broth", group: "protein", note: "Cafeteria",     kcal: 240, protein: 12, fat: 8,  carbs: 28 },
+  { id: "mapo-tofu",        name: "Mapo tofu",            zh: "麻婆豆腐", pinyin: "má pó dòu fu",    unit: "1 bowl",          group: "protein", note: "Cafeteria",       kcal: 220, protein: 14, fat: 14, carbs: 10 },
+  // Chinese cafeteria — carb-forward
+  { id: "fried-rice",       name: "Fried rice",           zh: "炒饭",     pinyin: "chǎo fàn",        unit: "1 plate",         group: "carb", tag: "limit", note: "Cafeteria", kcal: 480, protein: 12, fat: 16, carbs: 68 },
+  { id: "congee",           name: "Congee / porridge",    zh: "粥",       pinyin: "zhōu",            unit: "1 bowl",          group: "carb", note: "Cafeteria",          kcal: 180, protein: 6,  fat: 2,  carbs: 35 },
+  { id: "mantou",           name: "Mantou / steamed bun", zh: "馒头",     pinyin: "mán tou",         unit: "1 piece",         group: "carb", note: "Cafeteria",          kcal: 140, protein: 4,  fat: 1,  carbs: 28 },
+  { id: "noodle-soup",      name: "Noodle soup",          zh: "汤面",     pinyin: "tāng miàn",       unit: "1 bowl",          group: "carb", note: "Cafeteria",          kcal: 380, protein: 18, fat: 8,  carbs: 52 },
+
+  // Family Mart snacks & drinks
+  { id: "fm-onigiri",       name: "Family Mart onigiri",  zh: "饭团",     pinyin: "fàn tuán",        unit: "1 piece",         group: "extra", note: "Family Mart",        kcal: 180, protein: 6,  fat: 3,  carbs: 32, sodium: 0, sugar: 0 },
+  { id: "fm-sandwich",      name: "Family Mart sandwich", zh: "三明治",   pinyin: "sān míng zhì",    unit: "1 sandwich",      group: "extra", note: "Family Mart",        kcal: 280, protein: 12, fat: 10, carbs: 34, sodium: 0, sugar: 0 },
+  { id: "fm-hot-dog",       name: "Family Mart hot dog",  zh: "热狗",     pinyin: "rè gǒu",          unit: "1 piece",         group: "extra", note: "Family Mart",        kcal: 220, protein: 9,  fat: 12, carbs: 18, sodium: 0, sugar: 0 },
+  { id: "lays-chips",       name: "Lay's chips",          zh: "乐事薯片", pinyin: "lè shì shǔ piàn", unit: "30g bag",         group: "extra", tag: "limit", note: "Snack", kcal: 150, protein: 2,  fat: 9,  carbs: 16, sodium: 0, sugar: 0 },
+  { id: "pocky",            name: "Pocky",                zh: "百奇",     pinyin: "bǎi qí",          unit: "1 pack",          group: "extra", tag: "limit", note: "Snack", kcal: 170, protein: 3,  fat: 7,  carbs: 24, sodium: 0, sugar: 0 },
+  { id: "yakult",           name: "Yakult",               zh: "养乐多",   pinyin: "yǎng lè duō",     unit: "100ml bottle",    group: "extra", note: "Drink",              kcal: 50,  protein: 1,  fat: 0,  carbs: 12, sodium: 0, sugar: 0 },
+  { id: "coconut-water",    name: "Coconut water",        zh: "椰子水",   pinyin: "yē zi shuǐ",      unit: "330ml",           group: "extra", note: "Drink",              kcal: 65,  protein: 1,  fat: 0,  carbs: 15, sodium: 0, sugar: 0 },
+
+  // Placeholder — update with real label macros
+  { id: "small-chocolate",  name: "Small chocolate (UPDATE)", zh: "巧克力", pinyin: "qiǎo kè lì",    unit: "1 piece ~30g",    group: "extra", tag: "limit", note: "Placeholder — update when label shared", kcal: 150, protein: 2,  fat: 8,  carbs: 18, sodium: 0, sugar: 0 },
 ];
 
 export const GROUPS: { key: Ingredient["group"]; label: string }[] = [
