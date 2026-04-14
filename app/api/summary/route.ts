@@ -1,70 +1,66 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { todayKey } from "@/lib/targets";
+import { todayKey, TARGETS } from "@/lib/targets";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "https://r2-os.vercel.app",
-  "Access-Control-Allow-Methods": "GET",
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
   "Cache-Control": "no-store",
 };
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
+}
 
 export async function GET() {
   try {
     const today = todayKey();
 
-    const [meals, dailyLog, workout] = await Promise.all([
+    const [meals, dailyLog] = await Promise.all([
       db.mealEntry.findMany({ where: { date: today } }),
       db.dailyLog.findUnique({ where: { date: today } }),
-      db.workoutSession.findFirst({ where: { date: today } }),
     ]);
 
-    const totalKcal = meals.reduce((sum, m) => {
-      const totals = m.totals as { kcal?: number } | null;
-      return sum + (totals?.kcal ?? 0);
-    }, 0);
+    const target = dailyLog?.gymDay ? TARGETS.gymDay : TARGETS.restDay;
 
-    const gymDay = dailyLog?.gymDay ?? false;
-    const target = gymDay ? 2200 : 1700;
-    const remaining = Math.max(0, target - totalKcal);
+    const { loggedKcal, loggedProtein } = meals.reduce(
+      (acc, m) => {
+        const t = m.totals as { kcal?: number; protein?: number } | null;
+        acc.loggedKcal += t?.kcal ?? 0;
+        acc.loggedProtein += t?.protein ?? 0;
+        return acc;
+      },
+      { loggedKcal: 0, loggedProtein: 0 }
+    );
 
-    const alert = remaining > 500 || !workout;
+    const remainingKcal = Math.max(0, Math.round(target.kcal - loggedKcal));
+    const remainingProtein = Math.max(0, Math.round(target.protein - loggedProtein));
+
+    const alert = remainingKcal < 400 || remainingProtein < 30;
 
     return NextResponse.json(
       {
-        metric: remaining.toString(),
-        label: "kcal left",
-        detail: `${totalKcal} of ${target} kcal logged`,
+        metric: remainingKcal.toString(),
+        unit: "KCAL",
+        label: "left today",
         alert,
-        alertText: !workout
-          ? "No gym session logged today"
-          : `${remaining} kcal remaining`,
-        urgency: remaining > 800 ? "warning" : "info",
-        app: "R2·FIT",
-        url: "https://r2-fit.vercel.app",
+        alertMessage: alert ? `${remainingProtein}g protein left` : "",
+        urgency: alert ? "warning" : "info",
       },
-      { headers: CORS_HEADERS }
+      { headers: corsHeaders }
     );
   } catch {
     return NextResponse.json(
       {
         metric: "—",
-        label: "kcal left",
-        detail: "Unable to load",
+        unit: "",
+        label: "unavailable",
         alert: false,
+        alertMessage: "",
         urgency: "info",
-        app: "R2·FIT",
-        url: "https://r2-fit.vercel.app",
       },
-      { headers: CORS_HEADERS }
+      { headers: corsHeaders }
     );
   }
-}
-
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    headers: {
-      "Access-Control-Allow-Origin": "https://r2-os.vercel.app",
-      "Access-Control-Allow-Methods": "GET",
-    },
-  });
 }
