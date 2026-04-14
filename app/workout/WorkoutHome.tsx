@@ -83,6 +83,10 @@ export default function WorkoutHome() {
         <h1 className="section-title">LOG <span>WORKOUT</span></h1>
         <div className="wo-date mono">{dateStr} · WK {wkNum} / 12</div>
 
+        <Link href="/workout/equipment" className="wo-equip-link mono">
+          🏋️ BROWSE EQUIPMENT · 设备
+        </Link>
+
         {todaysLogged && (
           <div className="wo-logged-banner">
             ✓ SESSION LOGGED TODAY
