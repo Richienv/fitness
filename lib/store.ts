@@ -276,6 +276,14 @@ export function deleteCustomFood(id: string): void {
   );
 }
 
+export function updateCustomFood(id: string, name: string, per100g: Per100g): void {
+  const all = getCustomFoods();
+  const idx = all.findIndex((f) => f.id === id);
+  if (idx === -1) return;
+  all[idx] = { ...all[idx], name, per100g };
+  write(CUSTOM_KEY, all);
+}
+
 export function scaleByGrams(per100g: Per100g, grams: number): {
   kcal: number;
   protein: number;

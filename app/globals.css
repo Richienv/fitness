@@ -3517,6 +3517,45 @@ body.no-scroll .meal-home-top {
   gap: 8px;
   align-items: stretch;
 }
+.meal-builder .mb-search-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.meal-builder .mb-search {
+  flex: 1;
+  min-height: 40px;
+  padding: 8px 12px;
+  background: #141414;
+  color: #f0f0f0;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  font-family: var(--font-dm-mono), "DM Mono", monospace;
+  font-size: 13px;
+  outline: none;
+}
+.meal-builder .mb-search:focus {
+  border-color: #e8ff47;
+}
+.meal-builder .mb-search::placeholder { color: #555; }
+.meal-builder .mb-add-btn {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 0 14px;
+  background: transparent;
+  color: #e8ff47;
+  border: 1px dashed rgba(232, 255, 71, 0.5);
+  border-radius: 8px;
+  font-family: var(--font-dm-mono), "DM Mono", monospace;
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.meal-builder .mb-add-btn:active {
+  background: rgba(232, 255, 71, 0.08);
+  border-color: #e8ff47;
+}
 .meal-builder .mb-next-btn {
   flex: 1;
   min-height: 52px;

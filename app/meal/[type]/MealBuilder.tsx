@@ -18,6 +18,7 @@ import {
   saveCustomFood,
   saveMeal,
   scaleByGrams,
+  updateCustomFood,
   type CustomFood,
   type CustomMealItem,
   type MealItem,
@@ -70,7 +71,12 @@ export default function MealBuilder({
   const [customFoods, setCustomFoods] = useState<CustomFood[]>([]);
   const [stepIndex, setStepIndex] = useState(0);
   const [lastMeal, setLastMeal] = useState<MealLog | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
+  const [modalState, setModalState] = useState<
+    | { mode: "closed" }
+    | { mode: "new" }
+    | { mode: "edit"; food: CustomFood }
+  >({ mode: "closed" });
+  const [query, setQuery] = useState("");
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [showHint, setShowHint] = useState(true);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -95,13 +101,23 @@ export default function MealBuilder({
 
   const step = STEPS[stepIndex];
   const isLast = stepIndex === STEPS.length - 1;
+  const q = query.trim().toLowerCase();
+  const matches = (i: Ingredient) =>
+    !q ||
+    i.name.toLowerCase().includes(q) ||
+    (i.zh?.toLowerCase().includes(q) ?? false) ||
+    (i.pinyin?.toLowerCase().includes(q) ?? false);
   const favoriteItems = useMemo(
-    () => INGREDIENTS.filter((i) => i.group === step.key && i.favorite),
-    [step.key]
+    () => INGREDIENTS.filter((i) => i.group === step.key && i.favorite && matches(i)),
+    [step.key, q] // eslint-disable-line react-hooks/exhaustive-deps
   );
   const otherItems = useMemo(
-    () => INGREDIENTS.filter((i) => i.group === step.key && !i.favorite),
-    [step.key]
+    () => INGREDIENTS.filter((i) => i.group === step.key && !i.favorite && matches(i)),
+    [step.key, q] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const visibleCustomFoods = useMemo(
+    () => customFoods.filter((f) => !q || f.name.toLowerCase().includes(q)),
+    [customFoods, q]
   );
 
   const totals = useMemo<CustomMacros>(() => {
@@ -204,15 +220,6 @@ export default function MealBuilder({
   }
 
   const isExtra = step.key === "extra";
-  const isCarb = step.key === "carb";
-  const isProtein = step.key === "protein";
-  const warnColor = (sodium?: number, sugar?: number) => {
-    const s = sodium ?? 0;
-    const su = sugar ?? 0;
-    if (s > 500) return "danger";
-    if (su > 10) return "sugar";
-    return null;
-  };
   function toggleReveal(id: string) {
     setRevealed((r) => ({ ...r, [id]: !r[id] }));
   }
@@ -243,14 +250,6 @@ export default function MealBuilder({
         <div className="mh-date mono" style={{ marginTop: 2 }}>{short}</div>
       </div>
 
-      <button
-        type="button"
-        className="add-custom-btn full"
-        onClick={() => setModalOpen(true)}
-      >
-        + ADD CUSTOM FOOD
-      </button>
-
       {stepIndex === 0 && (
         <div className="presets presets-inline">
           {lastMeal && (
@@ -270,16 +269,16 @@ export default function MealBuilder({
       )}
 
       <div className="mb-scroll">
-        {isExtra && customFoods.length > 0 && (
+        {isExtra && visibleCustomFoods.length > 0 && (
           <>
             <div className="group-label">My foods</div>
             <div className="ing-grid">
-              {customFoods.map((food) => (
+              {visibleCustomFoods.map((food) => (
                 <div key={food.id} className="ing-card my-food">
                   <button
                     type="button"
                     className="info"
-                    onClick={() => setModalOpen(true) /* open portion for this one — simplified: tap opens modal prefilled via state */}
+                    onClick={() => setModalState({ mode: "edit", food })}
                   >
                     <div className="name">
                       {food.name}
@@ -419,7 +418,6 @@ export default function MealBuilder({
             {otherItems.map((ing) => {
               const qty = selection[ing.id] ?? 0;
               const selected = qty > 0;
-              const warn = isExtra ? warnColor(ing.sodium, ing.sugar) : null;
               const isRevealed = !!revealed[ing.id];
               return (
                 <div
@@ -433,11 +431,7 @@ export default function MealBuilder({
                     <div className="card-selected">
                       <div className="sel-head">
                         <div className="sel-head-text">
-                          <div className="sel-name">
-                            {ing.name}
-                            {ing.tag === "best" && <span className="tag-best">✅ BEST</span>}
-                            {ing.tag === "good" && <span className="tag-good">✅ GOOD</span>}
-                          </div>
+                          <div className="sel-name">{ing.name}</div>
                           <div className="sel-portion">
                             {ing.unit}
                             {ing.gramsPerUnit && qty > 0 && (
@@ -483,11 +477,7 @@ export default function MealBuilder({
                     <div className="card-top">
                       <div className="card-head-row">
                         <div className="card-name-stack">
-                          <div className="food-name">
-                            {ing.name}
-                            {ing.tag === "best" && <span className="tag-best">✅ BEST</span>}
-                            {ing.tag === "good" && <span className="tag-good">✅ GOOD</span>}
-                          </div>
+                          <div className="food-name">{ing.name}</div>
                           <div className="food-portion">{ing.unit}</div>
                         </div>
                         <div className="head-right">
@@ -515,22 +505,6 @@ export default function MealBuilder({
                         <span className="m-dot">·</span>
                         <span className="m-kcal">{ing.kcal} kcal</span>
                       </div>
-                      {ing.note && (
-                        <div className="ing-note">{ing.note}</div>
-                      )}
-                      {isExtra && (ing.sodium !== undefined || (ing.sugar ?? 0) > 0) && (
-                        <div className="macro-line">
-                          {ing.sodium !== undefined && (
-                            <span className={warn === "danger" ? "warn-red" : "m-muted"}>{ing.sodium}mg Na</span>
-                          )}
-                          {ing.sugar !== undefined && ing.sugar > 0 && (
-                            <>
-                              <span className="m-dot">·</span>
-                              <span className={warn === "sugar" ? "warn-orange" : "m-muted"}>{ing.sugar}g sugar</span>
-                            </>
-                          )}
-                        </div>
-                      )}
                       {isRevealed && ing.zh && (
                         <div className="zh-row">
                           <span className="zh-chars">{ing.zh}</span>
@@ -562,6 +536,23 @@ export default function MealBuilder({
             </>
           )}
         </div>
+        <div className="mb-search-row">
+          <input
+            type="search"
+            className="mb-search"
+            placeholder="Search food…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <button
+            type="button"
+            className="mb-add-btn"
+            onClick={() => setModalState({ mode: "new" })}
+            aria-label="Add custom food"
+          >
+            + FOOD
+          </button>
+        </div>
         <div className="mb-sticky-row">
           {stepIndex > 0 && (
             <button type="button" className="next-btn ghost mb-back-btn" onClick={back} aria-label="Back">
@@ -579,9 +570,15 @@ export default function MealBuilder({
         </div>
       </div>
 
-      {modalOpen && (
+      {modalState.mode !== "closed" && (
         <CustomFoodModal
-          onClose={() => setModalOpen(false)}
+          initial={modalState.mode === "edit" ? modalState.food : null}
+          onClose={() => setModalState({ mode: "closed" })}
+          onSaveEdit={(food) => {
+            updateCustomFood(food.id, food.name, food.per100g);
+            setCustomFoods(getCustomFoods());
+            setModalState({ mode: "closed" });
+          }}
           onAdd={(entry, saveToLib) => {
             addCustomEntry(entry);
             if (saveToLib && !entry.foodId) {
@@ -589,7 +586,7 @@ export default function MealBuilder({
               setCustomFoods(getCustomFoods());
               entry.foodId = saved.id;
             }
-            setModalOpen(false);
+            setModalState({ mode: "closed" });
           }}
         />
       )}
@@ -600,17 +597,22 @@ export default function MealBuilder({
 // ---------- Custom food modal ----------
 
 function CustomFoodModal({
+  initial,
   onClose,
   onAdd,
+  onSaveEdit,
 }: {
+  initial: CustomFood | null;
   onClose: () => void;
   onAdd: (entry: CustomEntry, saveToLib: boolean) => void;
+  onSaveEdit: (food: CustomFood) => void;
 }) {
-  const [step, setStep] = useState<1 | 2>(1);
-  const [name, setName] = useState("");
-  const [per100g, setPer100g] = useState<Per100g>({
-    kcal: 0, protein: 0, fat: 0, carbs: 0, sugar: 0, sodium: 0,
-  });
+  const isEdit = !!initial;
+  const [step, setStep] = useState<1 | 2>(isEdit ? 1 : 1);
+  const [name, setName] = useState(initial?.name ?? "");
+  const [per100g, setPer100g] = useState<Per100g>(
+    initial?.per100g ?? { kcal: 0, protein: 0, fat: 0, carbs: 0, sugar: 0, sodium: 0 }
+  );
   const [grams, setGrams] = useState(100);
   const [saveToLib, setSaveToLib] = useState(true);
 
@@ -634,12 +636,17 @@ function CustomFoodModal({
     );
   }
 
+  function handleSaveEdit() {
+    if (!initial) return;
+    onSaveEdit({ ...initial, name: name.trim(), per100g });
+  }
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div className="modal-title">
-            {step === 1 ? "NEW FOOD — BASICS" : "HOW MUCH?"}
+            {isEdit ? "EDIT FOOD" : step === 1 ? "NEW FOOD — BASICS" : "HOW MUCH?"}
           </div>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
@@ -667,9 +674,15 @@ function CustomFoodModal({
             </div>
             <div className="modal-actions">
               <button className="save ghost" onClick={onClose}>Cancel</button>
-              <button className="save" disabled={!canGoStep2} onClick={() => setStep(2)}>
-                Next →
-              </button>
+              {isEdit ? (
+                <button className="save" disabled={!canGoStep2} onClick={handleSaveEdit}>
+                  Save
+                </button>
+              ) : (
+                <button className="save" disabled={!canGoStep2} onClick={() => setStep(2)}>
+                  Next →
+                </button>
+              )}
             </div>
           </>
         ) : (
