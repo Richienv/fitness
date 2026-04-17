@@ -19,6 +19,16 @@ import { useActiveDate, parseDate } from "@/lib/activeDate";
 import { renderNutritionCard, shareBlob } from "@/lib/shareCards";
 import { weekNumber } from "@/lib/workouts";
 
+const HIGH_SODIUM_MG = 1000;
+const SODIUM_DISMISS_KEY = "richie.sodiumTip.dismissed.v1";
+const DISMISS_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function itemSodium(it: MealItem): number {
+  if (isCustomItem(it)) return it.sodium ?? 0;
+  const ing = getIngredient(it.id);
+  return (ing?.sodium ?? 0) * it.qty;
+}
+
 const EMPTY: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
 
 const MEAL_ORDER: { type: MealType; emoji: string; label: string }[] = [
@@ -84,6 +94,7 @@ export default function TodayPage() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [editing, setEditing] = useState<{ mealId: string; index: number; qty: number } | null>(null);
   const [confirmDel, setConfirmDel] = useState<{ mealId: string; index: number } | null>(null);
+  const [sodiumDismissed, setSodiumDismissed] = useState(false);
 
   useEffect(() => {
     dedupeMeals();
@@ -94,7 +105,33 @@ export default function TodayPage() {
     setMeals(getMealsForDate(activeDate));
     const d = getDaily(activeDate);
     setGymDayState(d.gymDay);
+    try {
+      const raw = window.localStorage.getItem(`${SODIUM_DISMISS_KEY}:${activeDate}`);
+      const ts = raw ? Number(raw) : 0;
+      setSodiumDismissed(ts > 0 && Date.now() - ts < DISMISS_WINDOW_MS);
+    } catch {
+      setSodiumDismissed(false);
+    }
   }, [activeDate]);
+
+  const highSodiumItem = useMemo(() => {
+    for (const m of meals) {
+      for (const it of m.items) {
+        if (itemSodium(it) >= HIGH_SODIUM_MG) {
+          return isCustomItem(it) ? it.name : getIngredient(it.id)?.name ?? "restaurant meal";
+        }
+      }
+    }
+    return null;
+  }, [meals]);
+
+  function dismissSodiumTip() {
+    if (!activeDate) return;
+    try {
+      window.localStorage.setItem(`${SODIUM_DISMISS_KEY}:${activeDate}`, String(Date.now()));
+    } catch {}
+    setSodiumDismissed(true);
+  }
 
   const totals = useMemo<Macros>(
     () =>
@@ -283,6 +320,28 @@ export default function TodayPage() {
         </div>
 
         <div className="smart-tip mono">💡 {tip}</div>
+
+        {highSodiumItem && !sodiumDismissed && (
+          <div className="sodium-tip mono" role="note">
+            <div className="sodium-tip-body">
+              <div className="sodium-tip-head">
+                <span className="sodium-tip-flag">⚠️ HIGH SODIUM MEAL</span>
+                <button
+                  type="button"
+                  className="sodium-tip-close"
+                  onClick={dismissSodiumTip}
+                  aria-label="Dismiss"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="sodium-tip-msg">
+                {highSodiumItem} logged. Drink 2L+ water today.
+                Scale may show +1–2kg tomorrow — that&apos;s water, not fat.
+              </div>
+            </div>
+          </div>
+        )}
 
         <button type="button" className="share-btn" onClick={handleShare} disabled={sharing}>
           {sharing ? "GENERATING…" : "📤 SHARE TODAY"}

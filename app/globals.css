@@ -3452,6 +3452,48 @@ body.no-scroll .meal-home-top {
 }
 .meal-builder .presets-inline::-webkit-scrollbar { display: none; }
 .meal-builder .presets-inline .preset-btn { flex: 0 0 auto; }
+.meal-builder .preset-optional {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 0 8px;
+}
+.meal-builder .preset-opt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px dashed #3a3a3a;
+  border-radius: 999px;
+  color: var(--muted, #a8a8a8);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.meal-builder .preset-opt-btn:hover { border-color: var(--accent3, #e8ff47); color: #fff; }
+.meal-builder .preset-opt-btn.on {
+  border-style: solid;
+  border-color: var(--accent, #e8ff47);
+  background: rgba(232, 255, 71, 0.12);
+  color: #fff;
+}
+.meal-builder .preset-opt-check {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 11px;
+  color: inherit;
+}
+.meal-builder .preset-opt-btn.on .preset-opt-check {
+  background: var(--accent, #e8ff47);
+  color: #111;
+}
+.meal-builder .preset-opt-hint { opacity: 0.7; font-size: 11px; }
 .meal-builder .mb-scroll {
   display: flex;
   flex-direction: column;
@@ -4215,6 +4257,35 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   letter-spacing: 0.5px;
   flex-shrink: 0;
 }
+.sodium-tip {
+  padding: 12px 14px;
+  background: rgba(255, 170, 60, 0.08);
+  border-left: 3px solid #ffb347;
+  border-radius: 4px;
+  color: #e8d4a8;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+.sodium-tip-body { display: flex; flex-direction: column; gap: 6px; }
+.sodium-tip-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.sodium-tip-flag { color: #ffb347; letter-spacing: 1.5px; }
+.sodium-tip-close {
+  background: transparent;
+  border: none;
+  color: #888;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+.sodium-tip-close:hover { color: #fff; }
+.sodium-tip-msg { color: #cfcfcf; line-height: 1.45; }
 
 /* Today page scroll + meal breakdown */
 .today-page { overflow: hidden; }
