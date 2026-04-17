@@ -133,6 +133,18 @@ export const INGREDIENTS: Ingredient[] = [
 
   // Placeholder — update with real label macros
   { id: "small-chocolate",  name: "Small chocolate (UPDATE)", zh: "巧克力", pinyin: "qiǎo kè lì",    unit: "1 piece ~30g",    group: "extra", tag: "limit", note: "Placeholder — update when label shared", kcal: 150, protein: 2,  fat: 8,  carbs: 18, sodium: 0, sugar: 0 },
+
+  // Supplements — seeds
+  { id: "chia-seeds",       name: "Chia seeds",           zh: "奇亚籽",   pinyin: "qī yà zǐ",        unit: "1 tbsp (15g)",    group: "extra", tag: "best", step: 1, gramsPerUnit: 15, sodium: 3, note: "Superfood · high fiber + omega-3. Add to oats or yogurt — keeps you full longer.", kcal: 73, protein: 2.5, fat: 4.6, carbs: 6.3, sugar: 0 },
+
+  // Restaurant — Lanzhou beef noodles
+  { id: "spicy-beef-noodle", name: "Spicy beef noodle",   zh: "红汤牛肉面", pinyin: "hóng tāng niú ròu miàn", unit: "1 bowl", group: "carb", note: "Restaurant · high sodium — drink extra water after", sodium: 1200, kcal: 450, protein: 30, fat: 12, carbs: 45 },
+  { id: "clear-beef-noodle", name: "Clear beef noodle",   zh: "清汤牛肉面", pinyin: "qīng tāng niú ròu miàn", unit: "1 bowl", group: "carb", tag: "good", note: "Restaurant · lighter than red broth. Better macro choice.", sodium: 700, kcal: 380, protein: 32, fat: 8, carbs: 42 },
+
+  // Restaurant — Bakmi Cerita Kita (Indonesian egg noodle)
+  { id: "bakmi-cerita-kita-small", name: "Bakmi Cerita Kita (small)", zh: "故事面·小", pinyin: "gù shì miàn xiǎo", unit: "1 small bowl",   group: "carb", tag: "limit", note: "Restaurant · Indonesian egg noodle. Estimate — actual may vary.", kcal: 420, protein: 18, fat: 14, carbs: 52 },
+  { id: "bakmi-cerita-kita",       name: "Bakmi Cerita Kita",         zh: "故事面",   pinyin: "gù shì miàn",       unit: "1 regular bowl", group: "carb", tag: "limit", note: "Restaurant · Indonesian egg noodle. Higher carbs, moderate protein.", kcal: 580, protein: 24, fat: 18, carbs: 72 },
+  { id: "bakmi-cerita-kita-large", name: "Bakmi Cerita Kita (large)", zh: "故事面·大", pinyin: "gù shì miàn dà",   unit: "1 large bowl",   group: "carb", tag: "limit", note: "Restaurant · Indonesian egg noodle. Large portion — heavy carb load.", kcal: 720, protein: 30, fat: 22, carbs: 88 },
 ];
 
 export const GROUPS: { key: Ingredient["group"]; label: string }[] = [

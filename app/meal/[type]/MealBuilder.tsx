@@ -10,7 +10,7 @@ import {
   type Ingredient,
   type CustomMacros,
 } from "@/lib/ingredients";
-import { presetsFor, type MealType } from "@/lib/presets";
+import { presetsFor, type MealPreset, type MealType } from "@/lib/presets";
 import {
   getCustomFoods,
   getLastMealOfType,
@@ -79,6 +79,7 @@ export default function MealBuilder({
   const [query, setQuery] = useState("");
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [showHint, setShowHint] = useState(true);
+  const [activePreset, setActivePreset] = useState<MealPreset | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const presets = useMemo(() => presetsFor(mealType), [mealType]);
 
@@ -174,10 +175,21 @@ export default function MealBuilder({
       return { ...s, [id]: step };
     });
   }
-  function applyPreset(items: { id: string; qty: number }[]) {
+  function applyPreset(items: { id: string; qty: number }[], preset?: MealPreset) {
     const next: Selection = {};
     for (const it of items) next[it.id] = it.qty;
     setSelection(next);
+    setActivePreset(preset ?? null);
+  }
+  function toggleOption(optId: string, optQty: number) {
+    setSelection((s) => {
+      if (s[optId]) {
+        const n = { ...s };
+        delete n[optId];
+        return n;
+      }
+      return { ...s, [optId]: optQty };
+    });
   }
   function addCustomEntry(entry: CustomEntry) {
     setCustomEntries((list) => [...list, entry]);
@@ -261,10 +273,30 @@ export default function MealBuilder({
             </button>
           )}
           {presets.map((p) => (
-            <button key={p.id} className="preset-btn" onClick={() => applyPreset(p.items)}>
+            <button key={p.id} className="preset-btn" onClick={() => applyPreset(p.items, p)}>
               {p.label}
             </button>
           ))}
+        </div>
+      )}
+
+      {stepIndex === 0 && activePreset?.optional && activePreset.optional.length > 0 && (
+        <div className="preset-optional">
+          {activePreset.optional.map((opt) => {
+            const on = (selection[opt.id] ?? 0) > 0;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                className={`preset-opt-btn${on ? " on" : ""}`}
+                onClick={() => toggleOption(opt.id, opt.qty)}
+              >
+                <span className="preset-opt-check" aria-hidden="true">{on ? "✓" : "+"}</span>
+                <span className="preset-opt-label">{opt.label}</span>
+                {opt.hint && <span className="preset-opt-hint mono">{opt.hint}</span>}
+              </button>
+            );
+          })}
         </div>
       )}
 

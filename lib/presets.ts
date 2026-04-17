@@ -1,10 +1,21 @@
 export type MealType = "breakfast" | "lunch" | "snack" | "dinner";
 
+export type PresetOption = {
+  id: string;
+  qty: number;
+  /** Human label for the opt-in row, e.g. "chia seeds". */
+  label: string;
+  /** Short hint like "15g / +73 kcal". */
+  hint?: string;
+};
+
 export type MealPreset = {
   id: string;
   label: string;
   mealType: MealType;
   items: { id: string; qty: number }[];
+  /** Opt-in add-ons shown when this preset is applied. Default OFF. */
+  optional?: PresetOption[];
 };
 
 export const PRESETS: MealPreset[] = [
@@ -16,6 +27,9 @@ export const PRESETS: MealPreset[] = [
       { id: "egg", qty: 3 },
       { id: "oats", qty: 1 },
       { id: "creatine", qty: 1 },
+    ],
+    optional: [
+      { id: "chia-seeds", qty: 1, label: "Add chia seeds", hint: "15g · +73 kcal" },
     ],
   },
   {
