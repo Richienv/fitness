@@ -6,21 +6,25 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   INGREDIENTS,
   addMacros,
-  macrosFor,
   type Ingredient,
   type CustomMacros,
 } from "@/lib/ingredients";
 import { presetsFor, type MealPreset, type MealType } from "@/lib/presets";
 import {
+  deleteCustomFood,
   getCustomFoods,
+  getIngredientOverrides,
   getLastMealOfType,
   isCustomItem,
+  resetIngredientOverride,
   saveCustomFood,
+  saveIngredientOverride,
   saveMeal,
   scaleByGrams,
   updateCustomFood,
   type CustomFood,
   type CustomMealItem,
+  type IngredientOverride,
   type MealItem,
   type MealLog,
   type Per100g,
@@ -75,7 +79,9 @@ export default function MealBuilder({
     | { mode: "closed" }
     | { mode: "new" }
     | { mode: "edit"; food: CustomFood }
+    | { mode: "edit-ing"; ing: Ingredient }
   >({ mode: "closed" });
+  const [overrides, setOverrides] = useState<Record<string, IngredientOverride>>({});
   const [query, setQuery] = useState("");
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [showHint, setShowHint] = useState(true);
@@ -86,7 +92,18 @@ export default function MealBuilder({
   useEffect(() => {
     setLastMeal(getLastMealOfType(mealType));
     setCustomFoods(getCustomFoods());
+    setOverrides(getIngredientOverrides());
   }, [mealType]);
+
+  const mergedIngredients = useMemo<Ingredient[]>(
+    () => INGREDIENTS.map((i) => (overrides[i.id] ? { ...i, ...overrides[i.id] } : i)),
+    [overrides]
+  );
+  const mergedById = useMemo(() => {
+    const m = new Map<string, Ingredient>();
+    for (const i of mergedIngredients) m.set(i.id, i);
+    return m;
+  }, [mergedIngredients]);
 
   // Magnetic bottom snap: on mount + step change, scroll so YOUR USUAL is in view
   useEffect(() => {
@@ -109,27 +126,33 @@ export default function MealBuilder({
     (i.zh?.toLowerCase().includes(q) ?? false) ||
     (i.pinyin?.toLowerCase().includes(q) ?? false);
   const favoriteItems = useMemo(
-    () => INGREDIENTS.filter((i) => i.group === step.key && i.favorite && matches(i)),
-    [step.key, q] // eslint-disable-line react-hooks/exhaustive-deps
+    () => mergedIngredients.filter((i) => i.group === step.key && i.favorite && matches(i)),
+    [mergedIngredients, step.key, q] // eslint-disable-line react-hooks/exhaustive-deps
   );
   const otherItems = useMemo(
-    () => INGREDIENTS.filter((i) => i.group === step.key && !i.favorite && matches(i)),
-    [step.key, q] // eslint-disable-line react-hooks/exhaustive-deps
+    () => mergedIngredients.filter((i) => i.group === step.key && !i.favorite && matches(i)),
+    [mergedIngredients, step.key, q] // eslint-disable-line react-hooks/exhaustive-deps
   );
   const visibleCustomFoods = useMemo(
     () => customFoods.filter((f) => !q || f.name.toLowerCase().includes(q)),
     [customFoods, q]
+  );
+  const globalMatches = useMemo(
+    () => (q ? mergedIngredients.filter(matches) : []),
+    [mergedIngredients, q] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const totals = useMemo<CustomMacros>(() => {
     let acc: CustomMacros = { ...ZERO };
     for (const [id, qty] of Object.entries(selection)) {
       if (qty <= 0) continue;
-      const ing = INGREDIENTS.find((i) => i.id === id);
+      const ing = mergedById.get(id);
       if (!ing) continue;
-      const m = macrosFor(id, qty);
       acc = addMacros(acc, {
-        ...m,
+        kcal: ing.kcal * qty,
+        protein: ing.protein * qty,
+        fat: ing.fat * qty,
+        carbs: ing.carbs * qty,
         sugar: (ing.sugar ?? 0) * qty,
         sodium: (ing.sodium ?? 0) * qty,
       });
@@ -138,13 +161,13 @@ export default function MealBuilder({
       acc = addMacros(acc, scaleByGrams(c.per100g, c.grams));
     }
     return acc;
-  }, [selection, customEntries]);
+  }, [selection, customEntries, mergedById]);
 
   const itemCount =
     Object.values(selection).filter((q) => q > 0).length + customEntries.length;
 
   function stepFor(id: string): number {
-    return INGREDIENTS.find((i) => i.id === id)?.step ?? 1;
+    return mergedById.get(id)?.step ?? 1;
   }
   function add(id: string) {
     const step = stepFor(id);
@@ -204,7 +227,22 @@ export default function MealBuilder({
       const items: MealItem[] = [
         ...Object.entries(selection)
           .filter(([, q]) => q > 0)
-          .map(([id, qty]) => ({ id, qty })),
+          .map<MealItem>(([id, qty]) => {
+            if (!overrides[id]) return { id, qty };
+            const ing = mergedById.get(id);
+            if (!ing) return { id, qty };
+            return {
+              custom: true,
+              name: ing.name,
+              grams: (ing.gramsPerUnit ?? 0) * qty,
+              kcal: ing.kcal * qty,
+              protein: ing.protein * qty,
+              fat: ing.fat * qty,
+              carbs: ing.carbs * qty,
+              sugar: (ing.sugar ?? 0) * qty,
+              sodium: (ing.sodium ?? 0) * qty,
+            };
+          }),
         ...customEntries.map<CustomMealItem>((c) => {
           const s = scaleByGrams(c.per100g, c.grams);
           return {
@@ -235,6 +273,115 @@ export default function MealBuilder({
   function toggleReveal(id: string) {
     setRevealed((r) => ({ ...r, [id]: !r[id] }));
   }
+
+  const renderFoodCard = (ing: Ingredient) => {
+    const qty = selection[ing.id] ?? 0;
+    const selected = qty > 0;
+    const isRevealed = !!revealed[ing.id];
+    return (
+      <div
+        key={ing.id}
+        className={`food-card${selected ? " selected" : ""}`}
+        role="button"
+        tabIndex={0}
+        onClick={() => add(ing.id)}
+      >
+        {selected ? (
+          <div className="card-selected">
+            <div className="sel-head">
+              <div className="sel-head-text">
+                <div className="sel-name">{ing.name}</div>
+                <div className="sel-portion">
+                  {ing.unit}
+                  {ing.gramsPerUnit && qty > 0 && (
+                    <span className="portion-total"> · {Math.round(ing.gramsPerUnit * qty)}g total</span>
+                  )}
+                </div>
+              </div>
+              <div className="sel-head-actions">
+                <div className="sel-qty-pill">×{qty}</div>
+                <button
+                  type="button"
+                  className="edit-btn on-accent"
+                  onClick={(e) => { e.stopPropagation(); setModalState({ mode: "edit-ing", ing }); }}
+                  aria-label="Edit"
+                >✎</button>
+                {ing.zh && (
+                  <button
+                    type="button"
+                    className={`zi-btn${isRevealed ? " on" : ""} on-accent`}
+                    onClick={(e) => { e.stopPropagation(); toggleReveal(ing.id); }}
+                    aria-label="Show Chinese"
+                  >字</button>
+                )}
+              </div>
+            </div>
+            <div className="sel-stats-grid">
+              <div className="sel-stat-block">
+                <div className="sel-stat-num">{Math.round(ing.protein * qty)}g</div>
+                <div className="sel-stat-label">protein</div>
+              </div>
+              <div className="sel-stat-block">
+                <div className="sel-stat-num">{Math.round(ing.kcal * qty)}</div>
+                <div className="sel-stat-label">kcal</div>
+              </div>
+            </div>
+            {isRevealed && ing.zh && (
+              <div className="zh-row on-accent">
+                <span className="zh-chars">{ing.zh}</span>
+                <span className="zh-pinyin">{ing.pinyin}</span>
+              </div>
+            )}
+            <div className="sel-stepper" onClick={(e) => e.stopPropagation()}>
+              <button type="button" onClick={() => sub(ing.id)} aria-label="Remove one">−</button>
+              <span className="sel-stepper-val">×{qty}</span>
+              <button type="button" onClick={() => add(ing.id)} aria-label="Add one">+</button>
+            </div>
+          </div>
+        ) : (
+          <div className="card-top">
+            <div className="card-head-row">
+              <div className="card-name-stack">
+                <div className="food-name">{ing.name}</div>
+                <div className="food-portion">{ing.unit}</div>
+              </div>
+              <div className="head-right">
+                <button
+                  type="button"
+                  className="edit-btn"
+                  onClick={(e) => { e.stopPropagation(); setModalState({ mode: "edit-ing", ing }); }}
+                  aria-label="Edit"
+                >✎</button>
+                {ing.zh && (
+                  <button
+                    type="button"
+                    className={`zi-btn${isRevealed ? " on" : ""}`}
+                    onClick={(e) => { e.stopPropagation(); toggleReveal(ing.id); }}
+                    aria-label="Show Chinese"
+                  >字</button>
+                )}
+              </div>
+            </div>
+            <div className="macro-line">
+              <span className="m-muted">{ing.protein}g protein</span>
+              <span className="m-dot">·</span>
+              <span className="m-muted">{ing.carbs}c</span>
+              <span className="m-dot">·</span>
+              <span className="m-muted">{ing.fat}f</span>
+              <span className="m-dot">·</span>
+              <span className="m-kcal">{ing.kcal} kcal</span>
+            </div>
+            {isRevealed && ing.zh && (
+              <div className="zh-row">
+                <span className="zh-chars">{ing.zh}</span>
+                <span className="zh-pinyin">{ing.pinyin}</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <main className="meal-builder" ref={scrollRef}>
@@ -301,7 +448,7 @@ export default function MealBuilder({
       )}
 
       <div className="mb-scroll">
-        {isExtra && visibleCustomFoods.length > 0 && (
+        {(isExtra || q) && visibleCustomFoods.length > 0 && (
           <>
             <div className="group-label">My foods</div>
             <div className="ing-grid">
@@ -320,21 +467,23 @@ export default function MealBuilder({
                       per 100g · {food.per100g.kcal} kcal · {food.per100g.protein}p
                     </div>
                   </button>
-                  <button
-                    type="button"
-                    className="add"
-                    onClick={() => {
-                      addCustomEntry({
-                        instanceId: crypto.randomUUID(),
-                        foodId: food.id,
-                        name: food.name,
-                        grams: 100,
-                        per100g: food.per100g,
-                      });
-                    }}
-                  >
-                    +100g
-                  </button>
+                  <div className="my-food-actions">
+                    <button
+                      type="button"
+                      className="add"
+                      onClick={() => {
+                        addCustomEntry({
+                          instanceId: crypto.randomUUID(),
+                          foodId: food.id,
+                          name: food.name,
+                          grams: 100,
+                          per100g: food.per100g,
+                        });
+                      }}
+                    >
+                      +100g
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -375,181 +524,37 @@ export default function MealBuilder({
           </>
         )}
 
-        {favoriteItems.length > 0 && (
-          <div className="mb-section mb-fav-section">
-            <div className="mb-sticky-label mono">// YOUR USUAL</div>
-            <div className="fav-grid">
-              {favoriteItems.map((ing) => {
-                const qty = selection[ing.id] ?? 0;
-                const selected = qty > 0;
-                const isRevealed = !!revealed[ing.id];
-                return (
-                  <div
-                    key={ing.id}
-                    className={`fav-tile${selected ? " selected" : ""}`}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => add(ing.id)}
-                  >
-                    {selected ? (
-                      <div className="fav-sel">
-                        <div className="fav-sel-head">
-                          <div className="fav-sel-name">{ing.name}</div>
-                          <div className="fav-sel-qty-pill">×{qty}</div>
-                        </div>
-                        <div className="fav-sel-portion">{ing.unit}</div>
-                        <div className="fav-sel-stats">
-                          <div><strong>{Math.round(ing.protein * qty)}g</strong> protein</div>
-                          <div><strong>{Math.round(ing.kcal * qty)}</strong> kcal</div>
-                        </div>
-                        <div className="sel-stepper small" onClick={(e) => e.stopPropagation()}>
-                          <button type="button" onClick={() => sub(ing.id)} aria-label="Remove one">−</button>
-                          <span className="sel-stepper-val">×{qty}</span>
-                          <button type="button" onClick={() => add(ing.id)} aria-label="Add one">+</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="fav-top">
-                          <div className="fav-name">{ing.name}</div>
-                          {ing.zh && (
-                            <button
-                              type="button"
-                              className={`zi-btn${isRevealed ? " on" : ""}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleReveal(ing.id);
-                              }}
-                              aria-label="Show Chinese"
-                            >
-                              字
-                            </button>
-                          )}
-                        </div>
-                        <div className="fav-unit">{ing.unit}</div>
-                        <div className="fav-macros m-muted">{ing.protein}p · {ing.carbs}c · {ing.fat}f · {ing.kcal} kcal</div>
-                        {isRevealed && ing.zh && (
-                          <div className="zh-row">
-                            <span className="zh-chars">{ing.zh}</span>
-                            <span className="zh-pinyin">{ing.pinyin}</span>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {otherItems.length > 0 && (
+        {q ? (
           <div className="mb-section mb-other-section">
-            <div className="mb-sticky-label mono">// MORE OPTIONS</div>
+            <div className="mb-sticky-label mono">
+              // SEARCH RESULTS{globalMatches.length ? ` · ${globalMatches.length}` : ""}
+            </div>
+            {globalMatches.length === 0 && visibleCustomFoods.length === 0 && (
+              <div className="mb-empty mono">No matches. Try fewer letters — or tap + FOOD.</div>
+            )}
             <div className="ing-grid">
-            {otherItems.map((ing) => {
-              const qty = selection[ing.id] ?? 0;
-              const selected = qty > 0;
-              const isRevealed = !!revealed[ing.id];
-              return (
-                <div
-                  key={ing.id}
-                  className={`food-card${selected ? " selected" : ""}`}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => add(ing.id)}
-                >
-                  {selected ? (
-                    <div className="card-selected">
-                      <div className="sel-head">
-                        <div className="sel-head-text">
-                          <div className="sel-name">{ing.name}</div>
-                          <div className="sel-portion">
-                            {ing.unit}
-                            {ing.gramsPerUnit && qty > 0 && (
-                              <span className="portion-total"> · {Math.round(ing.gramsPerUnit * qty)}g total</span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="sel-head-actions">
-                          <div className="sel-qty-pill">×{qty}</div>
-                          {ing.zh && (
-                            <button
-                              type="button"
-                              className={`zi-btn${isRevealed ? " on" : ""} on-accent`}
-                              onClick={(e) => { e.stopPropagation(); toggleReveal(ing.id); }}
-                              aria-label="Show Chinese"
-                            >字</button>
-                          )}
-                        </div>
-                      </div>
-                      <div className="sel-stats-grid">
-                        <div className="sel-stat-block">
-                          <div className="sel-stat-num">{Math.round(ing.protein * qty)}g</div>
-                          <div className="sel-stat-label">protein</div>
-                        </div>
-                        <div className="sel-stat-block">
-                          <div className="sel-stat-num">{Math.round(ing.kcal * qty)}</div>
-                          <div className="sel-stat-label">kcal</div>
-                        </div>
-                      </div>
-                      {isRevealed && ing.zh && (
-                        <div className="zh-row on-accent">
-                          <span className="zh-chars">{ing.zh}</span>
-                          <span className="zh-pinyin">{ing.pinyin}</span>
-                        </div>
-                      )}
-                      <div className="sel-stepper" onClick={(e) => e.stopPropagation()}>
-                        <button type="button" onClick={() => sub(ing.id)} aria-label="Remove one">−</button>
-                        <span className="sel-stepper-val">×{qty}</span>
-                        <button type="button" onClick={() => add(ing.id)} aria-label="Add one">+</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="card-top">
-                      <div className="card-head-row">
-                        <div className="card-name-stack">
-                          <div className="food-name">{ing.name}</div>
-                          <div className="food-portion">{ing.unit}</div>
-                        </div>
-                        <div className="head-right">
-                          {ing.zh && (
-                            <button
-                              type="button"
-                              className={`zi-btn${isRevealed ? " on" : ""}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleReveal(ing.id);
-                              }}
-                              aria-label="Show Chinese"
-                            >
-                              字
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      <div className="macro-line">
-                        <span className="m-muted">{ing.protein}g protein</span>
-                        <span className="m-dot">·</span>
-                        <span className="m-muted">{ing.carbs}c</span>
-                        <span className="m-dot">·</span>
-                        <span className="m-muted">{ing.fat}f</span>
-                        <span className="m-dot">·</span>
-                        <span className="m-kcal">{ing.kcal} kcal</span>
-                      </div>
-                      {isRevealed && ing.zh && (
-                        <div className="zh-row">
-                          <span className="zh-chars">{ing.zh}</span>
-                          <span className="zh-pinyin">{ing.pinyin}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+              {globalMatches.map((ing) => renderFoodCard(ing))}
             </div>
           </div>
+        ) : (
+          <>
+            {favoriteItems.length > 0 && (
+              <div className="mb-section mb-fav-section">
+                <div className="mb-sticky-label mono">// YOUR USUAL</div>
+                <div className="ing-grid">
+                  {favoriteItems.map((ing) => renderFoodCard(ing))}
+                </div>
+              </div>
+            )}
+            {otherItems.length > 0 && (
+              <div className="mb-section mb-other-section">
+                <div className="mb-sticky-label mono">// MORE OPTIONS</div>
+                <div className="ing-grid">
+                  {otherItems.map((ing) => renderFoodCard(ing))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -602,10 +607,15 @@ export default function MealBuilder({
         </div>
       </div>
 
-      {modalState.mode !== "closed" && (
+      {(modalState.mode === "new" || modalState.mode === "edit") && (
         <CustomFoodModal
           initial={modalState.mode === "edit" ? modalState.food : null}
           onClose={() => setModalState({ mode: "closed" })}
+          onDelete={(id) => {
+            deleteCustomFood(id);
+            setCustomFoods(getCustomFoods());
+            setModalState({ mode: "closed" });
+          }}
           onSaveEdit={(food) => {
             updateCustomFood(food.id, food.name, food.per100g);
             setCustomFoods(getCustomFoods());
@@ -622,7 +632,104 @@ export default function MealBuilder({
           }}
         />
       )}
+
+      {modalState.mode === "edit-ing" && (
+        <IngredientEditModal
+          ing={modalState.ing}
+          hasOverride={!!overrides[modalState.ing.id]}
+          onClose={() => setModalState({ mode: "closed" })}
+          onSave={(patch) => {
+            saveIngredientOverride(modalState.ing.id, patch);
+            setOverrides(getIngredientOverrides());
+            setModalState({ mode: "closed" });
+          }}
+          onReset={() => {
+            resetIngredientOverride(modalState.ing.id);
+            setOverrides(getIngredientOverrides());
+            setModalState({ mode: "closed" });
+          }}
+        />
+      )}
     </main>
+  );
+}
+
+// ---------- Ingredient edit modal (override built-in) ----------
+
+function IngredientEditModal({
+  ing,
+  hasOverride,
+  onClose,
+  onSave,
+  onReset,
+}: {
+  ing: Ingredient;
+  hasOverride: boolean;
+  onClose: () => void;
+  onSave: (patch: IngredientOverride) => void;
+  onReset: () => void;
+}) {
+  const [name, setName] = useState(ing.name);
+  const [unit, setUnit] = useState(ing.unit);
+  const [kcal, setKcal] = useState(ing.kcal);
+  const [protein, setProtein] = useState(ing.protein);
+  const [fat, setFat] = useState(ing.fat);
+  const [carbs, setCarbs] = useState(ing.carbs);
+  const [sugar, setSugar] = useState(ing.sugar ?? 0);
+  const [sodium, setSodium] = useState(ing.sodium ?? 0);
+
+  function handleSave() {
+    onSave({
+      name: name.trim(),
+      unit: unit.trim(),
+      kcal,
+      protein,
+      fat,
+      carbs,
+      sugar,
+      sodium,
+    });
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <div className="modal-title">EDIT — {ing.name.toUpperCase()}</div>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        <label className="field">
+          <span>Name</span>
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <label className="field">
+          <span>Portion</span>
+          <input
+            type="text"
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+            placeholder="e.g. 100g, 1 scoop"
+          />
+        </label>
+        <div className="field-label">Per {unit || "serving"}</div>
+        <div className="field-grid">
+          <NumField label="Calories" value={kcal} onChange={setKcal} suffix="kcal" />
+          <NumField label="Protein" value={protein} onChange={setProtein} suffix="g" />
+          <NumField label="Fat" value={fat} onChange={setFat} suffix="g" />
+          <NumField label="Carbs" value={carbs} onChange={setCarbs} suffix="g" />
+          <NumField label="Sugar" value={sugar} onChange={setSugar} suffix="g" />
+          <NumField label="Sodium" value={sodium} onChange={setSodium} suffix="mg" step={10} />
+        </div>
+        <div className="modal-actions">
+          {hasOverride ? (
+            <button className="save ghost" onClick={onReset}>Reset to default</button>
+          ) : (
+            <button className="save ghost" onClick={onClose}>Cancel</button>
+          )}
+          <button className="save" onClick={handleSave}>Save</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -633,11 +740,13 @@ function CustomFoodModal({
   onClose,
   onAdd,
   onSaveEdit,
+  onDelete,
 }: {
   initial: CustomFood | null;
   onClose: () => void;
   onAdd: (entry: CustomEntry, saveToLib: boolean) => void;
   onSaveEdit: (food: CustomFood) => void;
+  onDelete: (id: string) => void;
 }) {
   const isEdit = !!initial;
   const [step, setStep] = useState<1 | 2>(isEdit ? 1 : 1);
@@ -705,15 +814,25 @@ function CustomFoodModal({
               <NumField label="Sodium" value={per100g.sodium ?? 0} onChange={(v) => setField("sodium", v)} suffix="mg" step={10} />
             </div>
             <div className="modal-actions">
-              <button className="save ghost" onClick={onClose}>Cancel</button>
               {isEdit ? (
-                <button className="save" disabled={!canGoStep2} onClick={handleSaveEdit}>
-                  Save
-                </button>
+                <>
+                  <button
+                    className="save ghost danger"
+                    onClick={() => initial && onDelete(initial.id)}
+                  >
+                    Delete
+                  </button>
+                  <button className="save" disabled={!canGoStep2} onClick={handleSaveEdit}>
+                    Save
+                  </button>
+                </>
               ) : (
-                <button className="save" disabled={!canGoStep2} onClick={() => setStep(2)}>
-                  Next →
-                </button>
+                <>
+                  <button className="save ghost" onClick={onClose}>Cancel</button>
+                  <button className="save" disabled={!canGoStep2} onClick={() => setStep(2)}>
+                    Next →
+                  </button>
+                </>
               )}
             </div>
           </>

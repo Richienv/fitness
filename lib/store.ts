@@ -54,7 +54,19 @@ export type DailyFlags = {
 const MEALS_KEY = "richie.meals.v1";
 const DAILY_KEY = "richie.daily.v1";
 const CUSTOM_KEY = "richie.customfoods.v1";
+const OVERRIDES_KEY = "richie.ingredientoverrides.v1";
 const MEALS_SYNCED_KEY = "richie.meals.synced.v1";
+
+export type IngredientOverride = {
+  name?: string;
+  unit?: string;
+  kcal?: number;
+  protein?: number;
+  fat?: number;
+  carbs?: number;
+  sugar?: number;
+  sodium?: number;
+};
 
 function sumItemsMacros(items: MealItem[]): Macros {
   return items.reduce<Macros>(
@@ -282,6 +294,22 @@ export function updateCustomFood(id: string, name: string, per100g: Per100g): vo
   if (idx === -1) return;
   all[idx] = { ...all[idx], name, per100g };
   write(CUSTOM_KEY, all);
+}
+
+export function getIngredientOverrides(): Record<string, IngredientOverride> {
+  return read<Record<string, IngredientOverride>>(OVERRIDES_KEY, {});
+}
+
+export function saveIngredientOverride(id: string, patch: IngredientOverride): void {
+  const all = getIngredientOverrides();
+  all[id] = patch;
+  write(OVERRIDES_KEY, all);
+}
+
+export function resetIngredientOverride(id: string): void {
+  const all = getIngredientOverrides();
+  delete all[id];
+  write(OVERRIDES_KEY, all);
 }
 
 export function scaleByGrams(per100g: Per100g, grams: number): {
