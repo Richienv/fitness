@@ -20,6 +20,7 @@ const SESSION_ACCENT: Record<SessionType, string> = {
   PULL_A: "#47ffb8",
   PULL_B: "#47ffb8",
   LEGS: "#ff6b35",
+  CUSTOM: "#8b47ff",
 };
 
 const DAY_LABELS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
