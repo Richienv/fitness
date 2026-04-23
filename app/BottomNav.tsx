@@ -8,12 +8,13 @@ const OS_URL = "https://r2-os.vercel.app";
 type Tab = { href: string; label: string; icon: string; match: (p: string) => boolean };
 
 const LEFT: Tab[] = [
-  { href: "/", label: "HOME", icon: "🏠", match: (p) => p === "/" },
+  { href: "/",     label: "HOME",  icon: "🏠", match: (p) => p === "/" },
+  { href: "/tlvl", label: "T-LVL", icon: "⚡", match: (p) => p.startsWith("/tlvl") },
 ];
 
 const RIGHT: Tab[] = [
-  { href: "/tlvl",      label: "T-LVL", icon: "⚡", match: (p) => p.startsWith("/tlvl") },
   { href: "/dashboard", label: "STATS", icon: "📊", match: (p) => p.startsWith("/dashboard") },
+  { href: "/settings",  label: "SET",   icon: "⚙️", match: (p) => p.startsWith("/settings") },
 ];
 
 export default function BottomNav() {
