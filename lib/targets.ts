@@ -1,13 +1,28 @@
+import { DEFAULT_SETTINGS, getSettings, type MacroTarget } from "./settings";
+
+export type { MacroTarget };
+
+// Backwards-compatible `TARGETS.gymDay` / `TARGETS.restDay` — now backed by
+// the user settings store. Getters fire on every access so edits made in the
+// settings page take effect across the whole app without any prop threading.
 export const TARGETS = {
-  gymDay: { kcal: 2200, protein: 155, carbs: 150, fat: 70 },
-  restDay: { kcal: 1700, protein: 155, carbs: 120, fat: 70 },
+  get gymDay(): MacroTarget {
+    if (typeof window === "undefined") return DEFAULT_SETTINGS.targets.gymDay;
+    return getSettings().targets.gymDay;
+  },
+  get restDay(): MacroTarget {
+    if (typeof window === "undefined") return DEFAULT_SETTINGS.targets.restDay;
+    return getSettings().targets.restDay;
+  },
 };
 
-// Program start: Monday, April 7, 2026 (week 1 of the 12-week block).
-export const START_DATE = "2026-04-07";
+export function getStartDate(): string {
+  if (typeof window === "undefined") return DEFAULT_SETTINGS.startDate;
+  return getSettings().startDate;
+}
 
 export function weekNumber(now = new Date()): number {
-  const start = new Date(START_DATE);
+  const start = new Date(getStartDate());
   const ms = now.getTime() - start.getTime();
   const week = Math.ceil((ms + 1) / (1000 * 60 * 60 * 24 * 7));
   return Math.max(1, Math.min(12, week));
