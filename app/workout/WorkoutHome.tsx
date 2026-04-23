@@ -20,7 +20,12 @@ import {
   type SessionType,
   type WorkoutSession,
 } from "@/lib/workouts";
-import { MUSCLE_LABEL, type MuscleKey } from "@/lib/muscles";
+import {
+  MUSCLE_LABEL,
+  MUSCLE_TO_GROUP,
+  type MuscleColorGroup,
+  type MuscleKey,
+} from "@/lib/muscles";
 import { EQUIPMENT } from "@/lib/equipment";
 import { useActiveDate } from "@/lib/activeDate";
 import SessionSilhouette from "./SessionSilhouette";
@@ -294,14 +299,16 @@ type DraftExercise = {
   primary: MuscleKey;
 };
 
-function defaultDraftExercise(name = ""): DraftExercise {
+type CatalogEntry = { name: string; primary: MuscleKey };
+
+function newDraft(name: string, primary: MuscleKey): DraftExercise {
   return {
     name,
     sets: 3,
     repsLabel: "10",
     targetReps: 10,
     restSec: 60,
-    primary: "chest",
+    primary,
   };
 }
 
@@ -318,22 +325,35 @@ function draftToExerciseDef(d: DraftExercise): ExerciseDef {
   };
 }
 
-const MUSCLE_OPTIONS: MuscleKey[] = [
-  "chest",
-  "frontDelt",
-  "sideDelt",
-  "rearDelt",
-  "tricep",
-  "bicep",
-  "lats",
-  "midBack",
-  "traps",
-  "quad",
-  "hamstring",
-  "glute",
-  "calf",
-  "abs",
+const GROUP_META: { key: MuscleColorGroup; label: string; emoji: string }[] = [
+  { key: "chest",     label: "Chest",     emoji: "💪" },
+  { key: "back",      label: "Back",      emoji: "🦾" },
+  { key: "shoulders", label: "Shoulders", emoji: "🛡️" },
+  { key: "arms",      label: "Arms",      emoji: "💥" },
+  { key: "legs",      label: "Legs",      emoji: "🦵" },
+  { key: "abs",       label: "Abs",       emoji: "🔥" },
 ];
+
+function buildCatalog(): CatalogEntry[] {
+  const seen = new Map<string, CatalogEntry>();
+  for (const s of SESSIONS) {
+    for (const e of s.exercises) {
+      const entry = { name: e.name, primary: e.primary[0] };
+      if (!seen.has(entry.name)) seen.set(entry.name, entry);
+    }
+  }
+  for (const e of EQUIPMENT) {
+    const entry = { name: e.name, primary: muscleFromEquipmentGroup(e.muscleGroup) };
+    if (!seen.has(entry.name)) seen.set(entry.name, entry);
+  }
+  return Array.from(seen.values());
+}
+
+function autoName(groups: MuscleColorGroup[]): string {
+  if (groups.length === 0) return "Custom Session";
+  const labels = groups.map((g) => GROUP_META.find((m) => m.key === g)?.label ?? g);
+  return labels.join(" + ");
+}
 
 function CustomSessionModal({
   onClose,
@@ -342,223 +362,265 @@ function CustomSessionModal({
   onClose: () => void;
   onSave: (t: Omit<CustomTemplate, "id" | "createdAt">) => void;
 }) {
-  const [name, setName] = useState("");
-  const [focus, setFocus] = useState("");
-  const [drafts, setDrafts] = useState<DraftExercise[]>([defaultDraftExercise()]);
-  const [pickerFor, setPickerFor] = useState<number | null>(null);
-  const [pickerQuery, setPickerQuery] = useState("");
+  const [selectedGroups, setSelectedGroups] = useState<MuscleColorGroup[]>([]);
+  const [drafts, setDrafts] = useState<DraftExercise[]>([]);
+  const [query, setQuery] = useState("");
+  const [nameOverride, setNameOverride] = useState<string | null>(null);
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
 
-  const canSave =
-    name.trim().length > 0 &&
-    drafts.some((d) => d.name.trim().length > 0);
+  const catalog = useMemo(buildCatalog, []);
+
+  function toggleGroup(g: MuscleColorGroup) {
+    setSelectedGroups((list) =>
+      list.includes(g) ? list.filter((x) => x !== g) : [...list, g]
+    );
+  }
+
+  const added = useMemo(() => new Set(drafts.map((d) => d.name.toLowerCase())), [drafts]);
+
+  const recommendations = useMemo<CatalogEntry[]>(() => {
+    if (selectedGroups.length === 0) return [];
+    const set = new Set<MuscleColorGroup>(selectedGroups);
+    return catalog
+      .filter((c) => set.has(MUSCLE_TO_GROUP[c.primary]))
+      .filter((c) => !added.has(c.name.toLowerCase()));
+  }, [catalog, selectedGroups, added]);
+
+  const searchMatches = useMemo<CatalogEntry[]>(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return catalog
+      .filter((c) => c.name.toLowerCase().includes(q))
+      .filter((c) => !added.has(c.name.toLowerCase()))
+      .slice(0, 12);
+  }, [catalog, query, added]);
+
+  function addEntry(entry: CatalogEntry) {
+    setDrafts((list) => [...list, newDraft(entry.name, entry.primary)]);
+  }
+
+  function removeDraft(i: number) {
+    setDrafts((list) => list.filter((_, idx) => idx !== i));
+    if (editingIdx === i) setEditingIdx(null);
+  }
 
   function updateDraft(i: number, patch: Partial<DraftExercise>) {
     setDrafts((list) => list.map((d, idx) => (idx === i ? { ...d, ...patch } : d)));
   }
-  function removeDraft(i: number) {
-    setDrafts((list) => list.filter((_, idx) => idx !== i));
-  }
-  function addDraft() {
-    setDrafts((list) => [...list, defaultDraftExercise()]);
-  }
 
-  const pickerMatches = useMemo(() => {
-    const q = pickerQuery.trim().toLowerCase();
-    const presetExercises = SESSIONS.flatMap((s) =>
-      s.exercises.map((e) => ({ name: e.name, primary: e.primary[0] }))
-    );
-    const equipmentExercises = EQUIPMENT.map((e) => ({
-      name: e.name,
-      primary: muscleFromEquipmentGroup(e.muscleGroup),
-    }));
-    const all = [...presetExercises, ...equipmentExercises];
-    const unique = new Map<string, { name: string; primary: MuscleKey }>();
-    for (const x of all) if (!unique.has(x.name)) unique.set(x.name, x);
-    const list = Array.from(unique.values());
-    if (!q) return list.slice(0, 24);
-    return list.filter((x) => x.name.toLowerCase().includes(q)).slice(0, 24);
-  }, [pickerQuery]);
+  const name = nameOverride ?? autoName(selectedGroups);
+  const focusLabel =
+    selectedGroups.length === 0
+      ? "Pick a focus muscle"
+      : selectedGroups
+          .map((g) => GROUP_META.find((m) => m.key === g)?.label ?? g)
+          .join(" · ");
 
-  function applyPick(i: number, name: string, primary: MuscleKey) {
-    updateDraft(i, { name, primary });
-    setPickerFor(null);
-    setPickerQuery("");
-  }
+  const canSave = drafts.length > 0;
 
   function handleSave() {
-    const exercises = drafts
-      .filter((d) => d.name.trim().length > 0)
-      .map(draftToExerciseDef);
-    onSave({ name: name.trim(), focus: focus.trim() || "CUSTOM", exercises });
+    onSave({
+      name: (name.trim() || autoName(selectedGroups)).slice(0, 60),
+      focus: focusLabel,
+      exercises: drafts.map(draftToExerciseDef),
+    });
   }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal wo-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head">
-          <div className="modal-title">NEW CUSTOM SESSION</div>
+      <div
+        className="modal wo-modal wo-modal-fast"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-head wo-modal-head-sticky">
+          <div className="modal-title-block">
+            <input
+              type="text"
+              className="wo-modal-name"
+              value={name}
+              placeholder="Session name"
+              onChange={(e) => setNameOverride(e.target.value)}
+              onFocus={(e) => e.currentTarget.select()}
+            />
+            <div className="wo-modal-focus mono">{focusLabel}</div>
+          </div>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
 
-        <label className="field">
-          <span>Name</span>
-          <input
-            type="text"
-            placeholder="e.g. Arm blast"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoFocus
-          />
-        </label>
-        <label className="field">
-          <span>Focus</span>
-          <input
-            type="text"
-            placeholder="e.g. Biceps + triceps"
-            value={focus}
-            onChange={(e) => setFocus(e.target.value)}
-          />
-        </label>
-
-        <div className="field-label">Exercises</div>
-        <div className="wo-draft-list">
-          {drafts.map((d, i) => (
-            <div key={i} className="wo-draft">
-              <div className="wo-draft-row">
-                <input
-                  type="text"
-                  className="wo-draft-name"
-                  placeholder="Exercise name"
-                  value={d.name}
-                  onChange={(e) => updateDraft(i, { name: e.target.value })}
-                />
+        <div className="wo-modal-scroll">
+          <div className="wo-step-label mono">1 · PICK MUSCLES</div>
+          <div className="wo-group-grid">
+            {GROUP_META.map((g) => {
+              const on = selectedGroups.includes(g.key);
+              return (
                 <button
+                  key={g.key}
                   type="button"
-                  className="wo-draft-pick mono"
-                  onClick={() => {
-                    setPickerFor(i);
-                    setPickerQuery("");
-                  }}
+                  className={`wo-group-chip${on ? " on" : ""}`}
+                  onClick={() => toggleGroup(g.key)}
                 >
-                  PICK
+                  <span className="wo-group-emoji">{g.emoji}</span>
+                  <span className="wo-group-label">{g.label}</span>
                 </button>
-                <button
-                  type="button"
-                  className="wo-draft-remove"
-                  onClick={() => removeDraft(i)}
-                  aria-label="Remove"
-                >
-                  ×
-                </button>
-              </div>
-              <div className="wo-draft-row wo-draft-row-split">
-                <label className="wo-draft-mini">
-                  <span className="mono">SETS</span>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    value={d.sets}
-                    onChange={(e) =>
-                      updateDraft(i, { sets: Math.max(1, Number(e.target.value) || 1) })
-                    }
-                  />
-                </label>
-                <label className="wo-draft-mini">
-                  <span className="mono">REPS</span>
-                  <input
-                    type="text"
-                    value={d.repsLabel}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      const n = parseInt(v, 10);
-                      updateDraft(i, {
-                        repsLabel: v,
-                        targetReps: Number.isFinite(n) && n > 0 ? n : d.targetReps,
-                      });
-                    }}
-                  />
-                </label>
-                <label className="wo-draft-mini">
-                  <span className="mono">REST</span>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    step={15}
-                    value={d.restSec}
-                    onChange={(e) =>
-                      updateDraft(i, { restSec: Math.max(0, Number(e.target.value) || 0) })
-                    }
-                  />
-                </label>
-              </div>
-              <label className="wo-draft-muscle">
-                <span className="mono">PRIMARY MUSCLE</span>
-                <select
-                  value={d.primary}
-                  onChange={(e) => updateDraft(i, { primary: e.target.value as MuscleKey })}
-                >
-                  {MUSCLE_OPTIONS.map((m) => (
-                    <option key={m} value={m}>
-                      {MUSCLE_LABEL[m]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
 
-        <button type="button" className="wo-add-draft" onClick={addDraft}>
-          + ADD EXERCISE
-        </button>
-
-        <div className="modal-actions">
-          <button className="save ghost" onClick={onClose}>Cancel</button>
-          <button className="save" disabled={!canSave} onClick={handleSave}>
-            Save &amp; start
-          </button>
-        </div>
-
-        {pickerFor !== null && (
-          <div className="wo-picker-overlay" onClick={() => setPickerFor(null)}>
-            <div className="wo-picker" onClick={(e) => e.stopPropagation()}>
-              <div className="wo-picker-head">
-                <input
-                  type="search"
-                  placeholder="Search exercises"
-                  value={pickerQuery}
-                  onChange={(e) => setPickerQuery(e.target.value)}
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  className="modal-close"
-                  onClick={() => setPickerFor(null)}
-                >
-                  ×
-                </button>
-              </div>
-              <div className="wo-picker-list">
-                {pickerMatches.length === 0 && (
-                  <div className="wo-picker-empty mono">No matches.</div>
-                )}
-                {pickerMatches.map((m) => (
+          {selectedGroups.length > 0 && recommendations.length > 0 && (
+            <>
+              <div className="wo-step-label mono">2 · RECOMMENDED · TAP TO ADD</div>
+              <div className="wo-reco-grid">
+                {recommendations.slice(0, 16).map((r) => (
                   <button
-                    key={m.name}
+                    key={r.name}
                     type="button"
-                    className="wo-picker-row"
-                    onClick={() => applyPick(pickerFor, m.name, m.primary)}
+                    className="wo-reco-chip"
+                    onClick={() => addEntry(r)}
                   >
-                    <span>{m.name}</span>
-                    <span className="mono wo-picker-muscle">{MUSCLE_LABEL[m.primary]}</span>
+                    <span className="wo-reco-plus">+</span>
+                    <span className="wo-reco-name">{r.name}</span>
+                    <span className="wo-reco-muscle mono">{MUSCLE_LABEL[r.primary]}</span>
                   </button>
                 ))}
               </div>
-            </div>
+            </>
+          )}
+
+          <div className="wo-step-label mono">
+            {selectedGroups.length > 0 ? "3 · " : ""}OR SEARCH ANYTHING
           </div>
-        )}
+          <div className="wo-search-row">
+            <input
+              type="search"
+              placeholder="Search exercise or equipment"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="wo-modal-search"
+            />
+            {query && (
+              <button
+                type="button"
+                className="wo-search-clear wo-search-clear-inline"
+                onClick={() => setQuery("")}
+                aria-label="Clear"
+              >
+                ×
+              </button>
+            )}
+          </div>
+          {query.trim() && (
+            <div className="wo-reco-grid">
+              {searchMatches.length === 0 && (
+                <div className="wo-reco-empty mono">No matches</div>
+              )}
+              {searchMatches.map((m) => (
+                <button
+                  key={m.name}
+                  type="button"
+                  className="wo-reco-chip"
+                  onClick={() => {
+                    addEntry(m);
+                    setQuery("");
+                  }}
+                >
+                  <span className="wo-reco-plus">+</span>
+                  <span className="wo-reco-name">{m.name}</span>
+                  <span className="wo-reco-muscle mono">{MUSCLE_LABEL[m.primary]}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="wo-step-label mono">
+            {drafts.length > 0 ? `IN YOUR SESSION (${drafts.length})` : "NOTHING ADDED YET"}
+          </div>
+          <div className="wo-added-list">
+            {drafts.map((d, i) => {
+              const expanded = editingIdx === i;
+              return (
+                <div key={`${d.name}-${i}`} className={`wo-added${expanded ? " expanded" : ""}`}>
+                  <div className="wo-added-top">
+                    <button
+                      type="button"
+                      className="wo-added-name"
+                      onClick={() => setEditingIdx(expanded ? null : i)}
+                    >
+                      <span>{d.name}</span>
+                      <span className="wo-added-meta mono">
+                        {d.sets}×{d.repsLabel} · {MUSCLE_LABEL[d.primary]}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="wo-added-remove"
+                      onClick={() => removeDraft(i)}
+                      aria-label="Remove"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  {expanded && (
+                    <div className="wo-added-edit">
+                      <label className="wo-draft-mini">
+                        <span className="mono">SETS</span>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min={1}
+                          value={d.sets}
+                          onChange={(e) =>
+                            updateDraft(i, {
+                              sets: Math.max(1, Number(e.target.value) || 1),
+                            })
+                          }
+                        />
+                      </label>
+                      <label className="wo-draft-mini">
+                        <span className="mono">REPS</span>
+                        <input
+                          type="text"
+                          value={d.repsLabel}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            const n = parseInt(v, 10);
+                            updateDraft(i, {
+                              repsLabel: v,
+                              targetReps: Number.isFinite(n) && n > 0 ? n : d.targetReps,
+                            });
+                          }}
+                        />
+                      </label>
+                      <label className="wo-draft-mini">
+                        <span className="mono">REST (S)</span>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          step={15}
+                          value={d.restSec}
+                          onChange={(e) =>
+                            updateDraft(i, {
+                              restSec: Math.max(0, Number(e.target.value) || 0),
+                            })
+                          }
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="wo-modal-footer">
+          <button className="save ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="save" disabled={!canSave} onClick={handleSave}>
+            {canSave ? `Start · ${drafts.length}` : "Add one exercise"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -566,8 +628,8 @@ function CustomSessionModal({
 
 function muscleFromEquipmentGroup(group: string): MuscleKey {
   const g = group.toUpperCase();
-  if (g.includes("CHEST")) return "chest";
   if (g.includes("UPPER CHEST")) return "chest";
+  if (g.includes("CHEST")) return "chest";
   if (g.includes("LATS")) return "lats";
   if (g.includes("MIDDLE BACK")) return "midBack";
   if (g.includes("LOWER BACK")) return "midBack";
