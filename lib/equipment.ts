@@ -58,16 +58,17 @@ export const EQUIPMENT: Equipment[] = [
   { id: "skull-crusher",             name: "Skull Crusher",             hanzi: "颅骨破碎机",   pinyin: "lúgǔ pòsuì jī",           muscleGroup: "TRICEPS",                                                      category: "BARBELL" },
 
   // Legs
-  { id: "leg-press-machine",         name: "Leg Press Machine",         hanzi: "腿举器",       pinyin: "tuǐ jǔ qì",               muscleGroup: "QUADS",       secondary: ["glutes", "hamstrings"],              category: "MACHINE" },
-  { id: "leg-extension-machine",     name: "Leg Extension Machine",     hanzi: "腿部伸展器",   pinyin: "tuǐbù shēnzhǎn qì",       muscleGroup: "QUADS",                                                        category: "MACHINE" },
-  { id: "seated-leg-curl",           name: "Leg Curl Machine (Seated)", hanzi: "坐姿腿弯举器", pinyin: "zuòzī tuǐ wānjǔ qì",      muscleGroup: "HAMSTRINGS",                                                   category: "MACHINE" },
-  { id: "lying-leg-curl",            name: "Leg Curl Machine (Lying)",  hanzi: "俯卧腿弯举器", pinyin: "fǔwò tuǐ wānjǔ qì",       muscleGroup: "HAMSTRINGS",                                                   category: "MACHINE" },
-  { id: "hip-abductor-machine",      name: "Hip Abductor Machine",      hanzi: "髋外展器",     pinyin: "kuān wàizhǎn qì",         muscleGroup: "GLUTES",      secondary: ["hip abductors"],                     category: "MACHINE" },
-  { id: "hip-adductor-machine",      name: "Hip Adductor Machine",      hanzi: "髋内收器",     pinyin: "kuān nèishōu qì",         muscleGroup: "INNER THIGH",                                                  category: "MACHINE" },
+  { id: "hack-squat-machine",        name: "Hack Squat",                hanzi: "正向哈克深蹲", pinyin: "zhèngxiàng hākè shēndūn", muscleGroup: "QUADS",       secondary: ["glutes", "hamstrings"],              category: "MACHINE" },
+  { id: "reverse-hack-squat",        name: "Reverse Hack Squat",        hanzi: "反向哈克深蹲", pinyin: "fǎnxiàng hākè shēndūn",   muscleGroup: "GLUTES",      secondary: ["hamstrings", "quads"],               category: "MACHINE" },
+  { id: "leg-press-machine",         name: "Power Leg Press",           hanzi: "仰卧倒蹬训练器", pinyin: "yǎngwò dàodēng xùnliàn qì", muscleGroup: "QUADS",     secondary: ["glutes", "hamstrings"],              category: "MACHINE" },
+  { id: "leg-extension-machine",     name: "Leg Extension",             hanzi: "伸腿训练器",   pinyin: "shēntuǐ xùnliàn qì",      muscleGroup: "QUADS",                                                        category: "MACHINE" },
+  { id: "seated-leg-curl",           name: "Seated Leg Curl",           hanzi: "坐式曲腿训练器", pinyin: "zuòshì qū tuǐ xùnliàn qì", muscleGroup: "HAMSTRINGS",                                                category: "MACHINE" },
+  { id: "lying-leg-curl",            name: "Lying Leg Curl",            hanzi: "卧式屈腿训练器", pinyin: "wòshì qū tuǐ xùnliàn qì", muscleGroup: "HAMSTRINGS",                                                category: "MACHINE" },
+  { id: "hip-adductor-machine",      name: "Hip Adductor (Inner Thigh)",hanzi: "内弯训练器",   pinyin: "nèi wān xùnliàn qì",      muscleGroup: "INNER THIGH", secondary: ["adductors"],                         category: "MACHINE" },
+  { id: "hip-abductor-machine",      name: "Hip Abductor (Outer Thigh)",hanzi: "外弯训练器",   pinyin: "wài wān xùnliàn qì",      muscleGroup: "GLUTES",      secondary: ["hip abductors"],                     category: "MACHINE" },
+  { id: "glute-kickback-machine",    name: "Glute Kickback / Rear Kick",hanzi: "臀部后踢器",   pinyin: "túnbù hòu tī qì",         muscleGroup: "GLUTES",      secondary: ["hamstrings"],                        category: "MACHINE" },
   { id: "calf-raise-machine",        name: "Calf Raise Machine",        hanzi: "提踵器",       pinyin: "tí zhǒng qì",             muscleGroup: "CALVES",                                                       category: "MACHINE" },
-  { id: "hack-squat-machine",        name: "Hack Squat Machine",        hanzi: "哈克深蹲机",   pinyin: "hākè shēndūn jī",         muscleGroup: "QUADS",       secondary: ["glutes", "hamstrings"],              category: "MACHINE" },
   { id: "smith-machine-squat",       name: "Smith Machine Squat",       hanzi: "史密斯深蹲",   pinyin: "shǐmìsī shēndūn",         muscleGroup: "QUADS",       secondary: ["glutes"],                           category: "MACHINE" },
-  { id: "glute-kickback-machine",    name: "Glute Kickback Machine",    hanzi: "臀部后踢器",   pinyin: "túnbù hòu tī qì",         muscleGroup: "GLUTES",      secondary: ["hamstrings"],                        category: "MACHINE" },
 
   // Core / Abs
   { id: "ab-crunch-machine",         name: "Ab Crunch Machine",         hanzi: "腹部卷曲器",   pinyin: "fùbù juǎnqū qì",          muscleGroup: "ABS",                                                          category: "MACHINE" },
