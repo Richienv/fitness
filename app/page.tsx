@@ -8,6 +8,7 @@ import {
   getDaily,
   getMealsForDate,
   isCustomItem,
+  setDaily,
   type MealItem,
   type MealLog,
 } from "@/lib/store";
@@ -204,6 +205,14 @@ export default function HomePage() {
 
   const isRestDay = !gymDay;
 
+  function toggleGym(next: boolean) {
+    if (next === gymDay) return;
+    setGymDay(next);
+    const today = todayKey();
+    const cur = getDaily(today);
+    setDaily({ date: today, gymDay: next, checklist: cur.checklist ?? {} });
+  }
+
   const dateLine = now
     .toLocaleDateString("en", { weekday: "short", month: "short", day: "numeric" })
     .toUpperCase();
@@ -267,38 +276,44 @@ export default function HomePage() {
       </section>
 
       <nav className="home-actions">
-        <Link href="/workout" className="home-card">
-          <span className="home-card-icon">🏋️</span>
-          <div className="home-card-body">
-            <div className="home-card-title">LOG WORKOUT</div>
-            <div className="home-card-sub mono">
+        <div className="home-daytoggle mono" role="tablist" aria-label="Day type">
+          <button
+            type="button"
+            className={`home-daytoggle-btn${gymDay ? " on" : ""}`}
+            onClick={() => toggleGym(true)}
+            role="tab"
+            aria-selected={gymDay}
+          >
+            🏋️ GYM DAY
+          </button>
+          <button
+            type="button"
+            className={`home-daytoggle-btn${!gymDay ? " on" : ""}`}
+            onClick={() => toggleGym(false)}
+            role="tab"
+            aria-selected={!gymDay}
+          >
+            🌙 REST DAY
+          </button>
+        </div>
+
+        <div className="home-duo">
+          <Link href="/workout" className="home-duo-btn home-duo-workout">
+            <span className="home-duo-icon">🏋️</span>
+            <span className="home-duo-title">WORKOUT</span>
+            <span className="home-duo-sub mono">
               {workoutSubtitle(workout, isRestDay, recommendedLabel)}
-            </div>
-          </div>
-          <span className="home-card-chev">›</span>
-        </Link>
+            </span>
+          </Link>
 
-        <Link href="/meal" className="home-card">
-          <span className="home-card-icon">🍽️</span>
-          <div className="home-card-body">
-            <div className="home-card-title">LOG MEAL</div>
-            <div className="home-card-sub mono">
+          <Link href="/meal" className="home-duo-btn home-duo-meal">
+            <span className="home-duo-icon">🍽️</span>
+            <span className="home-duo-title">MEAL</span>
+            <span className="home-duo-sub mono">
               {mealSubtitle(loggedTypes, hour, totals.kcal)}
-            </div>
-          </div>
-          <span className="home-card-chev">›</span>
-        </Link>
-
-        <Link href="/dashboard" className="home-card">
-          <span className="home-card-icon">📊</span>
-          <div className="home-card-body">
-            <div className="home-card-title">DASHBOARD</div>
-            <div className="home-card-sub mono">
-              {Math.round(totals.kcal).toLocaleString()} kcal · {Math.round(totals.protein)}g protein
-            </div>
-          </div>
-          <span className="home-card-chev">›</span>
-        </Link>
+            </span>
+          </Link>
+        </div>
       </nav>
     </main>
   );
