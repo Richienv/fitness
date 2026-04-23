@@ -45,10 +45,18 @@ export type CustomFood = {
   createdAt: number;
 };
 
+export type TLvlInputs = {
+  sleepHours?: number;   // 0–12
+  stressLevel?: number;  // 0–10
+  alcohol?: boolean;
+  cardioMin?: number;
+};
+
 export type DailyFlags = {
   date: string;
   gymDay: boolean;
   checklist: Record<string, boolean>;
+  tlvl?: TLvlInputs;
 };
 
 const MEALS_KEY = "richie.meals.v1";

@@ -20,6 +20,7 @@ import {
   workoutVolume,
   type WorkoutSession,
 } from "@/lib/workouts";
+import { computeTLvl } from "@/lib/tlvl";
 
 const EMPTY: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
 
@@ -149,6 +150,7 @@ export default function HomePage() {
   const [meals, setMeals] = useState<MealLog[]>([]);
   const [workout, setWorkout] = useState<WorkoutSession | null>(null);
   const [gymDay, setGymDay] = useState(true);
+  const [tlvlScore, setTLvlScore] = useState<number | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -157,6 +159,11 @@ export default function HomePage() {
     setMeals(getMealsForDate(today));
     setWorkout(getTodaysWorkout(today));
     setGymDay(getDaily(today).gymDay);
+    try {
+      setTLvlScore(Math.round(computeTLvl(today).score));
+    } catch {
+      setTLvlScore(null);
+    }
     const t = setInterval(() => setNow(new Date()), 60_000);
     document.body.classList.add("no-scroll");
     return () => {
@@ -230,7 +237,7 @@ export default function HomePage() {
         totals.kcal
       ).toLocaleString()} / ${target.kcal.toLocaleString()} KCAL · ${Math.round(
         totals.protein
-      )}G P`
+      )}G P${tlvlScore !== null ? ` · T-LVL ${tlvlScore}` : ""}`
     : "";
 
   return (
