@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   SESSIONS,
-  getSession,
+  getDefForWorkout,
   getWorkout,
   getLastSessionOfType,
   weekNumber,
@@ -36,16 +36,16 @@ export default function SessionComplete({ workoutId }: { workoutId: string }) {
     );
   }
 
-  const def = getSession(workout.sessionType);
+  const def = getDefForWorkout(workout);
   const volume = workout.totalVolume ?? workoutVolume(workout);
   const prevVolume = prev ? workoutVolume(prev) : 0;
   const volumeDelta = volume - prevVolume;
   const totalSetsNeeded = def?.exercises.reduce((a, e) => a + e.sets, 0) ?? 0;
   const setsLogged = workout.exercises.reduce((a, e) => a + e.sets.length, 0);
 
-  // Next session hint: pick the next session in SESSIONS order after current type
+  // Next session hint: pick the next preset session; for CUSTOM, fall back to PUSH_A
   const idx = SESSIONS.findIndex((s) => s.id === workout.sessionType);
-  const nextSession = SESSIONS[(idx + 1) % SESSIONS.length];
+  const nextSession = SESSIONS[((idx < 0 ? -1 : idx) + 1 + SESSIONS.length) % SESSIONS.length];
 
   const prCount = (() => {
     if (!prev || !def) return 0;

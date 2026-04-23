@@ -4841,6 +4841,280 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
 }
 .wo-equip-link:hover { color: var(--text); border-color: #333; }
 
+/* Search + custom session section */
+.wo-search {
+  position: relative;
+  margin-top: 12px;
+}
+.wo-search-input {
+  width: 100%;
+  padding: 10px 36px 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  font-size: 13px;
+  letter-spacing: 0.5px;
+}
+.wo-search-input::placeholder { color: #666; text-transform: uppercase; letter-spacing: 1px; font-size: 11px; }
+.wo-search-input:focus { outline: none; border-color: var(--accent); }
+.wo-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: none;
+  background: #222;
+  color: #ccc;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.wo-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+
+.wo-custom-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 22px;
+  margin-bottom: 8px;
+}
+.wo-custom-head .wo-pick-label { margin: 0; }
+.wo-add-custom {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px dashed #3a3a3a;
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  cursor: pointer;
+}
+.wo-add-custom:hover { border-style: solid; background: rgba(232, 255, 71, 0.06); }
+
+.wo-custom-empty {
+  display: block;
+  width: 100%;
+  padding: 18px;
+  background: transparent;
+  border: 1px dashed #2a2a2a;
+  border-radius: 12px;
+  color: var(--muted);
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+.wo-custom-empty-cta { color: var(--accent); }
+
+.wo-custom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.wo-custom-card {
+  position: relative;
+  background: #0d0d0d;
+  border: 1px solid #2a2a2a;
+  border-left: 3px solid #8b47ff;
+  border-radius: 10px;
+  min-height: 110px;
+  padding: 12px 14px 10px;
+  display: flex;
+  flex-direction: column;
+}
+.wo-custom-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  color: #f0f0f0;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+.wo-custom-name {
+  font-family: var(--font-bebas), "Bebas Neue", sans-serif;
+  font-size: 20px;
+  letter-spacing: 1px;
+  line-height: 1;
+}
+.wo-custom-focus {
+  font-size: 10px;
+  color: #888;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.wo-custom-meta {
+  margin-top: auto;
+  font-size: 10px;
+  color: #666;
+  letter-spacing: 1px;
+}
+.wo-custom-del {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: #555;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.wo-custom-del:hover { background: #1a1a1a; color: #ddd; }
+
+/* Custom session modal */
+.wo-modal { max-height: 88vh; overflow-y: auto; }
+.wo-draft-list { display: flex; flex-direction: column; gap: 12px; }
+.wo-draft {
+  padding: 10px;
+  background: #0d0d0d;
+  border: 1px solid #262626;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wo-draft-row { display: flex; align-items: center; gap: 8px; }
+.wo-draft-row-split { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.wo-draft-name {
+  flex: 1;
+  padding: 8px 10px;
+  background: #151515;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+}
+.wo-draft-pick {
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  color: var(--accent);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+}
+.wo-draft-remove {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid #2a2a2a;
+  background: transparent;
+  color: #888;
+  font-size: 16px;
+  cursor: pointer;
+}
+.wo-draft-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 10px;
+}
+.wo-draft-mini > span { color: var(--muted); letter-spacing: 1.2px; }
+.wo-draft-mini input {
+  padding: 6px 8px;
+  background: #151515;
+  border: 1px solid #2a2a2a;
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+}
+.wo-draft-muscle { display: flex; flex-direction: column; gap: 2px; }
+.wo-draft-muscle > span { color: var(--muted); font-size: 10px; letter-spacing: 1.2px; }
+.wo-draft-muscle select {
+  padding: 8px 10px;
+  background: #151515;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+}
+.wo-add-draft {
+  margin-top: 10px;
+  padding: 10px;
+  background: transparent;
+  border: 1px dashed #2a2a2a;
+  border-radius: 10px;
+  color: var(--accent);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+}
+.wo-add-draft:hover { border-style: solid; background: rgba(232, 255, 71, 0.05); }
+
+.wo-picker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  padding: 20px;
+}
+.wo-picker {
+  width: 100%;
+  max-width: 420px;
+  max-height: 70vh;
+  background: #0d0d0d;
+  border: 1px solid #2a2a2a;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.wo-picker-head {
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  border-bottom: 1px solid #1f1f1f;
+}
+.wo-picker-head input {
+  flex: 1;
+  padding: 8px 10px;
+  background: #151515;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+}
+.wo-picker-list { overflow-y: auto; }
+.wo-picker-row {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #161616;
+  color: var(--text);
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+}
+.wo-picker-row:hover { background: #151515; }
+.wo-picker-muscle { color: var(--muted); font-size: 10px; letter-spacing: 1.2px; }
+.wo-picker-empty { padding: 20px; text-align: center; color: var(--muted); font-size: 11px; }
+
 .equipment-page {
   max-width: 520px;
   margin: 0 auto;

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  getSession,
+  getDefForWorkout,
   getWorkout,
   saveWorkout,
   workoutVolume,
@@ -104,7 +104,7 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
     return () => clearInterval(t);
   }, [restLeft]);
 
-  const def = workout ? getSession(workout.sessionType) : null;
+  const def = workout ? getDefForWorkout(workout) : null;
 
   const totals = useMemo(() => {
     if (!workout) return { done: 0, total: 0, volume: 0 };

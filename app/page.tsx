@@ -54,8 +54,10 @@ function workoutSubtitle(
 ): string {
   if (session) {
     const vol = Math.round(workoutVolume(session));
-    const def = getSession(session.sessionType);
-    return `✓ ${def?.name ?? session.sessionType} done · ${vol.toLocaleString()}kg volume`;
+    const name = session.sessionType === "CUSTOM"
+      ? session.customName ?? "Custom"
+      : getSession(session.sessionType)?.name ?? session.sessionType;
+    return `✓ ${name} done · ${vol.toLocaleString()}kg volume`;
   }
   if (isRestDay) return "Rest day — recovery";
   return `${recommendedLabel} recommended today`;

@@ -3,7 +3,7 @@
 import type { MuscleKey, MuscleColorGroup } from "./muscles";
 import { MUSCLE_TO_GROUP } from "./muscles";
 
-export type SessionType = "PUSH_A" | "PULL_A" | "LEGS" | "PUSH_B" | "PULL_B";
+export type SessionType = "PUSH_A" | "PULL_A" | "LEGS" | "PUSH_B" | "PULL_B" | "CUSTOM";
 
 export type ExerciseDef = {
   name: string;
@@ -157,6 +157,11 @@ export type WorkoutSession = {
   id: string;
   date: string;
   sessionType: SessionType;
+  /** Present when sessionType === "CUSTOM". Snapshot of the template. */
+  customTemplateId?: string;
+  customName?: string;
+  customFocus?: string;
+  customExercises?: ExerciseDef[];
   startedAt: number;
   endedAt?: number;
   durationMin?: number;
@@ -165,8 +170,17 @@ export type WorkoutSession = {
   exercises: ExerciseLog[];
 };
 
+export type CustomTemplate = {
+  id: string;
+  name: string;
+  focus: string;
+  exercises: ExerciseDef[];
+  createdAt: number;
+};
+
 const WORKOUTS_KEY = "richie.workouts.v1";
 const ACTIVE_KEY = "richie.activeWorkout.v1";
+const CUSTOM_TEMPLATES_KEY = "richie.customTemplates.v1";
 
 function read<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -220,6 +234,68 @@ export function startWorkout(sessionType: SessionType, date: string): WorkoutSes
   saveWorkout(w);
   setActiveWorkoutId(w.id);
   return w;
+}
+
+export function startCustomWorkout(template: CustomTemplate, date: string): WorkoutSession {
+  const w: WorkoutSession = {
+    id: crypto.randomUUID(),
+    date,
+    sessionType: "CUSTOM",
+    customTemplateId: template.id,
+    customName: template.name,
+    customFocus: template.focus,
+    customExercises: template.exercises,
+    startedAt: Date.now(),
+    completed: false,
+    exercises: template.exercises.map((e) => ({ exerciseName: e.name, sets: [] })),
+  };
+  saveWorkout(w);
+  setActiveWorkoutId(w.id);
+  return w;
+}
+
+export function getDefForWorkout(w: WorkoutSession): SessionDef {
+  if (w.sessionType === "CUSTOM" && w.customExercises) {
+    return {
+      id: "CUSTOM",
+      name: w.customName || "CUSTOM",
+      focus: w.customFocus || "CUSTOM SESSION",
+      blurb: "",
+      recommendedDays: [],
+      recommendedLabel: "",
+      dayLabel: "CUSTOM",
+      primaryMuscles: Array.from(
+        new Set(w.customExercises.flatMap((e) => e.primary))
+      ),
+      exercises: w.customExercises,
+    };
+  }
+  return getSession(w.sessionType)!;
+}
+
+export function getCustomTemplates(): CustomTemplate[] {
+  return read<CustomTemplate[]>(CUSTOM_TEMPLATES_KEY, []);
+}
+
+export function saveCustomTemplate(
+  template: Omit<CustomTemplate, "id" | "createdAt">
+): CustomTemplate {
+  const all = getCustomTemplates();
+  const entry: CustomTemplate = {
+    ...template,
+    id: crypto.randomUUID(),
+    createdAt: Date.now(),
+  };
+  all.push(entry);
+  write(CUSTOM_TEMPLATES_KEY, all);
+  return entry;
+}
+
+export function deleteCustomTemplate(id: string): void {
+  write(
+    CUSTOM_TEMPLATES_KEY,
+    getCustomTemplates().filter((t) => t.id !== id)
+  );
 }
 
 export function workoutVolume(w: WorkoutSession): number {
