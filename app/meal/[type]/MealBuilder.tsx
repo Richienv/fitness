@@ -524,43 +524,99 @@ export default function MealBuilder({
           </>
         )}
 
-        {q ? (
-          <div className="mb-section mb-other-section">
-            <div className="mb-sticky-label mono">
-              // SEARCH RESULTS{globalMatches.length ? ` · ${globalMatches.length}` : ""}
-            </div>
-            {globalMatches.length === 0 && visibleCustomFoods.length === 0 && (
-              <div className="mb-empty mono">No matches. Try fewer letters — or tap + FOOD.</div>
-            )}
+        {!q && favoriteItems.length > 0 && (
+          <div className="mb-section mb-fav-section">
+            <div className="mb-sticky-label mono">// YOUR USUAL</div>
             <div className="ing-grid">
-              {globalMatches.map((ing) => renderFoodCard(ing))}
+              {favoriteItems.map((ing) => renderFoodCard(ing))}
             </div>
           </div>
-        ) : (
-          <>
-            {favoriteItems.length > 0 && (
-              <div className="mb-section mb-fav-section">
-                <div className="mb-sticky-label mono">// YOUR USUAL</div>
-                <div className="ing-grid">
-                  {favoriteItems.map((ing) => renderFoodCard(ing))}
-                </div>
-              </div>
-            )}
-            {otherItems.length > 0 && (
-              <div className="mb-section mb-other-section">
-                <div className="mb-sticky-label mono">// MORE OPTIONS</div>
-                <div className="ing-grid">
-                  {otherItems.map((ing) => renderFoodCard(ing))}
-                </div>
-              </div>
-            )}
-          </>
+        )}
+        {!q && otherItems.length > 0 && (
+          <div className="mb-section mb-other-section">
+            <div className="mb-sticky-label mono">// MORE OPTIONS</div>
+            <div className="ing-grid">
+              {otherItems.map((ing) => renderFoodCard(ing))}
+            </div>
+          </div>
         )}
       </div>
 
       <div className="mb-spacer" aria-hidden="true" />
 
       <div className="mb-sticky-bar">
+        {q && (
+          <div className="mb-search-pop" role="listbox">
+            <div className="mb-search-pop-head mono">
+              <span>
+                {globalMatches.length + visibleCustomFoods.length} match
+                {globalMatches.length + visibleCustomFoods.length === 1 ? "" : "es"} ·
+                tap to add
+              </span>
+              <button
+                type="button"
+                className="mb-search-pop-close"
+                onClick={() => setQuery("")}
+                aria-label="Close search"
+              >
+                ×
+              </button>
+            </div>
+            <div className="mb-search-pop-list">
+              {globalMatches.length === 0 && visibleCustomFoods.length === 0 && (
+                <div className="mb-search-pop-empty mono">
+                  No matches — try shorter terms or tap + FOOD.
+                </div>
+              )}
+              {visibleCustomFoods.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  className="mb-search-pop-row"
+                  onClick={() =>
+                    addCustomEntry({
+                      instanceId: crypto.randomUUID(),
+                      foodId: f.id,
+                      name: f.name,
+                      grams: 100,
+                      per100g: f.per100g,
+                    })
+                  }
+                >
+                  <span className="mb-search-pop-name">
+                    {f.name}
+                    <span className="badge-my">MY FOOD</span>
+                  </span>
+                  <span className="mb-search-pop-meta mono">
+                    100g · {Math.round(f.per100g.kcal)} kcal · {Math.round(f.per100g.protein)}p
+                  </span>
+                  <span className="mb-search-pop-plus">+</span>
+                </button>
+              ))}
+              {globalMatches.map((ing) => {
+                const qty = selection[ing.id] ?? 0;
+                return (
+                  <button
+                    key={ing.id}
+                    type="button"
+                    className={`mb-search-pop-row${qty > 0 ? " on" : ""}`}
+                    onClick={() => add(ing.id)}
+                  >
+                    <span className="mb-search-pop-name">{ing.name}</span>
+                    <span className="mb-search-pop-meta mono">
+                      {ing.unit} · {Math.round(ing.kcal)} kcal · {Math.round(ing.protein)}p
+                    </span>
+                    {qty > 0 && (
+                      <span className="mb-search-pop-qty mono">×{qty}</span>
+                    )}
+                    <span className="mb-search-pop-plus">+</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="mb-sticky-totals mono">
           {itemCount === 0 ? (
             <span className="bottom-empty">TAP FOOD TO ADD</span>
