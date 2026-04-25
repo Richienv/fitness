@@ -65,6 +65,10 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   themeColor: "#e8ff47",
+  // Lets `100dvh` shrink while the on-screen keyboard is open so bottom-sheet
+  // modals (custom food, custom workout) stay reachable instead of being
+  // pushed behind the keyboard.
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({
