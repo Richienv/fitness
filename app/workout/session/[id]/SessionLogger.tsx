@@ -330,14 +330,41 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
           const displayName = log.swappedTo ?? ex.name;
           const last = getLastSetForExercise(workout.sessionType, ex.name, workout.id);
           const isFocus = i === firstIncompleteIdx && !pending;
+          const allDone = log.sets.length >= ex.sets;
           const colorGroup = exerciseColorGroup(ex);
           const stripColor = MUSCLE_GROUP_COLOR[colorGroup];
+
+          // Once all sets are logged the card collapses into a small stub so
+          // the user can see at a glance what's still left to do.
+          if (allDone) {
+            const totalVol = log.sets.reduce((a, s) => a + s.weight * s.reps, 0);
+            return (
+              <button
+                key={ex.name}
+                type="button"
+                className="ex-card-done"
+                onClick={() => setDetailFor(i)}
+                style={{ borderLeft: `3px solid ${stripColor}` }}
+              >
+                <span className="ex-card-done-tick">✓</span>
+                <span className="ex-card-done-name">{displayName}</span>
+                <span className="ex-card-done-meta mono">
+                  {log.sets.length}×{ex.repsLabel}
+                  {totalVol > 0 ? ` · ${Math.round(totalVol)}kg` : ""}
+                </span>
+              </button>
+            );
+          }
+
           return (
             <div
               key={ex.name}
               className={`ex-card${isFocus ? " focus" : ""}`}
               style={{ borderLeft: `4px solid ${stripColor}` }}
             >
+              {isFocus && (
+                <span className="ex-doing-now mono">▶ DOING NOW</span>
+              )}
               <div className="ex-head">
                 <div className="ex-name-wrap">
                   <button
@@ -412,6 +439,12 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                     else if (doneVol === lastVol) { deltaClass = "eq"; deltaLabel = "="; }
                     else { deltaClass = "dn"; deltaLabel = "↓"; }
                   }
+                  // Placeholder shows last session's set if available so the
+                  // user knows where they left off — much more useful than
+                  // just the rep target.
+                  const placeholder = last
+                    ? `${last.weight}kg × ${last.reps}`
+                    : `— / ${ex.targetReps}`;
                   return (
                     <button
                       key={si}
@@ -425,7 +458,11 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                           {done.weight}×{done.reps} <em>{deltaLabel}</em>
                         </span>
                       ) : (
-                        <span className="ex-set-placeholder">— / {ex.targetReps}</span>
+                        <span
+                          className={`ex-set-placeholder${last ? " ex-set-prev" : ""}`}
+                        >
+                          {placeholder}
+                        </span>
                       )}
                     </button>
                   );
@@ -464,17 +501,31 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
       </div>
 
       {restLeft > 0 && (
-        <div className="rest-bar">
-          <div className="rest-bar-row">
-            <span className="rest-label mono">⏱ REST</span>
-            <span className="rest-time">{fmtTime(restLeft)}</span>
-          </div>
-          <div className="rest-progress">
-            <div className="rest-progress-fill" style={{ width: `${restPct}%` }} />
-          </div>
-          <div className="rest-actions">
-            <button type="button" onClick={skipRest}>SKIP</button>
-            <button type="button" onClick={() => addRest(30)}>+30s</button>
+        <div className="rest-overlay" role="alertdialog" aria-label="Rest timer">
+          <div className="rest-overlay-card">
+            <div className="rest-overlay-label mono">⏱ REST</div>
+            <div className="rest-overlay-time">{fmtTime(restLeft)}</div>
+            <div className="rest-overlay-progress">
+              <div
+                className="rest-overlay-progress-fill"
+                style={{ width: `${restPct}%` }}
+              />
+            </div>
+            <div className="rest-overlay-hint mono">
+              Breathe. Re-rack. Stay loose.
+            </div>
+            <div className="rest-overlay-actions">
+              <button type="button" className="rest-overlay-skip" onClick={skipRest}>
+                SKIP REST
+              </button>
+              <button
+                type="button"
+                className="rest-overlay-add"
+                onClick={() => addRest(30)}
+              >
+                +30s
+              </button>
+            </div>
           </div>
         </div>
       )}

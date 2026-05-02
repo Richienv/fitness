@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { macrosFor, type Macros } from "@/lib/ingredients";
+import { getIngredient, macrosFor } from "@/lib/ingredients";
 import {
   dedupeMeals,
   getAllMeals,
@@ -33,26 +33,51 @@ const SESSION_ACCENT: Record<SessionType, string> = {
   CUSTOM: "#8b47ff",
 };
 
-const EMPTY: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+type FullMacros = {
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  sodium: number;
+  sugar: number;
+};
 
-function itemMacros(it: MealItem): Macros {
+const ZERO: FullMacros = { kcal: 0, protein: 0, carbs: 0, fat: 0, sodium: 0, sugar: 0 };
+
+function itemFullMacros(it: MealItem): FullMacros {
   if (isCustomItem(it)) {
-    return { kcal: it.kcal, protein: it.protein, carbs: it.carbs, fat: it.fat };
+    return {
+      kcal: it.kcal,
+      protein: it.protein,
+      carbs: it.carbs,
+      fat: it.fat,
+      sodium: it.sodium ?? 0,
+      sugar: it.sugar ?? 0,
+    };
   }
-  return macrosFor(it.id, it.qty);
+  const m = macrosFor(it.id, it.qty);
+  const ing = getIngredient(it.id);
+  return {
+    ...m,
+    sodium: (ing?.sodium ?? 0) * it.qty,
+    sugar: (ing?.sugar ?? 0) * it.qty,
+  };
 }
-function sumItems(items: MealItem[]): Macros {
-  return items.reduce<Macros>(
+
+function sumItems(items: MealItem[]): FullMacros {
+  return items.reduce<FullMacros>(
     (a, it) => {
-      const m = itemMacros(it);
+      const m = itemFullMacros(it);
       return {
         kcal: a.kcal + m.kcal,
         protein: a.protein + m.protein,
         carbs: a.carbs + m.carbs,
         fat: a.fat + m.fat,
+        sodium: a.sodium + m.sodium,
+        sugar: a.sugar + m.sugar,
       };
     },
-    { ...EMPTY }
+    { ...ZERO }
   );
 }
 
@@ -64,14 +89,11 @@ function mondayOf(d: Date): Date {
   return x;
 }
 
-const CHECKLIST_KEYS = ["water", "creatine", "protein", "gym", "whey", "sleep"] as const;
-
 export default function Dashboard() {
   const { activeDate } = useActiveDate();
   const [meals, setMeals] = useState<MealLog[]>([]);
   const [allMeals, setAllMeals] = useState<MealLog[]>([]);
   const [gymDay, setGymDay] = useState(true);
-  const [checklist, setChecklist] = useState<Record<string, boolean>>({});
   const [workouts, setWorkouts] = useState<WorkoutSession[]>([]);
   const [todayWorkout, setTodayWorkout] = useState<WorkoutSession | null>(null);
 
@@ -88,13 +110,12 @@ export default function Dashboard() {
     setMeals(getMealsForDate(activeDate));
     const d = getDaily(activeDate);
     setGymDay(d.gymDay);
-    setChecklist(d.checklist ?? {});
     setTodayWorkout(getTodaysWorkout(activeDate));
   }, [activeDate]);
 
-  const totals = useMemo<Macros>(
+  const totals = useMemo<FullMacros>(
     () =>
-      meals.reduce<Macros>(
+      meals.reduce<FullMacros>(
         (a, m) => {
           const s = sumItems(m.items);
           return {
@@ -102,33 +123,58 @@ export default function Dashboard() {
             protein: a.protein + s.protein,
             carbs: a.carbs + s.carbs,
             fat: a.fat + s.fat,
+            sodium: a.sodium + s.sodium,
+            sugar: a.sugar + s.sugar,
           };
         },
-        { ...EMPTY }
+        { ...ZERO }
       ),
     [meals]
   );
 
-  const weekAvg = useMemo(() => {
-    if (!activeDate) return { kcal: 0 };
+  const weekAvg = useMemo<FullMacros>(() => {
+    if (!activeDate) return { ...ZERO };
     const now = parseDate(activeDate);
     const mon = mondayOf(now);
-    const byDate = new Map<string, number>();
+    const byDate = new Map<string, FullMacros>();
     for (const m of allMeals) {
       const d = parseDate(m.date);
       if (d < mon || d > now) continue;
+      const cur = byDate.get(m.date) ?? { ...ZERO };
       const s = sumItems(m.items);
-      byDate.set(m.date, (byDate.get(m.date) ?? 0) + s.kcal);
+      byDate.set(m.date, {
+        kcal: cur.kcal + s.kcal,
+        protein: cur.protein + s.protein,
+        carbs: cur.carbs + s.carbs,
+        fat: cur.fat + s.fat,
+        sodium: cur.sodium + s.sodium,
+        sugar: cur.sugar + s.sugar,
+      });
     }
-    const vals = Array.from(byDate.values());
+    const days = byDate.size || 1;
+    let acc = { ...ZERO };
+    for (const v of byDate.values()) {
+      acc = {
+        kcal: acc.kcal + v.kcal,
+        protein: acc.protein + v.protein,
+        carbs: acc.carbs + v.carbs,
+        fat: acc.fat + v.fat,
+        sodium: acc.sodium + v.sodium,
+        sugar: acc.sugar + v.sugar,
+      };
+    }
     return {
-      kcal: vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0,
+      kcal: Math.round(acc.kcal / days),
+      protein: Math.round(acc.protein / days),
+      carbs: Math.round(acc.carbs / days),
+      fat: Math.round(acc.fat / days),
+      sodium: Math.round(acc.sodium / days),
+      sugar: Math.round(acc.sugar / days),
     };
   }, [allMeals, activeDate]);
 
   const wk = activeDate ? weekNumber(parseDate(activeDate)) : 1;
   const target = gymDay ? TARGETS.gymDay : TARGETS.restDay;
-  const checkedCount = CHECKLIST_KEYS.filter((k) => checklist[k]).length;
 
   const weekSessions = useMemo(() => {
     if (!activeDate) return [] as WorkoutSession[];
@@ -161,7 +207,11 @@ export default function Dashboard() {
     ? `${Math.round(workoutVolume(todayWorkout)).toLocaleString()}kg · ${todayWorkout.durationMin ?? 0} min`
     : `${weekSessions.length} sessions this week`;
 
-  const summary = `${Math.round(totals.kcal)} kcal · ${Math.round(totals.protein)}g P · ${Math.round(totals.carbs)}g C`;
+  const summary = `${Math.round(totals.kcal)} kcal · ${Math.round(totals.protein)}g P · ${Math.round(totals.carbs)}g C · ${Math.round(totals.fat)}g F`;
+
+  // sodium displayed in grams when it crosses 1000mg for compact UI.
+  const sodiumDisplay = (mg: number) =>
+    mg >= 1000 ? `${(mg / 1000).toFixed(1)}g` : `${Math.round(mg)}mg`;
 
   return (
     <main className="stats-hub">
@@ -189,25 +239,47 @@ export default function Dashboard() {
         </Link>
 
         <Link href="/dashboard/week" className="stats-card">
-          <div className="sc-label mono">WEEK</div>
+          <div className="sc-label mono">WEEK AVG</div>
           <div className="sc-num">{weekAvg.kcal.toLocaleString()}</div>
           <div className="sc-unit mono">avg kcal</div>
           <span className="sc-chev">›</span>
         </Link>
 
-        <Link href="/dashboard/checklist" className="stats-card">
-          <div className="sc-label mono">CHECKLIST</div>
-          <div className="sc-num">
-            {checkedCount}/{CHECKLIST_KEYS.length}
+        <Link href="/dashboard/week" className="stats-card stats-card-multi">
+          <div className="sc-label mono">MACROS · WEEK AVG</div>
+          <div className="sc-multi">
+            <div className="sc-multi-row">
+              <span className="sc-multi-label mono">PROTEIN</span>
+              <span className="sc-multi-val">{weekAvg.protein}<em>g</em></span>
+            </div>
+            <div className="sc-multi-row">
+              <span className="sc-multi-label mono">CARBS</span>
+              <span className="sc-multi-val">{weekAvg.carbs}<em>g</em></span>
+            </div>
+            <div className="sc-multi-row">
+              <span className="sc-multi-label mono">FAT</span>
+              <span className="sc-multi-val">{weekAvg.fat}<em>g</em></span>
+            </div>
           </div>
-          <div className="sc-unit mono">done</div>
           <span className="sc-chev">›</span>
         </Link>
 
-        <Link href="/dashboard/progress" className="stats-card">
-          <div className="sc-label mono">PROGRESS</div>
-          <div className="sc-num">WK {wk}/12</div>
-          <div className="sc-unit mono">V-TAPER</div>
+        <Link href="/dashboard/week" className="stats-card stats-card-multi">
+          <div className="sc-label mono">OTHERS · WEEK AVG</div>
+          <div className="sc-multi">
+            <div className="sc-multi-row">
+              <span className="sc-multi-label mono">SODIUM</span>
+              <span className="sc-multi-val">{sodiumDisplay(weekAvg.sodium)}</span>
+            </div>
+            <div className="sc-multi-row">
+              <span className="sc-multi-label mono">SUGAR</span>
+              <span className="sc-multi-val">{weekAvg.sugar}<em>g</em></span>
+            </div>
+            <div className="sc-multi-row">
+              <span className="sc-multi-label mono">FIBER¹</span>
+              <span className="sc-multi-val sc-multi-dim">—</span>
+            </div>
+          </div>
           <span className="sc-chev">›</span>
         </Link>
       </div>
