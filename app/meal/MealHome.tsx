@@ -9,8 +9,11 @@ import {
   dedupeMeals,
   getAllMeals,
   getDaily,
+  getQuickLogIds,
   isCustomItem,
+  QUICKLOG_MAX,
   setDaily,
+  setQuickLogIds,
   type MealLog,
 } from "@/lib/store";
 import { TARGETS, weekNumber } from "@/lib/targets";
@@ -87,10 +90,13 @@ export default function MealHome() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [newDayOpen, setNewDayOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [quickIds, setQuickIds] = useState<string[]>([]);
+  const [quickEditOpen, setQuickEditOpen] = useState(false);
 
   useEffect(() => {
     dedupeMeals();
     setAllMeals(getAllMeals());
+    setQuickIds(getQuickLogIds());
     document.body.classList.add("no-scroll");
     return () => {
       document.body.classList.remove("no-scroll");
@@ -155,6 +161,43 @@ export default function MealHome() {
 
   const target = gymDay ? TARGETS.gymDay : TARGETS.restDay;
   const wk = activeDate ? weekNumber(parseDate(activeDate)) : 1;
+
+  // Resolve which presets show on the Quick Log grid. Defaults: pick the
+  // first preset for each meal type (breakfast / lunch / snack / dinner).
+  const quickResolved = useMemo(() => {
+    const byId = new Map(PRESETS.map((p) => [p.id, p]));
+    if (quickIds.length > 0) {
+      return quickIds
+        .map((id) => byId.get(id))
+        .filter((p): p is (typeof PRESETS)[number] => !!p)
+        .slice(0, QUICKLOG_MAX);
+    }
+    const seen = new Set<string>();
+    const defaults: typeof PRESETS = [];
+    for (const order of ["breakfast", "lunch", "snack", "dinner"] as const) {
+      const p = PRESETS.find((x) => x.mealType === order && !seen.has(x.id));
+      if (p) {
+        defaults.push(p);
+        seen.add(p.id);
+      }
+    }
+    return defaults.slice(0, QUICKLOG_MAX);
+  }, [quickIds]);
+
+  function toggleQuickPreset(id: string) {
+    setQuickIds((cur) => {
+      const list = cur.length > 0 ? cur : quickResolved.map((p) => p.id);
+      if (list.includes(id)) {
+        const next = list.filter((x) => x !== id);
+        setQuickLogIds(next);
+        return next;
+      }
+      if (list.length >= QUICKLOG_MAX) return list;
+      const next = [...list, id];
+      setQuickLogIds(next);
+      return next;
+    });
+  }
 
   // Active-meal highlight: only relevant for today; uses device local hours.
   const currentHour = isToday ? new Date().getHours() : -1;
@@ -254,25 +297,42 @@ export default function MealHome() {
         </div>
 
         <div className="quick-section">
-          <div className="quick-label">⚡ QUICK LOG</div>
-          <div className="quick-scroll-wrap">
-            <div className="quick-row">
-              {PRESETS.map((p) => (
-                <Link
-                  key={p.id}
-                  href={`/meal/confirm?preset=${p.id}&date=${activeDate}`}
-                  className="quick-chip"
-                >
-                  {p.label}
-                </Link>
-              ))}
-            </div>
-            <div className="quick-fade" />
+          <div className="quick-head">
+            <div className="quick-label">⚡ QUICK LOG</div>
+            <button
+              type="button"
+              className="quick-edit-btn mono"
+              onClick={() => setQuickEditOpen(true)}
+            >
+              EDIT
+            </button>
           </div>
-          <div className="quick-dots">
-            {PRESETS.map((p, i) => (
-              <span key={p.id} className={`quick-dot${i === 0 ? " on" : ""}`} />
+          <div className="quick-grid">
+            {quickResolved.map((p) => (
+              <Link
+                key={p.id}
+                href={`/meal/confirm?preset=${p.id}&date=${activeDate}`}
+                className="quick-tile"
+              >
+                <span className="quick-tile-label">{p.label}</span>
+                <span className="quick-tile-meal mono">
+                  {(p.mealType as string).toUpperCase()}
+                </span>
+              </Link>
             ))}
+            {Array.from({ length: Math.max(0, QUICKLOG_MAX - quickResolved.length) }).map(
+              (_, i) => (
+                <button
+                  key={`empty-${i}`}
+                  type="button"
+                  className="quick-tile quick-tile-empty"
+                  onClick={() => setQuickEditOpen(true)}
+                >
+                  <span className="quick-tile-plus">+</span>
+                  <span className="quick-tile-add mono">ADD PRESET</span>
+                </button>
+              )
+            )}
           </div>
         </div>
 
@@ -393,6 +453,56 @@ export default function MealHome() {
               </button>
               <button type="button" className="next-btn" onClick={handleConfirmNewDay}>
                 CONFIRM →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {quickEditOpen && (
+        <div className="modal-overlay" onClick={() => setQuickEditOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <div className="modal-title">QUICK LOG · PICK 4</div>
+              <button className="modal-close" onClick={() => setQuickEditOpen(false)}>×</button>
+            </div>
+            <div className="quick-edit-hint mono">
+              Tap a preset to add or remove it from the home grid.
+              Up to {QUICKLOG_MAX}.
+            </div>
+            <div className="quick-edit-list">
+              {PRESETS.map((p) => {
+                const list =
+                  quickIds.length > 0 ? quickIds : quickResolved.map((q) => q.id);
+                const on = list.includes(p.id);
+                const disabled = !on && list.length >= QUICKLOG_MAX;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className={`quick-edit-row${on ? " on" : ""}${
+                      disabled ? " disabled" : ""
+                    }`}
+                    onClick={() => !disabled && toggleQuickPreset(p.id)}
+                    disabled={disabled}
+                  >
+                    <span className="quick-edit-tick" aria-hidden="true">
+                      {on ? "✓" : "+"}
+                    </span>
+                    <span className="quick-edit-label">{p.label}</span>
+                    <span className="quick-edit-meal mono">
+                      {(p.mealType as string).toUpperCase()}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="modal-actions">
+              <button
+                className="save"
+                onClick={() => setQuickEditOpen(false)}
+              >
+                DONE
               </button>
             </div>
           </div>

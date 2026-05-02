@@ -84,6 +84,8 @@ export default function MealBuilder({
   const [overrides, setOverrides] = useState<Record<string, IngredientOverride>>({});
   const [query, setQuery] = useState("");
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+  const [weighingId, setWeighingId] = useState<string | null>(null);
+  const [weighDraft, setWeighDraft] = useState(0);
   const [showHint, setShowHint] = useState(true);
   const [activePreset, setActivePreset] = useState<MealPreset | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -278,6 +280,8 @@ export default function MealBuilder({
     const qty = selection[ing.id] ?? 0;
     const selected = qty > 0;
     const isRevealed = !!revealed[ing.id];
+    const isWeighing = weighingId === ing.id;
+    const grams = ing.gramsPerUnit ? Math.round(ing.gramsPerUnit * qty) : null;
     return (
       <div
         key={ing.id}
@@ -293,13 +297,27 @@ export default function MealBuilder({
                 <div className="sel-name">{ing.name}</div>
                 <div className="sel-portion">
                   {ing.unit}
-                  {ing.gramsPerUnit && qty > 0 && (
-                    <span className="portion-total"> · {Math.round(ing.gramsPerUnit * qty)}g total</span>
+                  {grams !== null && qty > 0 && (
+                    <span className="portion-total"> · {grams}g total</span>
                   )}
                 </div>
               </div>
               <div className="sel-head-actions">
                 <div className="sel-qty-pill">×{qty}</div>
+                {ing.gramsPerUnit && (
+                  <button
+                    type="button"
+                    className={`g-btn${isWeighing ? " on" : ""} on-accent`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setWeighingId(isWeighing ? null : ing.id);
+                      setWeighDraft(grams ?? ing.gramsPerUnit ?? 0);
+                    }}
+                    aria-label="Weigh in grams"
+                  >
+                    g
+                  </button>
+                )}
                 <button
                   type="button"
                   className="edit-btn on-accent"
@@ -332,11 +350,59 @@ export default function MealBuilder({
                 <span className="zh-pinyin">{ing.pinyin}</span>
               </div>
             )}
-            <div className="sel-stepper" onClick={(e) => e.stopPropagation()}>
-              <button type="button" onClick={() => sub(ing.id)} aria-label="Remove one">−</button>
-              <span className="sel-stepper-val">×{qty}</span>
-              <button type="button" onClick={() => add(ing.id)} aria-label="Add one">+</button>
-            </div>
+            {isWeighing && ing.gramsPerUnit ? (
+              <div className="weigh-row" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  className="weigh-step"
+                  onClick={() => setWeighDraft((g) => Math.max(0, g - 5))}
+                >
+                  −5g
+                </button>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="weigh-input mono"
+                  value={weighDraft || ""}
+                  onChange={(e) =>
+                    setWeighDraft(Math.max(0, Number(e.target.value) || 0))
+                  }
+                  aria-label="Grams"
+                />
+                <span className="weigh-unit mono">g</span>
+                <button
+                  type="button"
+                  className="weigh-step"
+                  onClick={() => setWeighDraft((g) => g + 5)}
+                >
+                  +5g
+                </button>
+                <button
+                  type="button"
+                  className="weigh-save"
+                  onClick={() => {
+                    if (!ing.gramsPerUnit) return;
+                    const next =
+                      Math.round((weighDraft / ing.gramsPerUnit) * 1000) / 1000;
+                    setSelection((s) => {
+                      const n = { ...s };
+                      if (next <= 0) delete n[ing.id];
+                      else n[ing.id] = next;
+                      return n;
+                    });
+                    setWeighingId(null);
+                  }}
+                >
+                  SET
+                </button>
+              </div>
+            ) : (
+              <div className="sel-stepper" onClick={(e) => e.stopPropagation()}>
+                <button type="button" onClick={() => sub(ing.id)} aria-label="Remove one">−</button>
+                <span className="sel-stepper-val">×{qty}</span>
+                <button type="button" onClick={() => add(ing.id)} aria-label="Add one">+</button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="card-top">

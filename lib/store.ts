@@ -64,6 +64,27 @@ const DAILY_KEY = "richie.daily.v1";
 const CUSTOM_KEY = "richie.customfoods.v1";
 const OVERRIDES_KEY = "richie.ingredientoverrides.v1";
 const MEALS_SYNCED_KEY = "richie.meals.synced.v1";
+const QUICKLOG_KEY = "richie.quicklog.v1";
+
+export const QUICKLOG_MAX = 4;
+
+/** Preset IDs to surface on the meal-home Quick Log grid. Empty array
+ * means "no override" — the caller should fall back to defaults. */
+export function getQuickLogIds(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(QUICKLOG_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.filter((x): x is string => typeof x === "string");
+  } catch {}
+  return [];
+}
+
+export function setQuickLogIds(ids: string[]): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(QUICKLOG_KEY, JSON.stringify(ids.slice(0, QUICKLOG_MAX)));
+}
 
 export type IngredientOverride = {
   name?: string;
