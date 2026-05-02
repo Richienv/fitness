@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getDefForWorkout,
+  getLastSessionOfType,
   getWorkout,
   saveWorkout,
   workoutVolume,
@@ -305,7 +306,18 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
   return (
     <main className="session-shell">
       <div className="session-top-sticky">
-        <Link href="/workout" className="back-link">← Back</Link>
+        <div className="session-top-row">
+          <Link href="/workout" className="back-link">← Back</Link>
+          <button
+            type="button"
+            className={`session-finish-pill mono${readyToFinish ? " ready" : ""}`}
+            onClick={finishSession}
+          >
+            {readyToFinish
+              ? "FINISH ✓"
+              : `FINISH EARLY · ${totals.done}/${totals.total}`}
+          </button>
+        </div>
         <div className="session-head-row">
           <div className="session-head-name">{def.name}</div>
           <div className="session-head-focus mono">{def.focus}</div>
@@ -317,13 +329,42 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
         <div className="session-progress-bar">
           <div className="session-progress-fill" style={{ width: `${sessionProgressPct}%` }} />
         </div>
-        <div className="session-muscle-pills">
-          {def.primaryMuscles.map((m) => (
-            <span key={m} className="muscle-pill" style={{ color: muscleColor(m), borderColor: `${muscleColor(m)}55`, background: `${muscleColor(m)}15` }}>
-              {MUSCLE_LABEL[m].toUpperCase()}
-            </span>
-          ))}
-        </div>
+        {muscleVolumeList.length > 0 ? (
+          <div className="session-trained">
+            <div className="session-trained-head mono">TODAY YOU TRAINED</div>
+            <div className="session-trained-list">
+              {muscleVolumeList.slice(0, 4).map(({ m, pct }) => (
+                <div key={m} className="session-trained-row">
+                  <span className="session-trained-label mono">
+                    {MUSCLE_LABEL[m].toUpperCase()}
+                  </span>
+                  <div className="session-trained-track">
+                    <div
+                      className="session-trained-fill"
+                      style={{ width: `${pct}%`, background: muscleColor(m) }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="session-muscle-pills">
+            {def.primaryMuscles.map((m) => (
+              <span
+                key={m}
+                className="muscle-pill"
+                style={{
+                  color: muscleColor(m),
+                  borderColor: `${muscleColor(m)}55`,
+                  background: `${muscleColor(m)}15`,
+                }}
+              >
+                {MUSCLE_LABEL[m].toUpperCase()}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="session-body">
@@ -482,32 +523,6 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
           );
         })}
 
-        {muscleVolumeList.length > 0 && (
-          <div className="muscle-summary">
-            <div className="muscle-summary-head mono">TODAY YOU TRAINED</div>
-            <div className="muscle-summary-list">
-              {muscleVolumeList.map(({ m, pct }) => (
-                <div key={m} className="muscle-summary-row">
-                  <span className="muscle-summary-label mono">{MUSCLE_LABEL[m].toUpperCase()}</span>
-                  <div className="muscle-summary-track">
-                    <div
-                      className="muscle-summary-fill"
-                      style={{ width: `${pct}%`, background: muscleColor(m) }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <button
-          type="button"
-          className={`session-finish-btn${readyToFinish ? " ready" : ""}`}
-          onClick={finishSession}
-        >
-          {readyToFinish ? "FINISH SESSION ✓" : `FINISH EARLY (${totals.done}/${totals.total})`}
-        </button>
       </div>
 
       {restLeft > 0 && (
@@ -541,11 +556,12 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
       )}
 
       {pending && pendingDef && (() => {
-        const lastForPending = getLastSetForExercise(
-          workout.sessionType,
-          pendingDef.name,
-          workout.id
+        const lastSession = getLastSessionOfType(workout.sessionType, workout.id);
+        const lastExerciseLog = lastSession?.exercises.find(
+          (e) => e.exerciseName === pendingDef.name
         );
+        const lastSets = lastExerciseLog?.sets ?? [];
+        const matchingPrev = lastSets.find((s) => s.setNumber === pending.setNumber);
         return (
           <div className="set-modal-overlay" onClick={() => setPending(null)}>
             <div className="set-modal" onClick={(e) => e.stopPropagation()}>
@@ -570,11 +586,36 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                     <button type="button" onClick={() => adjustReps(1)}>+1</button>
                   </div>
                 </div>
-                <div className="set-modal-last">
-                  {lastForPending
-                    ? `Last session: ${lastForPending.weight}kg × ${lastForPending.reps}`
-                    : "First time — find your working weight"}
-                </div>
+                {lastSets.length > 0 ? (
+                  <div className="set-modal-history">
+                    <div className="set-modal-history-head mono">
+                      LAST SESSION
+                      {matchingPrev && (
+                        <span className="set-modal-history-target mono">
+                          MATCH: {matchingPrev.weight}kg × {matchingPrev.reps}
+                        </span>
+                      )}
+                    </div>
+                    <div className="set-modal-history-grid">
+                      {lastSets.map((s) => {
+                        const isCurrentSet = s.setNumber === pending.setNumber;
+                        return (
+                          <div
+                            key={s.setNumber}
+                            className={`set-modal-history-cell mono${
+                              isCurrentSet ? " on" : ""
+                            }`}
+                          >
+                            <span className="set-modal-history-num">SET {s.setNumber}</span>
+                            <span className="set-modal-history-val">
+                              {s.weight}×{s.reps}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
               </div>
               <div className="set-modal-actions">
                 <button type="button" className="next-btn ghost" onClick={() => setPending(null)}>CANCEL</button>
