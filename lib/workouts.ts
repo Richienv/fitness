@@ -25,6 +25,10 @@ export type SessionDef = {
   name: string;
   focus: string;
   blurb: string;
+  /** Plain-language description of the aesthetic outcome — what the user
+   * is building when they pick this session. Shown on the picker cards
+   * so beginners know why they'd choose it. */
+  aesthetic?: string;
   recommendedDays: number[];
   recommendedLabel: string;
   dayLabel: string;
@@ -38,6 +42,7 @@ export const SESSIONS: SessionDef[] = [
     name: "PUSH A",
     focus: "CHEST FOCUS",
     blurb: "Bench · Incline · OHP · Dips",
+    aesthetic: "Thicker chest, shirt-filling upper body, sharper triceps line",
     recommendedDays: [1],
     recommendedLabel: "Mon recommended",
     dayLabel: "MON",
@@ -56,6 +61,7 @@ export const SESSIONS: SessionDef[] = [
     name: "PULL A",
     focus: "BACK WIDTH",
     blurb: "Pulldown · Row · Curl",
+    aesthetic: "Wider lats for the V-taper, fuller biceps peak, broader frame",
     recommendedDays: [2],
     recommendedLabel: "Tue recommended",
     dayLabel: "TUE",
@@ -74,6 +80,7 @@ export const SESSIONS: SessionDef[] = [
     name: "LEGS + ABS",
     focus: "LOWER BODY",
     blurb: "Squat · RDL · Press · Crunch",
+    aesthetic: "Defined quads and glutes, tighter waist, athletic proportions",
     recommendedDays: [4],
     recommendedLabel: "Thu recommended",
     dayLabel: "THU",
@@ -93,6 +100,7 @@ export const SESSIONS: SessionDef[] = [
     name: "PUSH B",
     focus: "SHOULDER FOCUS",
     blurb: "OHP · Lateral · Incline",
+    aesthetic: "Capped 3D delts, broader shoulders, that wide-shoulder silhouette",
     recommendedDays: [5],
     recommendedLabel: "Fri recommended",
     dayLabel: "FRI",
@@ -111,6 +119,7 @@ export const SESSIONS: SessionDef[] = [
     name: "PULL B",
     focus: "BACK THICKNESS",
     blurb: "Deadlift · Row · Pulldown",
+    aesthetic: "Dense rear delts and traps, deeper back from the side, stronger posture",
     recommendedDays: [6, 0],
     recommendedLabel: "Weekend",
     dayLabel: "WEEKEND",

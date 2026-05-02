@@ -216,6 +216,9 @@ export default function WorkoutHome() {
                 <div className="wo-sc-top">
                   <div className="wo-sc-name">{s.name}</div>
                   <div className="wo-sc-focus mono">{s.focus}</div>
+                  {s.aesthetic && (
+                    <div className="wo-sc-aesthetic">{s.aesthetic}</div>
+                  )}
                 </div>
                 <div className="wo-sc-silhouette">
                   <SessionSilhouette highlight={s.primaryMuscles} />
