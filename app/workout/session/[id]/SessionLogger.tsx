@@ -24,8 +24,10 @@ import {
 } from "@/lib/muscles";
 import {
   getAlternatives,
+  getExerciseDemo,
   getExerciseDetail,
   MINDSET_QUOTES,
+  youtubeSearchUrl,
   type ExerciseAlternative,
   type ExerciseDetail,
 } from "@/lib/exerciseData";
@@ -387,6 +389,14 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                   <div className="ex-target mono">{ex.sets} × {ex.repsLabel}</div>
                   <button
                     type="button"
+                    className="ex-how-btn mono"
+                    onClick={() => setDetailFor(i)}
+                    aria-label={`How to do ${displayName}`}
+                  >
+                    ▶ HOW
+                  </button>
+                  <button
+                    type="button"
                     className="ex-swap-btn mono"
                     onClick={() => setSwapFor(i)}
                   >
@@ -421,11 +431,11 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                   </span>
                 ))}
               </button>
-              <div className="ex-last mono">
-                {last
-                  ? `Last: ${last.weight}kg × ${last.reps} · ${last.daysAgo}d ago`
-                  : "First time — find your working weight"}
-              </div>
+              {last && (
+                <div className="ex-last mono">
+                  Last: {last.weight}kg × {last.reps} · {last.daysAgo}d ago
+                </div>
+              )}
               <div className="ex-sets">
                 {Array.from({ length: ex.sets }).map((_, si) => {
                   const setNum = si + 1;
@@ -721,6 +731,8 @@ function DetailSheet({
 
         {detail ? (
           <div className="detail-scroll">
+            <DemoBlock exerciseName={exerciseName} canonicalName={canonicalName} />
+
             <section className="detail-section">
               <div className="detail-section-head">🎯 MUSCLE FOCUS</div>
               <div className="detail-row"><span className="dl">Primary:</span> {detail.primary}</div>
@@ -794,11 +806,79 @@ function DetailSheet({
             </section>
           </div>
         ) : (
-          <div className="detail-fallback mono">
-            No coaching notes for this exercise yet. Focus on controlled tempo and full range of motion.
+          <div className="detail-scroll">
+            <DemoBlock exerciseName={exerciseName} canonicalName={canonicalName} />
+            <div className="detail-fallback mono">
+              No coaching notes for this exercise yet. Focus on controlled tempo and full range of motion.
+            </div>
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+
+// ============================================================
+// Two-frame "before / after" exercise demo loop
+// ============================================================
+function DemoBlock({
+  exerciseName,
+  canonicalName,
+}: {
+  exerciseName: string;
+  canonicalName: string;
+}) {
+  const demo = getExerciseDemo(exerciseName) ?? getExerciseDemo(canonicalName);
+  const [frame, setFrame] = useState(0);
+  const [errored, setErrored] = useState(false);
+
+  useEffect(() => {
+    if (!demo || errored) return;
+    const t = setInterval(() => setFrame((f) => (f === 0 ? 1 : 0)), 900);
+    return () => clearInterval(t);
+  }, [demo, errored]);
+
+  const ytHref = youtubeSearchUrl(exerciseName);
+
+  return (
+    <section className="detail-section detail-demo">
+      <div className="detail-section-head">▶ HOW IT LOOKS</div>
+      {demo && !errored ? (
+        <div className="demo-frame">
+          <img
+            src={demo.frames[0]}
+            alt={`${exerciseName} starting position`}
+            className={`demo-img${frame === 0 ? " on" : ""}`}
+            loading="lazy"
+            onError={() => setErrored(true)}
+          />
+          <img
+            src={demo.frames[1]}
+            alt={`${exerciseName} ending position`}
+            className={`demo-img${frame === 1 ? " on" : ""}`}
+            loading="lazy"
+            onError={() => setErrored(true)}
+          />
+        </div>
+      ) : (
+        <div className="demo-fallback mono">
+          No demo image for this exercise yet — tap WATCH ON YOUTUBE for a video.
+        </div>
+      )}
+      <a
+        href={ytHref}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="demo-yt-btn mono"
+      >
+        ▶ WATCH ON YOUTUBE →
+      </a>
+      {demo && !errored && (
+        <div className="demo-credit mono">
+          Animation: free-exercise-db (MIT, two-frame loop)
+        </div>
+      )}
+    </section>
   );
 }
