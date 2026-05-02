@@ -36,6 +36,7 @@ export const INGREDIENTS: Ingredient[] = [
   { id: "greek-yogurt", name: "Greek yogurt",     zh: "希腊酸奶", pinyin: "xī là suān nǎi", unit: "150g",         group: "protein", kcal: 100, protein: 10, fat: 3,  carbs: 8 },
   { id: "tofu",         name: "Tofu",             zh: "豆腐",     pinyin: "dòu fu",       unit: "100g",            group: "protein", kcal: 76,  protein: 8,  fat: 4,  carbs: 2 },
   { id: "salmon",       name: "Salmon",           zh: "三文鱼",   pinyin: "sān wén yú",   unit: "150g",            group: "protein", kcal: 280, protein: 30, fat: 17, carbs: 0 },
+  { id: "ribeye",       name: "Ribeye steak",     zh: "肋眼牛排", pinyin: "lèi yǎn niú pái", unit: "100g (cooked)", group: "protein", favorite: true, step: 0.5, gramsPerUnit: 100, sodium: 60, note: "Higher fat cut — savor it. 1× = 100g.", kcal: 270, protein: 25, fat: 19, carbs: 0 },
 
   // Carbs — Rice & grains
   { id: "purple-rice",  name: "Purple rice",    zh: "紫米饭",   pinyin: "zǐ mǐ fàn",   unit: "100g",     group: "carb", tag: "recommended", kcal: 180, protein: 4, fat: 1, carbs: 38 },
@@ -62,6 +63,7 @@ export const INGREDIENTS: Ingredient[] = [
   // Vegetables
   { id: "enoki",        name: "Enoki",          zh: "金针菇",   pinyin: "jīn zhēn gū", unit: "½ pack · 50g",    group: "vegetable", favorite: true, kcal: 19, protein: 2, fat: 0, carbs: 4 },
   { id: "tomato",       name: "Tomato",         zh: "番茄",     pinyin: "fān qié",     unit: "1 whole · 150g",  group: "vegetable", favorite: true, kcal: 27, protein: 1, fat: 0, carbs: 6 },
+  { id: "cherry-tomato", name: "Baby tomato",   zh: "圣女果",   pinyin: "shèng nǚ guǒ", unit: "100g (~10 pcs)",  group: "vegetable", favorite: true, step: 0.5, gramsPerUnit: 100, sodium: 5, note: "Sweet pop, easy snack with steak.", kcal: 18, protein: 1, fat: 0, carbs: 4 },
   { id: "eggplant",     name: "Eggplant",       zh: "茄子",     pinyin: "qié zi",      unit: "½ eggplant · 100g", group: "vegetable", favorite: true, kcal: 35, protein: 1, fat: 0, carbs: 8 },
   { id: "broccoli",     name: "Broccoli",       zh: "西兰花",   pinyin: "xī lán huā",  unit: "¼ head · 75g",    group: "vegetable", favorite: true, tag: "best", kcal: 26, protein: 2, fat: 0, carbs: 5 },
   // Best picks

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getDefForWorkout,
@@ -399,12 +400,28 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
             );
           }
 
+          const setsDone = log.sets.length;
+          const setProgressPct = Math.round((setsDone / ex.sets) * 100);
           return (
             <div
               key={ex.name}
               className={`ex-card${isFocus ? " focus" : ""}`}
-              style={{ borderLeft: `4px solid ${stripColor}` }}
+              style={
+                {
+                  borderLeft: `4px solid ${stripColor}33`,
+                  ["--ex-strip-color" as string]: stripColor,
+                  ["--ex-strip-pct" as string]: `${setProgressPct}%`,
+                } as CSSProperties
+              }
             >
+              <span
+                className="ex-strip"
+                aria-hidden="true"
+                style={{
+                  background: stripColor,
+                  height: `${setProgressPct}%`,
+                }}
+              />
               {isFocus && (
                 <span className="ex-doing-now mono">▶ DOING NOW</span>
               )}
@@ -661,6 +678,7 @@ function SwapSheet({
   onClose: () => void;
 }) {
   const alts: ExerciseAlternative[] = getAlternatives(originalName);
+  const [previewFor, setPreviewFor] = useState<string | null>(null);
   return (
     <div className="sheet-overlay" onClick={onClose}>
       <div className="sheet swap-sheet" onClick={(e) => e.stopPropagation()}>
@@ -669,26 +687,53 @@ function SwapSheet({
           <div className="sheet-title">{originalName.toUpperCase()}</div>
           <button type="button" className="sheet-close" onClick={onClose}>✕</button>
         </div>
-        <div className="sheet-subtitle mono">ALTERNATIVES · EQUIPMENT BUSY? PICK A SWAP</div>
+        <div className="sheet-subtitle mono">ALTERNATIVES · TAP HOW TO PREVIEW · USE TO SWAP</div>
         <div className="swap-list">
           {alts.length === 0 && (
             <div className="swap-empty mono">No alternatives listed for this one yet.</div>
           )}
-          {alts.map((a) => (
-            <button
-              key={a.name}
-              type="button"
-              className="swap-card"
-              onClick={() => onPick(a.name)}
-            >
-              <div className="swap-card-main">
-                <div className="swap-card-name">{a.name}</div>
-                <div className="swap-card-reason">{a.reason}</div>
-                <div className="swap-card-eq mono">{a.equipment}</div>
+          {alts.map((a) => {
+            const isOpen = previewFor === a.name;
+            return (
+              <div key={a.name} className={`swap-card-wrap${isOpen ? " open" : ""}`}>
+                <div className="swap-card">
+                  <button
+                    type="button"
+                    className="swap-card-main swap-card-main-btn"
+                    onClick={() => onPick(a.name)}
+                  >
+                    <div className="swap-card-name">{a.name}</div>
+                    <div className="swap-card-reason">{a.reason}</div>
+                    <div className="swap-card-eq mono">{a.equipment}</div>
+                  </button>
+                  <div className="swap-card-actions">
+                    <button
+                      type="button"
+                      className="swap-card-how mono"
+                      onClick={() =>
+                        setPreviewFor((cur) => (cur === a.name ? null : a.name))
+                      }
+                      aria-expanded={isOpen}
+                    >
+                      {isOpen ? "HIDE" : "▶ HOW"}
+                    </button>
+                    <button
+                      type="button"
+                      className="swap-card-use-btn mono"
+                      onClick={() => onPick(a.name)}
+                    >
+                      USE →
+                    </button>
+                  </div>
+                </div>
+                {isOpen && (
+                  <div className="swap-card-preview">
+                    <DemoBlock exerciseName={a.name} canonicalName={a.name} />
+                  </div>
+                )}
               </div>
-              <div className="swap-card-use mono">USE →</div>
-            </button>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

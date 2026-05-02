@@ -196,10 +196,12 @@ export default function HomePage() {
   const target = gymDay ? TARGETS.gymDay : TARGETS.restDay;
   const kcalPct = Math.round((totals.kcal / target.kcal) * 100);
   const kcalLeft = Math.max(0, target.kcal - totals.kcal);
+  const kcalOver = Math.max(0, Math.round(totals.kcal - target.kcal));
   const kcalComplete = totals.kcal >= target.kcal;
 
   const proteinPct = Math.round((totals.protein / target.protein) * 100);
   const proteinLeft = Math.max(0, Math.round(target.protein - totals.protein));
+  const proteinOver = Math.max(0, Math.round(totals.protein - target.protein));
   const proteinComplete = totals.protein >= target.protein;
 
   const workoutDone = !!workout;
@@ -259,17 +261,37 @@ export default function HomePage() {
           <Ring
             pct={kcalPct}
             color="#e8ff47"
-            centerTop={kcalComplete ? "✓" : Math.round(kcalLeft).toLocaleString()}
-            centerBottom={kcalComplete ? undefined : "kcal left"}
-            label="KCAL LEFT"
+            centerTop={
+              kcalComplete
+                ? Math.round(totals.kcal).toLocaleString()
+                : Math.round(kcalLeft).toLocaleString()
+            }
+            centerBottom={
+              kcalComplete
+                ? kcalOver > 0
+                  ? `+${kcalOver.toLocaleString()} over`
+                  : "on target"
+                : "kcal left"
+            }
+            label={kcalComplete ? "KCAL EATEN" : "KCAL LEFT"}
             complete={kcalComplete}
           />
           <Ring
             pct={proteinPct}
             color="#47ffb8"
-            centerTop={proteinComplete ? "✓" : `${proteinLeft}g`}
-            centerBottom={proteinComplete ? undefined : "left"}
-            label="PROTEIN LEFT"
+            centerTop={
+              proteinComplete
+                ? `${Math.round(totals.protein)}g`
+                : `${proteinLeft}g`
+            }
+            centerBottom={
+              proteinComplete
+                ? proteinOver > 0
+                  ? `+${proteinOver}g over`
+                  : "on target"
+                : "left"
+            }
+            label={proteinComplete ? "PROTEIN EATEN" : "PROTEIN LEFT"}
             complete={proteinComplete}
           />
           <Ring
@@ -308,7 +330,6 @@ export default function HomePage() {
 
         <div className="home-duo">
           <Link href="/workout" className="home-duo-btn home-duo-workout">
-            <span className="home-duo-icon">🏋️</span>
             <span className="home-duo-title">WORKOUT</span>
             <span className="home-duo-sub mono">
               {workoutSubtitle(workout, isRestDay, recommendedLabel)}
@@ -316,7 +337,6 @@ export default function HomePage() {
           </Link>
 
           <Link href="/meal" className="home-duo-btn home-duo-meal">
-            <span className="home-duo-icon">🍽️</span>
             <span className="home-duo-title">MEAL</span>
             <span className="home-duo-sub mono">
               {mealSubtitle(loggedTypes, hour, totals.kcal)}
