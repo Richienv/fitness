@@ -96,9 +96,14 @@ export default function SessionComplete({ workoutId }: { workoutId: string }) {
   return (
     <main className="complete-shell">
       <div className="complete-card">
-        <div className="complete-title">SESSION COMPLETE 💪</div>
-        <div className="complete-name">{def?.name}</div>
-        <div className="complete-focus mono">{def?.focus}</div>
+        <header className="complete-hero">
+          <div className="complete-eyebrow mono">SESSION COMPLETE</div>
+          <h1 className="complete-name">{def?.name}</h1>
+          <div className="complete-focus mono">{def?.focus}</div>
+          {prCount > 0 && (
+            <div className="complete-pr mono">★ {prCount} PR{prCount === 1 ? "" : "s"}</div>
+          )}
+        </header>
 
         <div className="complete-stats">
           <div className="cs-block">
@@ -116,31 +121,40 @@ export default function SessionComplete({ workoutId }: { workoutId: string }) {
         </div>
 
         {prev && (
-          <div className={`complete-delta ${volumeDelta >= 0 ? "up" : "down"}`}>
-            {volumeDelta >= 0 ? "+" : ""}
-            {volumeDelta.toLocaleString()} kg vs last {def?.name}
-            {volumeDelta >= 0 ? " ↑" : " ↓"}
+          <div className={`complete-delta mono ${volumeDelta >= 0 ? "up" : "down"}`}>
+            <span className="cd-arrow">{volumeDelta >= 0 ? "▲" : "▼"}</span>
+            <span className="cd-num">
+              {volumeDelta >= 0 ? "+" : ""}
+              {volumeDelta.toLocaleString()} kg
+            </span>
+            <span className="cd-text">vs last {def?.name}</span>
           </div>
         )}
 
         <div className="complete-next">
-          <div className="cn-label mono">NEXT SESSION</div>
-          <div className="cn-name">{nextSession.name}</div>
-          <div className="cn-focus mono">{nextSession.focus}</div>
+          <div className="cn-label mono">UP NEXT</div>
+          <div className="cn-row">
+            <div className="cn-text">
+              <div className="cn-name">{nextSession.name}</div>
+              <div className="cn-focus mono">{nextSession.focus}</div>
+            </div>
+            <span className="cn-chev mono">›</span>
+          </div>
         </div>
 
         <button
           type="button"
-          className="share-btn"
+          className="complete-share-btn"
           onClick={handleShare}
           disabled={sharing}
         >
-          {sharing ? "GENERATING…" : "📤 SHARE"}
+          <span className="csh-icon" aria-hidden="true">↗</span>
+          <span className="csh-text">{sharing ? "GENERATING…" : "SHARE"}</span>
         </button>
 
         <div className="complete-actions">
-          <Link href="/workout" className="next-btn ghost">WORKOUTS</Link>
-          <Link href="/" className="next-btn">HOME</Link>
+          <Link href="/workout" className="complete-action-btn ghost">WORKOUTS</Link>
+          <Link href="/" className="complete-action-btn">HOME</Link>
         </div>
       </div>
     </main>

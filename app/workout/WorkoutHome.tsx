@@ -151,9 +151,39 @@ export default function WorkoutHome() {
         <h1 className="section-title">LOG <span>WORKOUT</span></h1>
         <div className="wo-date mono">{dateStr} · WK {wkNum} / 12</div>
 
-        <Link href="/workout/equipment" className="wo-equip-link mono">
-          🏋️ BROWSE EQUIPMENT · 设备
-        </Link>
+        {/* Compact toolbar — search input + browse-equipment chip on the
+            same row, with a resume strip slotting in only when a workout
+            is mid-flight. */}
+        <div className="wo-toolbar">
+          <div className="wo-search wo-toolbar-search">
+            <input
+              type="search"
+              inputMode="search"
+              placeholder="Search sessions or exercises"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="wo-search-input mono"
+            />
+            {query && (
+              <button
+                type="button"
+                className="wo-search-clear"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+              >
+                ×
+              </button>
+            )}
+          </div>
+          <Link
+            href="/workout/equipment"
+            className="wo-equip-link wo-toolbar-equip mono"
+            aria-label="Browse equipment"
+          >
+            <span aria-hidden="true">🏋️</span>
+            <span className="wo-toolbar-equip-text">EQUIPMENT</span>
+          </Link>
+        </div>
 
         {todaysLogged && (
           <div className="wo-logged-banner">
@@ -171,27 +201,6 @@ export default function WorkoutHome() {
               : SESSIONS.find((s) => s.id === activeInProgress.sessionType)?.name}
           </Link>
         )}
-
-        <div className="wo-search">
-          <input
-            type="search"
-            inputMode="search"
-            placeholder="Search sessions or exercises"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="wo-search-input mono"
-          />
-          {query && (
-            <button
-              type="button"
-              className="wo-search-clear"
-              onClick={() => setQuery("")}
-              aria-label="Clear search"
-            >
-              ×
-            </button>
-          )}
-        </div>
       </div>
 
       <div className="workout-home-bottom">
@@ -232,53 +241,46 @@ export default function WorkoutHome() {
           })}
         </div>
 
-        <div className="wo-custom-head">
-          <div className="wo-pick-label">MY SESSIONS</div>
+        <div className="wo-pick-label">MY SESSIONS</div>
+
+        <div className="wo-custom-grid">
+          {filteredTemplates.map((t) => (
+            <div key={t.id} className="wo-custom-card">
+              <button
+                type="button"
+                className="wo-custom-body"
+                onClick={() => pickCustom(t)}
+              >
+                <div className="wo-custom-name">{t.name}</div>
+                <div className="wo-custom-focus mono">{t.focus || "CUSTOM"}</div>
+                <div className="wo-custom-meta mono">
+                  {t.exercises.length} exercise{t.exercises.length === 1 ? "" : "s"}
+                </div>
+              </button>
+              <button
+                type="button"
+                className="wo-custom-del"
+                onClick={() => handleDeleteTemplate(t.id)}
+                aria-label={`Delete ${t.name}`}
+              >
+                ×
+              </button>
+            </div>
+          ))}
           <button
             type="button"
-            className="wo-add-custom mono"
+            className="wo-add-card"
             onClick={() => setModalOpen(true)}
           >
-            + ADD CUSTOM
+            <span className="wo-add-card-plus" aria-hidden="true">+</span>
+            <span className="wo-add-card-title">ADD CUSTOM</span>
+            <span className="wo-add-card-sub mono">
+              {filteredTemplates.length === 0
+                ? "Build your first"
+                : "Build another"}
+            </span>
           </button>
         </div>
-
-        {filteredTemplates.length === 0 ? (
-          <button
-            type="button"
-            className="wo-custom-empty mono"
-            onClick={() => setModalOpen(true)}
-          >
-            {query ? "No custom sessions match — " : "Build your own — "}
-            <span className="wo-custom-empty-cta">tap to create</span>
-          </button>
-        ) : (
-          <div className="wo-custom-grid">
-            {filteredTemplates.map((t) => (
-              <div key={t.id} className="wo-custom-card">
-                <button
-                  type="button"
-                  className="wo-custom-body"
-                  onClick={() => pickCustom(t)}
-                >
-                  <div className="wo-custom-name">{t.name}</div>
-                  <div className="wo-custom-focus mono">{t.focus || "CUSTOM"}</div>
-                  <div className="wo-custom-meta mono">
-                    {t.exercises.length} exercise{t.exercises.length === 1 ? "" : "s"}
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  className="wo-custom-del"
-                  onClick={() => handleDeleteTemplate(t.id)}
-                  aria-label={`Delete ${t.name}`}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {modalOpen && (
