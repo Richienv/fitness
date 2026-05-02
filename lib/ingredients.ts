@@ -29,13 +29,13 @@ export type Ingredient = {
 export const INGREDIENTS: Ingredient[] = [
   // Proteins
   { id: "egg",          name: "Whole egg",        zh: "鸡蛋",     pinyin: "jī dàn",       unit: "1 egg",           group: "protein", favorite: true, kcal: 70,  protein: 6,  fat: 5,  carbs: 0.5 },
-  { id: "chicken-breast", name: "Chicken breast", zh: "鸡胸肉",   pinyin: "jī xiōng ròu", unit: "1 breast (250g)", group: "protein", favorite: true, kcal: 275, protein: 52, fat: 6,  carbs: 0 },
-  { id: "chicken-thigh", name: "Chicken thigh",   zh: "鸡腿",     pinyin: "jī tuǐ",       unit: "1 thigh (150g)",  group: "protein", favorite: true, kcal: 220, protein: 24, fat: 14, carbs: 0 },
-  { id: "beef-slice",   name: "Beef slice",       zh: "牛肉片",   pinyin: "niú ròu piàn", unit: "1 slice (30g)",   group: "protein", favorite: true, kcal: 54,  protein: 5,  fat: 4,  carbs: 0 },
-  { id: "whey",         name: "Whey scoop",       zh: "乳清蛋白", pinyin: "rǔ qīng dàn bái", unit: "1 scoop",     group: "protein", kcal: 120, protein: 25, fat: 2,  carbs: 3 },
-  { id: "greek-yogurt", name: "Greek yogurt",     zh: "希腊酸奶", pinyin: "xī là suān nǎi", unit: "150g",         group: "protein", kcal: 100, protein: 10, fat: 3,  carbs: 8 },
-  { id: "tofu",         name: "Tofu",             zh: "豆腐",     pinyin: "dòu fu",       unit: "100g",            group: "protein", kcal: 76,  protein: 8,  fat: 4,  carbs: 2 },
-  { id: "salmon",       name: "Salmon",           zh: "三文鱼",   pinyin: "sān wén yú",   unit: "150g",            group: "protein", kcal: 280, protein: 30, fat: 17, carbs: 0 },
+  { id: "chicken-breast", name: "Chicken breast", zh: "鸡胸肉",   pinyin: "jī xiōng ròu", unit: "1 breast (250g)", group: "protein", favorite: true, step: 0.25, gramsPerUnit: 250, kcal: 275, protein: 52, fat: 6,  carbs: 0 },
+  { id: "chicken-thigh", name: "Chicken thigh",   zh: "鸡腿",     pinyin: "jī tuǐ",       unit: "1 thigh (150g)",  group: "protein", favorite: true, step: 0.25, gramsPerUnit: 150, kcal: 220, protein: 24, fat: 14, carbs: 0 },
+  { id: "beef-slice",   name: "Beef slice",       zh: "牛肉片",   pinyin: "niú ròu piàn", unit: "1 slice (30g)",   group: "protein", favorite: true, step: 0.5, gramsPerUnit: 30, kcal: 54,  protein: 5,  fat: 4,  carbs: 0 },
+  { id: "whey",         name: "Whey scoop",       zh: "乳清蛋白", pinyin: "rǔ qīng dàn bái", unit: "1 scoop (30g)", group: "protein", step: 0.5, gramsPerUnit: 30, kcal: 120, protein: 25, fat: 2,  carbs: 3 },
+  { id: "greek-yogurt", name: "Greek yogurt",     zh: "希腊酸奶", pinyin: "xī là suān nǎi", unit: "150g",         group: "protein", step: 0.5, gramsPerUnit: 150, kcal: 100, protein: 10, fat: 3,  carbs: 8 },
+  { id: "tofu",         name: "Tofu",             zh: "豆腐",     pinyin: "dòu fu",       unit: "100g",            group: "protein", step: 0.5, gramsPerUnit: 100, kcal: 76,  protein: 8,  fat: 4,  carbs: 2 },
+  { id: "salmon",       name: "Salmon",           zh: "三文鱼",   pinyin: "sān wén yú",   unit: "150g",            group: "protein", step: 0.5, gramsPerUnit: 150, kcal: 280, protein: 30, fat: 17, carbs: 0 },
   { id: "ribeye",       name: "Ribeye steak",     zh: "肋眼牛排", pinyin: "lèi yǎn niú pái", unit: "100g (cooked)", group: "protein", favorite: true, step: 0.5, gramsPerUnit: 100, sodium: 60, note: "Higher fat cut — savor it. 1× = 100g.", kcal: 270, protein: 25, fat: 19, carbs: 0 },
 
   // Carbs — Rice & grains

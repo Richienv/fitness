@@ -678,6 +678,80 @@ a { color: inherit; text-decoration: none; }
   padding-top: 12px;
   border-top: 1px solid rgba(10, 10, 10, 0.15);
 }
+
+/* "g" pill on selected ingredient cards — opens an inline gram editor
+   so the user can dial in 35g instead of being stuck with multiples
+   of the default unit (e.g. 1 slice = 30g). */
+.g-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(10, 10, 10, 0.18);
+  color: #0a0a0a;
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.g-btn:hover { background: rgba(10, 10, 10, 0.32); }
+.g-btn.on { background: #0a0a0a; color: var(--accent); }
+.g-btn.on-accent { color: #0a0a0a; }
+.g-btn.on-accent.on { background: #0a0a0a; color: var(--accent); }
+
+.weigh-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(10, 10, 10, 0.15);
+}
+.weigh-step {
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(10, 10, 10, 0.18);
+  color: #0a0a0a;
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.weigh-step:active { background: rgba(10, 10, 10, 0.36); }
+.weigh-input {
+  width: 64px;
+  height: 36px;
+  padding: 6px 8px;
+  border: 1px solid rgba(10, 10, 10, 0.32);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--accent);
+  font-family: var(--font-bebas), sans-serif;
+  font-size: 22px;
+  text-align: center;
+  letter-spacing: 1px;
+}
+.weigh-input:focus { outline: none; border-color: #0a0a0a; }
+.weigh-unit {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #0a0a0a;
+}
+.weigh-save {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  background: #0a0a0a;
+  color: var(--accent);
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+}
+.weigh-save:active { transform: scale(0.97); }
 .sel-stepper button {
   width: 38px;
   height: 38px;
@@ -2800,60 +2874,156 @@ a { color: inherit; text-decoration: none; }
 }
 .tbar-pct { color: var(--text); }
 
-/* Quick log with fade + dots */
-.quick-section { display: flex; flex-direction: column; gap: 6px; }
+/* Quick log — 2x2 editable grid of preset tiles (was a horizontal
+   scroll row of small pills). Bigger tap targets, easier to thumb. */
+.quick-section { display: flex; flex-direction: column; gap: 8px; }
+.quick-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
 .quick-label {
   font-family: var(--font-dm-mono), monospace;
   font-size: 10px;
   letter-spacing: 2px;
   color: var(--muted);
 }
-.quick-scroll-wrap {
-  position: relative;
-}
-.quick-row {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  padding: 2px 20px 2px 2px;
-  scrollbar-width: none;
-}
-.quick-row::-webkit-scrollbar { display: none; }
-.quick-chip {
-  flex: 0 0 auto;
-  scroll-snap-align: start;
-  padding: 10px 14px;
-  background: var(--surface);
+.quick-edit-btn {
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: 999px;
-  font-size: 12px;
-  color: var(--text);
-  white-space: nowrap;
+  padding: 4px 10px;
+  color: var(--accent);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  cursor: pointer;
 }
-.quick-chip:active { transform: scale(0.96); }
-.quick-fade {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 36px;
-  pointer-events: none;
-  background: linear-gradient(270deg, var(--bg) 0%, rgba(10, 10, 10, 0) 100%);
+.quick-edit-btn:hover { border-color: var(--accent); }
+
+.quick-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
 }
-.quick-dots {
+.quick-tile {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 76px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+}
+.quick-tile:active { transform: scale(0.97); }
+.quick-tile:hover { border-color: var(--accent); background: var(--surface2); }
+.quick-tile-label {
+  font-family: var(--font-dm-sans), sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.quick-tile-meal {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+}
+.quick-tile-empty {
+  border-style: dashed;
+  border-color: rgba(232, 255, 71, 0.35);
+  background: rgba(232, 255, 71, 0.03);
+  color: var(--accent);
+  align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 2px 0;
+  cursor: pointer;
 }
-.quick-dot {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--border);
+.quick-tile-plus {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #0a0a0a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
 }
-.quick-dot.on { background: var(--accent); }
+.quick-tile-add {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+}
+
+/* Quick log edit sheet */
+.quick-edit-hint {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+.quick-edit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 50dvh;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.quick-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #0d0d0d;
+  border: 1px solid #1f1f1f;
+  border-radius: 10px;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.quick-edit-row:active { transform: scale(0.99); }
+.quick-edit-row.on {
+  background: rgba(232, 255, 71, 0.08);
+  border-color: var(--accent);
+}
+.quick-edit-row.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.quick-edit-tick {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.quick-edit-row.on .quick-edit-tick {
+  background: var(--accent);
+  color: #0a0a0a;
+}
+.quick-edit-label {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+}
+.quick-edit-meal {
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  color: var(--muted);
+}
 
 /* Meal rows */
 .meal-stack { display: flex; flex-direction: column; gap: 8px; }
