@@ -563,3 +563,76 @@ export function getExerciseDetail(name: string): ExerciseDetail | null {
 export function getAlternatives(name: string): ExerciseAlternative[] {
   return ALTERNATIVES[name] ?? [];
 }
+
+// ============================================================
+// Visual demos — two-frame loops from the open-source
+// `yuhonas/free-exercise-db` library (MIT). Served via the
+// jsDelivr CDN so we don't bash GitHub raw rate limits.
+// ============================================================
+
+const DEMO_BASE = "https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises";
+
+/** Maps an exercise name (or canonical alias) to a verified slug in the
+ * free-exercise-db. Each slug folder contains `0.jpg` and `1.jpg` for the
+ * start and end positions. */
+const DEMO_SLUGS: Record<string, string> = {
+  // Push A / B
+  "Bench Press":            "Barbell_Bench_Press_-_Medium_Grip",
+  "Incline DB Press":       "Incline_Dumbbell_Press",
+  "Cable Lateral Raise":    "Side_Lateral_Raise",
+  "OHP":                    "Standing_Military_Press",
+  "Tricep Pushdown":        "Triceps_Pushdown",
+  "Dips":                   "Dips_-_Triceps_Version",
+  "Seated DB Press":        "Dumbbell_Shoulder_Press",
+  "Lateral Raise":          "Side_Lateral_Raise",
+  "Lateral Raise Burnout":  "Side_Lateral_Raise",
+  "Pec Deck":               "Butterfly",
+  "Overhead Tricep Extension": "Standing_Dumbbell_Triceps_Extension",
+  // Pull A / B
+  "Lat Pulldown":           "Wide-Grip_Lat_Pulldown",
+  "Wide Grip Pulldown":     "Wide-Grip_Lat_Pulldown",
+  "Cable Row":              "Seated_Cable_Rows",
+  "Cable Row Wide":         "Seated_Cable_Rows",
+  "Seated Row Machine":     "Seated_Cable_Rows",
+  "Face Pull":              "Face_Pull",
+  "Barbell Curl":           "Barbell_Curl",
+  "Hammer Curl":            "Hammer_Curls",
+  "Incline Curl":           "Incline_Dumbbell_Curl",
+  "DB Row":                 "Bent_Over_Two-Dumbbell_Row",
+  "Deadlift":               "Barbell_Deadlift",
+  // Legs
+  "Squat":                  "Barbell_Squat",
+  "Romanian Deadlift":      "Romanian_Deadlift",
+  "Leg Press":              "Leg_Press",
+  "Leg Curl":               "Lying_Leg_Curls",
+  "Calf Raise":             "Standing_Barbell_Calf_Raise",
+  "Cable Crunch":           "Cable_Crunch",
+  "Plank":                  "Plank",
+};
+
+export type ExerciseDemo = {
+  /** Two URLs that, when alternated, produce a "before / after" loop. */
+  frames: [string, string];
+  /** Human-readable name from the source library. */
+  source: "free-exercise-db";
+};
+
+export function getExerciseDemo(name: string): ExerciseDemo | null {
+  const slug = DEMO_SLUGS[name];
+  if (!slug) return null;
+  return {
+    frames: [
+      `${DEMO_BASE}/${slug}/0.jpg`,
+      `${DEMO_BASE}/${slug}/1.jpg`,
+    ],
+    source: "free-exercise-db",
+  };
+}
+
+/** Always-available fallback: opens a YouTube search for the exercise so the
+ * user can watch a real video if the static frames don't make the move
+ * obvious. */
+export function youtubeSearchUrl(name: string): string {
+  const q = encodeURIComponent(`${name} proper form tutorial`);
+  return `https://www.youtube.com/results?search_query=${q}`;
+}
