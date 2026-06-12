@@ -4,13 +4,17 @@ import { todayKey } from "@/lib/targets";
 import { getActor, logActivity } from "@/lib/audit";
 import {
   calorieTotalsFor,
+  coerceStoredItems,
   inferMealType,
   matchLibraryFood,
+  mergeItems,
   parseMealText,
   resolveMealItems,
+  totalsForResolved,
   type HermesItemInput,
   type ResolvedMealItem,
 } from "@/lib/hermes";
+import { getIngredient } from "@/lib/ingredients";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "snack";
 const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
@@ -61,7 +65,7 @@ export async function POST(req: Request) {
 
     // --- Preferred path: structured items mapped to the library ---
     if (Array.isArray(body.items) && body.items.length > 0) {
-      const { resolved, totals, labels, unknownIds } = resolveMealItems(body.items);
+      const { resolved, unknownIds } = resolveMealItems(body.items);
       if (resolved.length === 0) {
         return NextResponse.json(
           {
@@ -81,15 +85,41 @@ export async function POST(req: Request) {
         }
       }
 
-      const saved = await db.mealEntry.create({
-        data: {
-          id,
-          date,
-          mealType,
-          items: resolved as never,
-          totals: totals as never,
-        },
-      });
+      // Mirror the web app: one row per (date, mealType). Add 3 eggs now
+      // and 2 eggs later → one row with egg ×5, not two side-by-side items.
+      const existing = await db.mealEntry
+        .findFirst({ where: { date, mealType }, orderBy: { createdAt: "asc" } })
+        .catch(() => null);
+
+      let saved;
+      let mergedItems: ResolvedMealItem[];
+      let mergedTotals;
+      if (existing) {
+        mergedItems = mergeItems(coerceStoredItems(existing.items), resolved);
+        mergedTotals = totalsForResolved(mergedItems);
+        saved = await db.mealEntry.update({
+          where: { id: existing.id },
+          data: { items: mergedItems as never, totals: mergedTotals as never },
+        });
+      } else {
+        mergedItems = resolved;
+        mergedTotals = totalsForResolved(mergedItems);
+        saved = await db.mealEntry.create({
+          data: {
+            id,
+            date,
+            mealType,
+            items: mergedItems as never,
+            totals: mergedTotals as never,
+          },
+        });
+      }
+
+      const labels = mergedItems.map((it) =>
+        "id" in it
+          ? `${+it.qty.toFixed(2)}× ${getIngredient(it.id)?.name ?? it.id}`
+          : it.name
+      );
 
       const todayTotals = await calorieTotalsFor(date);
       await logActivity({
@@ -97,7 +127,16 @@ export async function POST(req: Request) {
         action: "log-meal",
         entityId: saved.id,
         entityType: "MealEntry",
-        payload: { mode: "structured", items: resolved, totals, mealType, date, unknownIds, learned },
+        payload: {
+          mode: "structured",
+          incoming: resolved,
+          mealEntryAfter: { items: mergedItems, totals: mergedTotals },
+          mealType,
+          date,
+          unknownIds,
+          learned,
+          mergedIntoExisting: !!existing,
+        },
       });
 
       return NextResponse.json({
@@ -108,10 +147,16 @@ export async function POST(req: Request) {
             date: saved.date,
             mealType: saved.mealType,
             items: labels,
-            kcal: totals.kcal,
-            protein: totals.protein,
+            kcal: mergedTotals.kcal,
+            protein: mergedTotals.protein,
+            sugar: mergedTotals.sugar,
           },
-          todayTotals: { calories: todayTotals.kcal, protein: todayTotals.protein },
+          todayTotals: {
+            calories: todayTotals.kcal,
+            protein: todayTotals.protein,
+            sugar: todayTotals.sugar,
+          },
+          mergedIntoExisting: !!existing,
           unknownIds,
           learnedFoods: learned,
         },
@@ -163,14 +208,41 @@ export async function POST(req: Request) {
         .catch(() => {});
     }
 
-    const totals = { kcal, protein, fat, carbs };
-    const items = [
-      { custom: true, name, grams: 100, kcal, protein, fat, carbs, source: "hermes-nl", rawText: body.text },
-    ];
+    const totals = { kcal, protein, fat, carbs, sugar: 0 };
+    const incomingItem: ResolvedMealItem = {
+      custom: true,
+      name,
+      grams: 100,
+      kcal,
+      protein,
+      fat,
+      carbs,
+    };
 
-    const saved = await db.mealEntry.create({
-      data: { id, date, mealType, items: items as never, totals: totals as never },
-    });
+    // Same merge-by-mealType rule as the structured path.
+    const existing = await db.mealEntry
+      .findFirst({ where: { date, mealType }, orderBy: { createdAt: "asc" } })
+      .catch(() => null);
+
+    let saved;
+    if (existing) {
+      const merged = mergeItems(coerceStoredItems(existing.items), [incomingItem]);
+      const mergedTotals = totalsForResolved(merged);
+      saved = await db.mealEntry.update({
+        where: { id: existing.id },
+        data: { items: merged as never, totals: mergedTotals as never },
+      });
+    } else {
+      saved = await db.mealEntry.create({
+        data: {
+          id,
+          date,
+          mealType,
+          items: [incomingItem] as never,
+          totals: totals as never,
+        },
+      });
+    }
 
     const todayTotals = await calorieTotalsFor(date);
     await logActivity({
