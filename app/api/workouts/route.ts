@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
   "Cache-Control": "no-store",
 };
@@ -100,6 +100,26 @@ export async function POST(req: Request) {
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: "workout-upsert-failed", message: (e as Error).message },
+      { status: 500, headers: corsHeaders }
+    );
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const url = new URL(req.url);
+    const id = url.searchParams.get("id");
+    if (!id) {
+      return NextResponse.json(
+        { ok: false, error: "bad-request", message: "id required" },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+    await db.workoutSession.delete({ where: { id } }).catch(() => null);
+    return NextResponse.json({ ok: true, data: { id } }, { headers: corsHeaders });
+  } catch (e) {
+    return NextResponse.json(
+      { ok: false, error: "workout-delete-failed", message: (e as Error).message },
       { status: 500, headers: corsHeaders }
     );
   }

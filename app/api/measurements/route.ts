@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
   "Cache-Control": "no-store",
 };
@@ -61,6 +61,32 @@ export async function POST(req: Request) {
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: "measurement-upsert-failed", message: (e as Error).message },
+      { status: 500, headers: corsHeaders }
+    );
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const url = new URL(req.url);
+    const id = url.searchParams.get("id");
+    const date = url.searchParams.get("date");
+    if (!id && !date) {
+      return NextResponse.json(
+        { ok: false, error: "bad-request", message: "id or date required" },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+    if (id) await db.measurement.delete({ where: { id } }).catch(() => null);
+    else if (date)
+      await db.measurement.delete({ where: { date } }).catch(() => null);
+    return NextResponse.json(
+      { ok: true, data: { id: id ?? date } },
+      { headers: corsHeaders }
+    );
+  } catch (e) {
+    return NextResponse.json(
+      { ok: false, error: "measurement-delete-failed", message: (e as Error).message },
       { status: 500, headers: corsHeaders }
     );
   }
