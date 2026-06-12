@@ -21,8 +21,12 @@ export function middleware(req: NextRequest) {
 
   if (isPublic || !isMutation) return NextResponse.next();
 
-  const key = req.headers.get("x-api-key");
-  if (!key || key !== process.env.R2_FIT_API_KEY) {
+  // Accept x-api-key or Authorization: Bearer. Trim both sides — pasted env
+  // vars often carry an invisible trailing newline and exact compare 401s.
+  const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  const key = (req.headers.get("x-api-key") ?? bearer ?? "").trim();
+  const expected = (process.env.R2_FIT_API_KEY ?? "").trim();
+  if (!key || !expected || key !== expected) {
     return NextResponse.json(
       {
         ok: false,
