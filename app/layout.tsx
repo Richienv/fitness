@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Bebas_Neue, DM_Sans, DM_Mono } from "next/font/google";
 import "./globals.css";
 import BottomNav from "./BottomNav";
-import MealSync from "./MealSync";
+import ServerSync from "./ServerSync";
 import { ActiveDateProvider } from "@/lib/activeDate";
 
 const bebas = Bebas_Neue({
@@ -89,7 +89,7 @@ export default function RootLayout({
       </head>
       <body>
         <ActiveDateProvider>
-          <MealSync />
+          <ServerSync />
           <div className="app-root">{children}</div>
           <BottomNav />
         </ActiveDateProvider>

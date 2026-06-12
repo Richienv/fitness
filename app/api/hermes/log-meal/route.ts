@@ -5,6 +5,7 @@ import { getActor, logActivity } from "@/lib/audit";
 import {
   calorieTotalsFor,
   inferMealType,
+  matchLibraryFood,
   parseMealText,
 } from "@/lib/hermes";
 
@@ -26,6 +27,46 @@ export async function POST(req: Request) {
     }
 
     const parsed = parseMealText(body.text);
+    let { name } = parsed;
+    let kcal = parsed.kcal;
+    let protein = parsed.protein;
+    let fat = 0;
+    let carbs = 0;
+
+    // Shared library: fill gaps from a known food, or learn a new one.
+    const libMatch = await matchLibraryFood(parsed.name || body.text);
+    let addedToLibrary = false;
+    if (libMatch) {
+      name = libMatch.name;
+      if (!parsed.hadExplicitKcal && libMatch.per100g.kcal > 0)
+        kcal = Math.round(libMatch.per100g.kcal);
+      if (!parsed.hadExplicitProtein)
+        protein = Math.round(libMatch.per100g.protein ?? 0);
+      fat = Math.round(libMatch.per100g.fat ?? 0);
+      carbs = Math.round(libMatch.per100g.carbs ?? 0);
+    } else if (
+      parsed.hadExplicitKcal &&
+      name &&
+      name !== "meal" &&
+      name.length >= 3 &&
+      !/^\d+$/.test(name)
+    ) {
+      // New food with real macros → grow the shared library so next time
+      // "nasi padang" works without numbers, in the app AND via Hermes.
+      await db.foodItem
+        .create({
+          data: {
+            name,
+            per100g: { kcal, protein, fat: 0, carbs: 0 } as never,
+            source: getActor(req),
+          },
+        })
+        .then(() => {
+          addedToLibrary = true;
+        })
+        .catch(() => {});
+    }
+
     const mealType: MealType =
       body.mealType && MEAL_TYPES.includes(body.mealType as MealType)
         ? (body.mealType as MealType)
@@ -33,18 +74,18 @@ export async function POST(req: Request) {
     const date = body.date ?? todayKey();
 
     const id = `hermes-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const totals = {
-      kcal: parsed.kcal,
-      protein: parsed.protein,
-      carbs: 0,
-      fat: 0,
-    };
+    const totals = { kcal, protein, fat, carbs };
+    // CustomMealItem shape — identical to what the web UI writes, so the
+    // dashboard renders Hermes meals exactly like app-logged ones.
     const items = [
       {
-        id: `${id}-item`,
-        name: parsed.name,
-        kcal: parsed.kcal,
-        protein: parsed.protein,
+        custom: true,
+        name,
+        grams: 100,
+        kcal,
+        protein,
+        fat,
+        carbs,
         source: "hermes-nl",
         rawText: body.text,
       },
@@ -68,7 +109,7 @@ export async function POST(req: Request) {
       action: "log-meal",
       entityId: saved.id,
       entityType: "MealEntry",
-      payload: { rawText: body.text, parsed, mealType, date },
+      payload: { rawText: body.text, parsed, mealType, date, addedToLibrary },
     });
 
     return NextResponse.json({
@@ -78,14 +119,16 @@ export async function POST(req: Request) {
           id: saved.id,
           date: saved.date,
           mealType: saved.mealType,
-          name: parsed.name,
-          kcal: parsed.kcal,
-          protein: parsed.protein,
+          name,
+          kcal,
+          protein,
         },
         todayTotals: {
           calories: todayTotals.kcal,
           protein: todayTotals.protein,
         },
+        matchedLibraryFood: libMatch?.name ?? null,
+        addedToLibrary,
       },
     });
   } catch (e) {

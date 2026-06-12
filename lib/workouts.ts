@@ -214,12 +214,30 @@ export function getWorkout(id: string): WorkoutSession | null {
   return getAllWorkouts().find((w) => w.id === id) ?? null;
 }
 
+function postWorkoutRemote(w: WorkoutSession): void {
+  if (typeof window === "undefined") return;
+  fetch("/api/workouts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id: w.id,
+      date: w.date,
+      sessionType: w.sessionType,
+      totalVolume: workoutVolume(w),
+      exercises: w.exercises.map((e) => ({ name: e.exerciseName, sets: e.sets })),
+    }),
+    keepalive: true,
+  }).catch(() => {});
+}
+
 export function saveWorkout(w: WorkoutSession): void {
   const all = getAllWorkouts();
   const idx = all.findIndex((x) => x.id === w.id);
   if (idx >= 0) all[idx] = w;
   else all.push(w);
   write(WORKOUTS_KEY, all);
+  // Only completed sessions go to the shared DB — in-progress sets stay local.
+  if (w.completed) postWorkoutRemote(w);
 }
 
 export function getActiveWorkoutId(): string | null {
@@ -340,4 +358,49 @@ export function weekNumber(date: Date): number {
   const start = new Date(date.getFullYear(), 0, 1);
   const diff = (date.getTime() - start.getTime()) / 86400000;
   return Math.ceil((diff + start.getDay() + 1) / 7);
+}
+
+// ---------- Server → local pull sync (Hermes-logged sessions) ----------
+
+const SEEN_SERVER_KEY = "richie.server.seenWorkouts.v1";
+
+type ServerWorkoutRow = {
+  id: string;
+  date: string;
+  sessionType: string;
+  totalVolume: number;
+  createdAt: number;
+};
+
+const KNOWN_TYPES: SessionType[] = ["PUSH_A", "PULL_A", "LEGS", "PUSH_B", "PULL_B"];
+
+/** Import Hermes-logged sessions as completed workouts so streaks and the
+ * dashboard reflect them. Unknown types (e.g. CARDIO) are skipped locally —
+ * the UI has no template for them; they still count in the API summaries. */
+export function mergeServerWorkouts(rows: ServerWorkoutRow[]): number {
+  if (typeof window === "undefined") return 0;
+  const seen = new Set(read<string[]>(SEEN_SERVER_KEY, []));
+  const all = getAllWorkouts();
+  for (const w of all) seen.add(w.id);
+
+  let added = 0;
+  for (const row of rows) {
+    if (seen.has(row.id)) continue;
+    seen.add(row.id);
+    if (!KNOWN_TYPES.includes(row.sessionType as SessionType)) continue;
+    all.push({
+      id: row.id,
+      date: row.date,
+      sessionType: row.sessionType as SessionType,
+      startedAt: row.createdAt,
+      endedAt: row.createdAt,
+      totalVolume: row.totalVolume,
+      completed: true,
+      exercises: [],
+    });
+    added++;
+  }
+  if (added > 0) write(WORKOUTS_KEY, all);
+  write(SEEN_SERVER_KEY, Array.from(seen));
+  return added;
 }

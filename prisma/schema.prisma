@@ -71,3 +71,16 @@ model ActivityLog {
 
   @@index([actor, createdAt])
 }
+
+// Shared food library — web custom foods and Hermes-discovered foods both
+// land here so every client (and the bot) sees the same catalogue.
+model FoodItem {
+  id        String   @id @default(cuid())
+  name      String
+  per100g   Json
+  source    String   @default("richie-web")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+}
