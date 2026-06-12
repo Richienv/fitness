@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { todayKey } from "./targets";
+import { getIngredient, macrosFor, type Macros } from "./ingredients";
 
 export const DAILY_CALORIE_TARGET = 2200;
 export const DAILY_PROTEIN_TARGET = 175;
@@ -369,6 +370,106 @@ export function parseMealText(input: string): ParsedMeal {
     ),
     hadExplicitKcal,
     hadExplicitProtein,
+  };
+}
+
+// ---- Structured meal items (Hermes maps speech → library items) ----
+
+export type HermesItemInput =
+  // Library ingredient: send qty (units) OR grams (auto-converted via gramsPerUnit)
+  | { id: string; qty?: number; grams?: number }
+  // Custom food: absolute macros for the portion eaten
+  | {
+      name: string;
+      grams?: number;
+      kcal: number;
+      protein?: number;
+      fat?: number;
+      carbs?: number;
+    };
+
+// Matches the web app's MealItem union exactly, so the dashboard renders
+// Hermes-logged items natively ("3× Whole egg", "Tofu 100g", …).
+export type ResolvedMealItem =
+  | { id: string; qty: number }
+  | {
+      custom: true;
+      name: string;
+      grams: number;
+      kcal: number;
+      protein: number;
+      fat: number;
+      carbs: number;
+    };
+
+function emptyMacros(): Macros {
+  return { kcal: 0, protein: 0, fat: 0, carbs: 0 };
+}
+
+function addInto(acc: Macros, m: Macros): Macros {
+  return {
+    kcal: acc.kcal + m.kcal,
+    protein: acc.protein + m.protein,
+    fat: acc.fat + m.fat,
+    carbs: acc.carbs + m.carbs,
+  };
+}
+
+export function resolveMealItems(items: HermesItemInput[]): {
+  resolved: ResolvedMealItem[];
+  totals: Macros;
+  labels: string[];
+  unknownIds: string[];
+} {
+  const resolved: ResolvedMealItem[] = [];
+  const labels: string[] = [];
+  const unknownIds: string[] = [];
+  let totals = emptyMacros();
+
+  for (const it of items) {
+    if ("id" in it && it.id) {
+      const ing = getIngredient(it.id);
+      if (!ing) {
+        unknownIds.push(it.id);
+        continue;
+      }
+      const qty =
+        typeof it.grams === "number" && ing.gramsPerUnit
+          ? it.grams / ing.gramsPerUnit
+          : typeof it.qty === "number"
+            ? it.qty
+            : 1;
+      const m = macrosFor(it.id, qty);
+      resolved.push({ id: it.id, qty });
+      totals = addInto(totals, m);
+      labels.push(`${+qty.toFixed(2)}× ${ing.name}`);
+    } else if ("name" in it && it.name && typeof it.kcal === "number") {
+      const grams = typeof it.grams === "number" ? it.grams : 100;
+      const item = {
+        custom: true as const,
+        name: it.name,
+        grams,
+        kcal: Math.round(it.kcal),
+        protein: Math.round(it.protein ?? 0),
+        fat: Math.round(it.fat ?? 0),
+        carbs: Math.round(it.carbs ?? 0),
+      };
+      resolved.push(item);
+      totals = addInto(totals, item);
+      labels.push(item.name);
+    }
+  }
+
+  return {
+    resolved,
+    totals: {
+      kcal: Math.round(totals.kcal),
+      protein: Math.round(totals.protein),
+      fat: Math.round(totals.fat),
+      carbs: Math.round(totals.carbs),
+    },
+    labels,
+    unknownIds,
   };
 }
 

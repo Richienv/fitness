@@ -9,6 +9,7 @@ const PUBLIC_PATHS = [
   "/api/streak",
   "/api/meals",
   "/api/foods",
+  "/api/ingredients",
   "/api/workouts",
   "/api/measurements",
   "/api/og",
