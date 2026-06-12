@@ -101,7 +101,13 @@ export async function calorieTotalsFor(date: string): Promise<MealTotals> {
     acc.protein += t?.protein ?? 0;
     acc.carbs += t?.carbs ?? 0;
     acc.fat += t?.fat ?? 0;
-    acc.sugar += t?.sugar ?? 0;
+    // Older rows pre-date the sugar column — reconstruct from items so
+    // historical meals contribute correct sugar to today's API/brief.
+    if (t && typeof t.sugar === "number") {
+      acc.sugar += t.sugar;
+    } else {
+      acc.sugar += totalsForResolved(coerceStoredItems(l.items)).sugar;
+    }
   }
   return {
     kcal: Math.round(acc.kcal),
