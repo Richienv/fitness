@@ -46,3 +46,28 @@ model Exercise {
   sets      Json
   session   WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 }
+
+model Measurement {
+  id          String   @id @default(cuid())
+  date        String   @unique
+  weightKg    Float?
+  waistCm     Float?
+  shoulderCm  Float?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([date])
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  actor      String
+  action     String
+  entityId   String?
+  entityType String?
+  payload    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([actor, createdAt])
+}
