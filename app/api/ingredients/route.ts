@@ -23,7 +23,14 @@ export async function GET() {
     unit: i.unit,
     group: i.group,
     gramsPerUnit: i.gramsPerUnit ?? null,
-    perUnit: { kcal: i.kcal, protein: i.protein, fat: i.fat, carbs: i.carbs },
+    perUnit: {
+      kcal: i.kcal,
+      protein: i.protein,
+      fat: i.fat,
+      carbs: i.carbs,
+      sugar: i.sugar ?? 0,
+      sodium: i.sodium ?? 0,
+    },
   }));
 
   let customFoods: Array<{ id: string; name: string; per100g: unknown }> = [];

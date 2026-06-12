@@ -82,18 +82,34 @@ function addDays(dateKey: string, n: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
-export type MealTotals = { kcal: number; protein: number };
+export type MealTotals = {
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  sugar: number;
+};
+
+export const DAILY_SUGAR_TARGET_G = 50;
 
 export async function calorieTotalsFor(date: string): Promise<MealTotals> {
   const logs = await db.mealEntry.findMany({ where: { date } }).catch(() => []);
-  let kcal = 0;
-  let protein = 0;
+  const acc: MealTotals = { kcal: 0, protein: 0, carbs: 0, fat: 0, sugar: 0 };
   for (const l of logs) {
-    const t = l.totals as { kcal?: number; protein?: number } | null;
-    kcal += t?.kcal ?? 0;
-    protein += t?.protein ?? 0;
+    const t = l.totals as Partial<MealTotals> | null;
+    acc.kcal += t?.kcal ?? 0;
+    acc.protein += t?.protein ?? 0;
+    acc.carbs += t?.carbs ?? 0;
+    acc.fat += t?.fat ?? 0;
+    acc.sugar += t?.sugar ?? 0;
   }
-  return { kcal: Math.round(kcal), protein: Math.round(protein) };
+  return {
+    kcal: Math.round(acc.kcal),
+    protein: Math.round(acc.protein),
+    carbs: Math.round(acc.carbs),
+    fat: Math.round(acc.fat),
+    sugar: Math.round(acc.sugar),
+  };
 }
 
 export async function todaySnapshot(today = todayKey()) {
@@ -134,9 +150,12 @@ export async function todaySnapshot(today = todayKey()) {
   }
 
   const displayToday = INTERNAL_TO_DISPLAY[todayType];
+  const sugarRemaining = DAILY_SUGAR_TARGET_G - totals.sugar;
+  const sugarFlag = totals.sugar > DAILY_SUGAR_TARGET_G ? " · sugar over!" : "";
   const summary = [
     `${totals.kcal}/${DAILY_CALORIE_TARGET} kcal`,
     `${totals.protein}g protein`,
+    `${totals.sugar}g sugar${sugarFlag}`,
     todaySession ? `${displayToday} done` : `${displayToday} pending`,
   ].join(" · ");
 
@@ -149,6 +168,12 @@ export async function todaySnapshot(today = todayKey()) {
       protein: totals.protein,
       proteinTarget: DAILY_PROTEIN_TARGET,
       proteinRemaining: remainingProtein,
+      carbs: totals.carbs,
+      fat: totals.fat,
+      sugar: totals.sugar,
+      sugarTarget: DAILY_SUGAR_TARGET_G,
+      sugarRemaining,
+      sugarOver: totals.sugar > DAILY_SUGAR_TARGET_G,
     },
     workout: {
       todayType: displayToday,
@@ -179,6 +204,7 @@ export async function weekSnapshot(weekStart?: string) {
 
   let totalKcal = 0;
   let totalProtein = 0;
+  let totalSugar = 0;
   let daysLogged = 0;
   for (const d of days) {
     const t = await calorieTotalsFor(d);
@@ -186,6 +212,7 @@ export async function weekSnapshot(weekStart?: string) {
       daysLogged++;
       totalKcal += t.kcal;
       totalProtein += t.protein;
+      totalSugar += t.sugar;
     }
   }
 
@@ -224,6 +251,7 @@ export async function weekSnapshot(weekStart?: string) {
     daysLogged,
     avgCalories: daysLogged > 0 ? Math.round(totalKcal / daysLogged) : 0,
     avgProtein: daysLogged > 0 ? Math.round(totalProtein / daysLogged) : 0,
+    avgSugar: daysLogged > 0 ? Math.round(totalSugar / daysLogged) : 0,
     workoutsCompleted: workouts.length,
     weightDelta,
     streak: await computeStreak("meal"),
@@ -386,6 +414,7 @@ export type HermesItemInput =
       protein?: number;
       fat?: number;
       carbs?: number;
+      sugar?: number;
     };
 
 // Matches the web app's MealItem union exactly, so the dashboard renders
@@ -400,31 +429,96 @@ export type ResolvedMealItem =
       protein: number;
       fat: number;
       carbs: number;
+      sugar?: number;
     };
 
-function emptyMacros(): Macros {
-  return { kcal: 0, protein: 0, fat: 0, carbs: 0 };
+function isLibraryItem(
+  i: ResolvedMealItem
+): i is { id: string; qty: number } {
+  return "id" in i;
 }
 
-function addInto(acc: Macros, m: Macros): Macros {
+function isCustom(
+  i: ResolvedMealItem
+): i is Extract<ResolvedMealItem, { custom: true }> {
+  return "custom" in i && i.custom === true;
+}
+
+function sugarFor(id: string, qty: number): number {
+  const ing = getIngredient(id);
+  return (ing?.sugar ?? 0) * qty;
+}
+
+/** Sum totals (kcal/protein/carbs/fat/sugar) for any item array — handles
+ * both library refs and custom snapshots. Used after merging. */
+export function totalsForResolved(items: ResolvedMealItem[]): MealTotals {
+  let kcal = 0, protein = 0, fat = 0, carbs = 0, sugar = 0;
+  for (const it of items) {
+    if (isLibraryItem(it)) {
+      const m = macrosFor(it.id, it.qty);
+      kcal += m.kcal; protein += m.protein; fat += m.fat; carbs += m.carbs;
+      sugar += sugarFor(it.id, it.qty);
+    } else if (isCustom(it)) {
+      kcal += it.kcal; protein += it.protein; fat += it.fat; carbs += it.carbs;
+      sugar += it.sugar ?? 0;
+    }
+  }
   return {
-    kcal: acc.kcal + m.kcal,
-    protein: acc.protein + m.protein,
-    fat: acc.fat + m.fat,
-    carbs: acc.carbs + m.carbs,
+    kcal: Math.round(kcal),
+    protein: Math.round(protein),
+    fat: Math.round(fat),
+    carbs: Math.round(carbs),
+    sugar: Math.round(sugar),
   };
+}
+
+/** Merge new items into existing, mirroring the web app's stepper:
+ *  - Library items with the same id → sum qty (so "3 eggs" + "2 eggs" = ×5)
+ *  - Custom items with the same name (case-insensitive) → sum grams + macros. */
+export function mergeItems(
+  existing: ResolvedMealItem[],
+  incoming: ResolvedMealItem[]
+): ResolvedMealItem[] {
+  const out: ResolvedMealItem[] = existing.map((i) =>
+    isLibraryItem(i) ? { ...i } : { ...i }
+  );
+  for (const inc of incoming) {
+    if (isLibraryItem(inc)) {
+      const found = out.find(
+        (i): i is { id: string; qty: number } =>
+          isLibraryItem(i) && i.id === inc.id
+      );
+      if (found) found.qty = +(found.qty + inc.qty).toFixed(4);
+      else out.push({ ...inc });
+    } else if (isCustom(inc)) {
+      const key = inc.name.trim().toLowerCase();
+      const found = out.find(
+        (i): i is Extract<ResolvedMealItem, { custom: true }> =>
+          isCustom(i) && i.name.trim().toLowerCase() === key
+      );
+      if (found) {
+        found.grams += inc.grams;
+        found.kcal += inc.kcal;
+        found.protein += inc.protein;
+        found.fat += inc.fat;
+        found.carbs += inc.carbs;
+        found.sugar = (found.sugar ?? 0) + (inc.sugar ?? 0);
+      } else {
+        out.push({ ...inc });
+      }
+    }
+  }
+  return out;
 }
 
 export function resolveMealItems(items: HermesItemInput[]): {
   resolved: ResolvedMealItem[];
-  totals: Macros;
+  totals: MealTotals;
   labels: string[];
   unknownIds: string[];
 } {
   const resolved: ResolvedMealItem[] = [];
-  const labels: string[] = [];
   const unknownIds: string[] = [];
-  let totals = emptyMacros();
 
   for (const it of items) {
     if ("id" in it && it.id) {
@@ -439,13 +533,10 @@ export function resolveMealItems(items: HermesItemInput[]): {
           : typeof it.qty === "number"
             ? it.qty
             : 1;
-      const m = macrosFor(it.id, qty);
       resolved.push({ id: it.id, qty });
-      totals = addInto(totals, m);
-      labels.push(`${+qty.toFixed(2)}× ${ing.name}`);
     } else if ("name" in it && it.name && typeof it.kcal === "number") {
       const grams = typeof it.grams === "number" ? it.grams : 100;
-      const item = {
+      resolved.push({
         custom: true as const,
         name: it.name,
         grams,
@@ -453,24 +544,49 @@ export function resolveMealItems(items: HermesItemInput[]): {
         protein: Math.round(it.protein ?? 0),
         fat: Math.round(it.fat ?? 0),
         carbs: Math.round(it.carbs ?? 0),
-      };
-      resolved.push(item);
-      totals = addInto(totals, item);
-      labels.push(item.name);
+        ...(typeof it.sugar === "number" ? { sugar: Math.round(it.sugar) } : {}),
+      });
     }
   }
 
+  // Collapse same-id / same-name dupes within the SAME call too.
+  const collapsed = mergeItems([], resolved);
+
   return {
-    resolved,
-    totals: {
-      kcal: Math.round(totals.kcal),
-      protein: Math.round(totals.protein),
-      fat: Math.round(totals.fat),
-      carbs: Math.round(totals.carbs),
-    },
-    labels,
+    resolved: collapsed,
+    totals: totalsForResolved(collapsed),
+    labels: collapsed.map((i) =>
+      isLibraryItem(i)
+        ? `${+i.qty.toFixed(2)}× ${getIngredient(i.id)?.name ?? i.id}`
+        : i.name
+    ),
     unknownIds,
   };
+}
+
+/** Best-effort coercion of arbitrary stored items into ResolvedMealItem. */
+export function coerceStoredItems(raw: unknown): ResolvedMealItem[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ResolvedMealItem[] = [];
+  for (const it of raw) {
+    if (!it || typeof it !== "object") continue;
+    const o = it as Record<string, unknown>;
+    if (o.custom === true && typeof o.name === "string") {
+      out.push({
+        custom: true,
+        name: o.name,
+        grams: typeof o.grams === "number" ? o.grams : 100,
+        kcal: typeof o.kcal === "number" ? o.kcal : 0,
+        protein: typeof o.protein === "number" ? o.protein : 0,
+        fat: typeof o.fat === "number" ? o.fat : 0,
+        carbs: typeof o.carbs === "number" ? o.carbs : 0,
+        ...(typeof o.sugar === "number" ? { sugar: o.sugar } : {}),
+      });
+    } else if (typeof o.id === "string" && typeof o.qty === "number") {
+      out.push({ id: o.id, qty: o.qty });
+    }
+  }
+  return out;
 }
 
 // ---- Shared food library (FoodItem table) ----

@@ -33,10 +33,14 @@ export async function POST(req: Request) {
       const bw = t.bodyweight.current
         ? `BW ${t.bodyweight.current}${t.bodyweight.trend ? ", trend " + t.bodyweight.trend : ""}.`
         : "BW belum di-log.";
+      const sugarLine = t.calories.sugarOver
+        ? `Sugar ${t.calories.sugar}g (over ${t.calories.sugarTarget}g cap!).`
+        : `Sugar ${t.calories.sugar}/${t.calories.sugarTarget}g.`;
       text = [
         "Pagi.",
         `Hari ini ${t.workout.todayType}.`,
         `Sejauh ini ${t.calories.consumed} kal · ${t.calories.protein}g protein, sisa ${Math.max(0, t.calories.remaining)} kal.`,
+        sugarLine,
         bw,
         `Streak ${streak} hari.`,
       ].join(" ");
