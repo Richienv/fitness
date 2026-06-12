@@ -64,7 +64,13 @@ const DAILY_KEY = "richie.daily.v1";
 const CUSTOM_KEY = "richie.customfoods.v1";
 const OVERRIDES_KEY = "richie.ingredientoverrides.v1";
 const MEALS_SYNCED_KEY = "richie.meals.synced.v1";
+const FOODS_SYNCED_KEY = "richie.customfoods.synced.v1";
 const QUICKLOG_KEY = "richie.quicklog.v1";
+// Server rows already imported into localStorage. Needed because
+// dedupeMeals() collapses rows and loses their original ids — without this
+// set every sync would re-import the same Hermes meal forever.
+const SEEN_MEALS_KEY = "richie.server.seenMeals.v1";
+const SEEN_FOODS_KEY = "richie.server.seenFoods.v1";
 
 export const QUICKLOG_MAX = 4;
 
@@ -233,6 +239,167 @@ export async function syncMealsToDbOnce(): Promise<{ synced: number } | null> {
   }
 }
 
+// ---------- Server → local pull sync (Hermes-logged data) ----------
+
+type ServerMealRow = {
+  id: string;
+  date: string;
+  mealType: string;
+  items: unknown;
+  totals: unknown;
+  createdAt?: string;
+};
+
+function getSeenSet(key: string): Set<string> {
+  return new Set(read<string[]>(key, []));
+}
+
+function addSeen(key: string, ids: string[]): void {
+  if (ids.length === 0) return;
+  const seen = getSeenSet(key);
+  for (const id of ids) seen.add(id);
+  write(key, Array.from(seen));
+}
+
+/** Server items written by older Hermes builds lack the MealItem shape —
+ * coerce anything with a name+kcal into a CustomMealItem the UI can render. */
+function coerceServerItems(raw: unknown): MealItem[] {
+  if (!Array.isArray(raw)) return [];
+  const out: MealItem[] = [];
+  for (const it of raw) {
+    if (!it || typeof it !== "object") continue;
+    const o = it as Record<string, unknown>;
+    if (o.custom === true && typeof o.name === "string") {
+      out.push({
+        custom: true,
+        name: o.name,
+        grams: typeof o.grams === "number" ? o.grams : 100,
+        kcal: typeof o.kcal === "number" ? o.kcal : 0,
+        protein: typeof o.protein === "number" ? o.protein : 0,
+        fat: typeof o.fat === "number" ? o.fat : 0,
+        carbs: typeof o.carbs === "number" ? o.carbs : 0,
+      });
+    } else if (typeof o.id === "string" && typeof o.qty === "number") {
+      out.push({ id: o.id, qty: o.qty });
+    } else if (typeof o.name === "string" && typeof o.kcal === "number") {
+      out.push({
+        custom: true,
+        name: o.name,
+        grams: 100,
+        kcal: o.kcal,
+        protein: typeof o.protein === "number" ? o.protein : 0,
+        fat: typeof o.fat === "number" ? o.fat : 0,
+        carbs: typeof o.carbs === "number" ? o.carbs : 0,
+      });
+    }
+  }
+  return out;
+}
+
+/** Import server meal rows not seen before. Returns number imported. */
+export function mergeServerMeals(rows: ServerMealRow[]): number {
+  if (typeof window === "undefined") return 0;
+  const seen = getSeenSet(SEEN_MEALS_KEY);
+  const all = getAllMeals();
+  const localIds = new Set(all.map((m) => m.id));
+  // Everything already local was either created here or imported earlier.
+  addSeen(SEEN_MEALS_KEY, all.map((m) => m.id));
+
+  const importedIds: string[] = [];
+  let added = 0;
+  for (const row of rows) {
+    if (seen.has(row.id) || localIds.has(row.id)) continue;
+    const items = coerceServerItems(row.items);
+    importedIds.push(row.id);
+    if (items.length === 0) continue;
+    const existing = all.find(
+      (m) => m.date === row.date && m.mealType === row.mealType
+    );
+    if (existing) {
+      existing.items = [...existing.items, ...items];
+      existing.loggedAt = Date.now();
+    } else {
+      all.push({
+        id: row.id,
+        date: row.date,
+        mealType: row.mealType as MealType,
+        items,
+        loggedAt: row.createdAt ? Date.parse(row.createdAt) : Date.now(),
+      });
+    }
+    added++;
+  }
+  if (added > 0) write(MEALS_KEY, all);
+  addSeen(SEEN_MEALS_KEY, importedIds);
+  return added;
+}
+
+type ServerFoodRow = {
+  id: string;
+  name: string;
+  per100g: unknown;
+  createdAt?: string;
+};
+
+/** Import shared-library foods not seen before. Returns number imported. */
+export function mergeServerFoods(rows: ServerFoodRow[]): number {
+  if (typeof window === "undefined") return 0;
+  const seen = getSeenSet(SEEN_FOODS_KEY);
+  const all = getCustomFoods();
+  const localIds = new Set(all.map((f) => f.id));
+  const localNames = new Set(all.map((f) => f.name.trim().toLowerCase()));
+  addSeen(SEEN_FOODS_KEY, all.map((f) => f.id));
+
+  const importedIds: string[] = [];
+  let added = 0;
+  for (const row of rows) {
+    if (seen.has(row.id) || localIds.has(row.id)) continue;
+    importedIds.push(row.id);
+    const p = (row.per100g ?? {}) as Partial<Per100g>;
+    if (typeof p.kcal !== "number") continue;
+    if (localNames.has(row.name.trim().toLowerCase())) continue;
+    all.push({
+      id: row.id,
+      name: row.name,
+      per100g: {
+        kcal: p.kcal,
+        protein: p.protein ?? 0,
+        fat: p.fat ?? 0,
+        carbs: p.carbs ?? 0,
+        sugar: p.sugar,
+        sodium: p.sodium,
+      },
+      createdAt: row.createdAt ? Date.parse(row.createdAt) : Date.now(),
+    });
+    added++;
+  }
+  if (added > 0) write(CUSTOM_KEY, all);
+  addSeen(SEEN_FOODS_KEY, importedIds);
+  return added;
+}
+
+/** One-shot push of pre-existing local custom foods into the shared library. */
+export async function syncCustomFoodsToDbOnce(): Promise<{ synced: number } | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    if (window.localStorage.getItem(FOODS_SYNCED_KEY) === "1") return null;
+    const all = getCustomFoods();
+    let synced = 0;
+    for (const f of all) {
+      const res = await fetch("/api/foods", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: f.id, name: f.name, per100g: f.per100g }),
+      });
+      if (res.ok) synced++;
+    }
+    window.localStorage.setItem(FOODS_SYNCED_KEY, "1");
+    return { synced };
+  } catch {
+    return null;
+  }
+}
+
 export function clearMealsForDate(date: string): void {
   write(
     MEALS_KEY,
@@ -297,6 +464,24 @@ export function getCustomFoods(): CustomFood[] {
   return read<CustomFood[]>(CUSTOM_KEY, []);
 }
 
+function postFoodRemote(f: CustomFood): void {
+  if (typeof window === "undefined") return;
+  fetch("/api/foods", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: f.id, name: f.name, per100g: f.per100g }),
+    keepalive: true,
+  }).catch(() => {});
+}
+
+function deleteFoodRemote(id: string): void {
+  if (typeof window === "undefined") return;
+  fetch(`/api/foods?id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    keepalive: true,
+  }).catch(() => {});
+}
+
 export function saveCustomFood(name: string, per100g: Per100g): CustomFood {
   const entry: CustomFood = {
     id: crypto.randomUUID(),
@@ -307,6 +492,7 @@ export function saveCustomFood(name: string, per100g: Per100g): CustomFood {
   const all = getCustomFoods();
   all.push(entry);
   write(CUSTOM_KEY, all);
+  postFoodRemote(entry);
   return entry;
 }
 
@@ -315,6 +501,7 @@ export function deleteCustomFood(id: string): void {
     CUSTOM_KEY,
     getCustomFoods().filter((f) => f.id !== id)
   );
+  deleteFoodRemote(id);
 }
 
 export function updateCustomFood(id: string, name: string, per100g: Per100g): void {
@@ -323,6 +510,7 @@ export function updateCustomFood(id: string, name: string, per100g: Per100g): vo
   if (idx === -1) return;
   all[idx] = { ...all[idx], name, per100g };
   write(CUSTOM_KEY, all);
+  postFoodRemote(all[idx]);
 }
 
 export function getIngredientOverrides(): Record<string, IngredientOverride> {

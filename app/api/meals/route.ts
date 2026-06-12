@@ -56,6 +56,14 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
+    const from = url.searchParams.get("from");
+    if (from) {
+      const meals = await db.mealEntry.findMany({
+        where: { date: { gte: from } },
+        orderBy: { createdAt: "asc" },
+      });
+      return NextResponse.json({ from, meals });
+    }
     const date = url.searchParams.get("date") ?? todayKey();
     const meals = await db.mealEntry.findMany({ where: { date } });
     return NextResponse.json({ date, meals });

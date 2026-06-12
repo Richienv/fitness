@@ -270,6 +270,9 @@ type ParsedMeal = {
   protein: number;
   carbs?: number;
   fat?: number;
+  /** True when the text itself carried the number (vs heuristic guess). */
+  hadExplicitKcal: boolean;
+  hadExplicitProtein: boolean;
 };
 
 const PROTEIN_KEYWORDS: Record<string, number> = {
@@ -317,6 +320,8 @@ export function parseMealText(input: string): ParsedMeal {
 
   let kcal = kcalMatch ? Number(kcalMatch[1]) : NaN;
   let protein = proteinMatch ? Number(proteinMatch[1]) : NaN;
+  const hadExplicitKcal = Number.isFinite(kcal);
+  const hadExplicitProtein = Number.isFinite(protein);
 
   // Try library matches if missing values
   let matchedName: string | null = null;
@@ -362,7 +367,40 @@ export function parseMealText(input: string): ParsedMeal {
       0,
       Math.round(Number.isFinite(protein) ? protein : 0)
     ),
+    hadExplicitKcal,
+    hadExplicitProtein,
   };
+}
+
+// ---- Shared food library (FoodItem table) ----
+
+export type FoodPer100g = {
+  kcal: number;
+  protein: number;
+  fat?: number;
+  carbs?: number;
+  sugar?: number;
+  sodium?: number;
+};
+
+/** Case-insensitive fuzzy lookup against the shared library: the food name
+ * appearing inside the spoken text, or vice versa. Small table → fetch all. */
+export async function matchLibraryFood(text: string) {
+  const lower = text.trim().toLowerCase();
+  if (!lower) return null;
+  const foods = await db.foodItem.findMany().catch(() => []);
+  let best: { id: string; name: string; per100g: FoodPer100g } | null = null;
+  for (const f of foods) {
+    const fname = f.name.trim().toLowerCase();
+    if (!fname) continue;
+    if (lower.includes(fname) || fname.includes(lower)) {
+      // Prefer the longest name match (more specific food wins)
+      if (!best || fname.length > best.name.length) {
+        best = { id: f.id, name: f.name, per100g: f.per100g as FoodPer100g };
+      }
+    }
+  }
+  return best;
 }
 
 export function inferMealType(

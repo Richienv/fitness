@@ -36,7 +36,7 @@ export async function POST(req: Request) {
       text = [
         "Pagi.",
         `Hari ini ${t.workout.todayType}.`,
-        `Kemarin ${t.calories.consumed} kal · ${t.calories.protein}g protein.`,
+        `Sejauh ini ${t.calories.consumed} kal · ${t.calories.protein}g protein, sisa ${Math.max(0, t.calories.remaining)} kal.`,
         bw,
         `Streak ${streak} hari.`,
       ].join(" ");
