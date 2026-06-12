@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { macrosFor, type Macros } from "@/lib/ingredients";
+import { getIngredient, macrosFor, type Macros } from "@/lib/ingredients";
 import { PRESETS, type MealType } from "@/lib/presets";
 import {
   clearMealsForDate,
@@ -57,6 +57,16 @@ function sumMealMacros(meal: MealLog): Macros {
       fat: acc.fat + m.fat,
     };
   }, EMPTY_MACROS);
+}
+
+const DAILY_SUGAR_TARGET_G = 50;
+
+function sumMealSugar(meal: MealLog): number {
+  return meal.items.reduce<number>((acc, it) => {
+    if (isCustomItem(it)) return acc + (it.sugar ?? 0);
+    const ing = getIngredient(it.id);
+    return acc + (ing?.sugar ?? 0) * it.qty;
+  }, 0);
 }
 
 function addMacros(a: Macros, b: Macros): Macros {
@@ -158,6 +168,11 @@ export default function MealHome() {
       EMPTY_MACROS
     );
   }, [byType]);
+
+  const sugarTotal = useMemo(
+    () => dayMeals.reduce((acc, m) => acc + sumMealSugar(m), 0),
+    [dayMeals]
+  );
 
   const target = gymDay ? TARGETS.gymDay : TARGETS.restDay;
   const wk = activeDate ? weekNumber(parseDate(activeDate)) : 1;
@@ -294,6 +309,30 @@ export default function MealHome() {
               </div>
             );
           })}
+          {(() => {
+            const val = Math.round(sugarTotal);
+            const tgt = DAILY_SUGAR_TARGET_G;
+            const pct = Math.min(100, Math.round((val / tgt) * 100));
+            const left = Math.max(0, tgt - val);
+            const over = val > tgt;
+            return (
+              <div key="sugar" className="slim-row">
+                <div className="slim-head mono">
+                  <span className="slim-label">SUGAR{over ? " ⚠" : ""}</span>
+                  <span className="slim-nums">
+                    <strong>{val.toLocaleString()}</strong> / {tgt}g
+                  </span>
+                </div>
+                <div className="slim-track">
+                  <div className="slim-fill" style={{ width: `${pct}%` }} />
+                </div>
+                <div className="slim-foot mono">
+                  <span>{pct}%</span>
+                  <span>{over ? `${val - tgt}g over cap` : `${left}g left`}</span>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         <div className="quick-section">
