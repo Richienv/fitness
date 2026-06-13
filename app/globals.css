@@ -36,6 +36,11 @@ html, body {
   line-height: 1.6;
   -webkit-tap-highlight-color: transparent;
   min-height: 100vh;
+  /* Contain rubber-band bounce inside the app — keeps the iOS bounce feel
+   * on lists but stops it leaking up to the browser pull-to-refresh, which
+   * felt janky over the bottom nav. */
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 button {
@@ -6398,31 +6403,72 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
 }
 .wo-equip-link:hover { color: var(--text); border-color: #333; }
 
-/* Compact toolbar — search input + EQUIPMENT chip on the same row. */
-.wo-toolbar {
+/* One-row sticky action bar — search + equipment icon + resume pill share
+ * a single tidy row, pinned to the top of the page so it stays visible as
+ * session cards scroll under it. Backdrop blur reads as firm over content. */
+.wo-action-bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
   display: flex;
   align-items: stretch;
   gap: 8px;
-  margin-top: 12px;
+  margin: 12px -20px 0;
+  padding: 10px 20px 12px;
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(10, 10, 10, 0.96) 0%,
+      rgba(10, 10, 10, 0.92) 70%,
+      rgba(10, 10, 10, 0.4) 100%
+    );
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
-.wo-toolbar-search { flex: 1; margin-top: 0; }
-.wo-toolbar-equip {
+.wo-toolbar-search { flex: 1 1 auto; margin-top: 0; min-width: 0; }
+.wo-action-equip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 44px;
+  align-self: stretch;
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 18px;
+  text-decoration: none;
+}
+.wo-action-equip:hover { border-color: #333; }
+.wo-action-resume {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  margin: 0;
+  flex: 0 1 auto;
+  max-width: 50%;
   padding: 0 14px;
-  flex-shrink: 0;
+  background: rgba(232, 255, 71, 0.1);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  color: var(--accent);
   font-family: var(--font-dm-mono), monospace;
-}
-.wo-toolbar-equip-text {
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 1.5px;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.wo-action-resume-label {
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 @media (max-width: 360px) {
-  .wo-toolbar-equip-text { display: none; }
-  .wo-toolbar-equip { padding: 0 12px; }
+  .wo-action-resume { padding: 0 10px; font-size: 10px; }
+  .wo-action-resume-label { max-width: 60px; }
 }
 
 /* Search + custom session section */
