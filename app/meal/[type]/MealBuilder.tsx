@@ -30,6 +30,8 @@ import {
   type Per100g,
 } from "@/lib/store";
 import { useActiveDate } from "@/lib/activeDate";
+import { haptic } from "@/lib/haptics";
+import { toast } from "../../Toast";
 
 type Selection = Record<string, number>;
 
@@ -261,6 +263,8 @@ export default function MealBuilder({
         }),
       ];
       saveMeal({ date: dateParam ?? activeDate, mealType, items });
+      haptic("success");
+      toast("Logged ✓", "success");
       router.push("/dashboard");
       return;
     }

@@ -105,7 +105,15 @@ function Ring({
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const clamped = Math.max(0, Math.min(100, pct));
-  const offset = c - (clamped / 100) * c;
+  const targetOffset = c - (clamped / 100) * c;
+
+  // Start at full offset (empty ring) so it "fills in" like the iOS Timer.
+  const [offset, setOffset] = useState(c);
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setOffset(targetOffset));
+    return () => cancelAnimationFrame(raf);
+  }, [targetOffset, c]);
+
   return (
     <div className={`home-ring${complete ? " complete" : ""}`}>
       <div className="home-ring-wrap" style={{ width: size, height: size }}>
@@ -129,11 +137,18 @@ function Ring({
             strokeDashoffset={offset}
             strokeLinecap="round"
             transform={`rotate(-90 ${size / 2} ${size / 2})`}
-            style={{ transition: "stroke-dashoffset 0.8s ease" }}
+            style={{
+              transition:
+                "stroke-dashoffset var(--dur-ring) var(--ease-out), stroke var(--dur-base) var(--ease-standard)",
+              willChange: "stroke-dashoffset",
+            }}
           />
         </svg>
         <div className="home-ring-center">
-          <div className="home-ring-num" style={{ color: muted ? "var(--muted)" : color }}>
+          <div
+            className="home-ring-num tnum"
+            style={{ color: muted ? "var(--muted)" : color }}
+          >
             {centerTop}
           </div>
           {centerBottom && <div className="home-ring-unit">{centerBottom}</div>}
@@ -243,7 +258,7 @@ export default function HomePage() {
     : "";
 
   return (
-    <main className="home">
+    <main className="home page-rise">
       <header className="home-header">
         <div className="home-header-row">
           <div className="home-brand">R2<span className="brand-dot">·</span>FIT</div>

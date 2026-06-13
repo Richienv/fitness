@@ -34,6 +34,8 @@ import {
   type ExerciseDetail,
 } from "@/lib/exerciseData";
 import BodyDiagram from "./BodyDiagram";
+import { haptic } from "@/lib/haptics";
+import { toast } from "../../../Toast";
 
 type PendingInput = {
   exerciseIdx: number;
@@ -287,6 +289,8 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
     };
     saveWorkout(done);
     setActiveWorkoutId(null);
+    haptic("success");
+    toast("Workout complete ✓", "success");
     router.push(`/workout/session/${workout.id}/complete`);
   }
 

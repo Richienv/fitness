@@ -11,6 +11,8 @@ import {
 import { useActiveDate } from "@/lib/activeDate";
 import { weekNumber } from "@/lib/workouts";
 import { parseDate } from "@/lib/activeDate";
+import { haptic } from "@/lib/haptics";
+import { toast } from "../../Toast";
 
 const RATIO_TARGET = 1.45;
 
@@ -56,6 +58,8 @@ export default function ProgressPage() {
     if (!form.date) return;
     saveMeasurement(form);
     setLatest(form);
+    haptic("success");
+    toast("Saved ✓", "success");
     setSheet(false);
   }
 

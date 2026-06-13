@@ -917,7 +917,7 @@ a { color: inherit; text-decoration: none; }
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px dashed rgba(232, 255, 71, 0.12);
-  animation: reveal 0.2s ease;
+  animation: reveal var(--dur-base) var(--ease-out);
 }
 @keyframes reveal { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: translateY(0); } }
 .zh-chars {
@@ -1364,7 +1364,7 @@ a { color: inherit; text-decoration: none; }
   justify-content: center;
   z-index: 100;
   padding: 16px 16px calc(76px + env(safe-area-inset-bottom));
-  animation: fade-in 0.15s ease;
+  animation: fade-in var(--dur-fast) var(--ease-standard);
 }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 
@@ -1379,7 +1379,7 @@ a { color: inherit; text-decoration: none; }
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  animation: slide-up 0.2s ease;
+  animation: slide-up var(--dur-base) var(--ease-ios);
 }
 /* Keep modal-actions (save / cancel buttons) sticky at the bottom of the
    sheet so the keyboard never hides them. */
@@ -2139,7 +2139,7 @@ a { color: inherit; text-decoration: none; }
   align-items: center;
   justify-content: center;
   padding: 24px;
-  animation: rest-overlay-in 0.18s ease-out;
+  animation: rest-overlay-in var(--dur-base) var(--ease-ios);
 }
 @keyframes rest-overlay-in {
   from { opacity: 0; }
@@ -2296,7 +2296,7 @@ a { color: inherit; text-decoration: none; }
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  animation: fade-in 0.15s ease;
+  animation: fade-in var(--dur-fast) var(--ease-standard);
 }
 @keyframes fade-in {
   from { opacity: 0; }
@@ -2312,7 +2312,7 @@ a { color: inherit; text-decoration: none; }
   padding: 18px 20px calc(20px + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
-  animation: modal-up 0.2s ease-out;
+  animation: modal-up var(--dur-base) var(--ease-ios);
 }
 .set-modal-body {
   flex: 1;
@@ -3285,7 +3285,7 @@ a { color: inherit; text-decoration: none; }
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  animation: fade-in 0.15s ease;
+  animation: fade-in var(--dur-fast) var(--ease-standard);
 }
 .sheet {
   width: 100%;
@@ -3297,7 +3297,7 @@ a { color: inherit; text-decoration: none; }
   padding: 10px 18px calc(24px + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
-  animation: modal-up 0.22s ease-out;
+  animation: modal-up var(--dur-base) var(--ease-ios);
 }
 .sheet-handle {
   width: 40px;
@@ -5190,7 +5190,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   gap: 14px;
   overflow: hidden;
   min-height: 0;
-  animation: sub-slide-in 0.25s ease;
+  animation: sub-slide-in var(--dur-base) var(--ease-ios);
 }
 @keyframes sub-slide-in {
   from { transform: translateX(30px); opacity: 0; }
