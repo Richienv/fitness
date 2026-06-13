@@ -342,7 +342,10 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
           <span>~{estRemainingMin} MIN LEFT</span>
         </div>
         <div className="session-progress-bar">
-          <div className="session-progress-fill" style={{ width: `${sessionProgressPct}%` }} />
+          <div
+            className="session-progress-fill"
+            style={{ ["--p" as string]: sessionProgressPct / 100 } as CSSProperties}
+          />
         </div>
         {muscleVolumeList.length > 0 ? (
           <div className="session-trained">
@@ -356,7 +359,10 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                   <div className="session-trained-track">
                     <div
                       className="session-trained-fill"
-                      style={{ width: `${pct}%`, background: muscleColor(m) }}
+                      style={{
+                        ["--p" as string]: pct / 100,
+                        background: muscleColor(m),
+                      } as CSSProperties}
                     />
                   </div>
                 </div>
@@ -567,7 +573,7 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
             <div className="rest-overlay-progress">
               <div
                 className="rest-overlay-progress-fill"
-                style={{ width: `${restPct}%` }}
+                style={{ ["--p" as string]: restPct / 100 } as CSSProperties}
               />
             </div>
             <div className="rest-overlay-hint mono">

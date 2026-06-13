@@ -186,7 +186,7 @@ export default function WeeklyGraph({
   }, [points, metric]);
 
   return (
-    <div className="wg">
+    <div className="wg page-rise">
       <div className="wg-tabs">
         {METRICS.map((m) => (
           <button
