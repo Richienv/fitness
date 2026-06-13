@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getIngredient, macrosFor, type Macros } from "@/lib/ingredients";
 import SlimBar from "../_motion/SlimBar";
+import SkeletonBar from "../_motion/SkeletonBar";
 import { useSoftRefresh } from "@/lib/useSoftRefresh";
 import { useVTNavigate } from "@/lib/navigate";
 import { PRESETS, type MealType } from "@/lib/presets";
@@ -106,11 +107,13 @@ export default function MealHome() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [quickIds, setQuickIds] = useState<string[]>([]);
   const [quickEditOpen, setQuickEditOpen] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   const reloadFromStore = useCallback(() => {
     dedupeMeals();
     setAllMeals(getAllMeals());
     setQuickIds(getQuickLogIds());
+    setLoaded(true);
   }, []);
   useSoftRefresh(reloadFromStore);
 
@@ -295,22 +298,28 @@ export default function MealHome() {
         </div>
 
         <div className="slim-bars">
-          {bars.map((b) => (
+          {loaded
+            ? bars.map((b) => (
+                <SlimBar
+                  key={b.key}
+                  label={b.label}
+                  value={Math.round(totals[b.key])}
+                  target={target[b.key]}
+                  unit={b.unit}
+                />
+              ))
+            : bars.map((b) => <SkeletonBar key={b.key} label={b.label} />)}
+          {loaded ? (
             <SlimBar
-              key={b.key}
-              label={b.label}
-              value={Math.round(totals[b.key])}
-              target={target[b.key]}
-              unit={b.unit}
+              label="SUGAR"
+              value={Math.round(sugarTotal)}
+              target={DAILY_SUGAR_TARGET_G}
+              unit="g"
+              warnIfOver
             />
-          ))}
-          <SlimBar
-            label="SUGAR"
-            value={Math.round(sugarTotal)}
-            target={DAILY_SUGAR_TARGET_G}
-            unit="g"
-            warnIfOver
-          />
+          ) : (
+            <SkeletonBar label="SUGAR" />
+          )}
         </div>
 
         <div className="quick-section">

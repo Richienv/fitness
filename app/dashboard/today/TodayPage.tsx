@@ -20,6 +20,7 @@ import { useActiveDate, parseDate } from "@/lib/activeDate";
 import { renderNutritionCard, shareBlob } from "@/lib/shareCards";
 import { weekNumber } from "@/lib/workouts";
 import SlimBar from "../../_motion/SlimBar";
+import SkeletonBar from "../../_motion/SkeletonBar";
 import AnimatedNumber from "../../_motion/AnimatedNumber";
 
 const HIGH_SODIUM_MG = 1000;
@@ -98,6 +99,7 @@ export default function TodayPage() {
   const [editing, setEditing] = useState<{ mealId: string; index: number; qty: number } | null>(null);
   const [confirmDel, setConfirmDel] = useState<{ mealId: string; index: number } | null>(null);
   const [sodiumDismissed, setSodiumDismissed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     dedupeMeals();
@@ -124,6 +126,7 @@ export default function TodayPage() {
     } catch {
       setSodiumDismissed(false);
     }
+    setLoaded(true);
   }, [activeDate]);
 
   const highSodiumItem = useMemo(() => {
@@ -294,15 +297,17 @@ export default function TodayPage() {
         </div>
 
         <div className="slim-bars" style={{ gap: 12 }}>
-          {bars.map((b) => (
-            <SlimBar
-              key={b.key}
-              label={b.label}
-              value={Math.round(totals[b.key])}
-              target={target[b.key]}
-              unit={b.unit}
-            />
-          ))}
+          {loaded
+            ? bars.map((b) => (
+                <SlimBar
+                  key={b.key}
+                  label={b.label}
+                  value={Math.round(totals[b.key])}
+                  target={target[b.key]}
+                  unit={b.unit}
+                />
+              ))
+            : bars.map((b) => <SkeletonBar key={b.key} label={b.label} />)}
         </div>
 
         <div className="remaining-grid">

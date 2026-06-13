@@ -97,7 +97,11 @@ export default function ConfirmMeal({
             if (!ing) return null;
             const m = macrosFor(it.id, it.qty);
             return (
-              <div key={`${it.id}-${i}`} className="confirm-item">
+              <div
+                key={`${it.id}-${i}`}
+                className="confirm-item stagger-item"
+                style={{ ["--i" as string]: i } as React.CSSProperties}
+              >
                 <div className="ci-qty">×{it.qty}</div>
                 <div className="ci-main">
                   <div className="ci-name">{ing.name}</div>
