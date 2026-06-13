@@ -3,6 +3,7 @@ import { Bebas_Neue, DM_Sans, DM_Mono } from "next/font/google";
 import "./globals.css";
 import BottomNav from "./BottomNav";
 import ServerSync from "./ServerSync";
+import ToastStack from "./Toast";
 import { ActiveDateProvider } from "@/lib/activeDate";
 
 const bebas = Bebas_Neue({
@@ -92,6 +93,7 @@ export default function RootLayout({
           <ServerSync />
           <div className="app-root">{children}</div>
           <BottomNav />
+          <ToastStack />
         </ActiveDateProvider>
       </body>
     </html>
