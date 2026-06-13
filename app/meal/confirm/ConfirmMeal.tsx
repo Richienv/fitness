@@ -8,6 +8,7 @@ import { PRESETS } from "@/lib/presets";
 import { saveMeal } from "@/lib/store";
 import { useActiveDate } from "@/lib/activeDate";
 import { haptic } from "@/lib/haptics";
+import { useVTNavigate } from "@/lib/navigate";
 import { toast } from "../../Toast";
 
 export default function ConfirmMeal({
@@ -18,6 +19,7 @@ export default function ConfirmMeal({
   dateParam?: string;
 }) {
   const router = useRouter();
+  const vtNavigate = useVTNavigate();
   const { activeDate, setActiveDate, short } = useActiveDate();
   const preset = useMemo(() => PRESETS.find((p) => p.id === presetId), [presetId]);
 
@@ -25,6 +27,12 @@ export default function ConfirmMeal({
   useEffect(() => {
     if (dateParam && dateParam !== activeDate) setActiveDate(dateParam);
   }, [dateParam, activeDate, setActiveDate]);
+
+  // Prefetch the destination so SAVE is instant — the user almost always
+  // returns to /meal after confirming. No network wait on tap.
+  useEffect(() => {
+    router.prefetch("/meal");
+  }, [router]);
 
   if (!preset) {
     return (
@@ -59,16 +67,16 @@ export default function ConfirmMeal({
     });
     haptic("success");
     toast("Logged ✓", "success");
-    router.push("/meal");
+    vtNavigate("/meal", { haptic: null });
   }
 
   function edit() {
     const params = new URLSearchParams({ preset: preset!.id, date: saveDate });
-    router.push(`/meal/${preset!.mealType}?${params.toString()}`);
+    vtNavigate(`/meal/${preset!.mealType}?${params.toString()}`);
   }
 
   return (
-    <main className="confirm-shell">
+    <main className="confirm-shell page-rise">
       <div className="confirm-top">
         <Link href="/meal" className="back-link">← Back</Link>
         <h1 className="confirm-title">{preset.label}</h1>
@@ -95,7 +103,7 @@ export default function ConfirmMeal({
         </div>
       </div>
 
-      <div className="confirm-bottom">
+      <div className="confirm-bottom pinned-action-bar">
         <div className="confirm-totals">
           <div className="confirm-kcal">
             <strong>{Math.round(totals.kcal)}</strong>

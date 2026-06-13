@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { haptic } from "@/lib/haptics";
+import { useVTNavigate } from "@/lib/navigate";
 
 const OS_URL = "https://r2-os.vercel.app";
 
@@ -18,26 +19,14 @@ const RIGHT: Tab[] = [
   { href: "/settings",  label: "SET",   icon: "⚙️", match: (p) => p.startsWith("/settings") },
 ];
 
-// View Transitions API — Chrome/Safari support it natively. On unsupported
-// browsers (older iOS, Firefox) we fall back to a plain push and no error.
-type ViewTransitionDocument = Document & {
-  startViewTransition?: (cb: () => void) => unknown;
-};
-
 export default function BottomNav() {
   const pathname = usePathname();
-  const router = useRouter();
+  const vtNavigate = useVTNavigate();
 
   function nav(href: string, e: React.MouseEvent) {
     e.preventDefault();
-    haptic("tap");
     if (href === pathname) return;
-    const doc = document as ViewTransitionDocument;
-    if (typeof doc.startViewTransition === "function") {
-      doc.startViewTransition(() => router.push(href));
-    } else {
-      router.push(href);
-    }
+    vtNavigate(href);
   }
 
   return (

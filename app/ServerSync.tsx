@@ -54,17 +54,21 @@ async function pullFromServer(): Promise<number> {
   return added;
 }
 
-const RELOAD_GUARD_KEY = "richie.serversync.lastReload";
+const SOFT_GUARD_KEY = "richie.serversync.lastSoftRefresh";
+const SOFT_REFRESH_EVENT = "r2:data";
 
-/** Reload so pages re-read localStorage — at most once per 30s, and never
- * mid-typing (active input/textarea focus). */
-function maybeReload(): void {
+/** Soft refresh — emit an event the data-reading pages listen to and
+ * re-read localStorage into state. NO full page reload (the old version
+ * called window.location.reload, which felt like the app was rebooting
+ * every time Hermes wrote a row). Guarded so we don't thrash if multiple
+ * pulls happen back-to-back, and never when the user is typing. */
+function softRefresh(): void {
   const ae = document.activeElement;
   if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA")) return;
-  const last = Number(sessionStorage.getItem(RELOAD_GUARD_KEY) ?? 0);
-  if (Date.now() - last < 30_000) return;
-  sessionStorage.setItem(RELOAD_GUARD_KEY, String(Date.now()));
-  window.location.reload();
+  const last = Number(sessionStorage.getItem(SOFT_GUARD_KEY) ?? 0);
+  if (Date.now() - last < 1500) return;
+  sessionStorage.setItem(SOFT_GUARD_KEY, String(Date.now()));
+  window.dispatchEvent(new Event(SOFT_REFRESH_EVENT));
 }
 
 export default function ServerSync() {
@@ -83,12 +87,12 @@ export default function ServerSync() {
       if (res) console.log("[ServerSync] pushed", res.synced, "foods to DB");
     });
 
-    // Initial pull — refresh the page if Hermes logged something new.
+    // Initial pull — emit a soft refresh if Hermes logged something new.
     pullFromServer().then((added) => {
       if (cancelled) return;
       if (added > 0) {
         console.log("[ServerSync] imported", added, "records from server");
-        maybeReload();
+        softRefresh();
       }
     });
 
@@ -96,7 +100,7 @@ export default function ServerSync() {
     const onFocus = () => {
       if (document.visibilityState !== "visible") return;
       pullFromServer().then((added) => {
-        if (!cancelled && added > 0) maybeReload();
+        if (!cancelled && added > 0) softRefresh();
       });
     };
     document.addEventListener("visibilitychange", onFocus);

@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   SESSIONS,
@@ -28,6 +27,7 @@ import {
 } from "@/lib/muscles";
 import { EQUIPMENT } from "@/lib/equipment";
 import { useActiveDate } from "@/lib/activeDate";
+import { useVTNavigate } from "@/lib/navigate";
 import SessionSilhouette from "./SessionSilhouette";
 
 function mondayOf(d: Date): Date {
@@ -57,7 +57,7 @@ function templateMatches(query: string, t: CustomTemplate): boolean {
 }
 
 export default function WorkoutHome() {
-  const router = useRouter();
+  const vtNavigate = useVTNavigate();
   const { activeDate, label: dateLabel } = useActiveDate();
   const [now, setNow] = useState<Date | null>(null);
   const [workouts, setWorkouts] = useState<WorkoutSession[]>([]);
@@ -112,11 +112,11 @@ export default function WorkoutHome() {
 
   function pickPreset(sessionType: SessionType) {
     if (activeInProgress && activeInProgress.sessionType === sessionType) {
-      router.push(`/workout/session/${activeInProgress.id}`);
+      vtNavigate(`/workout/session/${activeInProgress.id}`);
       return;
     }
     const w = startWorkout(sessionType, today);
-    router.push(`/workout/session/${w.id}`);
+    vtNavigate(`/workout/session/${w.id}`);
   }
 
   function pickCustom(template: CustomTemplate) {
@@ -125,11 +125,11 @@ export default function WorkoutHome() {
       activeInProgress.sessionType === "CUSTOM" &&
       activeInProgress.customTemplateId === template.id
     ) {
-      router.push(`/workout/session/${activeInProgress.id}`);
+      vtNavigate(`/workout/session/${activeInProgress.id}`);
       return;
     }
     const w = startCustomWorkout(template, today);
-    router.push(`/workout/session/${w.id}`);
+    vtNavigate(`/workout/session/${w.id}`);
   }
 
   function handleSaveTemplate(t: Omit<CustomTemplate, "id" | "createdAt">) {
