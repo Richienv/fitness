@@ -138,7 +138,10 @@ export default function ChecklistPage() {
           {doneCount} / {ITEMS.length} COMPLETE
         </div>
         <div className="cl-progress-track">
-          <div className="cl-progress-fill" style={{ width: `${pct}%` }} />
+          <div
+            className="cl-progress-fill"
+            style={{ ["--p" as string]: pct / 100 } as React.CSSProperties}
+          />
         </div>
       </div>
     </main>
