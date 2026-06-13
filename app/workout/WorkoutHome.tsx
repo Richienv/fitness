@@ -151,10 +151,11 @@ export default function WorkoutHome() {
         <h1 className="section-title">LOG <span>WORKOUT</span></h1>
         <div className="wo-date mono">{dateStr} · WK {wkNum} / 12</div>
 
-        {/* Compact toolbar — search input + browse-equipment chip on the
-            same row, with a resume strip slotting in only when a workout
-            is mid-flight. */}
-        <div className="wo-toolbar">
+        {/* Sticky one-row action bar — search input, equipment icon, and
+            (when a session is mid-flight) a compact resume pill all share
+            the same row. Pinned at the top of the page so it doesn't
+            scroll away under the session cards. */}
+        <div className="wo-action-bar">
           <div className="wo-search wo-toolbar-search">
             <input
               type="search"
@@ -177,12 +178,25 @@ export default function WorkoutHome() {
           </div>
           <Link
             href="/workout/equipment"
-            className="wo-equip-link wo-toolbar-equip mono"
+            className="wo-action-equip mono"
             aria-label="Browse equipment"
           >
             <span aria-hidden="true">🏋️</span>
-            <span className="wo-toolbar-equip-text">EQUIPMENT</span>
           </Link>
+          {activeInProgress && (
+            <Link
+              href={`/workout/session/${activeInProgress.id}`}
+              className="wo-action-resume mono"
+              aria-label="Resume session"
+            >
+              <span aria-hidden="true">▶</span>
+              <span className="wo-action-resume-label">
+                {activeInProgress.sessionType === "CUSTOM"
+                  ? activeInProgress.customName ?? "CUSTOM"
+                  : SESSIONS.find((s) => s.id === activeInProgress.sessionType)?.name}
+              </span>
+            </Link>
+          )}
         </div>
 
         {todaysLogged && (
@@ -192,14 +206,6 @@ export default function WorkoutHome() {
               VIEW
             </Link>
           </div>
-        )}
-
-        {activeInProgress && (
-          <Link href={`/workout/session/${activeInProgress.id}`} className="wo-resume">
-            ▶ RESUME {activeInProgress.sessionType === "CUSTOM"
-              ? activeInProgress.customName ?? "CUSTOM"
-              : SESSIONS.find((s) => s.id === activeInProgress.sessionType)?.name}
-          </Link>
         )}
       </div>
 

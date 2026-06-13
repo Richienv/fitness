@@ -79,9 +79,16 @@ export default function ConfirmMeal({
     <main className="confirm-shell page-rise">
       <div className="confirm-top">
         <Link href="/meal" className="back-link">← Back</Link>
-        <h1 className="confirm-title">{preset.label}</h1>
-        <div className="confirm-sub mono">
-          {preset.mealType.toUpperCase()} · {short}
+        <div
+          className="confirm-hero"
+          style={{
+            viewTransitionName: `tile-${preset.id}`,
+          } as React.CSSProperties}
+        >
+          <h1 className="confirm-title">{preset.label}</h1>
+          <div className="confirm-sub mono">
+            {preset.mealType.toUpperCase()} · {short}
+          </div>
         </div>
 
         <div className="confirm-items">

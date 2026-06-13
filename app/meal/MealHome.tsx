@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getIngredient, macrosFor, type Macros } from "@/lib/ingredients";
 import SlimBar from "../_motion/SlimBar";
 import { useSoftRefresh } from "@/lib/useSoftRefresh";
+import { useVTNavigate } from "@/lib/navigate";
 import { PRESETS, type MealType } from "@/lib/presets";
 import {
   clearMealsForDate,
@@ -83,6 +84,7 @@ function addMacros(a: Macros, b: Macros): Macros {
 type MealBucket = { macros: Macros; items: number };
 
 export default function MealHome() {
+  const vtNavigate = useVTNavigate();
   const {
     activeDate,
     setActiveDate,
@@ -323,18 +325,28 @@ export default function MealHome() {
             </button>
           </div>
           <div className="quick-grid">
-            {quickResolved.map((p) => (
-              <Link
-                key={p.id}
-                href={`/meal/confirm?preset=${p.id}&date=${activeDate}`}
-                className="quick-tile"
-              >
-                <span className="quick-tile-label">{p.label}</span>
-                <span className="quick-tile-meal mono">
-                  {(p.mealType as string).toUpperCase()}
-                </span>
-              </Link>
-            ))}
+            {quickResolved.map((p) => {
+              const href = `/meal/confirm?preset=${p.id}&date=${activeDate}`;
+              return (
+                <Link
+                  key={p.id}
+                  href={href}
+                  className="quick-tile"
+                  style={{
+                    viewTransitionName: `tile-${p.id}`,
+                  } as React.CSSProperties}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    vtNavigate(href, { haptic: null });
+                  }}
+                >
+                  <span className="quick-tile-label">{p.label}</span>
+                  <span className="quick-tile-meal mono">
+                    {(p.mealType as string).toUpperCase()}
+                  </span>
+                </Link>
+              );
+            })}
             {Array.from({ length: Math.max(0, QUICKLOG_MAX - quickResolved.length) }).map(
               (_, i) => (
                 <button
