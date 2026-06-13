@@ -79,6 +79,9 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
   const [workout, setWorkout] = useState<WorkoutSession | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [pending, setPending] = useState<PendingInput | null>(null);
+  // Key of the set tile to highlight briefly right after logging — e.g.
+  // "2:3" = exercise idx 2, set 3. Clears itself after the celebration anim.
+  const [justLogged, setJustLogged] = useState<string | null>(null);
   const [swapFor, setSwapFor] = useState<number | null>(null);
   const [detailFor, setDetailFor] = useState<number | null>(null);
 
@@ -229,6 +232,13 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
     };
     saveWorkout(next);
     setWorkout(next);
+    const justKey = `${pending.exerciseIdx}:${pending.setNumber}`;
+    setJustLogged(justKey);
+    haptic("tap");
+    // Clear the highlight after the celebration anim completes (~900ms).
+    window.setTimeout(() => {
+      setJustLogged((cur) => (cur === justKey ? null : cur));
+    }, 950);
     setPending(null);
 
     // Start rest timer
@@ -309,7 +319,7 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
   const readyToFinish = totals.done >= totals.total;
 
   return (
-    <main className="session-shell">
+    <main className="session-shell page-rise">
       <div className="session-top-sticky">
         <div className="session-top-row">
           <Link href="/workout" className="back-link">← Back</Link>
@@ -517,11 +527,14 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                   const placeholder = last
                     ? `${last.weight}kg × ${last.reps}`
                     : `— / ${ex.targetReps}`;
+                  const isJustLogged = justLogged === `${i}:${setNum}`;
                   return (
                     <button
                       key={si}
                       type="button"
-                      className={`ex-set-btn${done ? " done" : ""} ${deltaClass}`}
+                      className={`ex-set-btn${done ? " done" : ""}${
+                        isJustLogged ? " just-logged" : ""
+                      } ${deltaClass}`}
                       onClick={() => openPending(i, setNum)}
                     >
                       <span className="ex-set-num">SET {setNum}</span>

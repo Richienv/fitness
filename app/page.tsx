@@ -84,6 +84,50 @@ function mealSubtitle(logged: Set<string>, hour: number, totalKcal: number): str
   return "Wrap up your day";
 }
 
+function SkeletonRing({ label }: { label: string }) {
+  const size = 90;
+  const stroke = 7;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  return (
+    <div className="home-ring" aria-hidden="true">
+      <div className="home-ring-wrap" style={{ width: size, height: size }}>
+        <svg
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          className="skeleton-ring"
+        >
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke="#222222"
+            strokeWidth={stroke}
+          />
+          <circle
+            className="skeleton-ring-fill"
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            strokeWidth={stroke}
+            strokeDasharray={`${c * 0.3} ${c}`}
+            strokeDashoffset={c}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          />
+        </svg>
+        <div className="home-ring-center">
+          <div className="home-ring-num shimmer-text">&nbsp;</div>
+        </div>
+      </div>
+      <div className="home-ring-label mono">{label}</div>
+    </div>
+  );
+}
+
 function Ring({
   pct,
   color,
@@ -279,51 +323,61 @@ export default function HomePage() {
       <section className="home-visual">
         <div className="home-greeting">{greeting}</div>
         <div className="home-rings">
-          <Ring
-            pct={kcalPct}
-            color="#e8ff47"
-            centerTop={
-              kcalComplete
-                ? Math.round(totals.kcal).toLocaleString()
-                : Math.round(kcalLeft).toLocaleString()
-            }
-            centerBottom={
-              kcalComplete
-                ? kcalOver > 0
-                  ? `+${kcalOver.toLocaleString()} over`
-                  : "on target"
-                : "kcal left"
-            }
-            label={kcalComplete ? "KCAL EATEN" : "KCAL LEFT"}
-            complete={kcalComplete}
-          />
-          <Ring
-            pct={proteinPct}
-            color="#47ffb8"
-            centerTop={
-              proteinComplete
-                ? `${Math.round(totals.protein)}g`
-                : `${proteinLeft}g`
-            }
-            centerBottom={
-              proteinComplete
-                ? proteinOver > 0
-                  ? `+${proteinOver}g over`
-                  : "on target"
-                : "left"
-            }
-            label={proteinComplete ? "PROTEIN EATEN" : "PROTEIN LEFT"}
-            complete={proteinComplete}
-          />
-          <Ring
-            pct={workoutPct}
-            color="#ffffff"
-            centerTop={!gymDay ? "REST" : workoutDone ? "✓" : "0/1"}
-            centerBottom={!gymDay ? undefined : workoutDone ? undefined : "sessions"}
-            label="SESSION"
-            complete={gymDay && workoutDone}
-            muted={!gymDay}
-          />
+          {mounted ? (
+            <>
+              <Ring
+                pct={kcalPct}
+                color="#e8ff47"
+                centerTop={
+                  kcalComplete
+                    ? Math.round(totals.kcal).toLocaleString()
+                    : Math.round(kcalLeft).toLocaleString()
+                }
+                centerBottom={
+                  kcalComplete
+                    ? kcalOver > 0
+                      ? `+${kcalOver.toLocaleString()} over`
+                      : "on target"
+                    : "kcal left"
+                }
+                label={kcalComplete ? "KCAL EATEN" : "KCAL LEFT"}
+                complete={kcalComplete}
+              />
+              <Ring
+                pct={proteinPct}
+                color="#47ffb8"
+                centerTop={
+                  proteinComplete
+                    ? `${Math.round(totals.protein)}g`
+                    : `${proteinLeft}g`
+                }
+                centerBottom={
+                  proteinComplete
+                    ? proteinOver > 0
+                      ? `+${proteinOver}g over`
+                      : "on target"
+                    : "left"
+                }
+                label={proteinComplete ? "PROTEIN EATEN" : "PROTEIN LEFT"}
+                complete={proteinComplete}
+              />
+              <Ring
+                pct={workoutPct}
+                color="#ffffff"
+                centerTop={!gymDay ? "REST" : workoutDone ? "✓" : "0/1"}
+                centerBottom={!gymDay ? undefined : workoutDone ? undefined : "sessions"}
+                label="SESSION"
+                complete={gymDay && workoutDone}
+                muted={!gymDay}
+              />
+            </>
+          ) : (
+            <>
+              <SkeletonRing label="KCAL" />
+              <SkeletonRing label="PROTEIN" />
+              <SkeletonRing label="SESSION" />
+            </>
+          )}
         </div>
       </section>
 
