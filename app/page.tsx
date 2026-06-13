@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { macrosFor, type Macros } from "@/lib/ingredients";
+import { useSoftRefresh } from "@/lib/useSoftRefresh";
 import {
   dedupeMeals,
   getDaily,
@@ -167,8 +168,7 @@ export default function HomePage() {
   const [gymDay, setGymDay] = useState(true);
   const [tlvlScore, setTLvlScore] = useState<number | null>(null);
 
-  useEffect(() => {
-    setMounted(true);
+  const reloadFromStore = useCallback(() => {
     dedupeMeals();
     const today = todayKey();
     setMeals(getMealsForDate(today));
@@ -179,13 +179,19 @@ export default function HomePage() {
     } catch {
       setTLvlScore(null);
     }
+  }, []);
+  useSoftRefresh(reloadFromStore);
+
+  useEffect(() => {
+    setMounted(true);
+    reloadFromStore();
     const t = setInterval(() => setNow(new Date()), 60_000);
     document.body.classList.add("no-scroll");
     return () => {
       clearInterval(t);
       document.body.classList.remove("no-scroll");
     };
-  }, []);
+  }, [reloadFromStore]);
 
   const week = weekNumber();
   const hour = now.getHours();

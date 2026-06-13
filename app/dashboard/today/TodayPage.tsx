@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getIngredient, macrosFor, type Macros } from "@/lib/ingredients";
+import { useSoftRefresh } from "@/lib/useSoftRefresh";
 import {
   dedupeMeals,
   getDaily,
@@ -101,6 +102,15 @@ export default function TodayPage() {
   useEffect(() => {
     dedupeMeals();
   }, []);
+
+  // Soft-refresh: re-read when Hermes-imported rows arrive (replaces the
+  // old hard reload). useCallback so the hook can capture the latest
+  // activeDate.
+  const softReload = useCallback(() => {
+    if (!activeDate) return;
+    setMeals(getMealsForDate(activeDate));
+  }, [activeDate]);
+  useSoftRefresh(softReload);
 
   useEffect(() => {
     if (!activeDate) return;

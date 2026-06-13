@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getIngredient, macrosFor, type Macros } from "@/lib/ingredients";
 import SlimBar from "../_motion/SlimBar";
+import { useSoftRefresh } from "@/lib/useSoftRefresh";
 import { PRESETS, type MealType } from "@/lib/presets";
 import {
   clearMealsForDate,
@@ -104,15 +105,20 @@ export default function MealHome() {
   const [quickIds, setQuickIds] = useState<string[]>([]);
   const [quickEditOpen, setQuickEditOpen] = useState(false);
 
-  useEffect(() => {
+  const reloadFromStore = useCallback(() => {
     dedupeMeals();
     setAllMeals(getAllMeals());
     setQuickIds(getQuickLogIds());
+  }, []);
+  useSoftRefresh(reloadFromStore);
+
+  useEffect(() => {
+    reloadFromStore();
     document.body.classList.add("no-scroll");
     return () => {
       document.body.classList.remove("no-scroll");
     };
-  }, []);
+  }, [reloadFromStore]);
 
   useEffect(() => {
     if (!activeDate) return;

@@ -338,16 +338,23 @@ a { color: inherit; text-decoration: none; }
 }
 .meal-row.active .meal-chev { color: var(--accent); }
 
-/* Confirm preset screen */
+/* Confirm preset screen
+ * The action bar (.confirm-bottom) is fixed above the global bottom-nav, so
+ * the shell reserves enough bottom padding to keep the last item clear of
+ * both bars. Top content sits naturally — no dead-gap flex:1 push. */
 .confirm-shell {
   max-width: 520px;
   margin: 0 auto;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  padding: 24px 20px calc(16px + env(safe-area-inset-bottom));
+  /* nav-h (~72) + action bar (~108) + safe-area */
+  padding: 24px 20px calc(180px + env(safe-area-inset-bottom));
 }
-.confirm-top { flex: 1; }
+.confirm-top {
+  /* No flex:1 — content stacks from the top, no dead space below. */
+  flex: 0 0 auto;
+}
 .confirm-title {
   font-family: var(--font-bebas), "Bebas Neue", sans-serif;
   font-size: 40px;
@@ -404,14 +411,31 @@ a { color: inherit; text-decoration: none; }
   color: var(--muted);
 }
 
+/* Pinned action bar — floats above the global bottom-nav, blurred backdrop
+ * so it reads as firm over scrolling content. Slides up on mount via
+ * the .pinned-action-bar utility (see motion block at end of file). */
 .confirm-bottom {
-  flex-shrink: 0;
-  padding-top: 20px;
-  margin-top: 20px;
-  border-top: 1px solid var(--border);
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  /* sit just above the global .bottom-nav (~64px + safe-area) */
+  bottom: calc(64px + env(safe-area-inset-bottom));
+  width: 100%;
+  max-width: 520px;
+  padding: 16px 20px 14px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
+  background:
+    linear-gradient(
+      to top,
+      rgba(10, 10, 10, 0.94) 0%,
+      rgba(10, 10, 10, 0.78) 70%,
+      rgba(10, 10, 10, 0) 100%
+    );
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  z-index: 90;
 }
 .confirm-totals {
   display: flex;
@@ -7227,6 +7251,15 @@ button:active,
 
 /* Tabular-num utility for tweening metric numbers without width jitter. */
 .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+/* Pinned action bars slide up on mount so they feel intentional, not static. */
+.pinned-action-bar {
+  animation: pinned-bar-in var(--dur-base) var(--ease-ios) both;
+}
+@keyframes pinned-bar-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
 
 /* ============================================================
    PHASE 5 — View Transitions API (route morphs)
