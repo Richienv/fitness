@@ -7,6 +7,8 @@ import { getIngredient, macrosFor } from "@/lib/ingredients";
 import { PRESETS } from "@/lib/presets";
 import { saveMeal } from "@/lib/store";
 import { useActiveDate } from "@/lib/activeDate";
+import { haptic } from "@/lib/haptics";
+import { toast } from "../../Toast";
 
 export default function ConfirmMeal({
   presetId,
@@ -55,6 +57,8 @@ export default function ConfirmMeal({
       mealType: preset!.mealType,
       items: preset!.items,
     });
+    haptic("success");
+    toast("Logged ✓", "success");
     router.push("/meal");
   }
 

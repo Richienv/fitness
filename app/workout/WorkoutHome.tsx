@@ -145,7 +145,7 @@ export default function WorkoutHome() {
   }
 
   return (
-    <main className="workout-home">
+    <main className="workout-home page-rise">
       <div className="workout-home-top">
         <Link href="/" className="back-link">← Back</Link>
         <h1 className="section-title">LOG <span>WORKOUT</span></h1>

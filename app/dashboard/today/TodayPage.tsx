@@ -18,6 +18,8 @@ import { TARGETS } from "@/lib/targets";
 import { useActiveDate, parseDate } from "@/lib/activeDate";
 import { renderNutritionCard, shareBlob } from "@/lib/shareCards";
 import { weekNumber } from "@/lib/workouts";
+import SlimBar from "../../_motion/SlimBar";
+import AnimatedNumber from "../../_motion/AnimatedNumber";
 
 const HIGH_SODIUM_MG = 1000;
 const SODIUM_DISMISS_KEY = "richie.sodiumTip.dismissed.v1";
@@ -256,7 +258,7 @@ export default function TodayPage() {
   }
 
   return (
-    <main className="sub-page today-page">
+    <main className="sub-page today-page page-rise">
       <header className="sub-head">
         <Link href="/dashboard" className="sub-back">← STATS</Link>
         <div className="sub-title">TODAY</div>
@@ -282,29 +284,15 @@ export default function TodayPage() {
         </div>
 
         <div className="slim-bars" style={{ gap: 12 }}>
-          {bars.map((b) => {
-            const val = Math.round(totals[b.key]);
-            const tgt = target[b.key];
-            const pct = Math.min(100, Math.round((val / tgt) * 100));
-            const left = Math.max(0, Math.round(tgt - val));
-            return (
-              <div key={b.key} className="slim-row">
-                <div className="slim-head mono">
-                  <span className="slim-label">{b.label}</span>
-                  <span className="slim-nums">
-                    <strong>{val.toLocaleString()}</strong> / {tgt.toLocaleString()}{b.unit}
-                  </span>
-                </div>
-                <div className="slim-track">
-                  <div className="slim-fill" style={{ width: `${pct}%` }} />
-                </div>
-                <div className="slim-foot mono">
-                  <span>{pct}%</span>
-                  <span>{left}{b.unit} left</span>
-                </div>
-              </div>
-            );
-          })}
+          {bars.map((b) => (
+            <SlimBar
+              key={b.key}
+              label={b.label}
+              value={Math.round(totals[b.key])}
+              target={target[b.key]}
+              unit={b.unit}
+            />
+          ))}
         </div>
 
         <div className="remaining-grid">
@@ -312,7 +300,9 @@ export default function TodayPage() {
             const left = Math.max(0, Math.round(target[b.key] - totals[b.key]));
             return (
               <div key={b.key} className="remaining-box">
-                <div className="rb-num">{left.toLocaleString()}{b.unit}</div>
+                <div className="rb-num tnum">
+                  <AnimatedNumber value={left} />{b.unit}
+                </div>
                 <div className="rb-label mono">{b.label} LEFT</div>
               </div>
             );

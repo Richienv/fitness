@@ -214,7 +214,7 @@ export default function Dashboard() {
     mg >= 1000 ? `${(mg / 1000).toFixed(1)}g` : `${Math.round(mg)}mg`;
 
   return (
-    <main className="stats-hub">
+    <main className="stats-hub page-rise">
       <header className="stats-hub-head">
         <div className="stats-hub-brand">
           <div className="home-brand">R2<span className="brand-dot">·</span>FIT</div>

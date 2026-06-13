@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getIngredient, macrosFor, type Macros } from "@/lib/ingredients";
+import SlimBar from "../_motion/SlimBar";
 import { PRESETS, type MealType } from "@/lib/presets";
 import {
   clearMealsForDate,
@@ -230,7 +231,7 @@ export default function MealHome() {
   ];
 
   return (
-    <main className="meal-home">
+    <main className="meal-home page-rise">
       <div className="meal-home-top">
         <Link href="/" className="back-link">← Back</Link>
 
@@ -286,53 +287,22 @@ export default function MealHome() {
         </div>
 
         <div className="slim-bars">
-          {bars.map((b) => {
-            const val = Math.round(totals[b.key]);
-            const tgt = target[b.key];
-            const pct = Math.min(100, Math.round((val / tgt) * 100));
-            const left = Math.max(0, Math.round(tgt - val));
-            return (
-              <div key={b.key} className="slim-row">
-                <div className="slim-head mono">
-                  <span className="slim-label">{b.label}</span>
-                  <span className="slim-nums">
-                    <strong>{val.toLocaleString()}</strong> / {tgt.toLocaleString()}{b.unit}
-                  </span>
-                </div>
-                <div className="slim-track">
-                  <div className="slim-fill" style={{ width: `${pct}%` }} />
-                </div>
-                <div className="slim-foot mono">
-                  <span>{pct}%</span>
-                  <span>{left}{b.unit} left</span>
-                </div>
-              </div>
-            );
-          })}
-          {(() => {
-            const val = Math.round(sugarTotal);
-            const tgt = DAILY_SUGAR_TARGET_G;
-            const pct = Math.min(100, Math.round((val / tgt) * 100));
-            const left = Math.max(0, tgt - val);
-            const over = val > tgt;
-            return (
-              <div key="sugar" className="slim-row">
-                <div className="slim-head mono">
-                  <span className="slim-label">SUGAR{over ? " ⚠" : ""}</span>
-                  <span className="slim-nums">
-                    <strong>{val.toLocaleString()}</strong> / {tgt}g
-                  </span>
-                </div>
-                <div className="slim-track">
-                  <div className="slim-fill" style={{ width: `${pct}%` }} />
-                </div>
-                <div className="slim-foot mono">
-                  <span>{pct}%</span>
-                  <span>{over ? `${val - tgt}g over cap` : `${left}g left`}</span>
-                </div>
-              </div>
-            );
-          })()}
+          {bars.map((b) => (
+            <SlimBar
+              key={b.key}
+              label={b.label}
+              value={Math.round(totals[b.key])}
+              target={target[b.key]}
+              unit={b.unit}
+            />
+          ))}
+          <SlimBar
+            label="SUGAR"
+            value={Math.round(sugarTotal)}
+            target={DAILY_SUGAR_TARGET_G}
+            unit="g"
+            warnIfOver
+          />
         </div>
 
         <div className="quick-section">
