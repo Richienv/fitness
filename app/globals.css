@@ -7498,3 +7498,167 @@ button:active,
     transform: scaleX(var(--p, 0));
   }
 }
+
+/* ============================================================
+   NUTRIENT REPORT (stats hub) — Apple-style achievement chart
+   ============================================================ */
+.nr {
+  margin-top: 20px;
+}
+.nr-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.nr-title {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--muted);
+}
+.nr-score {
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+}
+.nr-score.maxed {
+  color: var(--accent);
+  text-shadow: 0 0 12px rgba(232, 255, 71, 0.5);
+}
+.nr-chart {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 8px 8px 4px;
+  margin-bottom: 16px;
+}
+
+.nr-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.nr-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+.nr-row-label {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+}
+.nr-row.maxed .nr-row-label { color: var(--accent); }
+.nr-row.over .nr-row-label { color: var(--danger); }
+.nr-row-val {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 12px;
+  color: var(--text);
+  font-weight: 500;
+}
+.nr-row-target { color: var(--muted); font-weight: 400; }
+.nr-row-track {
+  height: 5px;
+  background: var(--surface2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.nr-row-fill {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  transform: scaleX(var(--p, 0));
+  transform-origin: left;
+  transition: transform var(--dur-slow) var(--ease-out);
+  background: var(--muted);
+}
+/* Reached a "hit" target → vivid gold gradient + glow (the achievement). */
+.nr-row.maxed .nr-row-fill {
+  background: linear-gradient(90deg, var(--accent3), var(--accent));
+  box-shadow: 0 0 10px rgba(232, 255, 71, 0.45);
+}
+/* Exceeded a "cap" limit → red. */
+.nr-row.over .nr-row-fill {
+  background: linear-gradient(90deg, var(--orange), var(--danger));
+  box-shadow: 0 0 10px rgba(255, 71, 71, 0.4);
+}
+
+.nr-tags {
+  margin-top: 18px;
+}
+.nr-tags-label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  display: block;
+  margin-bottom: 8px;
+}
+.nr-tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.nr-tag {
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--accent3);
+  background: rgba(71, 255, 184, 0.08);
+  border: 1px solid rgba(71, 255, 184, 0.3);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+/* Settings — micronutrient target rows */
+.settings-micro-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.settings-micro-row:last-of-type { border-bottom: none; }
+.settings-micro-info { min-width: 0; flex: 1; }
+.settings-micro-label {
+  font-family: var(--font-bebas), "Bebas Neue", sans-serif;
+  font-size: 15px;
+  letter-spacing: 1px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.settings-micro-kind {
+  font-size: 8px;
+  letter-spacing: 1px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.settings-micro-kind.hit { color: var(--accent3); background: rgba(71,255,184,0.1); }
+.settings-micro-kind.cap { color: var(--orange); background: rgba(255,153,71,0.1); }
+.settings-micro-src {
+  font-size: 9px;
+  color: var(--muted);
+  margin-top: 3px;
+  letter-spacing: 0.5px;
+}
+.settings-micro-stepper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.settings-micro-val {
+  min-width: 64px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--accent);
+}
+.settings-micro-val em { color: var(--muted); font-style: normal; font-size: 10px; margin-left: 1px; }
+.settings-action.subtle {
+  margin-top: 14px;
+  opacity: 0.7;
+  font-size: 11px;
+}

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { INGREDIENTS } from "@/lib/ingredients";
+import { MICROS } from "@/lib/micronutrients";
 import { db } from "@/lib/db";
 
 const corsHeaders = {
@@ -31,6 +32,8 @@ export async function GET() {
       sugar: i.sugar ?? 0,
       sodium: i.sodium ?? 0,
     },
+    // Per-unit micronutrients so Ren can detect/report nutrient content.
+    micros: MICROS[i.id] ?? {},
   }));
 
   let customFoods: Array<{ id: string; name: string; per100g: unknown }> = [];
