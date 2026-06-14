@@ -5,7 +5,6 @@ import { MICROS, type MicroProfile } from "./micronutrients";
 import type { MicroKey } from "./nutritionTargets";
 
 export type SuggestionKey = "protein" | "fiber" | "omega3" | "k" | "mg" | "fe" | "zn" | "ca";
-
 export type Suggestion = {
   id: string;
   name: string;
@@ -114,3 +113,123 @@ export function suggestKeyForRow(rowKey: string): SuggestionKey | null {
 }
 
 export type _MicroKey = MicroKey;
+
+// ============================================================
+// MULTI-NUTRIENT TOP-UP — the "what one food closes the most gaps" picker
+// ============================================================
+
+export type Gap = {
+  key: SuggestionKey;
+  /** Remaining gap in the nutrient's own unit (g for protein/fiber/omega3,
+   *  mg for minerals). Always positive — already-maxed nutrients omitted. */
+  gap: number;
+  /** Daily target (for normalising fractional closure across units). */
+  target: number;
+};
+
+export type TopUp = {
+  id: string;
+  name: string;
+  unit: string;
+  /** Suggested qty in the ingredient's native units. */
+  qty: number;
+  /** Calorie cost for that portion. */
+  kcal: number;
+  /** Per-nutrient contribution at this qty: gap-fraction (0..1) per gap. */
+  contributions: Array<{ key: SuggestionKey; closes: number; pctOfTarget: number }>;
+  /** Sum of pctOfTarget across the unmet gaps — the "spread" score. */
+  totalClose: number;
+  /** Number of different unmet nutrients this food contributes meaningfully to (>=5% of target). */
+  hitsMultiple: number;
+};
+
+/**
+ * Rank library foods by how well a SINGLE serving closes ALL unmet gaps at
+ * once. Score = sum over each gap of min(perUnitValue × qty, gap) / target,
+ * normalised by calories so we don't keep suggesting calorie bombs.
+ *
+ * The qty is picked per-food so it caps at the biggest fractional close —
+ * eating more than that doesn't help the gaps and just adds kcal.
+ *
+ * "hitsMultiple" lets the UI label a food as a "synergy pick" when one
+ * portion closes ≥3 different gaps at once.
+ */
+export function bestTopUps(gaps: Gap[], opts: { limit?: number } = {}): TopUp[] {
+  if (gaps.length === 0) return [];
+  const limit = opts.limit ?? 3;
+
+  const candidates: TopUp[] = [];
+  for (const ing of INGREDIENTS) {
+    if (SUGGESTION_BLACKLIST.has(ing.id)) continue;
+
+    // Per-unit value for each gap.
+    const perUnit: Array<{ key: SuggestionKey; perUnit: number; gap: number; target: number }> = [];
+    let anyContribution = false;
+    for (const g of gaps) {
+      const v = unitValue(ing, g.key);
+      if (v > 0) anyContribution = true;
+      perUnit.push({ key: g.key, perUnit: v, gap: g.gap, target: g.target });
+    }
+    if (!anyContribution) continue;
+
+    // Choose the qty: the smallest qty that maxes out the most-pressing
+    // gap (clamped to a reasonable 3-portion ceiling).
+    const qtyForFullClose: number[] = [];
+    for (const p of perUnit) {
+      if (p.perUnit > 0) qtyForFullClose.push(p.gap / p.perUnit);
+    }
+    if (qtyForFullClose.length === 0) continue;
+    // Use the median — close most gaps without grossly overshooting any.
+    qtyForFullClose.sort((a, b) => a - b);
+    const median = qtyForFullClose[Math.floor(qtyForFullClose.length / 2)];
+    const rawQty = Math.min(median, 3);
+    const qty = roundQty(ing, rawQty);
+    if (qty <= 0) continue;
+
+    let totalClose = 0;
+    let hitsMultiple = 0;
+    const contributions: TopUp["contributions"] = [];
+    for (const p of perUnit) {
+      const delivered = qty * p.perUnit;
+      const closes = Math.min(delivered, p.gap);
+      const pctOfTarget = p.target > 0 ? closes / p.target : 0;
+      if (pctOfTarget > 0) {
+        contributions.push({ key: p.key, closes, pctOfTarget });
+        totalClose += pctOfTarget;
+        if (pctOfTarget >= 0.05) hitsMultiple++;
+      }
+    }
+    if (totalClose <= 0) continue;
+
+    candidates.push({
+      id: ing.id,
+      name: ing.name,
+      unit: ing.unit,
+      qty,
+      kcal: Math.round(ing.kcal * qty),
+      contributions,
+      totalClose,
+      hitsMultiple,
+    });
+  }
+
+  // Score: % of target closed per 100 kcal — favours nutrient-density.
+  // Synergy bonus: foods that hit ≥3 different gaps get a 1.4× multiplier.
+  const scored = candidates.map((c) => {
+    const perKcal = c.totalClose / Math.max(0.1, c.kcal / 100);
+    const synergy = c.hitsMultiple >= 3 ? 1.4 : c.hitsMultiple >= 2 ? 1.15 : 1;
+    return { c, score: perKcal * synergy };
+  });
+  scored.sort((a, b) => b.score - a.score);
+
+  // De-dupe by name (e.g. "Greek yogurt" appears twice in the library).
+  const seen = new Set<string>();
+  const out: TopUp[] = [];
+  for (const { c } of scored) {
+    if (seen.has(c.name)) continue;
+    seen.add(c.name);
+    out.push(c);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
