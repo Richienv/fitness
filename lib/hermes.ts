@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { todayKey } from "./targets";
 import { getIngredient, macrosFor, type Macros } from "./ingredients";
+import { microsFor, type MicroTotals } from "./micronutrients";
 
 export const DAILY_CALORIE_TARGET = 2200;
 export const DAILY_PROTEIN_TARGET = 175;
@@ -118,8 +119,43 @@ export async function calorieTotalsFor(date: string): Promise<MealTotals> {
   };
 }
 
+/** Sum extended micronutrients for a day from the stored meal items.
+ * Library items resolve via the micros dataset; custom items use whatever
+ * micro fields Ren attached. Lets /api/today + briefings report micros. */
+export async function microTotalsFor(date: string): Promise<MicroTotals> {
+  const logs = await db.mealEntry.findMany({ where: { date } }).catch(() => []);
+  const acc: MicroTotals = {
+    na: 0, k: 0, mg: 0, fe: 0, zn: 0, ca: 0, fiber: 0, omega3: 0, tags: [],
+  };
+  const tagSet = new Set<string>();
+  const num = (v: unknown) => (typeof v === "number" ? v : 0);
+  for (const l of logs) {
+    const raw = Array.isArray(l.items) ? (l.items as Record<string, unknown>[]) : [];
+    for (const it of raw) {
+      if (typeof it?.id === "string" && typeof it?.qty === "number") {
+        const m = microsFor(it.id, it.qty);
+        acc.na += m.na; acc.k += m.k; acc.mg += m.mg; acc.fe += m.fe;
+        acc.zn += m.zn; acc.ca += m.ca; acc.fiber += m.fiber; acc.omega3 += m.omega3;
+        for (const t of m.tags) tagSet.add(t);
+      } else if (it?.custom === true) {
+        acc.na += num(it.na); acc.k += num(it.k); acc.mg += num(it.mg);
+        acc.fe += num(it.fe); acc.zn += num(it.zn); acc.ca += num(it.ca);
+        acc.fiber += num(it.fiber); acc.omega3 += num(it.omega3);
+        if (Array.isArray(it.tags)) for (const t of it.tags as string[]) tagSet.add(t);
+      }
+    }
+  }
+  return {
+    na: Math.round(acc.na), k: Math.round(acc.k), mg: Math.round(acc.mg),
+    fe: Math.round(acc.fe * 10) / 10, zn: Math.round(acc.zn * 10) / 10,
+    ca: Math.round(acc.ca), fiber: Math.round(acc.fiber),
+    omega3: Math.round(acc.omega3 * 10) / 10, tags: Array.from(tagSet),
+  };
+}
+
 export async function todaySnapshot(today = todayKey()) {
   const totals = await calorieTotalsFor(today);
+  const micros = await microTotalsFor(today);
   const remainingKcal = Math.round(DAILY_CALORIE_TARGET - totals.kcal);
   const remainingProtein = Math.round(DAILY_PROTEIN_TARGET - totals.protein);
 
@@ -180,6 +216,18 @@ export async function todaySnapshot(today = todayKey()) {
       sugarTarget: DAILY_SUGAR_TARGET_G,
       sugarRemaining,
       sugarOver: totals.sugar > DAILY_SUGAR_TARGET_G,
+    },
+    // Extended micronutrients — lets Ren report "you hit all your micros".
+    micros: {
+      na: micros.na,
+      k: micros.k,
+      mg: micros.mg,
+      fe: micros.fe,
+      zn: micros.zn,
+      ca: micros.ca,
+      fiber: micros.fiber,
+      omega3: micros.omega3,
+      tags: micros.tags,
     },
     workout: {
       todayType: displayToday,
@@ -409,11 +457,18 @@ export function parseMealText(input: string): ParsedMeal {
 
 // ---- Structured meal items (Hermes maps speech → library items) ----
 
+// Extended micronutrient fields Ren may attach to a CUSTOM food it estimated.
+// Library items don't need these — micros are looked up from the dataset.
+type MicroFields = {
+  na?: number; k?: number; mg?: number; fe?: number; zn?: number;
+  ca?: number; fiber?: number; omega3?: number; tags?: string[];
+};
+
 export type HermesItemInput =
   // Library ingredient: send qty (units) OR grams (auto-converted via gramsPerUnit)
   | { id: string; qty?: number; grams?: number }
-  // Custom food: absolute macros for the portion eaten
-  | {
+  // Custom food: absolute macros (+ optional micros) for the portion eaten
+  | ({
       name: string;
       grams?: number;
       kcal: number;
@@ -421,13 +476,13 @@ export type HermesItemInput =
       fat?: number;
       carbs?: number;
       sugar?: number;
-    };
+    } & MicroFields);
 
 // Matches the web app's MealItem union exactly, so the dashboard renders
 // Hermes-logged items natively ("3× Whole egg", "Tofu 100g", …).
 export type ResolvedMealItem =
   | { id: string; qty: number }
-  | {
+  | ({
       custom: true;
       name: string;
       grams: number;
@@ -436,7 +491,7 @@ export type ResolvedMealItem =
       fat: number;
       carbs: number;
       sugar?: number;
-    };
+    } & MicroFields);
 
 function isLibraryItem(
   i: ResolvedMealItem
@@ -551,6 +606,16 @@ export function resolveMealItems(items: HermesItemInput[]): {
         fat: Math.round(it.fat ?? 0),
         carbs: Math.round(it.carbs ?? 0),
         ...(typeof it.sugar === "number" ? { sugar: Math.round(it.sugar) } : {}),
+        // Carry any micros Ren estimated through to storage.
+        ...(typeof it.na === "number" ? { na: it.na } : {}),
+        ...(typeof it.k === "number" ? { k: it.k } : {}),
+        ...(typeof it.mg === "number" ? { mg: it.mg } : {}),
+        ...(typeof it.fe === "number" ? { fe: it.fe } : {}),
+        ...(typeof it.zn === "number" ? { zn: it.zn } : {}),
+        ...(typeof it.ca === "number" ? { ca: it.ca } : {}),
+        ...(typeof it.fiber === "number" ? { fiber: it.fiber } : {}),
+        ...(typeof it.omega3 === "number" ? { omega3: it.omega3 } : {}),
+        ...(Array.isArray(it.tags) ? { tags: it.tags } : {}),
       });
     }
   }

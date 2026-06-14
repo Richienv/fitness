@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getIngredient, macrosFor } from "@/lib/ingredients";
 import {
   dedupeMeals,
@@ -23,6 +23,14 @@ import {
   type WorkoutSession,
   type SessionType,
 } from "@/lib/workouts";
+import { sumNutrition } from "@/lib/nutritionStats";
+import {
+  MICRO_DEFS,
+  getMicroTargets,
+  type MicroTargets,
+} from "@/lib/nutritionTargets";
+import { useSoftRefresh } from "@/lib/useSoftRefresh";
+import NutrientReport, { type NutrientRow } from "../_motion/NutrientReport";
 
 const SESSION_ACCENT: Record<SessionType, string> = {
   PUSH_A: "#e8ff47",
@@ -96,14 +104,21 @@ export default function Dashboard() {
   const [gymDay, setGymDay] = useState(true);
   const [workouts, setWorkouts] = useState<WorkoutSession[]>([]);
   const [todayWorkout, setTodayWorkout] = useState<WorkoutSession | null>(null);
+  const [microTargets, setMicroTargets] = useState<MicroTargets>(getMicroTargets);
 
-  useEffect(() => {
+  const reloadAll = useCallback(() => {
     dedupeMeals();
     setAllMeals(getAllMeals());
     setWorkouts(getAllWorkouts());
+    setMicroTargets(getMicroTargets());
+  }, []);
+  useSoftRefresh(reloadAll);
+
+  useEffect(() => {
+    reloadAll();
     document.body.classList.add("no-scroll");
     return () => document.body.classList.remove("no-scroll");
-  }, []);
+  }, [reloadAll]);
 
   useEffect(() => {
     if (!activeDate) return;
@@ -173,8 +188,47 @@ export default function Dashboard() {
     };
   }, [allMeals, activeDate]);
 
+  // Week-average fiber (the "OTHERS" card placeholder used to read "—").
+  const weekAvgFiber = useMemo(() => {
+    if (!activeDate) return 0;
+    const now = parseDate(activeDate);
+    const mon = mondayOf(now);
+    const byDate = new Map<string, number>();
+    for (const m of allMeals) {
+      const d = parseDate(m.date);
+      if (d < mon || d > now) continue;
+      byDate.set(m.date, (byDate.get(m.date) ?? 0) + sumNutrition([m]).fiber);
+    }
+    const days = byDate.size || 1;
+    let acc = 0;
+    for (const v of byDate.values()) acc += v;
+    return Math.round(acc / days);
+  }, [allMeals, activeDate]);
+
   const wk = activeDate ? weekNumber(parseDate(activeDate)) : 1;
   const target = gymDay ? TARGETS.gymDay : TARGETS.restDay;
+
+  // Full nutrient picture for the day (macros + micros + earned bonus tags).
+  const fullToday = useMemo(() => sumNutrition(meals), [meals]);
+
+  // Assemble the report rows: protein + fiber + omega-3 + minerals are the
+  // "hit" achievements plotted on the chart; sugar/sodium/fat are caps.
+  const nutrientRows = useMemo<NutrientRow[]>(() => {
+    const rows: NutrientRow[] = [
+      { key: "protein", label: "PROTEIN", short: "PRO", value: Math.round(fullToday.protein), target: target.protein, unit: "g", kind: "hit", dp: 0 },
+      { key: "fiber",   label: "FIBER",   short: "FIB", value: Math.round(fullToday.fiber),   target: microTargets.fiber, unit: "g", kind: "hit", dp: 0 },
+      { key: "omega3",  label: "OMEGA-3", short: "ω3",  value: Number(fullToday.omega3.toFixed(1)), target: microTargets.omega3, unit: "g", kind: "hit", dp: 1 },
+      { key: "k",  label: "POTASSIUM", short: "K",  value: Math.round(fullToday.k),  target: microTargets.k,  unit: "mg", kind: "hit", dp: 0 },
+      { key: "mg", label: "MAGNESIUM", short: "MG", value: Math.round(fullToday.mg), target: microTargets.mg, unit: "mg", kind: "hit", dp: 0 },
+      { key: "fe", label: "IRON",      short: "FE", value: Number(fullToday.fe.toFixed(1)), target: microTargets.fe, unit: "mg", kind: "hit", dp: 1 },
+      { key: "zn", label: "ZINC",      short: "ZN", value: Number(fullToday.zn.toFixed(1)), target: microTargets.zn, unit: "mg", kind: "hit", dp: 1 },
+      { key: "ca", label: "CALCIUM",   short: "CA", value: Math.round(fullToday.ca), target: microTargets.ca, unit: "mg", kind: "hit", dp: 0 },
+      { key: "sugar", label: "SUGAR",  short: "SUG", value: Math.round(fullToday.sugar), target: microTargets.sugar, unit: "g", kind: "cap", dp: 0 },
+      { key: "na",    label: "SODIUM", short: "NA",  value: Math.round(fullToday.na),    target: microTargets.na,    unit: "mg", kind: "cap", dp: 0 },
+      { key: "fat",   label: "FAT",    short: "FAT", value: Math.round(fullToday.fat),   target: target.fat,         unit: "g", kind: "cap", dp: 0 },
+    ];
+    return rows;
+  }, [fullToday, target, microTargets]);
 
   const weekSessions = useMemo(() => {
     if (!activeDate) return [] as WorkoutSession[];
@@ -276,13 +330,15 @@ export default function Dashboard() {
               <span className="sc-multi-val">{weekAvg.sugar}<em>g</em></span>
             </div>
             <div className="sc-multi-row">
-              <span className="sc-multi-label mono">FIBER¹</span>
-              <span className="sc-multi-val sc-multi-dim">—</span>
+              <span className="sc-multi-label mono">FIBER</span>
+              <span className="sc-multi-val">{weekAvgFiber}<em>g</em></span>
             </div>
           </div>
           <span className="sc-chev">›</span>
         </Link>
       </div>
+
+      <NutrientReport rows={nutrientRows} tags={fullToday.tags} />
 
       <div className="stats-hub-spacer" />
 

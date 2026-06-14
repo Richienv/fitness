@@ -17,8 +17,25 @@ import {
   getCustomTemplates,
 } from "@/lib/workouts";
 import { todayKey } from "@/lib/targets";
+import {
+  MICRO_DEFS,
+  getMicroTargets,
+  patchMicroTargets,
+  resetMicroTargets,
+  type MicroKey as MicroTargetKey,
+  type MicroTargets,
+} from "@/lib/nutritionTargets";
 
 type MacroKey = keyof MacroTarget;
+
+// Step size per micro — coarse for big mg values, fine for grams.
+function microStep(key: MicroTargetKey): number {
+  if (key === "na" || key === "k" || key === "ca") return 50;
+  if (key === "mg") return 10;
+  if (key === "omega3") return 0.5;
+  if (key === "fiber" || key === "sugar") return 1;
+  return 1; // fe, zn
+}
 
 const MACRO_FIELDS: { key: MacroKey; label: string; unit: string; step: number }[] = [
   { key: "kcal",    label: "Calories", unit: "kcal", step: 50 },
@@ -35,6 +52,7 @@ export default function SettingsPage() {
   const [workoutCount, setWorkoutCount] = useState(0);
   const [confirming, setConfirming] = useState<null | "today" | "custom-foods" | "custom-templates" | "reset">(null);
   const [savedChip, setSavedChip] = useState(false);
+  const [microTargets, setMicroTargetsState] = useState<MicroTargets>(getMicroTargets);
 
   useEffect(() => {
     refresh();
@@ -46,6 +64,19 @@ export default function SettingsPage() {
     setCustomTemplateCount(getCustomTemplates().length);
     setMealCount(getAllMeals().length);
     setWorkoutCount(getAllWorkouts().length);
+    setMicroTargetsState(getMicroTargets());
+  }
+
+  function stepMicro(key: MicroTargetKey, delta: number) {
+    const cur = microTargets[key];
+    const next = Math.max(0, Math.round((cur + delta) * 10) / 10);
+    setMicroTargetsState(patchMicroTargets({ [key]: next }));
+    bump();
+  }
+
+  function resetMicros() {
+    setMicroTargetsState(resetMicroTargets());
+    bump();
   }
 
   function bump() {
@@ -179,6 +210,54 @@ export default function SettingsPage() {
             total={restTotal}
             onStep={(k, d) => updateTarget("restDay", k, d)}
           />
+        </section>
+
+        <section className="settings-section">
+          <div className="settings-section-label mono">// MICRONUTRIENT TARGETS</div>
+          <div className="settings-row-hint mono" style={{ marginBottom: 12 }}>
+            Daily benchmarks for the STATS chart. Defaults are evidence-based
+            for an active 24yo male — edit to taste.
+          </div>
+          {MICRO_DEFS.map((def) => (
+            <div key={def.key} className="settings-micro-row">
+              <div className="settings-micro-info">
+                <div className="settings-micro-label">
+                  {def.label}
+                  <span className={`settings-micro-kind mono ${def.kind}`}>
+                    {def.kind === "hit" ? "HIT" : "CAP"}
+                  </span>
+                </div>
+                <div className="settings-micro-src mono">{def.source}</div>
+              </div>
+              <div className="sel-stepper small settings-micro-stepper">
+                <button
+                  type="button"
+                  onClick={() => stepMicro(def.key, -microStep(def.key))}
+                  aria-label={`Decrease ${def.label}`}
+                >
+                  −
+                </button>
+                <span className="settings-micro-val mono">
+                  {microTargets[def.key]}
+                  <em>{def.unit}</em>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => stepMicro(def.key, microStep(def.key))}
+                  aria-label={`Increase ${def.label}`}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="settings-action subtle"
+            onClick={resetMicros}
+          >
+            RESET MICRO TARGETS
+          </button>
         </section>
 
         <section className="settings-section">
