@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * Daily nutrient benchmarks for the EXTENDED nutrients beyond the core
  * kcal/protein/carbs/fat (those live in lib/settings.ts TARGETS). Values
