@@ -23,7 +23,7 @@ import {
   type WorkoutSession,
   type SessionType,
 } from "@/lib/workouts";
-import { sumNutrition } from "@/lib/nutritionStats";
+import { microStreak, sumNutrition } from "@/lib/nutritionStats";
 import {
   MICRO_DEFS,
   getMicroTargets,
@@ -211,6 +211,12 @@ export default function Dashboard() {
   // Full nutrient picture for the day (macros + micros + earned bonus tags).
   const fullToday = useMemo(() => sumNutrition(meals), [meals]);
 
+  // Days-in-a-row maxing ≥80% of hit-nutrients.
+  const streak = useMemo(
+    () => (activeDate ? microStreak(allMeals, activeDate) : 0),
+    [allMeals, activeDate]
+  );
+
   // Assemble the report rows: protein + fiber + omega-3 + minerals are the
   // "hit" achievements plotted on the chart; sugar/sodium/fat are caps.
   const nutrientRows = useMemo<NutrientRow[]>(() => {
@@ -338,7 +344,7 @@ export default function Dashboard() {
         </Link>
       </div>
 
-      <NutrientReport rows={nutrientRows} tags={fullToday.tags} />
+      <NutrientReport rows={nutrientRows} tags={fullToday.tags} streak={streak} />
 
       <div className="stats-hub-spacer" />
 

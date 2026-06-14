@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import AnimatedNumber from "./AnimatedNumber";
 import type { NutrientKind } from "@/lib/nutritionTargets";
+import { suggestForNutrient, suggestKeyForRow } from "@/lib/nutrientSuggest";
 
 export type NutrientRow = {
   key: string;
@@ -43,9 +44,11 @@ function pctOf(r: NutrientRow): number {
 export default function NutrientReport({
   rows,
   tags,
+  streak = 0,
 }: {
   rows: NutrientRow[];
   tags: string[];
+  streak?: number;
 }) {
   const hitRows = rows.filter((r) => r.kind === "hit");
 
@@ -74,7 +77,14 @@ export default function NutrientReport({
   return (
     <section className="nr">
       <div className="nr-head">
-        <span className="nr-title mono">NUTRIENT TARGETS</span>
+        <span className="nr-title mono">
+          NUTRIENT TARGETS
+          {streak >= 2 && (
+            <span className="nr-streak mono" title="Consecutive days hitting ≥80% of targets">
+              · <AnimatedNumber value={streak} />D STREAK 🔥
+            </span>
+          )}
+        </span>
         <span className={`nr-score mono${allMaxed ? " maxed" : ""}`}>
           <AnimatedNumber value={maxedCount} />/{hitRows.length} MAXED
         </span>
@@ -179,6 +189,15 @@ export default function NutrientReport({
           const hitGood = r.kind === "hit" && pct >= 100;
           const capBad = r.kind === "cap" && pct > 100;
           const cls = hitGood ? "maxed" : capBad ? "over" : "";
+
+          // Suggestions for unmet hit-target rows only — find the top
+          // foods that would close the gap with the smallest portion.
+          const suggKey = !hitGood && r.kind === "hit" ? suggestKeyForRow(r.key) : null;
+          const gap = suggKey ? Math.max(0, r.target - r.value) : 0;
+          const suggestions = suggKey && gap > 0
+            ? suggestForNutrient(suggKey, gap, { limit: 3 })
+            : [];
+
           return (
             <div
               key={r.key}
@@ -205,6 +224,21 @@ export default function NutrientReport({
                   style={{ ["--p" as string]: Math.min(1, ratio) } as CSSProperties}
                 />
               </div>
+              {suggestions.length > 0 && (
+                <div className="nr-row-suggest mono">
+                  <span className="nr-row-suggest-label">EAT NEXT</span>
+                  {suggestions.map((s) => (
+                    <span key={s.id} className="nr-suggest-pill" title={s.unit}>
+                      <span className="nr-suggest-qty">×{s.qty}</span>
+                      <span className="nr-suggest-name">{s.name}</span>
+                      <span className="nr-suggest-amt">
+                        +{s.contributes}
+                        {r.unit}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })}

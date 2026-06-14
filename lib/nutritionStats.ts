@@ -3,6 +3,8 @@
 import { getIngredient, macrosFor } from "./ingredients";
 import { microsFor } from "./micronutrients";
 import { isCustomItem, type MealItem, type MealLog } from "./store";
+import { TARGETS } from "./targets";
+import { getMicroTargets } from "./nutritionTargets";
 
 /** Full per-day nutrient picture: macros + extended micros + earned tags. */
 export type FullNutrition = {
@@ -108,4 +110,62 @@ export function sumNutrition(meals: MealLog[]): FullNutrition {
   }
   acc.tags = Array.from(tagSet);
   return acc;
+}
+
+/** Days-in-a-row where ≥ THRESHOLD of "hit" nutrients were maxed.
+ *  Walks the meal log backwards from `fromDate` (YYYY-MM-DD). A day with
+ *  zero meals breaks the streak. */
+export function microStreak(
+  meals: MealLog[],
+  fromDate: string,
+  threshold = 0.8
+): number {
+  const byDate = new Map<string, MealLog[]>();
+  for (const m of meals) {
+    const arr = byDate.get(m.date) ?? [];
+    arr.push(m);
+    byDate.set(m.date, arr);
+  }
+  const micro = getMicroTargets();
+  // 9 hit nutrients (protein + 8 micros)
+  const targets = [
+    { v: (n: FullNutrition) => n.protein, t: TARGETS.gymDay.protein },
+    { v: (n: FullNutrition) => n.fiber,   t: micro.fiber },
+    { v: (n: FullNutrition) => n.omega3,  t: micro.omega3 },
+    { v: (n: FullNutrition) => n.k,       t: micro.k },
+    { v: (n: FullNutrition) => n.mg,      t: micro.mg },
+    { v: (n: FullNutrition) => n.fe,      t: micro.fe },
+    { v: (n: FullNutrition) => n.zn,      t: micro.zn },
+    { v: (n: FullNutrition) => n.ca,      t: micro.ca },
+  ];
+
+  const parse = (s: string) => {
+    const [y, mo, d] = s.split("-").map(Number);
+    return new Date(Date.UTC(y, mo - 1, d));
+  };
+  const fmt = (d: Date) =>
+    `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+
+  let streak = 0;
+  for (let i = 0; i < 365; i++) {
+    const cursor = new Date(parse(fromDate));
+    cursor.setUTCDate(cursor.getUTCDate() - i);
+    const key = fmt(cursor);
+    const ms = byDate.get(key);
+    if (!ms || ms.length === 0) {
+      // Today (i=0) without meals does NOT break — give the user grace.
+      if (i === 0) continue;
+      break;
+    }
+    const n = sumNutrition(ms);
+    const maxed = targets.filter((t) => t.v(n) >= t.t).length;
+    if (maxed / targets.length >= threshold) {
+      streak++;
+    } else {
+      // Same grace for today's partial day.
+      if (i === 0) continue;
+      break;
+    }
+  }
+  return streak;
 }
