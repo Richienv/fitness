@@ -1,5 +1,3 @@
-"use client";
-
 import { getIngredient, macrosFor } from "./ingredients";
 import { microsFor } from "./micronutrients";
 import { isCustomItem, type MealItem, type MealLog } from "./store";
