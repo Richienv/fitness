@@ -7789,3 +7789,114 @@ button:active,
   letter-spacing: 1px;
   margin-left: 4px;
 }
+
+/* ============================================================
+   TOP-UP CARD — "close all gaps with one food"
+   ============================================================ */
+.tup {
+  margin: 18px 0;
+  padding: 16px;
+  background: linear-gradient(
+    135deg,
+    rgba(232, 255, 71, 0.08) 0%,
+    rgba(71, 255, 184, 0.04) 100%
+  );
+  border: 1px solid rgba(232, 255, 71, 0.22);
+  border-radius: 14px;
+}
+.tup-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.tup-title {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--accent);
+}
+.tup-synergy {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--accent3);
+  padding: 3px 8px;
+  border: 1px solid rgba(71, 255, 184, 0.4);
+  border-radius: 999px;
+  background: rgba(71, 255, 184, 0.06);
+}
+
+.tup-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 10px;
+}
+.tup-hero-qty {
+  font-family: var(--font-bebas), "Bebas Neue", sans-serif;
+  font-size: 36px;
+  color: var(--accent);
+  line-height: 1;
+  letter-spacing: 1px;
+  min-width: 48px;
+  text-align: right;
+}
+.tup-hero-main { flex: 1; min-width: 0; }
+.tup-hero-name {
+  font-family: var(--font-bebas), "Bebas Neue", sans-serif;
+  font-size: 18px;
+  letter-spacing: 1px;
+  color: var(--text);
+  line-height: 1.1;
+  margin-bottom: 2px;
+}
+.tup-hero-unit {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+.tup-hero-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.tup-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 3px 8px;
+  background: rgba(232, 255, 71, 0.08);
+  border: 1px solid rgba(232, 255, 71, 0.18);
+  border-radius: 999px;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+}
+.tup-chip-key { color: var(--text); }
+.tup-chip-pct { color: var(--accent); font-weight: 600; }
+
+.tup-alts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.tup-alts-label {
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 1.5px;
+}
+.tup-alt {
+  font-size: 11px;
+  color: var(--text);
+  text-transform: lowercase;
+  letter-spacing: 0.3px;
+}
+.tup-alt-cost {
+  color: var(--muted);
+  font-size: 10px;
+}

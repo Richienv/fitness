@@ -11,8 +11,9 @@ import {
   YAxis,
 } from "recharts";
 import AnimatedNumber from "./AnimatedNumber";
+import TopUpCard from "./TopUpCard";
 import type { NutrientKind } from "@/lib/nutritionTargets";
-import { suggestForNutrient, suggestKeyForRow } from "@/lib/nutrientSuggest";
+import { suggestForNutrient, suggestKeyForRow, type Gap } from "@/lib/nutrientSuggest";
 
 export type NutrientRow = {
   key: string;
@@ -65,6 +66,18 @@ export default function NutrientReport({
 
   const maxedCount = hitRows.filter((r) => pctOf(r) >= 100).length;
   const allMaxed = hitRows.length > 0 && maxedCount === hitRows.length;
+
+  // Build the multi-nutrient gap list for the TopUpCard — only "hit" rows
+  // that are still below target. The card hides itself when this is empty.
+  const gaps = useMemo<Gap[]>(() => {
+    return hitRows
+      .filter((r) => r.value < r.target)
+      .map((r) => {
+        const key = suggestKeyForRow(r.key);
+        return key ? { key, gap: r.target - r.value, target: r.target } : null;
+      })
+      .filter((g): g is Gap => g !== null);
+  }, [hitRows]);
 
   // Animate the area in on mount (recharts handles its own draw; we fade the
   // wrapper so it feels coordinated with the rest of the page).
@@ -181,6 +194,8 @@ export default function NutrientReport({
           </AreaChart>
         </ResponsiveContainer>
       </div>
+
+      {gaps.length > 0 && <TopUpCard gaps={gaps} />}
 
       <div className="nr-rows">
         {rows.map((r, i) => {
