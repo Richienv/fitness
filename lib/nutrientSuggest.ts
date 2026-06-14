@@ -1,5 +1,3 @@
-"use client";
-
 import { INGREDIENTS, type Ingredient } from "./ingredients";
 import { MICROS, type MicroProfile } from "./micronutrients";
 import type { MicroKey } from "./nutritionTargets";
