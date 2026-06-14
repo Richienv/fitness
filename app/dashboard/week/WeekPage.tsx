@@ -5,9 +5,13 @@ import { useEffect, useMemo, useState } from "react";
 import { macrosFor, type Macros } from "@/lib/ingredients";
 import { dedupeMeals, getAllMeals, isCustomItem, type MealItem, type MealLog } from "@/lib/store";
 import WeeklyGraph from "../../meal/WeeklyGraph";
+import MicroWeekGrid, { type MicroDay, type MicroSeriesDef } from "../../_motion/MicroWeekGrid";
 import { useActiveDate, parseDate } from "@/lib/activeDate";
 import { getAllWorkouts, weekNumber } from "@/lib/workouts";
 import { renderWeeklyCard, shareBlob } from "@/lib/shareCards";
+import { sumNutrition } from "@/lib/nutritionStats";
+import { TARGETS } from "@/lib/targets";
+import { getMicroTargets } from "@/lib/nutritionTargets";
 
 const EMPTY: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
 
@@ -112,6 +116,54 @@ export default function WeekPage() {
     };
   }, [weekMeals, monday, sunday]);
 
+  const microTargets = useMemo(() => getMicroTargets(), []);
+
+  // Per-day full-nutrition for the 7-day micro grid. Mon..Sun.
+  const microDays = useMemo<MicroDay[]>(() => {
+    const out: MicroDay[] = [];
+    const letters = ["M", "T", "W", "T", "F", "S", "S"];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(d.getDate() + i);
+      const key =
+        d.getFullYear().toString().padStart(4, "0") +
+        "-" + String(d.getMonth() + 1).padStart(2, "0") +
+        "-" + String(d.getDate()).padStart(2, "0");
+      const dayMeals = weekMeals.filter((m) => m.date === key);
+      const n = sumNutrition(dayMeals);
+      out.push({
+        date: key,
+        letter: letters[i],
+        values: {
+          protein: n.protein,
+          fiber: n.fiber,
+          omega3: n.omega3,
+          k: n.k,
+          mg: n.mg,
+          fe: n.fe,
+          zn: n.zn,
+          ca: n.ca,
+          sugar: n.sugar,
+          na: n.na,
+        },
+      });
+    }
+    return out;
+  }, [monday, weekMeals]);
+
+  const microSeries = useMemo<MicroSeriesDef[]>(() => [
+    { key: "protein", label: "PROTEIN",   short: "PRO", unit: "g",  target: TARGETS.gymDay.protein, kind: "hit", color: "#e8ff47" },
+    { key: "fiber",   label: "FIBER",     short: "FIB", unit: "g",  target: microTargets.fiber,    kind: "hit", color: "#47ffb8" },
+    { key: "omega3",  label: "OMEGA-3",   short: "ω3",  unit: "g",  target: microTargets.omega3,   kind: "hit", color: "#47ffb8" },
+    { key: "k",       label: "POTASSIUM", short: "K",   unit: "mg", target: microTargets.k,        kind: "hit", color: "#e8ff47" },
+    { key: "mg",      label: "MAGNESIUM", short: "MG",  unit: "mg", target: microTargets.mg,       kind: "hit", color: "#e8ff47" },
+    { key: "fe",      label: "IRON",      short: "FE",  unit: "mg", target: microTargets.fe,       kind: "hit", color: "#ff6b35" },
+    { key: "zn",      label: "ZINC",      short: "ZN",  unit: "mg", target: microTargets.zn,       kind: "hit", color: "#479dff" },
+    { key: "ca",      label: "CALCIUM",   short: "CA",  unit: "mg", target: microTargets.ca,       kind: "hit", color: "#f0f0f0" },
+    { key: "sugar",   label: "SUGAR",     short: "SUG", unit: "g",  target: microTargets.sugar,    kind: "cap", color: "#ff4747" },
+    { key: "na",      label: "SODIUM",    short: "NA",  unit: "mg", target: microTargets.na,       kind: "cap", color: "#ff4747" },
+  ], [microTargets]);
+
   const wk = weekNumber(monday);
 
   async function handleShare() {
@@ -146,6 +198,8 @@ export default function WeekPage() {
       <div className="week-chart">
         <WeeklyGraph meals={allMeals} now={monday} />
       </div>
+
+      <MicroWeekGrid days={microDays} series={microSeries} />
 
       <div className="week-stats-row">
         <div className="week-stat">
