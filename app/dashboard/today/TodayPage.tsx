@@ -21,7 +21,10 @@ import { renderNutritionCard, shareBlob } from "@/lib/shareCards";
 import { weekNumber } from "@/lib/workouts";
 import SlimBar from "../../_motion/SlimBar";
 import SkeletonBar from "../../_motion/SkeletonBar";
-import AnimatedNumber from "../../_motion/AnimatedNumber";
+import MacroSplit from "../../_motion/MacroSplit";
+import MicroRings, { type MicroRing } from "../../_motion/MicroRings";
+import { sumNutrition } from "@/lib/nutritionStats";
+import { getMicroTargets } from "@/lib/nutritionTargets";
 
 const HIGH_SODIUM_MG = 1000;
 const SODIUM_DISMISS_KEY = "richie.sodiumTip.dismissed.v1";
@@ -238,6 +241,22 @@ export default function TodayPage() {
 
   const tip = smartTip(totals, { ...target }, meals.length);
 
+  // Full nutrient picture for the day + the compact micro-rings strip.
+  const fullToday = useMemo(() => sumNutrition(meals), [meals]);
+  const microRings = useMemo<MicroRing[]>(() => {
+    const mt = getMicroTargets();
+    return [
+      { key: "k",      label: "K",   value: fullToday.k,      target: mt.k,      unit: "mg", kind: "hit", color: "#e8ff47" },
+      { key: "mg",     label: "MG",  value: fullToday.mg,     target: mt.mg,     unit: "mg", kind: "hit", color: "#e8ff47" },
+      { key: "fe",     label: "FE",  value: fullToday.fe,     target: mt.fe,     unit: "mg", kind: "hit", color: "#ff6b35" },
+      { key: "zn",     label: "ZN",  value: fullToday.zn,     target: mt.zn,     unit: "mg", kind: "hit", color: "#479dff" },
+      { key: "ca",     label: "CA",  value: fullToday.ca,     target: mt.ca,     unit: "mg", kind: "hit", color: "#f0f0f0" },
+      { key: "fiber",  label: "FIB", value: fullToday.fiber,  target: mt.fiber,  unit: "g",  kind: "hit", color: "#47ffb8" },
+      { key: "omega3", label: "ω3",  value: fullToday.omega3, target: mt.omega3, unit: "g",  kind: "hit", color: "#47ffb8" },
+      { key: "sugar",  label: "SUG", value: fullToday.sugar,  target: mt.sugar,  unit: "g",  kind: "cap", color: "#ff4747" },
+    ];
+  }, [fullToday]);
+
   const mealByType = useMemo(() => {
     const map = new Map<MealType, MealLog>();
     for (const m of meals) map.set(m.mealType, m);
@@ -310,19 +329,11 @@ export default function TodayPage() {
             : bars.map((b) => <SkeletonBar key={b.key} label={b.label} />)}
         </div>
 
-        <div className="remaining-grid">
-          {bars.map((b) => {
-            const left = Math.max(0, Math.round(target[b.key] - totals[b.key]));
-            return (
-              <div key={b.key} className="remaining-box">
-                <div className="rb-num tnum">
-                  <AnimatedNumber value={left} />{b.unit}
-                </div>
-                <div className="rb-label mono">{b.label} LEFT</div>
-              </div>
-            );
-          })}
-        </div>
+        {loaded && (totals.protein > 0 || totals.carbs > 0 || totals.fat > 0) && (
+          <MacroSplit protein={totals.protein} carbs={totals.carbs} fat={totals.fat} />
+        )}
+
+        {loaded && <MicroRings rings={microRings} />}
 
         <div className="smart-tip mono">💡 {tip}</div>
 
@@ -394,6 +405,18 @@ export default function TodayPage() {
                     <span className="mbc-chev">{isExpanded ? "▴" : "▾"}</span>
                   </div>
                 </button>
+
+                <div className="mbc-split">
+                  <MacroSplit
+                    protein={mealTotals.protein}
+                    carbs={mealTotals.carbs}
+                    fat={mealTotals.fat}
+                    compact
+                  />
+                  <span className="mbc-split-macros mono">
+                    {Math.round(mealTotals.protein)}p · {Math.round(mealTotals.carbs)}c · {Math.round(mealTotals.fat)}f
+                  </span>
+                </div>
 
                 {isExpanded && (
                   <div className="mbc-body">
