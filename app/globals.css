@@ -7906,3 +7906,114 @@ button:active,
   color: var(--muted);
   font-size: 10px;
 }
+
+/* ============================================================
+   MACRO SPLIT — calorie composition bar (Today page)
+   ============================================================ */
+.msplit { margin: 4px 0 2px; }
+.msplit-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+.msplit-title { font-size: 10px; letter-spacing: 2px; color: var(--muted); }
+.msplit-lead { font-size: 9px; letter-spacing: 1.5px; color: var(--accent); }
+.msplit-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface2);
+  gap: 2px;
+}
+.msplit-empty { background: var(--surface2); }
+.msplit-seg {
+  width: var(--w, 0%);
+  height: 100%;
+  transition: width var(--dur-slow) var(--ease-out);
+}
+.msplit-seg.p { background: var(--accent3); }
+.msplit-seg.c { background: var(--accent); }
+.msplit-seg.f { background: var(--orange); }
+.msplit-legend {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 7px;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+}
+.msplit-leg.p { color: var(--accent3); }
+.msplit-leg.c { color: var(--accent); }
+.msplit-leg.f { color: var(--orange); }
+
+/* compact (per-meal) — just the bar */
+.msplit.compact { margin: 0; flex: 1; }
+.msplit.compact .msplit-bar { height: 5px; }
+
+.mbc-split {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 2px 16px 12px;
+}
+.mbc-split-macros {
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   MICRO RINGS — compact activity-ring strip (Today page)
+   ============================================================ */
+.mr {
+  display: block;
+  margin: 6px 0 2px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  text-decoration: none;
+  transition: border-color var(--dur-fast) var(--ease-standard),
+    transform var(--dur-press) var(--ease-spring);
+}
+.mr:active { transform: scale(0.99); }
+.mr-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 12px;
+}
+.mr-title { font-size: 10px; letter-spacing: 2px; color: var(--muted); }
+.mr-count { font-size: 10px; letter-spacing: 1px; color: var(--accent); }
+.mr-more { color: var(--muted); margin-left: 4px; }
+.mr-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px 6px;
+  justify-items: center;
+}
+.mr-cell { display: flex; }
+.mr-ring { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.mr-ring-wrap { position: relative; }
+.mr-ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+}
+.mr-ring.hit .mr-ring-center { color: var(--accent); }
+.mr-ring.over .mr-ring-center { color: var(--danger); }
+.mr-star { font-size: 6px; margin-left: 1px; color: var(--accent); }
+.mr-ring-pct {
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+}
+.mr-ring.hit .mr-ring-pct { color: var(--accent); }
+.mr-ring.over .mr-ring-pct { color: var(--danger); }
