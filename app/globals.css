@@ -4911,11 +4911,17 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   bottom: calc(64px + env(safe-area-inset-bottom));
   max-width: 520px;
   margin: 0 auto;
-  padding: calc(14px + env(safe-area-inset-top)) 20px 12px;
+  padding: calc(14px + env(safe-area-inset-top)) 20px 28px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  overflow: hidden;
+  /* Hub used to be a 1-viewport summary; now it carries the NutrientReport
+   * + TopUpCard + per-row suggestions which together overflow. Scroll the
+   * shell internally (contained — body itself stays fixed). */
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
   min-height: 0;
 }
 .stats-hub-head {
