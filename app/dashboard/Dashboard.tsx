@@ -116,8 +116,9 @@ export default function Dashboard() {
 
   useEffect(() => {
     reloadAll();
-    document.body.classList.add("no-scroll");
-    return () => document.body.classList.remove("no-scroll");
+    // No body.no-scroll lock here — the NutrientReport + TopUpCard + suggestions
+    // push the hub well past one viewport. The page must scroll so the user
+    // can reach the recommendations + gym card below the fold.
   }, [reloadAll]);
 
   useEffect(() => {
