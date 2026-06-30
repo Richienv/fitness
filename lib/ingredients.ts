@@ -185,6 +185,12 @@ export const INGREDIENTS: Ingredient[] = [
   { id: "es-kopi-susu",   name: "Es kopi susu",             unit: "1 cup (250ml)",   group: "extra",     tag: "limit", sodium: 60, sugar: 24, kcal: 230, protein: 4, fat: 8, carbs: 35, note: "Palm-sugar coffee — high sugar" },
   { id: "martabak-manis", name: "Martabak manis (1 slice)", unit: "1 slice (75g)",   group: "extra",     tag: "limit", sodium: 230, sugar: 20, kcal: 380, protein: 8, fat: 16, carbs: 52, note: "Sweet stuffed pancake — share it" },
   { id: "klepon",         name: "Klepon (3 pcs)",           unit: "3 pcs (60g)",     group: "extra",     tag: "limit", sodium: 30, sugar: 18, kcal: 180, protein: 2, fat: 5, carbs: 33, note: "Palm-sugar rice balls — sweet treat" },
+
+  // Extra proteins (minced meats + rendang cut) + air-fryer snack
+  { id: "beef-mince",      name: "Beef mince (grilled)",   unit: "100g (cooked)", group: "protein", favorite: true, step: 0.5, gramsPerUnit: 100, sodium: 72, kcal: 250, protein: 26, fat: 16, carbs: 0, note: "Daging cincang — high iron + zinc + B12" },
+  { id: "chicken-mince",   name: "Chicken mince",          unit: "100g (cooked)", group: "protein", favorite: true, step: 0.5, gramsPerUnit: 100, sodium: 80, tag: "good", kcal: 180, protein: 24, fat: 9, carbs: 0, note: "Ayam cincang — lean-ish ground chicken" },
+  { id: "beef-chuck",      name: "Beef (rendang cut, raw)", unit: "100g (raw)",   group: "protein", step: 0.5, gramsPerUnit: 100, sodium: 65, kcal: 220, protein: 19, fat: 16, carbs: 0, note: "Daging buat rendang — fattier stewing cut" },
+  { id: "risol-air-fryer", name: "Risol (air fryer)",      unit: "1 pc (60g)",    group: "extra", tag: "good", sodium: 260, sugar: 2, kcal: 130, protein: 5, fat: 4, carbs: 18, note: "Air-fried — ~6g less fat than deep-fried" },
 ];
 
 export const GROUPS: { key: Ingredient["group"]; label: string }[] = [
