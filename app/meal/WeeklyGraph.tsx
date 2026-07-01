@@ -17,8 +17,8 @@ import { TARGETS } from "@/lib/targets";
 type Metric = "kcal" | "protein" | "carbs" | "fat";
 
 const METRICS: { key: Metric; label: string; color: string; unit: string }[] = [
-  { key: "kcal",    label: "CALORIES", color: "#e8ff47", unit: "kcal" },
-  { key: "protein", label: "PROTEIN",  color: "#47ffb8", unit: "g" },
+  { key: "kcal",    label: "CALORIES", color: "#ff8a3d", unit: "kcal" },
+  { key: "protein", label: "PROTEIN",  color: "#22c55e", unit: "g" },
   { key: "carbs",   label: "CARBS",    color: "#ffffff", unit: "g" },
   { key: "fat",     label: "FAT",      color: "#888888", unit: "g" },
 ];
@@ -325,9 +325,9 @@ export default function WeeklyGraph({
       <div className="wg-summary">
         <div className="wg-summary-main">
           THIS WEEK AVG:{" "}
-          <span style={{ color: "#e8ff47" }}>{averages.kcal.toLocaleString()} kcal</span>
+          <span style={{ color: "#ff8a3d" }}>{averages.kcal.toLocaleString()} kcal</span>
           <span className="wg-dot">·</span>
-          <span style={{ color: "#47ffb8" }}>{averages.protein}g protein</span>
+          <span style={{ color: "#22c55e" }}>{averages.protein}g protein</span>
         </div>
         <div className="wg-summary-sub">
           {averages.loggedDays} {averages.loggedDays === 1 ? "day" : "days"} logged

@@ -152,11 +152,11 @@ export default function WeekPage() {
   }, [monday, weekMeals]);
 
   const microSeries = useMemo<MicroSeriesDef[]>(() => [
-    { key: "protein", label: "PROTEIN",   short: "PRO", unit: "g",  target: TARGETS.gymDay.protein, kind: "hit", color: "#e8ff47" },
-    { key: "fiber",   label: "FIBER",     short: "FIB", unit: "g",  target: microTargets.fiber,    kind: "hit", color: "#47ffb8" },
-    { key: "omega3",  label: "OMEGA-3",   short: "ω3",  unit: "g",  target: microTargets.omega3,   kind: "hit", color: "#47ffb8" },
-    { key: "k",       label: "POTASSIUM", short: "K",   unit: "mg", target: microTargets.k,        kind: "hit", color: "#e8ff47" },
-    { key: "mg",      label: "MAGNESIUM", short: "MG",  unit: "mg", target: microTargets.mg,       kind: "hit", color: "#e8ff47" },
+    { key: "protein", label: "PROTEIN",   short: "PRO", unit: "g",  target: TARGETS.gymDay.protein, kind: "hit", color: "#ff8a3d" },
+    { key: "fiber",   label: "FIBER",     short: "FIB", unit: "g",  target: microTargets.fiber,    kind: "hit", color: "#22c55e" },
+    { key: "omega3",  label: "OMEGA-3",   short: "ω3",  unit: "g",  target: microTargets.omega3,   kind: "hit", color: "#22c55e" },
+    { key: "k",       label: "POTASSIUM", short: "K",   unit: "mg", target: microTargets.k,        kind: "hit", color: "#ff8a3d" },
+    { key: "mg",      label: "MAGNESIUM", short: "MG",  unit: "mg", target: microTargets.mg,       kind: "hit", color: "#ff8a3d" },
     { key: "fe",      label: "IRON",      short: "FE",  unit: "mg", target: microTargets.fe,       kind: "hit", color: "#ff6b35" },
     { key: "zn",      label: "ZINC",      short: "ZN",  unit: "mg", target: microTargets.zn,       kind: "hit", color: "#479dff" },
     { key: "ca",      label: "CALCIUM",   short: "CA",  unit: "mg", target: microTargets.ca,       kind: "hit", color: "#f0f0f0" },

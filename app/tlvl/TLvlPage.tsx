@@ -60,7 +60,7 @@ export default function TLvlPage() {
   const score = today?.score ?? TLVL_BASELINE;
   const delta = today && yesterday ? score - yesterday.score : 0;
   const scoreColor =
-    score >= 110 ? "#e8ff47" : score >= 100 ? "#47ffb8" : score >= 90 ? "#ffffff" : "#ff6b6b";
+    score >= 110 ? "#ff8a3d" : score >= 100 ? "#22c55e" : score >= 90 ? "#ffffff" : "#ff6b6b";
 
   function sleepStep(dir: number) {
     const cur = inputs.sleepHours ?? 7.5;

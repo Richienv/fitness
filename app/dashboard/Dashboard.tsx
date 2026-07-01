@@ -33,10 +33,10 @@ import { useSoftRefresh } from "@/lib/useSoftRefresh";
 import NutrientReport, { type NutrientRow } from "../_motion/NutrientReport";
 
 const SESSION_ACCENT: Record<SessionType, string> = {
-  PUSH_A: "#e8ff47",
-  PUSH_B: "#e8ff47",
-  PULL_A: "#47ffb8",
-  PULL_B: "#47ffb8",
+  PUSH_A: "#ff8a3d",
+  PUSH_B: "#ff8a3d",
+  PULL_A: "#22c55e",
+  PULL_B: "#22c55e",
   LEGS:   "#ff6b35",
   CUSTOM: "#8b47ff",
 };

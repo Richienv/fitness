@@ -246,13 +246,13 @@ export default function TodayPage() {
   const microRings = useMemo<MicroRing[]>(() => {
     const mt = getMicroTargets();
     return [
-      { key: "k",      label: "K",   value: fullToday.k,      target: mt.k,      unit: "mg", kind: "hit", color: "#e8ff47" },
-      { key: "mg",     label: "MG",  value: fullToday.mg,     target: mt.mg,     unit: "mg", kind: "hit", color: "#e8ff47" },
+      { key: "k",      label: "K",   value: fullToday.k,      target: mt.k,      unit: "mg", kind: "hit", color: "#ff8a3d" },
+      { key: "mg",     label: "MG",  value: fullToday.mg,     target: mt.mg,     unit: "mg", kind: "hit", color: "#ff8a3d" },
       { key: "fe",     label: "FE",  value: fullToday.fe,     target: mt.fe,     unit: "mg", kind: "hit", color: "#ff6b35" },
       { key: "zn",     label: "ZN",  value: fullToday.zn,     target: mt.zn,     unit: "mg", kind: "hit", color: "#479dff" },
       { key: "ca",     label: "CA",  value: fullToday.ca,     target: mt.ca,     unit: "mg", kind: "hit", color: "#f0f0f0" },
-      { key: "fiber",  label: "FIB", value: fullToday.fiber,  target: mt.fiber,  unit: "g",  kind: "hit", color: "#47ffb8" },
-      { key: "omega3", label: "ω3",  value: fullToday.omega3, target: mt.omega3, unit: "g",  kind: "hit", color: "#47ffb8" },
+      { key: "fiber",  label: "FIB", value: fullToday.fiber,  target: mt.fiber,  unit: "g",  kind: "hit", color: "#22c55e" },
+      { key: "omega3", label: "ω3",  value: fullToday.omega3, target: mt.omega3, unit: "g",  kind: "hit", color: "#22c55e" },
       { key: "sugar",  label: "SUG", value: fullToday.sugar,  target: mt.sugar,  unit: "g",  kind: "cap", color: "#ff4747" },
     ];
   }, [fullToday]);

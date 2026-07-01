@@ -1,18 +1,31 @@
 :root {
-  --bg: #0a0a0a;
-  --surface: #111111;
-  --surface2: #1a1a1a;
-  --border: #222222;
-  --accent: #e8ff47;
-  --accent2: #ff6b35;
-  --accent3: #47ffb8;
-  --text: #f0f0f0;
-  --muted: #666666;
-  --danger: #ff4747;
-  --green: #47ff8a;
-  --orange: #ff9947;
-  --blue: #479dff;
-  --purple: #8b47ff;
+  /* ── weuseai "fire" theme ──────────────────────────────────────────
+     Near-black canvas, one orange→red fire accent, warm neutrals.
+     Token NAMES are unchanged so the whole stylesheet re-themes at once;
+     only their VALUES moved from the old volt-yellow palette to fire. */
+  --bg: #070608;
+  --surface: #0c0a0b;      /* card bg */
+  --surface2: #141011;     /* inner panel */
+  --border: rgba(255, 255, 255, 0.08); /* hairline */
+  --accent: #ee3c30;       /* fire red — the single accent */
+  --accent2: #ff8a3d;      /* fire orange (gradient top) */
+  --accent3: #ff8a72;      /* warm bright (gradient/labels) */
+  --text: #f1ede9;         /* warm white headings */
+  --muted: #7c736e;        /* warm muted / mono labels */
+  --danger: #ff5a3c;       /* over-cap / destructive (distinct hot red) */
+  --green: #22c55e;        /* success / done / included */
+  --orange: #ff8a3d;
+  --blue: #229ed9;
+  --purple: #8b6ef0;
+
+  /* Fire gradients (use via the helper classes or inline). */
+  --fire-text: linear-gradient(100deg, #ff8a3d, #ee2f1f);
+  --fire-metal: linear-gradient(180deg, #ff8a52, #ee3c30 55%, #c01f12);
+  --bar-fire: linear-gradient(90deg, #ff8a3d, #ee2f1f);
+
+  /* Display role used to be Bebas (condensed); the fire system uses
+     Plus Jakarta Sans 700/800 for display too, so alias it. */
+  --font-bebas: var(--font-dm-sans);
 
   /* Motion tokens — Apple-grade feel: spring on press, decelerate on entrance. */
   --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
@@ -910,7 +923,7 @@ a { color: inherit; text-decoration: none; }
   font-size: 8px;
   letter-spacing: 1px;
   color: #0a0a0a;
-  background: var(--accent3, #47ffb8);
+  background: var(--accent3, #22c55e);
   padding: 2px 5px;
   border-radius: 4px;
   vertical-align: middle;
@@ -921,7 +934,7 @@ a { color: inherit; text-decoration: none; }
   margin-top: 6px;
   font-size: 10px;
   line-height: 1.4;
-  color: var(--accent3, #47ffb8);
+  color: var(--accent3, #22c55e);
   font-style: italic;
 }
 .portion-total {
@@ -2672,7 +2685,7 @@ a { color: inherit; text-decoration: none; }
 }
 .complete-delta.up {
   background: rgba(71, 255, 184, 0.08);
-  color: #47ffb8;
+  color: #22c55e;
   border: 1px solid rgba(71, 255, 184, 0.32);
 }
 .complete-delta.down {
@@ -4095,7 +4108,7 @@ html:has(body.no-scroll) { overflow: hidden; }
   font-weight: 400;
 }
 .home-duo-workout .home-duo-title { color: var(--accent); }
-.home-duo-meal .home-duo-title { color: #47ffb8; }
+.home-duo-meal .home-duo-title { color: #22c55e; }
 .home-duo-sub {
   font-size: 10px;
   color: var(--muted);
@@ -4241,7 +4254,7 @@ html:has(body.no-scroll) { overflow: hidden; }
 .meal-card.logged {
   background: #111111;
   border: 1px solid #333333;
-  border-left: 2px solid #e8ff47;
+  border-left: 2px solid #ee3c30;
   color: #f0f0f0;
 }
 .meal-card-emoji {
@@ -4275,7 +4288,7 @@ html:has(body.no-scroll) { overflow: hidden; }
 }
 .meal-card-bar-fill {
   height: 100%;
-  background: #e8ff47;
+  background: #ee3c30;
   width: 0%;
   transition: width 0.4s ease;
 }
@@ -4363,7 +4376,7 @@ body.no-scroll .meal-home-top {
   padding: 14px;
   min-height: 44px;
   background: transparent;
-  color: #e8ff47;
+  color: #ee3c30;
   border: 1px dashed rgba(232, 255, 71, 0.4);
   border-radius: 10px;
   font-family: var(--font-dm-mono), "DM Mono", monospace;
@@ -4375,7 +4388,7 @@ body.no-scroll .meal-home-top {
 }
 .meal-builder .add-custom-btn.full:active {
   background: rgba(232, 255, 71, 0.08);
-  border-color: #e8ff47;
+  border-color: #ee3c30;
 }
 .meal-builder .presets-inline {
   display: flex;
@@ -4407,10 +4420,10 @@ body.no-scroll .meal-home-top {
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
-.meal-builder .preset-opt-btn:hover { border-color: var(--accent3, #e8ff47); color: #fff; }
+.meal-builder .preset-opt-btn:hover { border-color: var(--accent3, #ee3c30); color: #fff; }
 .meal-builder .preset-opt-btn.on {
   border-style: solid;
-  border-color: var(--accent, #e8ff47);
+  border-color: var(--accent, #ee3c30);
   background: rgba(232, 255, 71, 0.12);
   color: #fff;
 }
@@ -4426,7 +4439,7 @@ body.no-scroll .meal-home-top {
   color: inherit;
 }
 .meal-builder .preset-opt-btn.on .preset-opt-check {
-  background: var(--accent, #e8ff47);
+  background: var(--accent, #ee3c30);
   color: #111;
 }
 .meal-builder .preset-opt-hint { opacity: 0.7; font-size: 11px; }
@@ -4627,7 +4640,7 @@ body.no-scroll .meal-home-top {
   outline: none;
 }
 .meal-builder .mb-search:focus {
-  border-color: #e8ff47;
+  border-color: #ee3c30;
 }
 .meal-builder .mb-search::placeholder { color: #555; }
 .meal-builder .mb-add-btn {
@@ -4635,7 +4648,7 @@ body.no-scroll .meal-home-top {
   min-height: 40px;
   padding: 0 14px;
   background: transparent;
-  color: #e8ff47;
+  color: #ee3c30;
   border: 1px dashed rgba(232, 255, 71, 0.5);
   border-radius: 8px;
   font-family: var(--font-dm-mono), "DM Mono", monospace;
@@ -4646,7 +4659,7 @@ body.no-scroll .meal-home-top {
 }
 .meal-builder .mb-add-btn:active {
   background: rgba(232, 255, 71, 0.08);
-  border-color: #e8ff47;
+  border-color: #ee3c30;
 }
 .meal-builder .mb-next-btn {
   flex: 1;
@@ -4722,7 +4735,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   writing-mode: horizontal-tb;
   align-self: flex-end;
 }
-.wo-sc.rec { border-left: 3px solid #e8ff47; }
+.wo-sc.rec { border-left: 3px solid #ee3c30; }
 .wo-sc.done { opacity: 0.55; }
 .wo-sc-top { display: flex; flex-direction: column; gap: 2px; }
 .wo-sc-name {
@@ -4768,7 +4781,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   color: #666;
   letter-spacing: 1px;
 }
-.wo-sc-done { color: #47ffb8; }
+.wo-sc-done { color: #22c55e; }
 
 /* Legacy stack still referenced — hide */
 .wo-session-stack { display: none; }
@@ -4862,7 +4875,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
    ============================================================ */
 .home-brand .brand-dot,
 .brand-dot {
-  color: #e8ff47;
+  color: #ee3c30;
   padding: 0 2px;
 }
 
@@ -4877,7 +4890,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   width: 100%;
   padding: 14px;
   margin-top: 14px;
-  background: #e8ff47;
+  background: #ee3c30;
   color: #0a0a0a;
   border: none;
   border-radius: 10px;
@@ -4895,10 +4908,10 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   font-size: 13px;
   letter-spacing: 1.5px;
   background: transparent;
-  color: #e8ff47;
-  border: 1px solid #e8ff4744;
+  color: #ee3c30;
+  border: 1px solid #ee3c3044;
 }
-.share-btn.mini:active { background: #e8ff4715; }
+.share-btn.mini:active { background: #ee3c3015; }
 
 /* ============================================================
    STATS HUB — fixed, no scroll, 2x2 card grid
@@ -4964,7 +4977,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   font-size: 10px;
 }
 .stats-hub-summary .sh-value {
-  color: #e8ff47;
+  color: #ee3c30;
   font-size: 13px;
   letter-spacing: 0.5px;
 }
@@ -5014,7 +5027,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   align-items: center;
   gap: 6px;
 }
-.gym-card .gc-check { color: #e8ff47; }
+.gym-card .gc-check { color: #ee3c30; }
 .gym-card .gc-sub { font-size: 12px; color: #888; }
 .gym-card .gc-right {
   display: flex;
@@ -5094,7 +5107,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
 .gym-session-card {
   background: #0d0d0d;
   border: 1px solid #222;
-  border-left: 3px solid #e8ff47;
+  border-left: 3px solid #ee3c30;
   border-radius: 10px;
   overflow: hidden;
 }
@@ -5135,7 +5148,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   color: #888;
 }
 .gsc-vol { color: #f0f0f0; font-size: 12px; }
-.gsc-pr { color: #e8ff47; font-size: 11px; }
+.gsc-pr { color: #ee3c30; font-size: 11px; }
 .gsc-body {
   padding: 4px 14px 14px;
   border-top: 1px solid #1a1a1a;
@@ -5163,8 +5176,8 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   font-size: 11px;
   color: #888;
 }
-.gsc-set.pr { color: #e8ff47; }
-.gsc-pr-tag { color: #e8ff47; font-size: 10px; }
+.gsc-set.pr { color: #ee3c30; }
+.gsc-pr-tag { color: #ee3c30; font-size: 10px; }
 .vol-chart {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -5203,7 +5216,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   padding: 16px 16px 18px;
   background: #0d0d0d;
   border: 1px solid #222;
-  border-left: 3px solid #e8ff47;
+  border-left: 3px solid #ee3c30;
   border-radius: 10px;
   display: flex;
   flex-direction: column;
@@ -5241,7 +5254,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   min-height: 0;
 }
 .stats-card:active { transform: scale(0.97); background: #181818; }
-.stats-card.accent { border-left: 3px solid #e8ff47; }
+.stats-card.accent { border-left: 3px solid #ee3c30; }
 .sc-label {
   font-size: 10px;
   letter-spacing: 1.5px;
@@ -5336,7 +5349,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   align-self: flex-start;
   padding: 4px 0;
 }
-.sub-back:active { color: #e8ff47; }
+.sub-back:active { color: #ee3c30; }
 .sub-title {
   font-family: var(--font-bebas), "Bebas Neue", sans-serif;
   font-size: 34px;
@@ -5366,9 +5379,9 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   font-family: var(--font-dm-mono, monospace);
 }
 .sub-toggle-btn.on {
-  background: #e8ff4715;
-  border-color: #e8ff4766;
-  color: #e8ff47;
+  background: #ee3c3015;
+  border-color: #ee3c3066;
+  color: #ee3c30;
 }
 
 .remaining-grid {
@@ -5399,7 +5412,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
 .smart-tip {
   padding: 12px 14px;
   background: #0d0d0d;
-  border-left: 3px solid #e8ff47;
+  border-left: 3px solid #ee3c30;
   border-radius: 4px;
   color: #aaa;
   font-size: 12px;
@@ -5497,20 +5510,20 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
 .mbc-kcal {
   font-family: var(--font-bebas), "Bebas Neue", sans-serif;
   font-size: 18px;
-  color: #e8ff47;
+  color: #ee3c30;
 }
 .mbc-chev { color: #666; font-size: 14px; }
 .mbc-unlogged { font-size: 11px; color: #555; letter-spacing: 1px; }
 .mbc-log-now {
   font-size: 10px;
-  color: #e8ff47;
+  color: #ee3c30;
   letter-spacing: 1px;
   text-decoration: none;
   padding: 4px 8px;
-  border: 1px solid #e8ff4744;
+  border: 1px solid #ee3c3044;
   border-radius: 6px;
 }
-.mbc-log-now:active { background: #e8ff4715; }
+.mbc-log-now:active { background: #ee3c3015; }
 .mbc-body {
   display: flex;
   flex-direction: column;
@@ -5580,7 +5593,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
 .mbc-edit-kcal {
   margin-left: auto;
   font-size: 11px;
-  color: #e8ff47;
+  color: #ee3c30;
 }
 .mbc-step-hint {
   font-size: 9px;
@@ -5605,9 +5618,9 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   color: #aaa;
 }
 .mbc-save {
-  background: #e8ff47;
+  background: #ee3c30;
   color: #0a0a0a;
-  border-color: #e8ff47;
+  border-color: #ee3c30;
 }
 .mbc-remove {
   color: #ff5a5a;
@@ -5638,10 +5651,10 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   background: transparent;
 }
 .mbc-add-more {
-  color: #e8ff47;
-  border-color: #e8ff4744;
+  color: #ee3c30;
+  border-color: #ee3c3044;
 }
-.mbc-add-more:active { background: #e8ff4715; }
+.mbc-add-more:active { background: #ee3c3015; }
 .mbc-edit-meal:active { background: #181818; }
 .today-bottom-spacer { height: 80px; flex-shrink: 0; }
 
@@ -5685,7 +5698,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   font-size: 11px;
   letter-spacing: 1.2px;
 }
-.tlvl-score-delta.up { color: #47ffb8; }
+.tlvl-score-delta.up { color: #22c55e; }
 .tlvl-score-delta.down { color: #ff6b6b; }
 .tlvl-score-delta.flat { color: var(--muted); }
 .tlvl-score-range {
@@ -5775,7 +5788,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
 
 .tlvl-range {
   width: 100%;
-  accent-color: #e8ff47;
+  accent-color: #ee3c30;
 }
 .tlvl-range-ticks {
   display: flex;
@@ -5850,7 +5863,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   flex-direction: column;
   gap: 4px;
 }
-.tlvl-factor.up { border-left: 3px solid #47ffb8; }
+.tlvl-factor.up { border-left: 3px solid #22c55e; }
 .tlvl-factor.down { border-left: 3px solid #ff6b6b; }
 .tlvl-factor.flat { border-left: 3px solid #333; }
 .tlvl-factor.total {
@@ -5881,7 +5894,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   font-size: 12px;
   letter-spacing: 1px;
 }
-.tlvl-factor-pp.up { color: #47ffb8; }
+.tlvl-factor-pp.up { color: #22c55e; }
 .tlvl-factor-pp.down { color: #ff6b6b; }
 .tlvl-factor-pp.flat { color: #666; }
 .tlvl-factor-hint {
@@ -5926,7 +5939,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   letter-spacing: 1px;
   color: var(--text);
 }
-.tlvl-report-num.up { color: #47ffb8; }
+.tlvl-report-num.up { color: #22c55e; }
 .tlvl-report-num.down { color: #ff6b6b; }
 .tlvl-report-num.flat { color: var(--muted); }
 .tlvl-report-sub {
@@ -5952,7 +5965,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   border-radius: 2px 2px 0 0;
   background: #333;
 }
-.tlvl-spark-bar.up { background: #47ffb8; }
+.tlvl-spark-bar.up { background: #22c55e; }
 .tlvl-spark-bar.down { background: #ff6b6b; }
 .tlvl-report-driver {
   font-size: 11px;
@@ -5960,7 +5973,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   letter-spacing: 0.5px;
 }
 .tlvl-report-driver strong { font-weight: 500; }
-.tlvl-report-driver .up { color: #47ffb8; }
+.tlvl-report-driver .up { color: #22c55e; }
 .tlvl-report-driver .down { color: #ff6b6b; }
 .tlvl-report-driver .flat { color: var(--muted); }
 
@@ -5993,11 +6006,11 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   align-self: center;
   padding: 4px 10px;
   background: rgba(71, 255, 184, 0.12);
-  border: 1px solid #47ffb855;
+  border: 1px solid #22c55e55;
   border-radius: 999px;
   font-size: 10px;
   letter-spacing: 1.5px;
-  color: #47ffb8;
+  color: #22c55e;
 }
 .settings-section {
   display: flex;
@@ -6321,9 +6334,9 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   color: #f0f0f0;
   text-align: left;
 }
-.cl-row.checked { background: #0d1a12; border-color: #47ffb844; }
+.cl-row.checked { background: #0d1a12; border-color: #22c55e44; }
 .cl-row.checked .cl-label { text-decoration: line-through; color: #666; }
-.cl-row.auto.checked .cl-box { color: #e8ff47; }
+.cl-row.auto.checked .cl-box { color: #ee3c30; }
 .cl-box {
   font-family: var(--font-bebas), "Bebas Neue", sans-serif;
   font-size: 26px;
@@ -6331,7 +6344,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   width: 28px;
   text-align: center;
 }
-.cl-row.checked .cl-box { color: #47ffb8; }
+.cl-row.checked .cl-box { color: #22c55e; }
 .cl-label {
   flex: 1;
   font-size: 15px;
@@ -6360,7 +6373,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
 }
 .cl-progress-fill {
   height: 100%;
-  background: #e8ff47;
+  background: #ee3c30;
   transition: width 0.4s ease;
 }
 
@@ -6412,7 +6425,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
 .ratio-val {
   font-family: var(--font-bebas), "Bebas Neue", sans-serif;
   font-size: 42px;
-  color: #e8ff47;
+  color: #ee3c30;
   line-height: 1;
 }
 .ratio-arrow {
@@ -6428,7 +6441,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
 }
 .ratio-fill {
   height: 100%;
-  background: #e8ff47;
+  background: #ee3c30;
   transition: width 0.4s ease;
 }
 .milestones {
@@ -6447,8 +6460,8 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   position: relative;
   color: #444;
 }
-.milestone.now { color: #e8ff47; }
-.milestone.done { color: #47ffb8; }
+.milestone.now { color: #ee3c30; }
+.milestone.done { color: #22c55e; }
 .ms-dot {
   font-size: 20px;
   line-height: 1;
@@ -6463,7 +6476,7 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   height: 1px;
   background: #222;
 }
-.milestone.done .ms-line { background: #47ffb855; }
+.milestone.done .ms-line { background: #22c55e55; }
 .ms-field {
   display: flex;
   flex-direction: column;
@@ -8017,3 +8030,75 @@ button:active,
 }
 .mr-ring.hit .mr-ring-pct { color: var(--accent); }
 .mr-ring.over .mr-ring-pct { color: var(--danger); }
+
+/* ============================================================
+   FIRE THEME — signature 3D metallic CTAs + gradient text
+   Appended last so these win the cascade over legacy button rules.
+   ============================================================ */
+@keyframes fire-sheen {
+  0%   { transform: translateX(-160%); }
+  30%, 100% { transform: translateX(520%); }
+}
+
+/* Gradient fire text — apply to brand marks / emphasis headings. */
+.fire-text {
+  background: var(--fire-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* The primary-CTA family → 3D metallic fire + white text + glaze sweep. */
+.big-btn,
+.next-btn:not(.ghost),
+.share-btn,
+.weigh-save,
+.complete-action-btn,
+.complete-share-btn,
+.session-finish-pill.ready {
+  position: relative;
+  overflow: hidden;
+  background: var(--fire-metal) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255, 150, 120, 0.6) !important;
+  box-shadow:
+    inset 0 1.5px 1px rgba(255, 225, 205, 0.7),
+    inset 0 -4px 9px rgba(150, 20, 5, 0.4),
+    0 12px 26px rgba(238, 60, 48, 0.42) !important;
+  text-shadow: 0 1px 2px rgba(120, 15, 5, 0.5);
+}
+.big-btn::before,
+.next-btn:not(.ghost)::before,
+.share-btn::before,
+.session-finish-pill.ready::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -55%;
+  width: 55%;
+  height: 100%;
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  animation: fire-sheen 6s ease-in-out infinite;
+  pointer-events: none;
+}
+.big-btn:active,
+.next-btn:not(.ghost):active,
+.share-btn:active,
+.weigh-save:active,
+.session-finish-pill.ready:active {
+  transform: scale(0.97);
+}
+
+/* Any element that was dark-text-on-solid-accent now reads white on fire. */
+.ex-swap-btn:active,
+.swap-card-how:active,
+.demo-yt-btn:active {
+  color: #fff !important;
+}
+
+/* Bottom-nav active indicator: fire underline + glow (was volt-yellow). */
+.bn-item.active { color: var(--accent3) !important; }
+
+/* Warm the font smoothing for the Jakarta display type. */
+body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
