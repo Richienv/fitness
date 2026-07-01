@@ -311,7 +311,7 @@ export default function HomePage() {
     <main className="home page-rise">
       <header className="home-header">
         <div className="home-header-row">
-          <div className="home-brand">R2<span className="brand-dot">·</span>FIT</div>
+          <div className="home-brand">R2<span className="brand-dot">·</span><span className="fire-text">FIT</span></div>
           <div className="home-week mono">WEEK {week} / 12</div>
         </div>
         <div className="home-datetime mono">
@@ -327,7 +327,7 @@ export default function HomePage() {
             <>
               <Ring
                 pct={kcalPct}
-                color="#e8ff47"
+                color="#ff8a3d"
                 centerTop={
                   kcalComplete
                     ? Math.round(totals.kcal).toLocaleString()
@@ -345,7 +345,7 @@ export default function HomePage() {
               />
               <Ring
                 pct={proteinPct}
-                color="#47ffb8"
+                color="#22c55e"
                 centerTop={
                   proteinComplete
                     ? `${Math.round(totals.protein)}g`
@@ -363,7 +363,7 @@ export default function HomePage() {
               />
               <Ring
                 pct={workoutPct}
-                color="#ffffff"
+                color="#ff8a72"
                 centerTop={!gymDay ? "REST" : workoutDone ? "✓" : "0/1"}
                 centerBottom={!gymDay ? undefined : workoutDone ? undefined : "sessions"}
                 label="SESSION"

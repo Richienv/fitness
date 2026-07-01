@@ -1,24 +1,22 @@
 import type { Metadata, Viewport } from "next";
-import { Bebas_Neue, DM_Sans, DM_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import BottomNav from "./BottomNav";
 import ServerSync from "./ServerSync";
 import ToastStack from "./Toast";
 import { ActiveDateProvider } from "@/lib/activeDate";
 
-const bebas = Bebas_Neue({
+// weuseai "fire" system: Plus Jakarta Sans for everything (display + body),
+// JetBrains Mono for UI chrome. We keep the OLD variable names so the entire
+// stylesheet picks up the new fonts without touching every rule; --font-bebas
+// (old condensed display role) is aliased to Jakarta in globals.css :root.
+const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
-  weight: "400",
-  variable: "--font-bebas",
-});
-
-const dmSans = DM_Sans({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600"],
+  weight: ["400", "500", "600", "700", "800"],
   variable: "--font-dm-sans",
 });
 
-const dmMono = DM_Mono({
+const jetbrains = JetBrains_Mono({
   subsets: ["latin"],
   weight: ["400", "500"],
   variable: "--font-dm-mono",
@@ -65,7 +63,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#e8ff47",
+  themeColor: "#070608",
   // Lets `100dvh` shrink while the on-screen keyboard is open so bottom-sheet
   // modals (custom food, custom workout) stay reachable instead of being
   // pushed behind the keyboard.
@@ -78,13 +76,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${bebas.variable} ${dmSans.variable} ${dmMono.variable}`}>
+    <html lang="en" className={`${jakarta.variable} ${jetbrains.variable}`}>
       <head>
-        {/* Loaded under canonical names for <canvas> share-card rendering */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        {/* Also loaded under canonical names for <canvas> share-card rendering */}
         <link
-          href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
           rel="stylesheet"
         />
       </head>

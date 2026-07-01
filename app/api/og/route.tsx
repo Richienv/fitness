@@ -16,7 +16,7 @@ export async function GET(request: Request) {
           display: "flex",
           alignItems: "center",
           padding: "80px",
-          borderLeft: "12px solid #e8ff47",
+          borderLeft: "12px solid #ff8a3d",
           fontFamily: "Impact, sans-serif",
         }}
       >
@@ -31,7 +31,7 @@ export async function GET(request: Request) {
               display: "flex",
             }}
           >
-            R2<span style={{ color: "#e8ff47" }}>·</span>FIT
+            R2<span style={{ color: "#ff8a3d" }}>·</span>FIT
           </div>
           <div
             style={{

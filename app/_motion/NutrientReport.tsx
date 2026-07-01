@@ -111,12 +111,12 @@ export default function NutrientReport({
           <AreaChart data={chartData} margin={{ top: 14, right: 8, left: -18, bottom: 0 }}>
             <defs>
               <linearGradient id="nrFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#e8ff47" stopOpacity={0.55} />
-                <stop offset="100%" stopColor="#e8ff47" stopOpacity={0.02} />
+                <stop offset="0%" stopColor="#ff8a3d" stopOpacity={0.55} />
+                <stop offset="100%" stopColor="#ff8a3d" stopOpacity={0.02} />
               </linearGradient>
               <linearGradient id="nrStroke" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#47ffb8" />
-                <stop offset="100%" stopColor="#e8ff47" />
+                <stop offset="0%" stopColor="#22c55e" />
+                <stop offset="100%" stopColor="#ff8a3d" />
               </linearGradient>
             </defs>
             <XAxis
@@ -139,19 +139,19 @@ export default function NutrientReport({
             />
             <ReferenceLine
               y={100}
-              stroke="#47ffb8"
+              stroke="#22c55e"
               strokeDasharray="3 4"
               strokeOpacity={0.6}
               label={{
                 value: "TARGET",
                 position: "right",
-                fill: "#47ffb8",
+                fill: "#22c55e",
                 fontSize: 8,
                 fontFamily: "var(--font-dm-mono), monospace",
               }}
             />
             <Tooltip
-              cursor={{ stroke: "#e8ff47", strokeDasharray: "2 4", strokeOpacity: 0.3 }}
+              cursor={{ stroke: "#ff8a3d", strokeDasharray: "2 4", strokeOpacity: 0.3 }}
               contentStyle={{
                 background: "#111",
                 border: "1px solid #222",
@@ -183,8 +183,8 @@ export default function NutrientReport({
                     cx={cx}
                     cy={cy}
                     r={hit ? 4 : 2.5}
-                    fill={hit ? "#e8ff47" : "#0a0a0a"}
-                    stroke={hit ? "#e8ff47" : "#47ffb8"}
+                    fill={hit ? "#ff8a3d" : "#0a0a0a"}
+                    stroke={hit ? "#ff8a3d" : "#22c55e"}
                     strokeWidth={1.5}
                     style={hit ? { filter: "drop-shadow(0 0 5px rgba(232,255,71,0.8))" } : undefined}
                   />
