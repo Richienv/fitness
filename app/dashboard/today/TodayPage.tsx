@@ -324,6 +324,7 @@ export default function TodayPage() {
                   value={Math.round(totals[b.key])}
                   target={target[b.key]}
                   unit={b.unit}
+                  tint={b.key}
                 />
               ))
             : bars.map((b) => <SkeletonBar key={b.key} label={b.label} />)}

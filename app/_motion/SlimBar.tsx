@@ -3,12 +3,28 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import AnimatedNumber from "./AnimatedNumber";
 
+export type BarTint =
+  | "kcal" | "protein" | "carbs" | "fat" | "sugar" | "fire";
+
+// Per-macro colours from the fire mockup: kcal→orange, protein→green,
+// carbs→blue, fat→gold, sugar→fire-red. So each bar reads at a glance.
+const TINTS: Record<BarTint, { grad: string; glow: string }> = {
+  kcal:    { grad: "linear-gradient(90deg,#ff8a3d,#ee2f1f)", glow: "rgba(238,60,48,.55)" },
+  protein: { grad: "linear-gradient(90deg,#6ff0a4,#22c55e)", glow: "rgba(34,197,94,.5)" },
+  carbs:   { grad: "linear-gradient(90deg,#5ac8f5,#229ed9)", glow: "rgba(34,158,217,.5)" },
+  fat:     { grad: "linear-gradient(90deg,#ffd25a,#eab308)", glow: "rgba(234,179,8,.5)" },
+  sugar:   { grad: "linear-gradient(90deg,#ff8a72,#ee3c30)", glow: "rgba(238,60,48,.55)" },
+  fire:    { grad: "linear-gradient(90deg,#ff8a3d,#ee2f1f)", glow: "rgba(238,60,48,.55)" },
+};
+
 type Props = {
   label: string;
   value: number;
   target: number;
   /** Suffix on the numerator/denominator: "g", "" for kcal, etc. */
   unit?: string;
+  /** Per-macro colour. Defaults to the generic fire gradient. */
+  tint?: BarTint;
   /** Warn glyph appended to the label when over the cap (e.g. sugar). */
   warnIfOver?: boolean;
   /** Override left-side footer text. */
@@ -29,6 +45,7 @@ export default function SlimBar({
   value,
   target,
   unit = "",
+  tint = "fire",
   warnIfOver = false,
   leftFoot,
   rightFoot,
@@ -45,7 +62,13 @@ export default function SlimBar({
     return () => cancelAnimationFrame(raf);
   }, [ratio]);
 
-  const style = { ["--p" as string]: pAnim } as CSSProperties;
+  // Over a cap → hot red; otherwise the macro's own colour.
+  const t = over ? TINTS.sugar : TINTS[tint];
+  const style = {
+    ["--p" as string]: pAnim,
+    background: t.grad,
+    boxShadow: pAnim > 0 ? `0 0 10px ${t.glow}` : "none",
+  } as CSSProperties;
 
   return (
     <div className="slim-row">

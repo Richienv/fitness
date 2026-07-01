@@ -306,6 +306,7 @@ export default function MealHome() {
                   value={Math.round(totals[b.key])}
                   target={target[b.key]}
                   unit={b.unit}
+                  tint={b.key}
                 />
               ))
             : bars.map((b) => <SkeletonBar key={b.key} label={b.label} />)}
@@ -315,6 +316,7 @@ export default function MealHome() {
               value={Math.round(sugarTotal)}
               target={DAILY_SUGAR_TARGET_G}
               unit="g"
+              tint="sugar"
               warnIfOver
             />
           ) : (
