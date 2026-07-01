@@ -287,6 +287,11 @@ export const MICROS: Record<string, MicroProfile> = {
   "cheesecake":    { na: 280, k: 90, mg: 10, fe: 0.6, zn: 0.5, ca: 60 },
   "bolu":          { na: 150, k: 50, mg: 6, fe: 1.0, zn: 0.4, ca: 30, tags: ["choline"] },
   "srikaya-toast": { na: 380, k: 120, mg: 18, fe: 2.0, zn: 0.7, ca: 60, fiber: 2, tags: ["choline"] },
+
+  // ---- Drinks — café + shakes ----
+  "starbucks-matcha-latte": { na: 150, k: 500, mg: 40, fe: 0.5, zn: 1.2, ca: 400, tags: ["antioxidants"] },
+  "caffe-latte":            { na: 150, k: 480, mg: 40, fe: 0.1, zn: 1.4, ca: 450 },
+  "whey-chocolate":         { na: 60, k: 200, mg: 30, fe: 0.4, zn: 1.0, ca: 130, tags: ["B12"] },
 };
 
 export function microsFor(id: string, qty: number): MicroTotals {

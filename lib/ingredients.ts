@@ -13,7 +13,7 @@ export type Ingredient = {
   zh?: string;
   pinyin?: string;
   unit: string;
-  group: "protein" | "carb" | "vegetable" | "extra";
+  group: "protein" | "carb" | "vegetable" | "extra" | "drink";
   favorite?: boolean;
   tag?: IngredientTag;
   sodium?: number; // mg
@@ -100,10 +100,10 @@ export const INGREDIENTS: Ingredient[] = [
   { id: "garlic-powder",    name: "Garlic powder",        zh: "大蒜粉",   pinyin: "dà suàn fěn",     unit: "1 tsp",  group: "extra", kcal: 10,  protein: 0,  fat: 0,  carbs: 2, sodium: 0,   sugar: 0 },
   { id: "lemon-juice",      name: "Lemon juice",          zh: "柠檬汁",   pinyin: "níng méng zhī",   unit: "1 tbsp", group: "extra", kcal: 4,   protein: 0,  fat: 0,  carbs: 1, sodium: 0,   sugar: 0 },
   // Extras — Drinks
-  { id: "water",            name: "Water",                zh: "水",       pinyin: "shuǐ",            unit: "500ml",    group: "extra", kcal: 0,   protein: 0,  fat: 0,  carbs: 0, sodium: 0,   sugar: 0 },
-  { id: "black-coffee",     name: "Black coffee",         zh: "黑咖啡",   pinyin: "hēi kā fēi",      unit: "1 cup",    group: "extra", kcal: 5,   protein: 0,  fat: 0,  carbs: 0, sodium: 5,   sugar: 0 },
-  { id: "matcha-latte",     name: "Matcha latte",         zh: "抹茶拿铁", pinyin: "mǒ chá ná tiě",   unit: "no sugar", group: "extra", kcal: 150, protein: 5,  fat: 6,  carbs: 18, sodium: 120, sugar: 6 },
-  { id: "coconut-latte",    name: "Coconut latte",        zh: "椰子拿铁", pinyin: "yē zi ná tiě",    unit: "no sugar", group: "extra", kcal: 200, protein: 4,  fat: 10, carbs: 22, sodium: 80,  sugar: 8 },
+  { id: "water",            name: "Water",                zh: "水",       pinyin: "shuǐ",            unit: "500ml",    group: "drink", kcal: 0,   protein: 0,  fat: 0,  carbs: 0, sodium: 0,   sugar: 0 },
+  { id: "black-coffee",     name: "Black coffee",         zh: "黑咖啡",   pinyin: "hēi kā fēi",      unit: "1 cup",    group: "drink", kcal: 5,   protein: 0,  fat: 0,  carbs: 0, sodium: 5,   sugar: 0 },
+  { id: "matcha-latte",     name: "Matcha latte",         zh: "抹茶拿铁", pinyin: "mǒ chá ná tiě",   unit: "no sugar", group: "drink", kcal: 150, protein: 5,  fat: 6,  carbs: 18, sodium: 120, sugar: 6 },
+  { id: "coconut-latte",    name: "Coconut latte",        zh: "椰子拿铁", pinyin: "yē zi ná tiě",    unit: "no sugar", group: "drink", kcal: 200, protein: 4,  fat: 10, carbs: 22, sodium: 80,  sugar: 8 },
   { id: "egg-drop-soup",    name: "Egg drop soup",        zh: "蛋花汤",   pinyin: "dàn huā tāng",    unit: "200ml",    group: "extra", favorite: true, kcal: 70,  protein: 3,  fat: 2,  carbs: 6, sodium: 800, sugar: 0 },
   { id: "yogurt-extra",     name: "Greek yogurt",         zh: "希腊酸奶", pinyin: "xī là suān nǎi",  unit: "150g",     group: "extra", kcal: 100, protein: 10, fat: 3,  carbs: 8, sodium: 60,  sugar: 6 },
   { id: "protein-bar",      name: "Protein bar",          zh: "蛋白棒",   pinyin: "dàn bái bàng",    unit: "1 bar",    group: "extra", kcal: 200, protein: 20, fat: 8,  carbs: 20, sodium: 180, sugar: 10 },
@@ -130,8 +130,8 @@ export const INGREDIENTS: Ingredient[] = [
   { id: "fm-hot-dog",       name: "Family Mart hot dog",  zh: "热狗",     pinyin: "rè gǒu",          unit: "1 piece",         group: "extra", note: "Family Mart",        kcal: 220, protein: 9,  fat: 12, carbs: 18, sodium: 0, sugar: 3 },
   { id: "lays-chips",       name: "Lay's chips",          zh: "乐事薯片", pinyin: "lè shì shǔ piàn", unit: "30g bag",         group: "extra", tag: "limit", note: "Snack", kcal: 150, protein: 2,  fat: 9,  carbs: 16, sodium: 0, sugar: 1 },
   { id: "pocky",            name: "Pocky",                zh: "百奇",     pinyin: "bǎi qí",          unit: "1 pack",          group: "extra", tag: "limit", note: "Snack", kcal: 170, protein: 3,  fat: 7,  carbs: 24, sodium: 0, sugar: 12 },
-  { id: "yakult",           name: "Yakult",               zh: "养乐多",   pinyin: "yǎng lè duō",     unit: "100ml bottle",    group: "extra", note: "Drink",              kcal: 50,  protein: 1,  fat: 0,  carbs: 12, sodium: 0, sugar: 11 },
-  { id: "coconut-water",    name: "Coconut water",        zh: "椰子水",   pinyin: "yē zi shuǐ",      unit: "330ml",           group: "extra", note: "Drink",              kcal: 65,  protein: 1,  fat: 0,  carbs: 15, sodium: 0, sugar: 14 },
+  { id: "yakult",           name: "Yakult",               zh: "养乐多",   pinyin: "yǎng lè duō",     unit: "100ml bottle",    group: "drink", note: "Drink",              kcal: 50,  protein: 1,  fat: 0,  carbs: 12, sodium: 0, sugar: 11 },
+  { id: "coconut-water",    name: "Coconut water",        zh: "椰子水",   pinyin: "yē zi shuǐ",      unit: "330ml",           group: "drink", note: "Drink",              kcal: 65,  protein: 1,  fat: 0,  carbs: 15, sodium: 0, sugar: 14 },
 
   // Placeholder — update with real label macros
   { id: "small-chocolate",  name: "Small chocolate (UPDATE)", zh: "巧克力", pinyin: "qiǎo kè lì",    unit: "1 piece ~30g",    group: "extra", tag: "limit", note: "Placeholder — update when label shared", kcal: 150, protein: 2,  fat: 8,  carbs: 18, sodium: 0, sugar: 0 },
@@ -181,8 +181,8 @@ export const INGREDIENTS: Ingredient[] = [
   { id: "pisang-goreng",  name: "Pisang goreng (2 pcs)",    unit: "2 pcs (120g)",    group: "extra",     tag: "limit", sodium: 90, sugar: 16, kcal: 260, protein: 3, fat: 12, carbs: 38, note: "Fried banana — treat, not everyday" },
   { id: "kerupuk",        name: "Kerupuk",                  unit: "20g",             group: "extra",     tag: "limit", sodium: 250, kcal: 110, protein: 1, fat: 6, carbs: 13, note: "Crackers — empty calories, easy to overeat" },
   { id: "risoles",        name: "Risoles",                  unit: "1 pc (60g)",      group: "extra",     tag: "limit", sodium: 280, sugar: 2, kcal: 180, protein: 5, fat: 10, carbs: 18, note: "Fried stuffed roll — snack" },
-  { id: "es-teh-manis",   name: "Es teh manis",             unit: "1 glass (300ml)", group: "extra",     tag: "limit", sodium: 10, sugar: 22, kcal: 90, protein: 0, fat: 0, carbs: 23, note: "Pure sugar — ask for less/no sugar" },
-  { id: "es-kopi-susu",   name: "Es kopi susu",             unit: "1 cup (250ml)",   group: "extra",     tag: "limit", sodium: 60, sugar: 24, kcal: 230, protein: 4, fat: 8, carbs: 35, note: "Palm-sugar coffee — high sugar" },
+  { id: "es-teh-manis",   name: "Es teh manis",             unit: "1 glass (300ml)", group: "drink",     tag: "limit", sodium: 10, sugar: 22, kcal: 90, protein: 0, fat: 0, carbs: 23, note: "Pure sugar — ask for less/no sugar" },
+  { id: "es-kopi-susu",   name: "Es kopi susu",             unit: "1 cup (250ml)",   group: "drink",     tag: "limit", sodium: 60, sugar: 24, kcal: 230, protein: 4, fat: 8, carbs: 35, note: "Palm-sugar coffee — high sugar" },
   { id: "martabak-manis", name: "Martabak manis (1 slice)", unit: "1 slice (75g)",   group: "extra",     tag: "limit", sodium: 230, sugar: 20, kcal: 380, protein: 8, fat: 16, carbs: 52, note: "Sweet stuffed pancake — share it" },
   { id: "klepon",         name: "Klepon (3 pcs)",           unit: "3 pcs (60g)",     group: "extra",     tag: "limit", sodium: 30, sugar: 18, kcal: 180, protein: 2, fat: 5, carbs: 33, note: "Palm-sugar rice balls — sweet treat" },
 
@@ -198,6 +198,11 @@ export const INGREDIENTS: Ingredient[] = [
   { id: "cheesecake",     name: "Cheesecake (1 slice)",     unit: "1 slice (100g)", group: "extra", tag: "limit", sodium: 280, sugar: 20, kcal: 320, protein: 6, fat: 22, carbs: 26, note: "Dessert — share or half-portion it" },
   { id: "bolu",           name: "Bolu (sponge cake)",       unit: "1 slice (60g)",  group: "extra", tag: "limit", sodium: 150, sugar: 18, kcal: 200, protein: 4, fat: 8, carbs: 28, note: "Sponge cake — sweet treat" },
   { id: "srikaya-toast",  name: "Srikaya butter toast",     unit: "1 serving (2 slices)", group: "extra", tag: "limit", sodium: 380, sugar: 20, kcal: 350, protein: 8, fat: 14, carbs: 48, note: "Roti bakar srikaya — sweet coconut-jam toast" },
+
+  // Drinks — café + shakes
+  { id: "starbucks-matcha-latte", name: "Starbucks matcha latte", unit: "grande, 2% milk", group: "drink", tag: "limit", sodium: 150, sugar: 32, kcal: 240, protein: 12, fat: 6, carbs: 34, note: "Pre-sweetened matcha — 32g sugar. Ask 'no classic'" },
+  { id: "caffe-latte",            name: "Caffe latte",            unit: "grande, 2% milk", group: "drink", sodium: 150, sugar: 17, kcal: 190, protein: 12, fat: 7, carbs: 18, note: "Milk-based — 12g protein, calcium" },
+  { id: "whey-chocolate",         name: "Whey chocolate (1 scoop)", unit: "1 scoop (35g)", group: "drink", tag: "best", step: 0.5, gramsPerUnit: 35, sodium: 60, sugar: 2, kcal: 130, protein: 24, fat: 2, carbs: 5, note: "Chocolate protein shake — 24g protein" },
 ];
 
 export const GROUPS: { key: Ingredient["group"]; label: string }[] = [
@@ -205,6 +210,7 @@ export const GROUPS: { key: Ingredient["group"]; label: string }[] = [
   { key: "carb",       label: "Carbs" },
   { key: "vegetable",  label: "Vegetables" },
   { key: "extra",      label: "Extras" },
+  { key: "drink",      label: "Drinks" },
 ];
 
 export function getIngredient(id: string): Ingredient | undefined {

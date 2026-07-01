@@ -55,6 +55,7 @@ const STEPS: { key: Ingredient["group"]; title: string; emoji: string }[] = [
   { key: "carb",      title: "CARBS",      emoji: "🌾" },
   { key: "vegetable", title: "VEGETABLES", emoji: "🥬" },
   { key: "extra",     title: "EXTRAS",     emoji: "✨" },
+  { key: "drink",     title: "DRINKS",     emoji: "🥤" },
 ];
 
 const ZERO: CustomMacros = { kcal: 0, protein: 0, fat: 0, carbs: 0, sugar: 0, sodium: 0 };
