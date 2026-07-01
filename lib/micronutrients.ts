@@ -280,6 +280,13 @@ export const MICROS: Record<string, MicroProfile> = {
   "chicken-mince":   { na: 80, k: 250, mg: 24, fe: 1.0, zn: 1.8, ca: 12, tags: ["B12"] },
   "beef-chuck":      { na: 65, k: 300, mg: 19, fe: 2.3, zn: 4.5, ca: 12, tags: ["B12"] },
   "risol-air-fryer": { na: 260, k: 120, mg: 12, fe: 0.8, zn: 0.5, ca: 25, fiber: 1 },
+
+  // ---- Indonesian snacks + bakery / café ----
+  "siomay":        { na: 700, k: 400, mg: 45, fe: 1.8, zn: 1.2, ca: 60, fiber: 3, omega3: 0.3, tags: ["B12"] },
+  "bagel":         { na: 430, k: 80, mg: 25, fe: 3.2, zn: 0.9, ca: 20, fiber: 2 },
+  "cheesecake":    { na: 280, k: 90, mg: 10, fe: 0.6, zn: 0.5, ca: 60 },
+  "bolu":          { na: 150, k: 50, mg: 6, fe: 1.0, zn: 0.4, ca: 30, tags: ["choline"] },
+  "srikaya-toast": { na: 380, k: 120, mg: 18, fe: 2.0, zn: 0.7, ca: 60, fiber: 2, tags: ["choline"] },
 };
 
 export function microsFor(id: string, qty: number): MicroTotals {
