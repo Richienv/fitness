@@ -6,6 +6,7 @@ import { macrosFor, type Macros } from "@/lib/ingredients";
 import { useSoftRefresh } from "@/lib/useSoftRefresh";
 import {
   dedupeMeals,
+  getAllMeals,
   getDaily,
   getMealsForDate,
   isCustomItem,
@@ -40,6 +41,23 @@ function sumMealItems(items: MealItem[]): Macros {
     },
     { ...EMPTY }
   );
+}
+
+/** Consecutive days (back from today) with at least one meal logged.
+ *  Today with nothing logged yet doesn't break the streak (grace). */
+function dayStreak(allMeals: MealLog[], todayStr: string): number {
+  const logged = new Set(allMeals.map((m) => m.date));
+  const [y, mo, d] = todayStr.split("-").map(Number);
+  let streak = 0;
+  for (let i = 0; i < 400; i++) {
+    const dt = new Date(Date.UTC(y, mo - 1, d));
+    dt.setUTCDate(dt.getUTCDate() - i);
+    const key = dt.toISOString().slice(0, 10);
+    if (logged.has(key)) streak++;
+    else if (i === 0) continue; // today not logged yet — grace
+    else break;
+  }
+  return streak;
 }
 
 function greetingForHour(h: number): string {
@@ -211,6 +229,7 @@ export default function HomePage() {
   const [workout, setWorkout] = useState<WorkoutSession | null>(null);
   const [gymDay, setGymDay] = useState(true);
   const [tlvlScore, setTLvlScore] = useState<number | null>(null);
+  const [streak, setStreak] = useState(0);
 
   const reloadFromStore = useCallback(() => {
     dedupeMeals();
@@ -218,6 +237,7 @@ export default function HomePage() {
     setMeals(getMealsForDate(today));
     setWorkout(getTodaysWorkout(today));
     setGymDay(getDaily(today).gymDay);
+    setStreak(dayStreak(getAllMeals(), today));
     try {
       setTLvlScore(Math.round(computeTLvl(today).score));
     } catch {
@@ -312,7 +332,11 @@ export default function HomePage() {
       <header className="home-header">
         <div className="home-header-row">
           <div className="home-brand">R2<span className="brand-dot">·</span><span className="fire-text">FIT</span></div>
-          <div className="home-week mono">WEEK {week} / 12</div>
+          {mounted && streak > 0 ? (
+            <div className="streak-pill mono">🔥 {streak} DAY{streak === 1 ? "" : "S"}</div>
+          ) : (
+            <div className="home-week mono">WEEK {week} / 12</div>
+          )}
         </div>
         <div className="home-datetime mono">
           {dateLine} · {timeLine}
