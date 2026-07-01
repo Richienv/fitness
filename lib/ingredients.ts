@@ -191,6 +191,13 @@ export const INGREDIENTS: Ingredient[] = [
   { id: "chicken-mince",   name: "Chicken mince",          unit: "100g (cooked)", group: "protein", favorite: true, step: 0.5, gramsPerUnit: 100, sodium: 80, tag: "good", kcal: 180, protein: 24, fat: 9, carbs: 0, note: "Ayam cincang — lean-ish ground chicken" },
   { id: "beef-chuck",      name: "Beef (rendang cut, raw)", unit: "100g (raw)",   group: "protein", step: 0.5, gramsPerUnit: 100, sodium: 65, kcal: 220, protein: 19, fat: 16, carbs: 0, note: "Daging buat rendang — fattier stewing cut" },
   { id: "risol-air-fryer", name: "Risol (air fryer)",      unit: "1 pc (60g)",    group: "extra", tag: "good", sodium: 260, sugar: 2, kcal: 130, protein: 5, fat: 4, carbs: 18, note: "Air-fried — ~6g less fat than deep-fried" },
+
+  // Indonesian snacks + bakery / café
+  { id: "siomay",         name: "Siomay (1 portion)",       unit: "1 plate (~5 pcs + sauce)", group: "protein", tag: "good", sodium: 700, sugar: 6, kcal: 350, protein: 15, fat: 16, carbs: 38, note: "Fish dumpling + peanut sauce — decent protein" },
+  { id: "bagel",          name: "Bagel (plain)",            unit: "1 whole (100g)", group: "carb",  tag: "limit", sodium: 430, sugar: 5, kcal: 250, protein: 10, fat: 1.5, carbs: 50, note: "Refined — pair with protein spread" },
+  { id: "cheesecake",     name: "Cheesecake (1 slice)",     unit: "1 slice (100g)", group: "extra", tag: "limit", sodium: 280, sugar: 20, kcal: 320, protein: 6, fat: 22, carbs: 26, note: "Dessert — share or half-portion it" },
+  { id: "bolu",           name: "Bolu (sponge cake)",       unit: "1 slice (60g)",  group: "extra", tag: "limit", sodium: 150, sugar: 18, kcal: 200, protein: 4, fat: 8, carbs: 28, note: "Sponge cake — sweet treat" },
+  { id: "srikaya-toast",  name: "Srikaya butter toast",     unit: "1 serving (2 slices)", group: "extra", tag: "limit", sodium: 380, sugar: 20, kcal: 350, protein: 8, fat: 14, carbs: 48, note: "Roti bakar srikaya — sweet coconut-jam toast" },
 ];
 
 export const GROUPS: { key: Ingredient["group"]; label: string }[] = [
