@@ -1,7 +1,7 @@
 "use client";
 
 const BG = "#0a0a0a";
-const ACCENT = "#e8ff47";
+const ACCENT = "#ff8a3d";
 const TEXT = "#f0f0f0";
 const MUTED = "#666666";
 const DIVIDER = "#1f1f1f";

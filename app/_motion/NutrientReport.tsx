@@ -186,7 +186,7 @@ export default function NutrientReport({
                     fill={hit ? "#ff8a3d" : "#0a0a0a"}
                     stroke={hit ? "#ff8a3d" : "#22c55e"}
                     strokeWidth={1.5}
-                    style={hit ? { filter: "drop-shadow(0 0 5px rgba(232,255,71,0.8))" } : undefined}
+                    style={hit ? { filter: "drop-shadow(0 0 5px rgba(238,60,48,0.8))" } : undefined}
                   />
                 );
               }}

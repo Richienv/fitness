@@ -22,13 +22,14 @@ export type MuscleColorGroup =
   | "legs"
   | "abs";
 
+// Fire-aligned muscle palette (weuseai per-theme colors, mockup MCOLOR).
 export const MUSCLE_GROUP_COLOR: Record<MuscleColorGroup, string> = {
-  chest: "#e8ff47",
-  back: "#47ffb8",
-  shoulders: "#ffffff",
-  arms: "#8b47ff",
-  legs: "#ff6b35",
-  abs: "#ff4747",
+  chest: "#ff6a4c",
+  back: "#229ed9",
+  shoulders: "#ff8a3d",
+  arms: "#8b6ef0",
+  legs: "#eab308",
+  abs: "#ff8a72",
 };
 
 export const MUSCLE_TO_GROUP: Record<MuscleKey, MuscleColorGroup> = {
