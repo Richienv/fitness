@@ -24,10 +24,9 @@ export const PRESETS: MealPreset[] = [
     label: "🌅 Standard Breakfast",
     mealType: "breakfast",
     items: [
-      { id: "egg", qty: 3 },
-      { id: "oats", qty: 1 },
-      { id: "chia-seeds", qty: 1 },
-      { id: "creatine", qty: 1 },
+      { id: "egg", qty: 2 },
+      { id: "siomay-sambal", qty: 3 },
+      { id: "es-kopi-hitam", qty: 1 },
     ],
   },
   {
@@ -65,6 +64,18 @@ export const PRESETS: MealPreset[] = [
       { id: "whey", qty: 1 },
       { id: "banana", qty: 1 },
     ],
+  },
+  {
+    id: "protein-scoop",
+    label: "🥄 Protein Powder (1 scoop)",
+    mealType: "snack",
+    items: [{ id: "whey-extra", qty: 1 }],
+  },
+  {
+    id: "matcha-milk",
+    label: "🍵 Matcha + Milk",
+    mealType: "snack",
+    items: [{ id: "matcha-latte", qty: 1 }],
   },
   {
     id: "steak-dinner",

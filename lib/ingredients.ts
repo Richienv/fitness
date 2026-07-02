@@ -183,6 +183,7 @@ export const INGREDIENTS: Ingredient[] = [
   { id: "risoles",        name: "Risoles",                  unit: "1 pc (60g)",      group: "extra",     tag: "limit", sodium: 280, sugar: 2, kcal: 180, protein: 5, fat: 10, carbs: 18, note: "Fried stuffed roll — snack" },
   { id: "es-teh-manis",   name: "Es teh manis",             unit: "1 glass (300ml)", group: "drink",     tag: "limit", sodium: 10, sugar: 22, kcal: 90, protein: 0, fat: 0, carbs: 23, note: "Pure sugar — ask for less/no sugar" },
   { id: "es-kopi-susu",   name: "Es kopi susu",             unit: "1 cup (250ml)",   group: "drink",     tag: "limit", sodium: 60, sugar: 24, kcal: 230, protein: 4, fat: 8, carbs: 35, note: "Palm-sugar coffee — high sugar" },
+  { id: "es-kopi-hitam",  name: "Es kopi hitam",            unit: "1 cup (250ml)",   group: "drink",     tag: "best", sodium: 5, sugar: 0, kcal: 5, protein: 0, fat: 0, carbs: 1, note: "Iced black coffee — no sugar, basically zero cal" },
   { id: "martabak-manis", name: "Martabak manis (1 slice)", unit: "1 slice (75g)",   group: "extra",     tag: "limit", sodium: 230, sugar: 20, kcal: 380, protein: 8, fat: 16, carbs: 52, note: "Sweet stuffed pancake — share it" },
   { id: "klepon",         name: "Klepon (3 pcs)",           unit: "3 pcs (60g)",     group: "extra",     tag: "limit", sodium: 30, sugar: 18, kcal: 180, protein: 2, fat: 5, carbs: 33, note: "Palm-sugar rice balls — sweet treat" },
 
@@ -194,6 +195,7 @@ export const INGREDIENTS: Ingredient[] = [
 
   // Indonesian snacks + bakery / café
   { id: "siomay",         name: "Siomay (1 portion)",       unit: "1 plate (~5 pcs + sauce)", group: "protein", tag: "good", sodium: 700, sugar: 6, kcal: 350, protein: 15, fat: 16, carbs: 38, note: "Fish dumpling + peanut sauce — decent protein" },
+  { id: "siomay-sambal",  name: "Siomay pakai sambal",      unit: "1 pc",            group: "protein", tag: "good", sodium: 180, sugar: 1, kcal: 55, protein: 3, fat: 2, carbs: 6, note: "Per piece with sambal — no peanut sauce" },
   { id: "bagel",          name: "Bagel (plain)",            unit: "1 whole (100g)", group: "carb",  tag: "limit", sodium: 430, sugar: 5, kcal: 250, protein: 10, fat: 1.5, carbs: 50, note: "Refined — pair with protein spread" },
   { id: "cheesecake",     name: "Cheesecake (1 slice)",     unit: "1 slice (100g)", group: "extra", tag: "limit", sodium: 280, sugar: 20, kcal: 320, protein: 6, fat: 22, carbs: 26, note: "Dessert — share or half-portion it" },
   { id: "bolu",           name: "Bolu (sponge cake)",       unit: "1 slice (60g)",  group: "extra", tag: "limit", sodium: 150, sugar: 18, kcal: 200, protein: 4, fat: 8, carbs: 28, note: "Sponge cake — sweet treat" },

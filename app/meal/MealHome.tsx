@@ -60,7 +60,7 @@ type MealInfo = {
 };
 
 const MEALS: MealInfo[] = [
-  { id: "breakfast", emoji: "🌅", name: "SARAPAN", expectedKcal: 358 },
+  { id: "breakfast", emoji: "🌅", name: "SARAPAN", expectedKcal: 310 },
   { id: "lunch",     emoji: "☀️", name: "SIANG",   expectedKcal: 895 },
   { id: "snack",     emoji: "🍎", name: "SNACK",   expectedKcal: 250 },
   { id: "dinner",    emoji: "🌙", name: "MALAM",   expectedKcal: 900 },
@@ -72,6 +72,12 @@ const MEAL_ID_LABEL: Record<MealType, string> = {
   snack: "SNACK",
   dinner: "MALAM",
 };
+
+// One-tap add-ons surfaced under Quick Log (preset ids from lib/presets).
+const ADDONS: { id: string; emoji: string; label: string }[] = [
+  { id: "protein-scoop", emoji: "🥄", label: "Protein Powder" },
+  { id: "matcha-milk",   emoji: "🍵", label: "Matcha + Milk" },
+];
 
 function sumMealMacros(meal: MealLog): Macros {
   return meal.items.reduce<Macros>((acc, it) => {
@@ -563,6 +569,70 @@ export default function MealHome() {
                 }}
               >
                 {MEAL_ID_LABEL[p.mealType]} · +{kcal} KKAL
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* one-tap add-ons: protein powder / matcha with milk */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 9,
+          marginTop: 9,
+        }}
+      >
+        {ADDONS.map((a) => {
+          const preset = PRESETS.find((p) => p.id === a.id);
+          if (!preset) return null;
+          const kcal = Math.round(sumMacros(preset.items).kcal);
+          const href = `/meal/confirm?preset=${preset.id}&date=${activeDate}`;
+          return (
+            <Link
+              key={a.id}
+              href={href}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "12px 14px",
+                borderRadius: 14,
+                cursor: "pointer",
+                textDecoration: "none",
+                background:
+                  "linear-gradient(180deg,rgba(255,138,60,.1),rgba(255,138,60,.02) 40%),#0d0b0c",
+                border: "1px solid rgba(255,138,60,.32)",
+                boxShadow: "inset 0 1px 0 rgba(255,205,175,.16)",
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                vtNavigate(href, { haptic: null });
+              }}
+            >
+              <span style={{ fontSize: 18 }}>{a.emoji}</span>
+              <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <span
+                  style={{
+                    fontFamily: SANS,
+                    fontWeight: 700,
+                    fontSize: 13,
+                    color: "#f1ede9",
+                  }}
+                >
+                  {a.label}
+                </span>
+                <span
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 9,
+                    letterSpacing: ".1em",
+                    color: "#ff8a72",
+                  }}
+                >
+                  +{kcal} KKAL
+                </span>
               </span>
             </Link>
           );
