@@ -6,24 +6,17 @@ import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getDefForWorkout,
-  getLastSessionOfType,
   getWorkout,
   saveWorkout,
   workoutVolume,
   setActiveWorkoutId,
   getLastSetForExercise,
   getAllWorkouts,
-  exerciseColorGroup,
   type ExerciseDef,
   type SetLog,
   type WorkoutSession,
 } from "@/lib/workouts";
-import {
-  MUSCLE_GROUP_COLOR,
-  MUSCLE_LABEL,
-  muscleColor,
-  type MuscleKey,
-} from "@/lib/muscles";
+import { muscleColor, type MuscleKey } from "@/lib/muscles";
 import {
   getAlternatives,
   getExerciseDemo,
@@ -37,12 +30,45 @@ import BodyDiagram from "./BodyDiagram";
 import { haptic } from "@/lib/haptics";
 import { toast } from "../../../Toast";
 
+// ============================================================
+// Style system — copied from app/page.tsx for pixel fidelity
+// ============================================================
+const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
+const MONO = "var(--font-dm-mono), 'JetBrains Mono', monospace";
+const FIRE = "linear-gradient(180deg,#ff8a52,#ee3c30 55%,#c01f12)";
+const FIRE_TEXT: CSSProperties = {
+  background: "linear-gradient(100deg,#ff8a3d,#ee2f1f)",
+  WebkitBackgroundClip: "text",
+  backgroundClip: "text",
+  WebkitTextFillColor: "transparent",
+};
+
+// Bahasa Indonesia muscle labels (reference MLABEL, extended to all keys).
+const MUSCLE_LABEL_ID: Record<MuscleKey, string> = {
+  chest: "DADA",
+  frontDelt: "DELT DEPAN",
+  sideDelt: "DELT SAMPING",
+  rearDelt: "DELT BELAKANG",
+  tricep: "TRICEP",
+  bicep: "BICEP",
+  lats: "PUNGGUNG",
+  midBack: "PUNGGUNG TENGAH",
+  traps: "TRAP",
+  quad: "PAHA DEPAN",
+  hamstring: "PAHA BELAKANG",
+  glute: "GLUTE",
+  calf: "BETIS",
+  abs: "PERUT",
+};
+
 type PendingInput = {
   exerciseIdx: number;
   setNumber: number;
   weight: number;
   reps: number;
 };
+
+type Celebration = { main: string; sub: string; big: boolean; key: number };
 
 function fmtTime(s: number): string {
   const m = Math.floor(s / 60);
@@ -84,6 +110,8 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
   const [justLogged, setJustLogged] = useState<string | null>(null);
   const [swapFor, setSwapFor] = useState<number | null>(null);
   const [detailFor, setDetailFor] = useState<number | null>(null);
+  const [celeb, setCeleb] = useState<Celebration | null>(null);
+  const celebTimer = useRef<number | undefined>(undefined);
 
   // Rest timer
   const [restTotal, setRestTotal] = useState<number>(0);
@@ -112,6 +140,8 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
     }, 1000);
     return () => clearInterval(t);
   }, [restLeft]);
+
+  useEffect(() => () => window.clearTimeout(celebTimer.current), []);
 
   const def = workout ? getDefForWorkout(workout) : null;
 
@@ -214,6 +244,12 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
     setPending({ ...pending, reps: Math.max(0, pending.reps + delta) });
   }
 
+  function celebrate(main: string, sub: string, big: boolean) {
+    setCeleb({ main, sub, big, key: Date.now() });
+    window.clearTimeout(celebTimer.current);
+    celebTimer.current = window.setTimeout(() => setCeleb(null), 1150);
+  }
+
   function saveSet() {
     if (!pending || !workout || !def) return;
     const next: WorkoutSession = {
@@ -239,11 +275,29 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
     window.setTimeout(() => {
       setJustLogged((cur) => (cur === justKey ? null : cur));
     }, 950);
+
+    // Celebration burst — composes with the real save, purely visual feedback.
+    const combo = next.exercises.reduce((a, ex) => a + ex.sets.length, 0);
+    const allDone = next.exercises.every(
+      (ex, i) => ex.sets.length >= def.exercises[i].sets
+    );
+    if (allDone) {
+      celebrate("SESI SELESAI 🎉", `${combo} SET · SESI TERKUNCI`, true);
+    } else if (combo % 5 === 0) {
+      celebrate("🔥 LEVEL UP", `COMBO ×${combo} · NGEGAS`, true);
+    } else {
+      celebrate(
+        "SET MASUK ✓",
+        `${pending.weight}KG × ${pending.reps} · COMBO ×${combo}`,
+        false
+      );
+    }
+
+    const d = def.exercises[pending.exerciseIdx];
     setPending(null);
 
-    // Start rest timer
-    const d = def.exercises[pending.exerciseIdx];
-    if (d.restSec > 0) {
+    // Start rest timer (skip once everything is done).
+    if (d.restSec > 0 && !allDone) {
       restBeepedRef.current = false;
       setRestTotal(d.restSec);
       setRestLeft(d.restSec);
@@ -304,12 +358,43 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
     router.push(`/workout/session/${workout.id}/complete`);
   }
 
-  if (!loaded) return <main className="shell" />;
+  const pageStyle: CSSProperties = {
+    maxWidth: 480,
+    margin: "0 auto",
+    minHeight: "100dvh",
+    padding: "calc(20px + env(safe-area-inset-top)) 18px 22px",
+    background:
+      "radial-gradient(1100px 700px at 50% -8%, #17100f 0%, #0a0809 42%, #050406 100%)",
+    fontFamily: SANS,
+  };
+
+  if (!loaded) return <main style={pageStyle} />;
   if (!workout || !def) {
     return (
-      <main className="shell">
-        <Link href="/workout" className="back-link">← Back</Link>
-        <h1 className="section-title">SESSION NOT FOUND</h1>
+      <main style={pageStyle}>
+        <Link
+          href="/workout"
+          style={{
+            fontFamily: MONO,
+            fontSize: 11,
+            letterSpacing: ".1em",
+            color: "#8a837d",
+            textDecoration: "none",
+          }}
+        >
+          ← KEMBALI
+        </Link>
+        <div
+          style={{
+            fontFamily: SANS,
+            fontWeight: 700,
+            fontSize: 26,
+            color: "#f1ede9",
+            marginTop: 20,
+          }}
+        >
+          SESI TIDAK DITEMUKAN
+        </div>
       </main>
     );
   }
@@ -317,244 +402,679 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
   const pendingDef: ExerciseDef | null = pending ? def.exercises[pending.exerciseIdx] : null;
   const restPct = restTotal > 0 ? (restLeft / restTotal) * 100 : 0;
   const readyToFinish = totals.done >= totals.total;
+  const combo = totals.done;
+
+  const finBase: CSSProperties = {
+    fontFamily: MONO,
+    fontSize: 9.5,
+    letterSpacing: ".08em",
+    lineHeight: 1.25,
+    textAlign: "center",
+    padding: "8px 14px",
+    borderRadius: 12,
+    cursor: "pointer",
+    position: "relative",
+    overflow: "hidden",
+  };
+  const finishStyle: CSSProperties = readyToFinish
+    ? {
+        ...finBase,
+        color: "#fff",
+        background: FIRE,
+        border: "1px solid rgba(255,150,120,.65)",
+        boxShadow:
+          "inset 0 1.5px 1px rgba(255,225,205,.7), inset 0 -4px 8px rgba(150,20,5,.4), 0 8px 18px rgba(238,60,48,.45)",
+        textShadow: "0 1px 2px rgba(120,15,5,.5)",
+      }
+    : {
+        ...finBase,
+        color: "#ff9a82",
+        background: "linear-gradient(180deg,#3a1614,#1b0d0c)",
+        border: "1px solid rgba(238,60,48,.42)",
+        boxShadow:
+          "inset 0 1.5px 0 rgba(255,150,120,.3), inset 0 -4px 8px rgba(0,0,0,.45), 0 6px 14px rgba(0,0,0,.42)",
+      };
 
   return (
-    <main className="session-shell page-rise">
-      <div className="session-top-sticky">
-        <div className="session-top-row">
-          <Link href="/workout" className="back-link">← Back</Link>
-          <button
-            type="button"
-            className={`session-finish-pill mono${readyToFinish ? " ready" : ""}`}
-            onClick={finishSession}
-          >
-            {readyToFinish
-              ? "FINISH ✓"
-              : `FINISH EARLY · ${totals.done}/${totals.total}`}
-          </button>
-        </div>
-        <div className="session-head-row">
-          <div className="session-head-name">{def.name}</div>
-          <div className="session-head-focus mono">{def.focus}</div>
-        </div>
-        <div className="session-progress-row mono">
-          <span>{exercisesDone} / {def.exercises.length} EXERCISES</span>
-          <span>~{estRemainingMin} MIN LEFT</span>
-        </div>
-        <div className="session-progress-bar">
-          <div
-            className="session-progress-fill"
-            style={{ ["--p" as string]: sessionProgressPct / 100 } as CSSProperties}
-          />
-        </div>
-        {muscleVolumeList.length > 0 ? (
-          <div className="session-trained">
-            <div className="session-trained-head mono">TODAY YOU TRAINED</div>
-            <div className="session-trained-list">
-              {muscleVolumeList.slice(0, 4).map(({ m, pct }) => (
-                <div key={m} className="session-trained-row">
-                  <span className="session-trained-label mono">
-                    {MUSCLE_LABEL[m].toUpperCase()}
-                  </span>
-                  <div className="session-trained-track">
-                    <div
-                      className="session-trained-fill"
-                      style={{
-                        ["--p" as string]: pct / 100,
-                        background: muscleColor(m),
-                      } as CSSProperties}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="session-muscle-pills">
-            {def.primaryMuscles.map((m) => (
-              <span
-                key={m}
-                className="muscle-pill"
-                style={{
-                  color: muscleColor(m),
-                  borderColor: `${muscleColor(m)}55`,
-                  background: `${muscleColor(m)}15`,
-                }}
-              >
-                {MUSCLE_LABEL[m].toUpperCase()}
-              </span>
-            ))}
-          </div>
-        )}
+    <main style={pageStyle} className="page-rise">
+      <Link
+        href="/workout"
+        style={{
+          fontFamily: MONO,
+          fontSize: 11,
+          letterSpacing: ".1em",
+          color: "#8a837d",
+          textDecoration: "none",
+          display: "inline-block",
+          marginBottom: 12,
+        }}
+      >
+        ← KEMBALI
+      </Link>
+
+      {/* Title */}
+      <div
+        style={{
+          fontFamily: SANS,
+          fontWeight: 700,
+          fontSize: 26,
+          color: "#f1ede9",
+          letterSpacing: "-.01em",
+        }}
+      >
+        LOG <span style={FIRE_TEXT}>LATIHAN</span>
       </div>
 
-      <div className="session-body">
+      {/* Session summary card */}
+      <div
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          marginTop: 16,
+          borderRadius: 18,
+          padding: 16,
+          background:
+            "linear-gradient(180deg,rgba(255,255,255,.03),transparent 24%),#0c0a0b",
+          border: "1px solid rgba(255,255,255,.08)",
+          boxShadow:
+            "inset 0 1px 0 rgba(255,255,255,.06),0 18px 40px rgba(0,0,0,.5)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 12,
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <div
+              style={{
+                fontFamily: SANS,
+                fontWeight: 800,
+                fontSize: 22,
+                color: "#f5f2ef",
+              }}
+            >
+              {def.name}
+            </div>
+            <div
+              style={{
+                fontFamily: MONO,
+                fontSize: 10,
+                letterSpacing: ".14em",
+                color: "#ff8a72",
+                marginTop: 3,
+              }}
+            >
+              {def.focus}
+            </div>
+          </div>
+          <button type="button" onClick={finishSession} style={finishStyle}>
+            <span
+              style={{
+                position: "absolute",
+                top: 0,
+                left: "-55%",
+                width: "55%",
+                height: "100%",
+                background:
+                  "linear-gradient(105deg,transparent,rgba(255,255,255,.35),transparent)",
+                animation: "btnSheen 5.5s ease-in-out infinite",
+                pointerEvents: "none",
+              }}
+            />
+            <span style={{ position: "relative" }}>
+              {readyToFinish
+                ? "SELESAI ✓"
+                : `SELESAI · ${totals.done}/${totals.total}`}
+            </span>
+          </button>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontFamily: MONO,
+            fontSize: 10,
+            letterSpacing: ".1em",
+            color: "#7c736e",
+            marginTop: 14,
+          }}
+        >
+          <span>
+            {exercisesDone} / {def.exercises.length} GERAKAN
+          </span>
+          <span>~{estRemainingMin} MIN LAGI</span>
+        </div>
+
+        {/* Session progress bar */}
+        <div
+          style={{
+            position: "relative",
+            height: 8,
+            borderRadius: 999,
+            background: "rgba(255,255,255,.06)",
+            overflow: "hidden",
+            boxShadow: "inset 0 1px 2px rgba(0,0,0,.6)",
+            marginTop: 7,
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              bottom: 0,
+              width: `${sessionProgressPct}%`,
+              borderRadius: 999,
+              overflow: "hidden",
+              background: "linear-gradient(90deg,#ff8a3d,#ee2f1f)",
+              transition: "width .6s cubic-bezier(.16,1,.3,1)",
+              boxShadow: "0 0 10px rgba(238,60,48,.6)",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "45%",
+                height: "100%",
+                background:
+                  "linear-gradient(100deg,transparent,rgba(255,255,255,.6),transparent)",
+                animation: "barSheen 4.2s ease-in-out infinite",
+              }}
+            />
+          </div>
+        </div>
+
+        <div
+          style={{
+            marginTop: 16,
+            fontFamily: MONO,
+            fontSize: 9.5,
+            letterSpacing: ".16em",
+            color: "#6a6660",
+          }}
+        >
+          HARI INI KAMU LATIH
+        </div>
+
+        {/* Muscle-volume bars */}
+        <div style={{ marginTop: 9 }}>
+          {muscleVolumeList.length === 0 ? (
+            <div style={{ fontFamily: MONO, fontSize: 10, color: "#6a6660" }}>
+              Belum ada set — mulai ngangkat.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              {muscleVolumeList.slice(0, 4).map(({ m, pct }) => {
+                const col = muscleColor(m);
+                return (
+                  <div
+                    key={m}
+                    style={{ display: "flex", alignItems: "center", gap: 9 }}
+                  >
+                    <span
+                      style={{
+                        fontFamily: MONO,
+                        fontSize: 9,
+                        letterSpacing: ".06em",
+                        color: "#8a837d",
+                        width: 82,
+                        flex: "none",
+                      }}
+                    >
+                      {MUSCLE_LABEL_ID[m]}
+                    </span>
+                    <div
+                      style={{
+                        flex: 1,
+                        height: 6,
+                        borderRadius: 999,
+                        background: "rgba(255,255,255,.05)",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: "100%",
+                          width: `${pct}%`,
+                          borderRadius: 999,
+                          background: col,
+                          transition: "width .6s cubic-bezier(.16,1,.3,1)",
+                          boxShadow: `0 0 8px ${col}88`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Combo pill */}
+      {combo > 0 && (
+        <div
+          style={{
+            marginTop: 12,
+            textAlign: "center",
+            fontFamily: MONO,
+            fontSize: 11,
+            letterSpacing: ".12em",
+            color: "#ff8a72",
+            padding: "9px",
+            borderRadius: 12,
+            background: "rgba(238,60,48,.08)",
+            border: "1px solid rgba(238,60,48,.28)",
+          }}
+        >
+          🔥 COMBO ×{combo} · TETAP PANAS
+        </div>
+      )}
+
+      {/* Exercise cards */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+          marginTop: 14,
+        }}
+      >
         {def.exercises.map((ex, i) => {
           const log = workout.exercises[i];
           const displayName = log.swappedTo ?? ex.name;
           const last = getLastSetForExercise(workout.sessionType, ex.name, workout.id);
           const isFocus = i === firstIncompleteIdx && !pending;
           const allDone = log.sets.length >= ex.sets;
-          const colorGroup = exerciseColorGroup(ex);
-          const stripColor = MUSCLE_GROUP_COLOR[colorGroup];
+          const col = muscleColor(ex.primary[0]);
 
-          // Once all sets are logged the card collapses into a small stub so
-          // the user can see at a glance what's still left to do.
+          // Completed exercise → compact collapsed row.
           if (allDone) {
             const totalVol = log.sets.reduce((a, s) => a + s.weight * s.reps, 0);
+            const meta = `${log.sets.length}×${ex.repsLabel}${
+              totalVol > 0 ? ` · ${Math.round(totalVol)}kg` : ""
+            }`;
             return (
-              <button
+              <div
                 key={ex.name}
-                type="button"
-                className="ex-card-done"
-                onClick={() => setDetailFor(i)}
-                style={{ borderLeft: `3px solid ${stripColor}` }}
+                style={{
+                  borderRadius: 16,
+                  padding: "13px 15px",
+                  background: "#0a0809",
+                  border: "1px solid rgba(255,255,255,.06)",
+                  opacity: 0.72,
+                }}
               >
-                <span className="ex-card-done-tick">✓</span>
-                <span className="ex-card-done-name">{displayName}</span>
-                <span className="ex-card-done-meta mono">
-                  {log.sets.length}×{ex.repsLabel}
-                  {totalVol > 0 ? ` · ${Math.round(totalVol)}kg` : ""}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setDetailFor(i)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 11,
+                    width: "100%",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: 0,
+                    textAlign: "left",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 26,
+                      height: 26,
+                      flex: "none",
+                      borderRadius: 8,
+                      display: "grid",
+                      placeItems: "center",
+                      fontSize: 13,
+                      color: "#fff",
+                      background:
+                        "linear-gradient(180deg,#6ff0a4,#22c55e 58%,#15803d)",
+                      boxShadow:
+                        "inset 0 1px 1px rgba(255,255,255,.5),0 4px 10px rgba(34,197,94,.4)",
+                    }}
+                  >
+                    ✓
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: SANS,
+                      fontWeight: 700,
+                      fontSize: 15,
+                      color: "#cfc8c2",
+                      flex: 1,
+                    }}
+                  >
+                    {displayName}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: MONO,
+                      fontSize: 10.5,
+                      color: "#7c736e",
+                    }}
+                  >
+                    {meta}
+                  </span>
+                </button>
+              </div>
             );
           }
 
-          const setsDone = log.sets.length;
-          const setProgressPct = Math.round((setsDone / ex.sets) * 100);
+          // Incomplete exercise → full card.
+          const cardStyle: CSSProperties = {
+            position: "relative",
+            overflow: "hidden",
+            borderRadius: 18,
+            padding: 15,
+            background: isFocus
+              ? `linear-gradient(180deg, ${col}16, transparent 30%), #0c0a0b`
+              : "linear-gradient(180deg,rgba(255,255,255,.03),transparent 26%),#0c0a0b",
+            border: isFocus
+              ? `1px solid ${col}66`
+              : "1px solid rgba(255,255,255,.08)",
+            boxShadow: isFocus
+              ? `0 0 26px ${col}22, inset 0 1px 0 rgba(255,255,255,.06), 0 14px 34px rgba(0,0,0,.5)`
+              : "inset 0 1px 0 rgba(255,255,255,.05), 0 12px 30px rgba(0,0,0,.4)",
+          };
+          const lastHint = last
+            ? `Terakhir ${last.weight}kg×${last.reps}`
+            : "Belum ada data";
+
           return (
-            <div
-              key={ex.name}
-              className={`ex-card${isFocus ? " focus" : ""}`}
-              style={
-                {
-                  borderLeft: `4px solid ${stripColor}33`,
-                  ["--ex-strip-color" as string]: stripColor,
-                  ["--ex-strip-pct" as string]: `${setProgressPct}%`,
-                } as CSSProperties
-              }
-            >
-              <span
-                className="ex-strip"
-                aria-hidden="true"
-                style={{
-                  background: stripColor,
-                  height: `${setProgressPct}%`,
-                }}
-              />
-              {isFocus && (
-                <span className="ex-doing-now mono">▶ DOING NOW</span>
-              )}
-              <div className="ex-head">
-                <div className="ex-name-wrap">
-                  <button
-                    type="button"
-                    className="ex-name ex-name-btn"
-                    onClick={() => setDetailFor(i)}
+            <div key={ex.name} style={cardStyle}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => setDetailFor(i)}
+                  aria-label={`Panduan ${displayName}`}
+                  style={{
+                    width: 42,
+                    height: 42,
+                    flex: "none",
+                    borderRadius: 13,
+                    display: "grid",
+                    placeItems: "center",
+                    fontFamily: SANS,
+                    fontWeight: 800,
+                    fontSize: 18,
+                    color: "#fff",
+                    cursor: "pointer",
+                    padding: 0,
+                    background: col,
+                    border: "1px solid rgba(255,255,255,.28)",
+                    boxShadow: `inset 0 1.5px 1.5px rgba(255,255,255,.55), inset 0 -5px 9px rgba(0,0,0,.32), 0 6px 15px ${col}55`,
+                    textShadow: "0 1px 2px rgba(0,0,0,.4)",
+                  }}
+                >
+                  {displayName.charAt(0)}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDetailFor(i)}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    textAlign: "left",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: 0,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontFamily: SANS,
+                      fontWeight: 700,
+                      fontSize: 16,
+                      color: "#f1ede9",
+                      lineHeight: 1.15,
+                    }}
                   >
                     {displayName}
-                  </button>
-                  <button
-                    type="button"
-                    className="ex-info-btn"
-                    aria-label={`Guide for ${displayName}`}
-                    onClick={() => setDetailFor(i)}
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: MONO,
+                      fontSize: 9.5,
+                      letterSpacing: ".1em",
+                      color: col,
+                      marginTop: 3,
+                    }}
                   >
-                    i
-                  </button>
-                </div>
-                <div className="ex-head-right">
-                  <div className="ex-target mono">{ex.sets} × {ex.repsLabel}</div>
-                  <button
-                    type="button"
-                    className="ex-how-btn mono"
-                    onClick={() => setDetailFor(i)}
-                    aria-label={`How to do ${displayName}`}
+                    {MUSCLE_LABEL_ID[ex.primary[0]]}
+                  </div>
+                </button>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "flex-end",
+                    gap: 5,
+                  }}
+                >
+                  {isFocus && (
+                    <span
+                      style={{
+                        fontFamily: MONO,
+                        fontSize: 8.5,
+                        letterSpacing: ".1em",
+                        color: "#fff",
+                        padding: "3px 9px",
+                        borderRadius: 999,
+                        background: "linear-gradient(180deg,#ff8a52,#ee3c30)",
+                        boxShadow: "0 0 10px rgba(238,60,48,.5)",
+                        animation: "flamePulse 1.8s ease-in-out infinite",
+                      }}
+                    >
+                      ▶ GAS
+                    </span>
+                  )}
+                  <span
+                    style={{
+                      fontFamily: MONO,
+                      fontSize: 10.5,
+                      color: "#8a837d",
+                    }}
                   >
-                    ▶ HOW
-                  </button>
+                    {ex.sets} × {ex.repsLabel}
+                  </span>
                   <button
                     type="button"
-                    className="ex-swap-btn mono"
                     onClick={() => setSwapFor(i)}
+                    style={{
+                      fontFamily: MONO,
+                      fontSize: 8.5,
+                      letterSpacing: ".1em",
+                      color: "#7c736e",
+                      background: "rgba(255,255,255,.04)",
+                      border: "1px solid rgba(255,255,255,.1)",
+                      borderRadius: 8,
+                      padding: "3px 8px",
+                      cursor: "pointer",
+                    }}
                   >
-                    SWAP
+                    ↔ TUKAR
                   </button>
                 </div>
               </div>
+
               {log.swappedTo && (
                 <button
                   type="button"
-                  className="ex-swapped-tag mono"
                   onClick={() => clearSwap(i)}
+                  style={{
+                    display: "block",
+                    marginTop: 10,
+                    fontFamily: MONO,
+                    fontSize: 9,
+                    letterSpacing: ".06em",
+                    color: "#ff9a82",
+                    background: "rgba(238,60,48,.08)",
+                    border: "1px solid rgba(238,60,48,.28)",
+                    borderRadius: 8,
+                    padding: "6px 9px",
+                    cursor: "pointer",
+                    width: "100%",
+                    textAlign: "left",
+                  }}
                 >
-                  ↔ swapped from {ex.name} · tap to undo
+                  ↔ dari {ex.name} · ketuk untuk urungkan
                 </button>
               )}
-              <button
-                type="button"
-                className="ex-muscle-tags"
-                onClick={() => setDetailFor(i)}
+
+              {/* Pips + last hint */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  marginTop: 13,
+                }}
               >
-                {ex.primary.map((m) => (
-                  <span key={m} className="mtag">
-                    <span className="mdot" style={{ background: muscleColor(m) }} />
-                    {MUSCLE_LABEL[m]}
-                  </span>
-                ))}
-                {ex.secondary.map((m) => (
-                  <span key={m} className="mtag dim">
-                    <span className="mdot" style={{ background: muscleColor(m) }} />
-                    {MUSCLE_LABEL[m]}
-                  </span>
-                ))}
-              </button>
-              {last && (
-                <div className="ex-last mono">
-                  Last: {last.weight}kg × {last.reps} · {last.daysAgo}d ago
+                <div style={{ flex: 1, display: "flex", gap: 4 }}>
+                  {Array.from({ length: ex.sets }).map((_, si) => {
+                    const filled = si < log.sets.length;
+                    return (
+                      <span
+                        key={si}
+                        style={{
+                          flex: 1,
+                          height: 5,
+                          borderRadius: 999,
+                          background: filled ? col : "rgba(255,255,255,.08)",
+                          boxShadow: filled ? `0 0 6px ${col}88` : "none",
+                          transition: "all .35s",
+                        }}
+                      />
+                    );
+                  })}
                 </div>
-              )}
-              <div className="ex-sets">
+                <span
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 9.5,
+                    color: "#6a6660",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {lastHint}
+                </span>
+              </div>
+
+              {/* Set buttons */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill,minmax(74px,1fr))",
+                  gap: 7,
+                  marginTop: 12,
+                }}
+              >
                 {Array.from({ length: ex.sets }).map((_, si) => {
                   const setNum = si + 1;
                   const done = log.sets.find((s) => s.setNumber === setNum);
-                  let deltaClass = "";
-                  let deltaLabel = "";
-                  if (done && last) {
-                    const doneVol = done.weight * done.reps;
-                    const lastVol = last.weight * last.reps;
-                    if (doneVol > lastVol) { deltaClass = "pr"; deltaLabel = "↑"; }
-                    else if (doneVol === lastVol) { deltaClass = "eq"; deltaLabel = "="; }
-                    else { deltaClass = "dn"; deltaLabel = "↓"; }
+                  const isNext = !done && si === log.sets.length;
+                  const isJust = justLogged === `${i}:${setNum}`;
+
+                  let btnStyle: CSSProperties;
+                  if (done) {
+                    btnStyle = {
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 3,
+                      padding: "11px 6px",
+                      borderRadius: 12,
+                      cursor: "pointer",
+                      alignItems: "center",
+                      background: isJust
+                        ? "linear-gradient(180deg,#ff8a52,#ee3c30)"
+                        : "rgba(238,60,48,.1)",
+                      border: isJust
+                        ? "1px solid rgba(255,180,150,.8)"
+                        : `1px solid ${col}55`,
+                      boxShadow: isJust ? "0 0 18px rgba(238,60,48,.7)" : "none",
+                      transition: "all .3s",
+                    };
+                  } else if (isNext) {
+                    btnStyle = {
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 3,
+                      padding: "11px 6px",
+                      borderRadius: 12,
+                      cursor: "pointer",
+                      alignItems: "center",
+                      background: "rgba(255,138,60,.1)",
+                      border: "1px dashed rgba(255,138,60,.6)",
+                      boxShadow: "0 0 14px rgba(255,138,60,.15)",
+                    };
+                  } else {
+                    btnStyle = {
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 3,
+                      padding: "11px 6px",
+                      borderRadius: 12,
+                      cursor: "pointer",
+                      alignItems: "center",
+                      background: "rgba(255,255,255,.03)",
+                      border: "1px solid rgba(255,255,255,.08)",
+                    };
                   }
-                  // Placeholder shows last session's set if available so the
-                  // user knows where they left off — much more useful than
-                  // just the rep target.
-                  const placeholder = last
-                    ? `${last.weight}kg × ${last.reps}`
-                    : `— / ${ex.targetReps}`;
-                  const isJustLogged = justLogged === `${i}:${setNum}`;
+
+                  const valText = done
+                    ? `${done.weight}×${done.reps}`
+                    : isNext
+                    ? "TAP"
+                    : last
+                    ? `${last.weight}×${last.reps}`
+                    : `${ex.targetReps}`;
+
+                  const valColor = done
+                    ? isJust
+                      ? "#fff"
+                      : "#ffb39e"
+                    : isNext
+                    ? "#ff8a52"
+                    : "#6a6660";
+
                   return (
                     <button
                       key={si}
                       type="button"
-                      className={`ex-set-btn${done ? " done" : ""}${
-                        isJustLogged ? " just-logged" : ""
-                      } ${deltaClass}`}
                       onClick={() => openPending(i, setNum)}
+                      style={btnStyle}
                     >
-                      <span className="ex-set-num">SET {setNum}</span>
-                      {done ? (
-                        <span className="ex-set-val">
-                          {done.weight}×{done.reps} <em>{deltaLabel}</em>
-                        </span>
-                      ) : (
-                        <span
-                          className={`ex-set-placeholder${last ? " ex-set-prev" : ""}`}
-                        >
-                          {placeholder}
-                        </span>
-                      )}
+                      <span
+                        style={{
+                          fontFamily: MONO,
+                          fontSize: 8.5,
+                          letterSpacing: ".1em",
+                          color: "#7c736e",
+                        }}
+                      >
+                        SET {setNum}
+                      </span>
+                      <span
+                        style={{
+                          fontFamily: SANS,
+                          fontWeight: 700,
+                          fontSize: 15,
+                          color: valColor,
+                        }}
+                      >
+                        {valText}
+                      </span>
                     </button>
                   );
                 })}
@@ -562,31 +1082,123 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
             </div>
           );
         })}
-
       </div>
 
+      {/* Rest overlay */}
       {restLeft > 0 && (
-        <div className="rest-overlay" role="alertdialog" aria-label="Rest timer">
-          <div className="rest-overlay-card">
-            <div className="rest-overlay-label mono">⏱ REST</div>
-            <div className="rest-overlay-time">{fmtTime(restLeft)}</div>
-            <div className="rest-overlay-progress">
+        <div
+          role="alertdialog"
+          aria-label="Rest timer"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 65,
+            background: "rgba(5,4,6,.82)",
+            backdropFilter: "blur(6px)",
+            display: "grid",
+            placeItems: "center",
+            padding: 18,
+          }}
+        >
+          <div
+            style={{
+              width: "76%",
+              maxWidth: 340,
+              textAlign: "center",
+              padding: "28px 22px",
+              borderRadius: 24,
+              background: "linear-gradient(180deg,#1b1513,#0f0c0b 60%)",
+              border: "1px solid rgba(255,150,120,.25)",
+              boxShadow:
+                "0 30px 70px rgba(0,0,0,.6),0 0 40px rgba(238,60,48,.14)",
+            }}
+          >
+            <div
+              style={{
+                fontFamily: MONO,
+                fontSize: 10.5,
+                letterSpacing: ".2em",
+                color: "#ff8a72",
+              }}
+            >
+              ⏱ ISTIRAHAT
+            </div>
+            <div
+              style={{
+                fontFamily: SANS,
+                fontWeight: 800,
+                fontSize: 56,
+                color: "#fff",
+                letterSpacing: "-.02em",
+                margin: "6px 0 14px",
+              }}
+            >
+              {fmtTime(restLeft)}
+            </div>
+            <div
+              style={{
+                height: 8,
+                borderRadius: 999,
+                background: "rgba(255,255,255,.07)",
+                overflow: "hidden",
+              }}
+            >
               <div
-                className="rest-overlay-progress-fill"
-                style={{ ["--p" as string]: restPct / 100 } as CSSProperties}
+                style={{
+                  height: "100%",
+                  width: `${restPct}%`,
+                  borderRadius: 999,
+                  background: "linear-gradient(90deg,#ff8a3d,#ee2f1f)",
+                  transition: "width 1s linear",
+                  boxShadow: "0 0 10px rgba(238,60,48,.6)",
+                }}
               />
             </div>
-            <div className="rest-overlay-hint mono">
-              Breathe. Re-rack. Stay loose.
+            <div
+              style={{
+                fontFamily: MONO,
+                fontSize: 10,
+                letterSpacing: ".06em",
+                color: "#8a837d",
+                marginTop: 14,
+              }}
+            >
+              Tarik napas. Re-rack. Tetap fokus.
             </div>
-            <div className="rest-overlay-actions">
-              <button type="button" className="rest-overlay-skip" onClick={skipRest}>
-                SKIP REST
+            <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+              <button
+                type="button"
+                onClick={skipRest}
+                style={{
+                  flex: 1,
+                  padding: 13,
+                  borderRadius: 12,
+                  fontFamily: MONO,
+                  fontSize: 11,
+                  letterSpacing: ".08em",
+                  color: "#f1ede9",
+                  cursor: "pointer",
+                  background: "rgba(255,255,255,.05)",
+                  border: "1px solid rgba(255,255,255,.12)",
+                }}
+              >
+                SKIP
               </button>
               <button
                 type="button"
-                className="rest-overlay-add"
                 onClick={() => addRest(30)}
+                style={{
+                  flex: 1,
+                  padding: 13,
+                  borderRadius: 12,
+                  fontFamily: MONO,
+                  fontSize: 11,
+                  letterSpacing: ".08em",
+                  color: "#ff8a72",
+                  cursor: "pointer",
+                  background: "rgba(238,60,48,.1)",
+                  border: "1px solid rgba(238,60,48,.35)",
+                }}
               >
                 +30s
               </button>
@@ -595,76 +1207,301 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
         </div>
       )}
 
+      {/* Set-entry modal */}
       {pending && pendingDef && (() => {
-        const lastSession = getLastSessionOfType(workout.sessionType, workout.id);
-        const lastExerciseLog = lastSession?.exercises.find(
-          (e) => e.exerciseName === pendingDef.name
-        );
-        const lastSets = lastExerciseLog?.sets ?? [];
-        const matchingPrev = lastSets.find((s) => s.setNumber === pending.setNumber);
+        const exLog = workout.exercises[pending.exerciseIdx];
+        const lastLogged = exLog.sets[exLog.sets.length - 1];
+        const hint = lastLogged
+          ? `Terakhir set ${exLog.sets.length}: ${lastLogged.weight}kg × ${lastLogged.reps}`
+          : "Set pertama — cari beban yang nyisain 1-2 rep";
         return (
-          <div className="set-modal-overlay" onClick={() => setPending(null)}>
-            <div className="set-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="set-modal-body">
-                <div className="set-modal-head">
-                  <div className="set-modal-ex">{pendingDef.name}</div>
-                  <div className="set-modal-set mono">SET {pending.setNumber}</div>
+          <div
+            onClick={() => setPending(null)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 70,
+              background: "rgba(5,4,6,.72)",
+              backdropFilter: "blur(4px)",
+              display: "flex",
+              alignItems: "flex-end",
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: "100%",
+                maxWidth: 480,
+                margin: "0 auto",
+                borderRadius: "26px 26px 0 0",
+                padding:
+                  "22px 20px calc(30px + env(safe-area-inset-bottom)) 20px",
+                background: "linear-gradient(180deg,#161011,#0c0a0b 60%)",
+                borderTop: "1px solid rgba(255,255,255,.1)",
+                boxShadow: "0 -20px 50px rgba(0,0,0,.6)",
+                animation: "riseIn .28s cubic-bezier(.16,1,.3,1)",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "baseline",
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: SANS,
+                    fontWeight: 800,
+                    fontSize: 19,
+                    color: "#f5f2ef",
+                  }}
+                >
+                  {pendingDef.name}
                 </div>
-                <div className="set-modal-row">
-                  <div className="set-modal-label mono">KG</div>
-                  <div className="set-modal-stepper">
-                    <button type="button" onClick={() => adjustWeight(-1)}>−{pendingDef.increment}</button>
-                    <span className="set-modal-val">{pending.weight}</span>
-                    <button type="button" onClick={() => adjustWeight(1)}>+{pendingDef.increment}</button>
-                  </div>
+                <div
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 10.5,
+                    letterSpacing: ".14em",
+                    color: "#ff8a72",
+                  }}
+                >
+                  SET {pending.setNumber}
                 </div>
-                <div className="set-modal-row">
-                  <div className="set-modal-label mono">REPS</div>
-                  <div className="set-modal-stepper">
-                    <button type="button" onClick={() => adjustReps(-1)}>−1</button>
-                    <span className="set-modal-val">{pending.reps}</span>
-                    <button type="button" onClick={() => adjustReps(1)}>+1</button>
-                  </div>
-                </div>
-                {lastSets.length > 0 ? (
-                  <div className="set-modal-history">
-                    <div className="set-modal-history-head mono">
-                      LAST SESSION
-                      {matchingPrev && (
-                        <span className="set-modal-history-target mono">
-                          MATCH: {matchingPrev.weight}kg × {matchingPrev.reps}
-                        </span>
-                      )}
-                    </div>
-                    <div className="set-modal-history-grid">
-                      {lastSets.map((s) => {
-                        const isCurrentSet = s.setNumber === pending.setNumber;
-                        return (
-                          <div
-                            key={s.setNumber}
-                            className={`set-modal-history-cell mono${
-                              isCurrentSet ? " on" : ""
-                            }`}
-                          >
-                            <span className="set-modal-history-num">SET {s.setNumber}</span>
-                            <span className="set-modal-history-val">
-                              {s.weight}×{s.reps}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : null}
               </div>
-              <div className="set-modal-actions">
-                <button type="button" className="next-btn ghost" onClick={() => setPending(null)}>CANCEL</button>
-                <button type="button" className="next-btn" onClick={saveSet}>SAVE ✓</button>
+
+              {/* KG stepper */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginTop: 20,
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 11,
+                    letterSpacing: ".14em",
+                    color: "#7c736e",
+                  }}
+                >
+                  KG
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <button
+                    type="button"
+                    onClick={() => adjustWeight(-1)}
+                    style={stepperMinus}
+                  >
+                    −
+                  </button>
+                  <span style={stepperValue}>{pending.weight}</span>
+                  <button
+                    type="button"
+                    onClick={() => adjustWeight(1)}
+                    style={stepperPlus}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* REPS stepper */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginTop: 16,
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 11,
+                    letterSpacing: ".14em",
+                    color: "#7c736e",
+                  }}
+                >
+                  REPS
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <button
+                    type="button"
+                    onClick={() => adjustReps(-1)}
+                    style={stepperMinus}
+                  >
+                    −
+                  </button>
+                  <span style={stepperValue}>{pending.reps}</span>
+                  <button
+                    type="button"
+                    onClick={() => adjustReps(1)}
+                    style={stepperPlus}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 10,
+                  letterSpacing: ".08em",
+                  color: "#6a6660",
+                  marginTop: 16,
+                  textAlign: "center",
+                }}
+              >
+                {hint}
+              </div>
+
+              <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+                <button
+                  type="button"
+                  onClick={() => setPending(null)}
+                  style={{
+                    flex: 1,
+                    padding: 15,
+                    borderRadius: 14,
+                    fontFamily: SANS,
+                    fontWeight: 700,
+                    fontSize: 14,
+                    color: "#9a938d",
+                    cursor: "pointer",
+                    background: "rgba(255,255,255,.04)",
+                    border: "1px solid rgba(255,255,255,.1)",
+                  }}
+                >
+                  BATAL
+                </button>
+                <button
+                  type="button"
+                  onClick={saveSet}
+                  style={{
+                    flex: 2,
+                    position: "relative",
+                    overflow: "hidden",
+                    padding: 15,
+                    borderRadius: 14,
+                    fontFamily: SANS,
+                    fontWeight: 800,
+                    fontSize: 14,
+                    color: "#fff",
+                    cursor: "pointer",
+                    background: FIRE,
+                    border: "1px solid rgba(255,150,120,.6)",
+                    boxShadow:
+                      "inset 0 1.5px 1px rgba(255,225,205,.7),0 10px 22px rgba(238,60,48,.42)",
+                    textShadow: "0 1px 2px rgba(120,15,5,.5)",
+                  }}
+                >
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: "-55%",
+                      width: "55%",
+                      height: "100%",
+                      background:
+                        "linear-gradient(105deg,transparent,rgba(255,255,255,.4),transparent)",
+                      animation: "btnSheen 5s ease-in-out infinite",
+                    }}
+                  />
+                  SIMPAN ✓
+                </button>
               </div>
             </div>
           </div>
         );
       })()}
+
+      {/* Celebration burst */}
+      {celeb && (
+        <div
+          key={celeb.key}
+          style={{
+            position: "fixed",
+            inset: 0,
+            display: "grid",
+            placeItems: "center",
+            pointerEvents: "none",
+            zIndex: 80,
+          }}
+        >
+          <div style={{ position: "relative", display: "grid", placeItems: "center" }}>
+            {Array.from({ length: 12 }).map((_, i) => {
+              const ang = (i / 12) * Math.PI * 2;
+              const dist = 68 + ((i * 37) % 40);
+              return (
+                <span
+                  key={i}
+                  style={
+                    {
+                      position: "absolute",
+                      left: "50%",
+                      top: "50%",
+                      width: 7,
+                      height: 7,
+                      marginLeft: -3,
+                      marginTop: -3,
+                      borderRadius: "50%",
+                      background: i % 2 ? "#ffd25a" : "#ff5a3c",
+                      boxShadow: "0 0 8px #ff5a3c",
+                      ["--tx" as string]: `${Math.cos(ang) * dist}px`,
+                      ["--ty" as string]: `${Math.sin(ang) * dist}px`,
+                      animation: "sparkOut .85s cubic-bezier(.16,1,.3,1) forwards",
+                    } as CSSProperties
+                  }
+                />
+              );
+            })}
+            <div
+              style={{
+                position: "relative",
+                padding: celeb.big ? "16px 26px" : "12px 20px",
+                borderRadius: 16,
+                background: FIRE,
+                border: "1px solid rgba(255,150,120,.6)",
+                boxShadow:
+                  "inset 0 1.5px 1px rgba(255,225,205,.7),0 12px 30px rgba(238,60,48,.5)",
+                textAlign: "center",
+                animation: "celebPop .45s cubic-bezier(.16,1,.3,1)",
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: SANS,
+                  fontWeight: 800,
+                  fontSize: celeb.big ? 22 : 16,
+                  color: "#fff",
+                  textShadow: "0 1px 2px rgba(120,15,5,.6)",
+                }}
+              >
+                {celeb.main}
+              </div>
+              {celeb.sub && (
+                <div
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 10,
+                    color: "rgba(255,240,235,.92)",
+                    letterSpacing: ".08em",
+                    marginTop: 4,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {celeb.sub}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {swapFor !== null && def && (
         <SwapSheet
@@ -687,6 +1524,37 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
     </main>
   );
 }
+
+// Shared set-modal stepper button styles.
+const stepperMinus: CSSProperties = {
+  width: 46,
+  height: 46,
+  borderRadius: 14,
+  fontSize: 18,
+  color: "#f1ede9",
+  cursor: "pointer",
+  background: "rgba(255,255,255,.05)",
+  border: "1px solid rgba(255,255,255,.12)",
+};
+const stepperPlus: CSSProperties = {
+  width: 46,
+  height: 46,
+  borderRadius: 14,
+  fontSize: 18,
+  color: "#fff",
+  cursor: "pointer",
+  background: FIRE,
+  border: "1px solid rgba(255,150,120,.6)",
+  boxShadow: "inset 0 1px 1px rgba(255,225,205,.6),0 6px 14px rgba(238,60,48,.4)",
+};
+const stepperValue: CSSProperties = {
+  fontFamily: SANS,
+  fontWeight: 800,
+  fontSize: 30,
+  color: "#fff",
+  minWidth: 74,
+  textAlign: "center",
+};
 
 // ============================================================
 // Swap bottom sheet
