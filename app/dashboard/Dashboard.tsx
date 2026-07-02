@@ -1,369 +1,819 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { getIngredient, macrosFor } from "@/lib/ingredients";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+} from "react";
 import {
   dedupeMeals,
-  getAllMeals,
   getDaily,
   getMealsForDate,
-  isCustomItem,
-  type MealItem,
+  setDaily,
   type MealLog,
 } from "@/lib/store";
+import type { MealType } from "@/lib/presets";
 import { TARGETS, weekNumber } from "@/lib/targets";
 import { useActiveDate, parseDate } from "@/lib/activeDate";
-import {
-  getAllWorkouts,
-  getTodaysWorkout,
-  recommendedSessionFor,
-  getSession,
-  workoutVolume,
-  type WorkoutSession,
-  type SessionType,
-} from "@/lib/workouts";
-import { microStreak, sumNutrition } from "@/lib/nutritionStats";
-import {
-  MICRO_DEFS,
-  getMicroTargets,
-  type MicroTargets,
-} from "@/lib/nutritionTargets";
+import { sumNutrition } from "@/lib/nutritionStats";
+import { getMicroTargets, type MicroTargets } from "@/lib/nutritionTargets";
 import { useSoftRefresh } from "@/lib/useSoftRefresh";
-import NutrientReport, { type NutrientRow } from "../_motion/NutrientReport";
+import { renderNutritionCard, shareBlob } from "@/lib/shareCards";
+import { haptic } from "@/lib/haptics";
 
-const SESSION_ACCENT: Record<SessionType, string> = {
-  PUSH_A: "#ff8a3d",
-  PUSH_B: "#ff8a3d",
-  PULL_A: "#22c55e",
-  PULL_B: "#22c55e",
-  LEGS:   "#ff6b35",
-  CUSTOM: "#8b47ff",
+const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
+const MONO = "var(--font-dm-mono), 'JetBrains Mono', monospace";
+const FIRE = "linear-gradient(180deg,#ff8a52,#ee3c30 55%,#c01f12)";
+const FIRE_TEXT: CSSProperties = {
+  background: "linear-gradient(100deg,#ff8a3d,#ee2f1f)",
+  WebkitBackgroundClip: "text",
+  backgroundClip: "text",
+  WebkitTextFillColor: "transparent",
 };
 
-type FullMacros = {
-  kcal: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  sodium: number;
-  sugar: number;
-};
+const ID_DAYS = ["MIN", "SEN", "SEL", "RAB", "KAM", "JUM", "SAB"];
+const ID_MON = [
+  "JAN", "FEB", "MAR", "APR", "MEI", "JUN",
+  "JUL", "AGU", "SEP", "OKT", "NOV", "DES",
+];
 
-const ZERO: FullMacros = { kcal: 0, protein: 0, carbs: 0, fat: 0, sodium: 0, sugar: 0 };
+function bahasaDateLine(dateStr: string): string {
+  if (!dateStr) return "";
+  const d = parseDate(dateStr);
+  const day = ID_DAYS[d.getUTCDay()];
+  const mon = ID_MON[d.getUTCMonth()];
+  return `${day} · ${d.getUTCDate()} ${mon}`;
+}
 
-function itemFullMacros(it: MealItem): FullMacros {
-  if (isCustomItem(it)) {
-    return {
-      kcal: it.kcal,
-      protein: it.protein,
-      carbs: it.carbs,
-      fat: it.fat,
-      sodium: it.sodium ?? 0,
-      sugar: it.sugar ?? 0,
+/** Meal-type presentation for the stats "MAKANAN HARI INI" list. */
+const MEALS: { type: MealType; emoji: string; label: string }[] = [
+  { type: "breakfast", emoji: "🌅", label: "SARAPAN" },
+  { type: "lunch", emoji: "☀️", label: "MAKAN SIANG" },
+  { type: "snack", emoji: "🍎", label: "CAMILAN" },
+  { type: "dinner", emoji: "🌙", label: "MAKAN MALAM" },
+];
+
+/** Eases a 0→1 reveal factor on mount so bars/rings animate up like the ref. */
+function useReveal(): number {
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    let cur = 0;
+    const tick = () => {
+      cur = cur + (1 - cur) * 0.12;
+      if (1 - cur < 0.005) {
+        setT(1);
+        return;
+      }
+      setT(cur);
+      raf = requestAnimationFrame(tick);
     };
-  }
-  const m = macrosFor(it.id, it.qty);
-  const ing = getIngredient(it.id);
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  return t;
+}
+
+function toggleStyle(active: boolean): CSSProperties {
   return {
-    ...m,
-    sodium: (ing?.sodium ?? 0) * it.qty,
-    sugar: (ing?.sugar ?? 0) * it.qty,
+    flex: 1,
+    padding: "11px",
+    borderRadius: 12,
+    fontFamily: MONO,
+    fontSize: 11,
+    letterSpacing: ".06em",
+    cursor: "pointer",
+    border: active
+      ? "1px solid rgba(255,150,120,.6)"
+      : "1px solid rgba(255,255,255,.1)",
+    background: active ? FIRE : "rgba(255,255,255,.03)",
+    color: active ? "#fff" : "#7c736e",
+    boxShadow: active
+      ? "inset 0 1.5px 1px rgba(255,225,205,.6),0 6px 16px rgba(238,60,48,.35)"
+      : "none",
+    textShadow: active ? "0 1px 2px rgba(120,15,5,.5)" : "none",
   };
 }
 
-function sumItems(items: MealItem[]): FullMacros {
-  return items.reduce<FullMacros>(
-    (a, it) => {
-      const m = itemFullMacros(it);
-      return {
-        kcal: a.kcal + m.kcal,
-        protein: a.protein + m.protein,
-        carbs: a.carbs + m.carbs,
-        fat: a.fat + m.fat,
-        sodium: a.sodium + m.sodium,
-        sugar: a.sugar + m.sugar,
-      };
-    },
-    { ...ZERO }
+const cardStyle: CSSProperties = {
+  marginTop: 14,
+  padding: 16,
+  borderRadius: 18,
+  background: "#0c0a0b",
+  border: "1px solid rgba(255,255,255,.08)",
+};
+
+const cardLabelStyle: CSSProperties = {
+  fontFamily: MONO,
+  fontSize: 9.5,
+  letterSpacing: ".16em",
+  color: "#6a6660",
+};
+
+/* ---------------------------------------------------------------- macro bar */
+
+function BarRow({
+  label,
+  value,
+  target,
+  unit,
+  grad,
+  glow,
+  cap,
+  delay,
+  t,
+  last,
+}: {
+  label: string;
+  value: number;
+  target: number;
+  unit: string;
+  grad: string;
+  glow: string;
+  cap: boolean;
+  delay: number;
+  t: number;
+  last?: boolean;
+}) {
+  const shown = value * t;
+  const safeTarget = target || 1;
+  const pct = Math.max(0, Math.min(100, (shown / safeTarget) * 100));
+  const over = cap && shown > target;
+  const hot = pct >= 88 || over;
+  return (
+    <div style={{ marginBottom: last ? 0 : 13 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          marginBottom: 6,
+        }}
+      >
+        <span
+          style={{
+            fontFamily: MONO,
+            fontSize: 9.5,
+            letterSpacing: ".14em",
+            color: "#7c736e",
+          }}
+        >
+          {label}
+        </span>
+        <span
+          style={{
+            fontFamily: MONO,
+            fontSize: 11,
+            color: over ? "#ee3c30" : "#f1ede9",
+          }}
+        >
+          {`${Math.round(shown)}${unit} `}
+          <span style={{ color: "#6a6660" }}>{`/ ${target}${unit}`}</span>
+        </span>
+      </div>
+      <div
+        style={{
+          position: "relative",
+          height: 9,
+          borderRadius: 999,
+          background: "rgba(255,255,255,.05)",
+          overflow: "hidden",
+          boxShadow: "inset 0 1px 2px rgba(0,0,0,.6)",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            bottom: 0,
+            width: `${pct}%`,
+            borderRadius: 999,
+            overflow: "hidden",
+            background: over ? "linear-gradient(90deg,#ff5a3c,#ee2f1f)" : grad,
+            transition: "width .6s cubic-bezier(.16,1,.3,1)",
+            boxShadow: hot ? `0 0 10px ${glow}` : "none",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "45%",
+              height: "100%",
+              background:
+                "linear-gradient(100deg,transparent,rgba(255,255,255,.6),transparent)",
+              animation: `barSheen 4.2s ${delay}s ease-in-out infinite`,
+            }}
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 
-function mondayOf(d: Date): Date {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  const dow = x.getDay();
-  x.setDate(x.getDate() + (dow === 0 ? -6 : 1 - dow));
-  return x;
+/* --------------------------------------------------------------- micro ring */
+
+function MicroRing({
+  code,
+  value,
+  target,
+  color,
+  color2,
+  idx,
+  t,
+}: {
+  code: string;
+  value: number;
+  target: number;
+  color: string;
+  color2: string;
+  idx: number;
+  t: number;
+}) {
+  const size = 44;
+  const stroke = 4;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const pctFull = Math.min(100, (value / (target || 1)) * 100);
+  const pct = pctFull * t;
+  const off = c - (pct / 100) * c;
+  const gid = "mr" + code;
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 5,
+      }}
+    >
+      <div style={{ position: "relative", width: size, height: size }}>
+        <div
+          style={{
+            position: "absolute",
+            inset: 5,
+            borderRadius: "50%",
+            background: `radial-gradient(circle, ${color}30, transparent 68%)`,
+            filter: "blur(2px)",
+            opacity: t,
+          }}
+        />
+        <svg
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          style={{ overflow: "visible" }}
+        >
+          <defs>
+            <linearGradient
+              id={gid}
+              gradientUnits="userSpaceOnUse"
+              x1={0}
+              y1={0}
+              x2={size}
+              y2={size}
+            >
+              <animateTransform
+                attributeName="gradientTransform"
+                type="rotate"
+                from={`0 ${size / 2} ${size / 2}`}
+                to={`360 ${size / 2} ${size / 2}`}
+                dur={`${3 + idx * 0.35}s`}
+                repeatCount="indefinite"
+              />
+              <stop offset="0%" stopColor={color2} />
+              <stop offset="100%" stopColor={color} />
+            </linearGradient>
+          </defs>
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke="#211b1b"
+            strokeWidth={stroke}
+          />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke={`url(#${gid})`}
+            strokeWidth={stroke}
+            strokeDasharray={c}
+            strokeDashoffset={off}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            style={{ filter: `drop-shadow(0 0 4px ${color}bb)` }}
+          />
+        </svg>
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "grid",
+            placeItems: "center",
+            fontFamily: SANS,
+            fontWeight: 700,
+            fontSize: 11,
+            color: "#fff",
+            textShadow: "0 1px 3px rgba(0,0,0,.6)",
+          }}
+        >
+          {Math.round(pct)}
+        </div>
+      </div>
+      <span
+        style={{
+          fontFamily: MONO,
+          fontSize: 8,
+          letterSpacing: ".08em",
+          color,
+        }}
+      >
+        {code}
+      </span>
+    </div>
+  );
 }
+
+/* ------------------------------------------------------------------ page */
 
 export default function Dashboard() {
   const { activeDate } = useActiveDate();
   const [meals, setMeals] = useState<MealLog[]>([]);
-  const [allMeals, setAllMeals] = useState<MealLog[]>([]);
   const [gymDay, setGymDay] = useState(true);
-  const [workouts, setWorkouts] = useState<WorkoutSession[]>([]);
-  const [todayWorkout, setTodayWorkout] = useState<WorkoutSession | null>(null);
   const [microTargets, setMicroTargets] = useState<MicroTargets>(getMicroTargets);
+  const [sharing, setSharing] = useState(false);
+  const t = useReveal();
 
-  const reloadAll = useCallback(() => {
-    dedupeMeals();
-    setAllMeals(getAllMeals());
-    setWorkouts(getAllWorkouts());
-    setMicroTargets(getMicroTargets());
-  }, []);
-  useSoftRefresh(reloadAll);
-
-  useEffect(() => {
-    reloadAll();
-    // No body.no-scroll lock here — the NutrientReport + TopUpCard + suggestions
-    // push the hub well past one viewport. The page must scroll so the user
-    // can reach the recommendations + gym card below the fold.
-  }, [reloadAll]);
-
-  useEffect(() => {
+  const reloadDay = useCallback(() => {
     if (!activeDate) return;
+    dedupeMeals();
     setMeals(getMealsForDate(activeDate));
-    const d = getDaily(activeDate);
-    setGymDay(d.gymDay);
-    setTodayWorkout(getTodaysWorkout(activeDate));
+    setGymDay(getDaily(activeDate).gymDay);
+    setMicroTargets(getMicroTargets());
   }, [activeDate]);
 
-  const totals = useMemo<FullMacros>(
-    () =>
-      meals.reduce<FullMacros>(
-        (a, m) => {
-          const s = sumItems(m.items);
-          return {
-            kcal: a.kcal + s.kcal,
-            protein: a.protein + s.protein,
-            carbs: a.carbs + s.carbs,
-            fat: a.fat + s.fat,
-            sodium: a.sodium + s.sodium,
-            sugar: a.sugar + s.sugar,
-          };
-        },
-        { ...ZERO }
-      ),
-    [meals]
-  );
+  useSoftRefresh(reloadDay);
+  useEffect(() => {
+    reloadDay();
+  }, [reloadDay]);
 
-  const weekAvg = useMemo<FullMacros>(() => {
-    if (!activeDate) return { ...ZERO };
-    const now = parseDate(activeDate);
-    const mon = mondayOf(now);
-    const byDate = new Map<string, FullMacros>();
-    for (const m of allMeals) {
-      const d = parseDate(m.date);
-      if (d < mon || d > now) continue;
-      const cur = byDate.get(m.date) ?? { ...ZERO };
-      const s = sumItems(m.items);
-      byDate.set(m.date, {
-        kcal: cur.kcal + s.kcal,
-        protein: cur.protein + s.protein,
-        carbs: cur.carbs + s.carbs,
-        fat: cur.fat + s.fat,
-        sodium: cur.sodium + s.sodium,
-        sugar: cur.sugar + s.sugar,
-      });
-    }
-    const days = byDate.size || 1;
-    let acc = { ...ZERO };
-    for (const v of byDate.values()) {
-      acc = {
-        kcal: acc.kcal + v.kcal,
-        protein: acc.protein + v.protein,
-        carbs: acc.carbs + v.carbs,
-        fat: acc.fat + v.fat,
-        sodium: acc.sodium + v.sodium,
-        sugar: acc.sugar + v.sugar,
-      };
-    }
-    return {
-      kcal: Math.round(acc.kcal / days),
-      protein: Math.round(acc.protein / days),
-      carbs: Math.round(acc.carbs / days),
-      fat: Math.round(acc.fat / days),
-      sodium: Math.round(acc.sodium / days),
-      sugar: Math.round(acc.sugar / days),
+  // Full nutrient picture for the active day: macros + real micronutrients.
+  const today = useMemo(() => sumNutrition(meals), [meals]);
+
+  const kcalByType = useMemo(() => {
+    const map: Record<MealType, number> = {
+      breakfast: 0,
+      lunch: 0,
+      snack: 0,
+      dinner: 0,
     };
-  }, [allMeals, activeDate]);
+    for (const m of meals) map[m.mealType] += sumNutrition([m]).kcal;
+    return map;
+  }, [meals]);
 
-  // Week-average fiber (the "OTHERS" card placeholder used to read "—").
-  const weekAvgFiber = useMemo(() => {
-    if (!activeDate) return 0;
-    const now = parseDate(activeDate);
-    const mon = mondayOf(now);
-    const byDate = new Map<string, number>();
-    for (const m of allMeals) {
-      const d = parseDate(m.date);
-      if (d < mon || d > now) continue;
-      byDate.set(m.date, (byDate.get(m.date) ?? 0) + sumNutrition([m]).fiber);
-    }
-    const days = byDate.size || 1;
-    let acc = 0;
-    for (const v of byDate.values()) acc += v;
-    return Math.round(acc / days);
-  }, [allMeals, activeDate]);
-
-  const wk = activeDate ? weekNumber(parseDate(activeDate)) : 1;
+  const week = activeDate ? weekNumber(parseDate(activeDate)) : 1;
   const target = gymDay ? TARGETS.gymDay : TARGETS.restDay;
+  const dateLine = bahasaDateLine(activeDate);
+  const dayType = gymDay ? "HARI GYM" : "HARI REST";
 
-  // Full nutrient picture for the day (macros + micros + earned bonus tags).
-  const fullToday = useMemo(() => sumNutrition(meals), [meals]);
+  function toggleGym(next: boolean) {
+    if (next === gymDay || !activeDate) return;
+    haptic("tap");
+    setGymDay(next);
+    const cur = getDaily(activeDate);
+    setDaily({ date: activeDate, gymDay: next, checklist: cur.checklist ?? {} });
+  }
 
-  // Days-in-a-row maxing ≥80% of hit-nutrients.
-  const streak = useMemo(
-    () => (activeDate ? microStreak(allMeals, activeDate) : 0),
-    [allMeals, activeDate]
+  // Smart tip — computed from real remaining protein / kcal (Bahasa).
+  const pLeft = Math.round(target.protein - today.protein);
+  const kLeft = Math.round(target.kcal - today.kcal);
+  let tip: string;
+  if (today.kcal === 0) tip = "Catat makanan pertamamu buat dapet rekomendasi.";
+  else if (today.kcal > target.kcal + 100)
+    tip = "Kalori kelewat target — lebih ringan di makan berikutnya.";
+  else if (pLeft > 20) tip = `Sisa ${pLeft}g protein — masih bisa kejar target.`;
+  else tip = `Sisa ${kLeft} kkal buat hari ini. Habiskan dengan bijak.`;
+
+  // Macro-split segmented bar (protein / carbs / fat proportion).
+  const pg = today.protein * t;
+  const cg = today.carbs * t;
+  const fg = today.fat * t;
+  const totMacro = Math.max(1, pg + cg + fg);
+  const pEnd = (pg / totMacro) * 100;
+  const cEnd = ((pg + cg) / totMacro) * 100;
+  const gCol = "#3ad97d";
+  const bCol = "#2aa5e0";
+  const amCol = "#f0c341";
+  const bl = 6;
+  const s1 = Math.max(0, pEnd - bl);
+  const s2 = Math.min(100, pEnd + bl);
+  const s3 = Math.max(s2, cEnd - bl);
+  const s4 = Math.min(100, cEnd + bl);
+  const splitGrad = `linear-gradient(90deg, ${gCol} 0%, ${gCol} ${s1}%, ${bCol} ${s2}%, ${bCol} ${s3}%, ${amCol} ${s4}%, ${amCol} 100%)`;
+
+  const microData = [
+    { code: "K", value: today.k, target: microTargets.k, color: "#ff8a3d", color2: "#ffd08a" },
+    { code: "MG", value: today.mg, target: microTargets.mg, color: "#eab308", color2: "#ffe488" },
+    { code: "FE", value: today.fe, target: microTargets.fe, color: "#ff6a4c", color2: "#ffb39e" },
+    { code: "ZN", value: today.zn, target: microTargets.zn, color: "#229ed9", color2: "#84d2f6" },
+    { code: "CA", value: today.ca, target: microTargets.ca, color: "#d7d8da", color2: "#ffffff" },
+    { code: "FIB", value: today.fiber, target: microTargets.fiber, color: "#22c55e", color2: "#84f0b3" },
+  ];
+
+  async function handleShare() {
+    if (!activeDate || sharing) return;
+    haptic("tap");
+    setSharing(true);
+    try {
+      const dl =
+        parseDate(activeDate)
+          .toLocaleDateString("en", {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+            timeZone: "UTC",
+          })
+          .toUpperCase() + " · HANGZHOU";
+      const blob = await renderNutritionCard({
+        kcal: today.kcal,
+        protein: today.protein,
+        carbs: today.carbs,
+        fat: today.fat,
+        proteinTarget: target.protein,
+        kcalTarget: target.kcal,
+        mealsLogged: meals.length,
+        week,
+        dateLine: dl,
+        gymDay,
+      });
+      await shareBlob(blob, `r2fit-day-${activeDate}.png`, "Day locked in.");
+    } finally {
+      setSharing(false);
+    }
+  }
+
+  const legendDot = (color: string) => (
+    <span
+      style={{
+        width: 8,
+        height: 8,
+        borderRadius: "50%",
+        background: color,
+        boxShadow: `0 0 6px ${color}88`,
+      }}
+    />
   );
-
-  // Assemble the report rows: protein + fiber + omega-3 + minerals are the
-  // "hit" achievements plotted on the chart; sugar/sodium/fat are caps.
-  const nutrientRows = useMemo<NutrientRow[]>(() => {
-    const rows: NutrientRow[] = [
-      { key: "protein", label: "PROTEIN", short: "PRO", value: Math.round(fullToday.protein), target: target.protein, unit: "g", kind: "hit", dp: 0 },
-      { key: "fiber",   label: "FIBER",   short: "FIB", value: Math.round(fullToday.fiber),   target: microTargets.fiber, unit: "g", kind: "hit", dp: 0 },
-      { key: "omega3",  label: "OMEGA-3", short: "ω3",  value: Number(fullToday.omega3.toFixed(1)), target: microTargets.omega3, unit: "g", kind: "hit", dp: 1 },
-      { key: "k",  label: "POTASSIUM", short: "K",  value: Math.round(fullToday.k),  target: microTargets.k,  unit: "mg", kind: "hit", dp: 0 },
-      { key: "mg", label: "MAGNESIUM", short: "MG", value: Math.round(fullToday.mg), target: microTargets.mg, unit: "mg", kind: "hit", dp: 0 },
-      { key: "fe", label: "IRON",      short: "FE", value: Number(fullToday.fe.toFixed(1)), target: microTargets.fe, unit: "mg", kind: "hit", dp: 1 },
-      { key: "zn", label: "ZINC",      short: "ZN", value: Number(fullToday.zn.toFixed(1)), target: microTargets.zn, unit: "mg", kind: "hit", dp: 1 },
-      { key: "ca", label: "CALCIUM",   short: "CA", value: Math.round(fullToday.ca), target: microTargets.ca, unit: "mg", kind: "hit", dp: 0 },
-      { key: "sugar", label: "SUGAR",  short: "SUG", value: Math.round(fullToday.sugar), target: microTargets.sugar, unit: "g", kind: "cap", dp: 0 },
-      { key: "na",    label: "SODIUM", short: "NA",  value: Math.round(fullToday.na),    target: microTargets.na,    unit: "mg", kind: "cap", dp: 0 },
-      { key: "fat",   label: "FAT",    short: "FAT", value: Math.round(fullToday.fat),   target: target.fat,         unit: "g", kind: "cap", dp: 0 },
-    ];
-    return rows;
-  }, [fullToday, target, microTargets]);
-
-  const weekSessions = useMemo(() => {
-    if (!activeDate) return [] as WorkoutSession[];
-    const now = parseDate(activeDate);
-    const mon = mondayOf(now);
-    return workouts.filter((w) => {
-      const d = parseDate(w.date);
-      return d >= mon && d <= now && w.completed;
-    });
-  }, [workouts, activeDate]);
-
-  const nextSessionType: SessionType = useMemo(
-    () => (activeDate ? recommendedSessionFor(parseDate(activeDate)) : "PUSH_A"),
-    [activeDate]
-  );
-  const nextSession = getSession(nextSessionType);
-
-  const gymState: "done" | "rest" | "next" = todayWorkout
-    ? "done"
-    : !gymDay
-    ? "rest"
-    : "next";
-  const gymLine1 = todayWorkout
-    ? `${getSession(todayWorkout.sessionType)?.name ?? "SESSION"} DONE`
-    : !gymDay
-    ? "REST DAY"
-    : `${nextSession?.name ?? ""} NEXT`;
-
-  const gymLine2 = todayWorkout
-    ? `${Math.round(workoutVolume(todayWorkout)).toLocaleString()}kg · ${todayWorkout.durationMin ?? 0} min`
-    : `${weekSessions.length} sessions this week`;
-
-  const summary = `${Math.round(totals.kcal)} kcal · ${Math.round(totals.protein)}g P · ${Math.round(totals.carbs)}g C · ${Math.round(totals.fat)}g F`;
-
-  // sodium displayed in grams when it crosses 1000mg for compact UI.
-  const sodiumDisplay = (mg: number) =>
-    mg >= 1000 ? `${(mg / 1000).toFixed(1)}g` : `${Math.round(mg)}mg`;
 
   return (
-    <main className="stats-hub page-rise">
-      <header className="stats-hub-head">
-        <div className="stats-hub-brand">
-          <div className="home-brand">R2<span className="brand-dot">·</span>FIT</div>
-          <div className="stats-hub-wk mono">WEEK {wk} / 12</div>
-        </div>
-        <div className="stats-hub-title">STATS</div>
-      </header>
-
-      <div className="stats-hub-summary mono">
-        <span className="sh-label">TODAY AT A GLANCE</span>
-        <span className="sh-value">{summary}</span>
-      </div>
-
-      <div className="stats-hub-grid">
-        <Link href="/dashboard/today" className="stats-card accent">
-          <div className="sc-label mono">TODAY</div>
-          <div className="sc-num">{Math.round(totals.kcal).toLocaleString()}</div>
-          <div className="sc-unit mono">
-            kcal · {Math.round((totals.kcal / target.kcal) * 100)}%
-          </div>
-          <span className="sc-chev">›</span>
-        </Link>
-
-        <Link href="/dashboard/week" className="stats-card">
-          <div className="sc-label mono">WEEK AVG</div>
-          <div className="sc-num">{weekAvg.kcal.toLocaleString()}</div>
-          <div className="sc-unit mono">avg kcal</div>
-          <span className="sc-chev">›</span>
-        </Link>
-
-        <Link href="/dashboard/week" className="stats-card stats-card-multi">
-          <div className="sc-label mono">MACROS · WEEK AVG</div>
-          <div className="sc-multi">
-            <div className="sc-multi-row">
-              <span className="sc-multi-label mono">PROTEIN</span>
-              <span className="sc-multi-val">{weekAvg.protein}<em>g</em></span>
-            </div>
-            <div className="sc-multi-row">
-              <span className="sc-multi-label mono">CARBS</span>
-              <span className="sc-multi-val">{weekAvg.carbs}<em>g</em></span>
-            </div>
-            <div className="sc-multi-row">
-              <span className="sc-multi-label mono">FAT</span>
-              <span className="sc-multi-val">{weekAvg.fat}<em>g</em></span>
-            </div>
-          </div>
-          <span className="sc-chev">›</span>
-        </Link>
-
-        <Link href="/dashboard/week" className="stats-card stats-card-multi">
-          <div className="sc-label mono">OTHERS · WEEK AVG</div>
-          <div className="sc-multi">
-            <div className="sc-multi-row">
-              <span className="sc-multi-label mono">SODIUM</span>
-              <span className="sc-multi-val">{sodiumDisplay(weekAvg.sodium)}</span>
-            </div>
-            <div className="sc-multi-row">
-              <span className="sc-multi-label mono">SUGAR</span>
-              <span className="sc-multi-val">{weekAvg.sugar}<em>g</em></span>
-            </div>
-            <div className="sc-multi-row">
-              <span className="sc-multi-label mono">FIBER</span>
-              <span className="sc-multi-val">{weekAvgFiber}<em>g</em></span>
-            </div>
-          </div>
-          <span className="sc-chev">›</span>
-        </Link>
-      </div>
-
-      <NutrientReport rows={nutrientRows} tags={fullToday.tags} streak={streak} />
-
-      <div className="stats-hub-spacer" />
-
-      <Link
-        href="/dashboard/gym"
-        className={`gym-card state-${gymState}`}
+    <main
+      style={{
+        maxWidth: 480,
+        margin: "0 auto",
+        minHeight: "100dvh",
+        padding: "calc(20px + env(safe-area-inset-top)) 20px 26px",
+        background:
+          "radial-gradient(1100px 700px at 50% -8%, #17100f 0%, #0a0809 42%, #050406 100%)",
+        fontFamily: SANS,
+      }}
+    >
+      {/* header */}
+      <div
+        style={{
+          fontFamily: SANS,
+          fontWeight: 700,
+          fontSize: 26,
+          color: "#f1ede9",
+          letterSpacing: "-.01em",
+        }}
       >
-        <div className="gc-left">
-          <div className="gc-title mono">
-            GYM SESSION{gymState === "done" && <span className="gc-check">✓</span>}
-          </div>
-          <div className="gc-sub">{gymLine2}</div>
+        STATISTIK <span style={FIRE_TEXT}>HARI INI</span>
+      </div>
+      <div
+        style={{
+          fontFamily: MONO,
+          fontSize: 10,
+          letterSpacing: ".12em",
+          color: "#6a6660",
+          marginTop: 9,
+          textTransform: "uppercase",
+        }}
+      >
+        {dateLine} · {dayType} · MINGGU {week} / 12
+      </div>
+
+      {/* day toggle */}
+      <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+        <button type="button" onClick={() => toggleGym(true)} style={toggleStyle(gymDay)}>
+          🏋️ HARI GYM
+        </button>
+        <button type="button" onClick={() => toggleGym(false)} style={toggleStyle(!gymDay)}>
+          🌙 HARI REST
+        </button>
+      </div>
+
+      {/* macro bars */}
+      <div
+        style={{
+          ...cardStyle,
+          marginTop: 20,
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,.06)",
+        }}
+      >
+        <BarRow
+          label="KALORI"
+          value={today.kcal}
+          target={target.kcal}
+          unit=""
+          grad="linear-gradient(90deg,#ff8a3d,#ee2f1f)"
+          glow="rgba(238,60,48,.6)"
+          cap={false}
+          delay={0}
+          t={t}
+        />
+        <BarRow
+          label="PROTEIN"
+          value={today.protein}
+          target={target.protein}
+          unit="g"
+          grad="linear-gradient(90deg,#6ff0a4,#22c55e)"
+          glow="rgba(34,197,94,.5)"
+          cap={false}
+          delay={0.5}
+          t={t}
+        />
+        <BarRow
+          label="KARBO"
+          value={today.carbs}
+          target={target.carbs}
+          unit="g"
+          grad="linear-gradient(90deg,#5ac8f5,#229ed9)"
+          glow="rgba(34,158,217,.5)"
+          cap={false}
+          delay={1}
+          t={t}
+        />
+        <BarRow
+          label="LEMAK"
+          value={today.fat}
+          target={target.fat}
+          unit="g"
+          grad="linear-gradient(90deg,#ffd25a,#eab308)"
+          glow="rgba(234,179,8,.5)"
+          cap={false}
+          delay={1.5}
+          t={t}
+        />
+        <BarRow
+          label="GULA"
+          value={today.sugar}
+          target={microTargets.sugar}
+          unit="g"
+          grad="linear-gradient(90deg,#ff8a72,#ee3c30)"
+          glow="rgba(238,60,48,.6)"
+          cap
+          delay={2}
+          t={t}
+          last
+        />
+      </div>
+
+      {/* macro split */}
+      <div style={cardStyle}>
+        <div style={{ ...cardLabelStyle, marginBottom: 12 }}>SPLIT MAKRO</div>
+        <div
+          style={{
+            position: "relative",
+            height: 16,
+            borderRadius: 9,
+            overflow: "hidden",
+            background: splitGrad,
+            boxShadow:
+              "inset 0 1px 2px rgba(0,0,0,.4), inset 0 -3px 6px rgba(0,0,0,.25)",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background:
+                "linear-gradient(180deg,rgba(255,255,255,.28),rgba(255,255,255,.04) 46%,transparent 62%)",
+              pointerEvents: "none",
+            }}
+          />
         </div>
-        <div className="gc-right">
-          <span className="gc-status mono">{gymLine1}</span>
-          <span className="gc-chev">›</span>
+        <div style={{ display: "flex", gap: 16, marginTop: 12 }}>
+          {[
+            { c: gCol, l: "PROTEIN", g: today.protein },
+            { c: bCol, l: "KARBO", g: today.carbs },
+            { c: amCol, l: "LEMAK", g: today.fat },
+          ].map((x) => (
+            <div key={x.l} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {legendDot(x.c)}
+              <span style={{ fontFamily: MONO, fontSize: 10, color: "#9a938d" }}>
+                {x.l} {Math.round(x.g)}g
+              </span>
+            </div>
+          ))}
         </div>
-      </Link>
+      </div>
+
+      {/* micronutrients */}
+      <div style={cardStyle}>
+        <div style={{ ...cardLabelStyle, marginBottom: 14 }}>MIKRONUTRIEN</div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(6,1fr)",
+            gap: 8,
+          }}
+        >
+          {microData.map((m, i) => (
+            <MicroRing
+              key={m.code}
+              code={m.code}
+              value={m.value}
+              target={m.target}
+              color={m.color}
+              color2={m.color2}
+              idx={i}
+              t={t}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* smart tip */}
+      <div
+        style={{
+          marginTop: 14,
+          padding: "13px 15px",
+          borderRadius: 14,
+          background: "rgba(238,60,48,.07)",
+          border: "1px solid rgba(238,60,48,.28)",
+          fontFamily: MONO,
+          fontSize: 11,
+          lineHeight: 1.5,
+          color: "#ffb39e",
+        }}
+      >
+        💡 {tip}
+      </div>
+
+      {/* meals today */}
+      <div style={{ ...cardLabelStyle, marginTop: 22 }}>// MAKANAN HARI INI</div>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          marginTop: 11,
+        }}
+      >
+        {MEALS.map((m) => {
+          const kc = kcalByType[m.type];
+          const logged = kc > 0;
+          return (
+            <div
+              key={m.type}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 11,
+                padding: "12px 14px",
+                borderRadius: 13,
+                background: "#0a0809",
+                border: "1px solid rgba(255,255,255,.06)",
+              }}
+            >
+              <span style={{ fontSize: 17 }}>{m.emoji}</span>
+              <span
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 11,
+                  letterSpacing: ".1em",
+                  color: "#cfc8c2",
+                  flex: 1,
+                }}
+              >
+                {m.label}
+              </span>
+              <span
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 11,
+                  color: logged ? "#f1ede9" : "#6a6660",
+                }}
+              >
+                {logged ? `${Math.round(kc)} kkal` : "—"}
+              </span>
+              {!logged && (
+                <Link
+                  href={`/meal/${m.type}?date=${activeDate}`}
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 9.5,
+                    letterSpacing: ".08em",
+                    color: "#ff8a72",
+                    textDecoration: "none",
+                    padding: "0 0 0 8px",
+                  }}
+                >
+                  CATAT →
+                </Link>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* share */}
+      <button
+        type="button"
+        onClick={handleShare}
+        disabled={sharing}
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          width: "100%",
+          marginTop: 18,
+          padding: 15,
+          borderRadius: 14,
+          cursor: sharing ? "default" : "pointer",
+          fontFamily: SANS,
+          fontWeight: 700,
+          fontSize: 14,
+          color: "#fff",
+          background: FIRE,
+          border: "1px solid rgba(255,150,120,.6)",
+          boxShadow:
+            "inset 0 1.5px 1px rgba(255,225,205,.7),0 12px 26px rgba(238,60,48,.42)",
+          textShadow: "0 1px 2px rgba(120,15,5,.5)",
+          opacity: sharing ? 0.75 : 1,
+        }}
+      >
+        <span
+          style={{
+            position: "absolute",
+            top: 0,
+            left: "-55%",
+            width: "55%",
+            height: "100%",
+            background:
+              "linear-gradient(105deg,transparent,rgba(255,255,255,.35),transparent)",
+            animation: "btnSheen 6s ease-in-out infinite",
+          }}
+        />
+        {sharing ? "MENYIAPKAN…" : "📤 BAGIKAN HARI INI"}
+      </button>
+
+      {/* secondary nav — preserves the existing dashboard sub-routes */}
+      <div style={{ ...cardLabelStyle, marginTop: 24 }}>// SELENGKAPNYA</div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2,1fr)",
+          gap: 8,
+          marginTop: 11,
+        }}
+      >
+        {[
+          { href: "/dashboard/today", label: "HARI INI" },
+          { href: "/dashboard/week", label: "MINGGUAN" },
+          { href: "/dashboard/gym", label: "SESI GYM" },
+          { href: "/dashboard/progress", label: "PROGRES" },
+          { href: "/dashboard/checklist", label: "CHECKLIST" },
+        ].map((l) => (
+          <Link
+            key={l.href}
+            href={l.href}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "13px 15px",
+              borderRadius: 13,
+              background: "rgba(255,255,255,.03)",
+              border: "1px solid rgba(255,255,255,.1)",
+              fontFamily: MONO,
+              fontSize: 11,
+              letterSpacing: ".08em",
+              color: "#cfc8c2",
+              textDecoration: "none",
+            }}
+          >
+            {l.label}
+            <span style={{ color: "#6a6660" }}>›</span>
+          </Link>
+        ))}
+      </div>
     </main>
   );
 }

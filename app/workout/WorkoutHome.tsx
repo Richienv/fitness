@@ -145,11 +145,17 @@ export default function WorkoutHome() {
   }
 
   return (
-    <main className="workout-home page-rise">
+    <main
+      className="workout-home page-rise"
+      style={{
+        background:
+          "radial-gradient(1100px 700px at 50% -8%, #17100f 0%, #0a0809 42%, #050406 100%)",
+      }}
+    >
       <div className="workout-home-top">
-        <Link href="/" className="back-link">← Back</Link>
-        <h1 className="section-title">LOG <span>WORKOUT</span></h1>
-        <div className="wo-date mono">{dateStr} · WK {wkNum} / 12</div>
+        <Link href="/" className="back-link">← Kembali</Link>
+        <h1 className="section-title">LOG <span className="fire-text">LATIHAN</span></h1>
+        <div className="wo-date mono">{dateStr} · MINGGU {wkNum} / 12</div>
 
         {/* Sticky one-row action bar — search input, equipment icon, and
             (when a session is mid-flight) a compact resume pill all share
@@ -160,7 +166,7 @@ export default function WorkoutHome() {
             <input
               type="search"
               inputMode="search"
-              placeholder="Search sessions or exercises"
+              placeholder="Cari sesi atau gerakan"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="wo-search-input mono"
@@ -201,19 +207,19 @@ export default function WorkoutHome() {
 
         {todaysLogged && (
           <div className="wo-logged-banner">
-            ✓ SESSION LOGGED TODAY
+            ✓ SESI TERCATAT HARI INI
             <Link href={`/workout/session/${todaysLogged.id}`} className="wo-logged-link">
-              VIEW
+              LIHAT
             </Link>
           </div>
         )}
       </div>
 
       <div className="workout-home-bottom">
-        <div className="wo-pick-label">PICK YOUR SESSION</div>
+        <div className="wo-pick-label">PILIH SESI</div>
 
         {filteredSessions.length === 0 && filteredTemplates.length === 0 && (
-          <div className="wo-empty mono">No sessions match &ldquo;{query}&rdquo;.</div>
+          <div className="wo-empty mono">Nggak ada sesi cocok &ldquo;{query}&rdquo;.</div>
         )}
 
         <div className="wo-session-grid">
@@ -247,7 +253,7 @@ export default function WorkoutHome() {
           })}
         </div>
 
-        <div className="wo-pick-label">MY SESSIONS</div>
+        <div className="wo-pick-label">SESI SAYA</div>
 
         <div className="wo-custom-grid">
           {filteredTemplates.map((t) => (
@@ -260,7 +266,7 @@ export default function WorkoutHome() {
                 <div className="wo-custom-name">{t.name}</div>
                 <div className="wo-custom-focus mono">{t.focus || "CUSTOM"}</div>
                 <div className="wo-custom-meta mono">
-                  {t.exercises.length} exercise{t.exercises.length === 1 ? "" : "s"}
+                  {t.exercises.length} gerakan
                 </div>
               </button>
               <button
@@ -279,11 +285,11 @@ export default function WorkoutHome() {
             onClick={() => setModalOpen(true)}
           >
             <span className="wo-add-card-plus" aria-hidden="true">+</span>
-            <span className="wo-add-card-title">ADD CUSTOM</span>
+            <span className="wo-add-card-title">TAMBAH CUSTOM</span>
             <span className="wo-add-card-sub mono">
               {filteredTemplates.length === 0
-                ? "Build your first"
-                : "Build another"}
+                ? "Buat pertama"
+                : "Buat lagi"}
             </span>
           </button>
         </div>
@@ -337,12 +343,12 @@ function draftToExerciseDef(d: DraftExercise): ExerciseDef {
 }
 
 const GROUP_META: { key: MuscleColorGroup; label: string; emoji: string }[] = [
-  { key: "chest",     label: "Chest",     emoji: "💪" },
-  { key: "back",      label: "Back",      emoji: "🦾" },
-  { key: "shoulders", label: "Shoulders", emoji: "🛡️" },
-  { key: "arms",      label: "Arms",      emoji: "💥" },
-  { key: "legs",      label: "Legs",      emoji: "🦵" },
-  { key: "abs",       label: "Abs",       emoji: "🔥" },
+  { key: "chest",     label: "Dada",     emoji: "💪" },
+  { key: "back",      label: "Punggung", emoji: "🦾" },
+  { key: "shoulders", label: "Bahu",     emoji: "🛡️" },
+  { key: "arms",      label: "Lengan",   emoji: "💥" },
+  { key: "legs",      label: "Kaki",     emoji: "🦵" },
+  { key: "abs",       label: "Perut",    emoji: "🔥" },
 ];
 
 function buildCatalog(): CatalogEntry[] {
@@ -422,7 +428,7 @@ function CustomSessionModal({
   const name = nameOverride ?? autoName(selectedGroups);
   const focusLabel =
     selectedGroups.length === 0
-      ? "Pick a focus muscle"
+      ? "Pilih otot fokus"
       : selectedGroups
           .map((g) => GROUP_META.find((m) => m.key === g)?.label ?? g)
           .join(" · ");
@@ -449,7 +455,7 @@ function CustomSessionModal({
               type="text"
               className="wo-modal-name"
               value={name}
-              placeholder="Session name"
+              placeholder="Nama sesi"
               onChange={(e) => setNameOverride(e.target.value)}
               onFocus={(e) => e.currentTarget.select()}
             />
@@ -459,7 +465,7 @@ function CustomSessionModal({
         </div>
 
         <div className="wo-modal-scroll">
-          <div className="wo-step-label mono">1 · PICK MUSCLES</div>
+          <div className="wo-step-label mono">1 · PILIH OTOT</div>
           <div className="wo-group-grid">
             {GROUP_META.map((g) => {
               const on = selectedGroups.includes(g.key);
@@ -479,7 +485,7 @@ function CustomSessionModal({
 
           {selectedGroups.length > 0 && recommendations.length > 0 && (
             <>
-              <div className="wo-step-label mono">2 · RECOMMENDED · TAP TO ADD</div>
+              <div className="wo-step-label mono">2 · REKOMENDASI · TAP UNTUK TAMBAH</div>
               <div className="wo-reco-grid">
                 {recommendations.slice(0, 16).map((r) => (
                   <button
@@ -498,12 +504,12 @@ function CustomSessionModal({
           )}
 
           <div className="wo-step-label mono">
-            {selectedGroups.length > 0 ? "3 · " : ""}OR SEARCH ANYTHING
+            {selectedGroups.length > 0 ? "3 · " : ""}ATAU CARI APA SAJA
           </div>
           <div className="wo-search-row">
             <input
               type="search"
-              placeholder="Search exercise or equipment"
+              placeholder="Cari gerakan atau alat"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="wo-modal-search"
@@ -522,7 +528,7 @@ function CustomSessionModal({
           {query.trim() && (
             <div className="wo-reco-grid">
               {searchMatches.length === 0 && (
-                <div className="wo-reco-empty mono">No matches</div>
+                <div className="wo-reco-empty mono">Nggak ada hasil</div>
               )}
               {searchMatches.map((m) => (
                 <button
@@ -543,7 +549,7 @@ function CustomSessionModal({
           )}
 
           <div className="wo-step-label mono">
-            {drafts.length > 0 ? `IN YOUR SESSION (${drafts.length})` : "NOTHING ADDED YET"}
+            {drafts.length > 0 ? `DI SESI KAMU (${drafts.length})` : "BELUM ADA YANG DITAMBAH"}
           </div>
           <div className="wo-added-list">
             {drafts.map((d, i) => {
@@ -626,10 +632,10 @@ function CustomSessionModal({
 
         <div className="wo-modal-footer">
           <button className="save ghost" onClick={onClose}>
-            Cancel
+            Batal
           </button>
           <button className="save" disabled={!canSave} onClick={handleSave}>
-            {canSave ? `Start · ${drafts.length}` : "Add one exercise"}
+            {canSave ? `Mulai · ${drafts.length}` : "Tambah satu gerakan"}
           </button>
         </div>
       </div>
