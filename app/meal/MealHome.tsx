@@ -1,15 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { getIngredient, macrosFor, type Macros } from "@/lib/ingredients";
-import SlimBar from "../_motion/SlimBar";
-import SkeletonBar from "../_motion/SkeletonBar";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+} from "react";
+import { getIngredient, macrosFor, sumMacros, type Macros } from "@/lib/ingredients";
 import { useSoftRefresh } from "@/lib/useSoftRefresh";
 import { useVTNavigate } from "@/lib/navigate";
 import { PRESETS, type MealType } from "@/lib/presets";
 import {
-  clearMealsForDate,
   dedupeMeals,
   getAllMeals,
   getDaily,
@@ -17,31 +20,64 @@ import {
   isCustomItem,
   QUICKLOG_MAX,
   setDaily,
-  setQuickLogIds,
   type MealLog,
 } from "@/lib/store";
 import { TARGETS, weekNumber } from "@/lib/targets";
 import { useActiveDate, parseDate } from "@/lib/activeDate";
 import DatePicker from "./DatePicker";
 
+// ---- shared style tokens (canonical from app/page.tsx) ----
+const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
+const MONO = "var(--font-dm-mono), 'JetBrains Mono', monospace";
+const FIRE = "linear-gradient(180deg,#ff8a52,#ee3c30 55%,#c01f12)";
+const FIRE_TEXT: CSSProperties = {
+  background: "linear-gradient(100deg,#ff8a3d,#ee2f1f)",
+  WebkitBackgroundClip: "text",
+  backgroundClip: "text",
+  WebkitTextFillColor: "transparent",
+};
+
+const EMPTY_MACROS: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+const DAILY_SUGAR_TARGET_G = 50;
+
+const ID_DAYS = ["MIN", "SEN", "SEL", "RAB", "KAM", "JUM", "SAB"];
+const ID_MON = [
+  "JAN", "FEB", "MAR", "APR", "MEI", "JUN",
+  "JUL", "AGU", "SEP", "OKT", "NOV", "DES",
+];
+
+function bahasaDate(dateStr: string): string {
+  if (!dateStr) return "";
+  const dt = parseDate(dateStr); // UTC
+  return `${ID_DAYS[dt.getUTCDay()]} · ${dt.getUTCDate()} ${ID_MON[dt.getUTCMonth()]}`;
+}
+
 type MealInfo = {
   id: MealType;
   emoji: string;
   name: string;
-  nameLines: string[];
-  windowStart: number;
-  windowEnd: number;
   expectedKcal: number;
 };
 
 const MEALS: MealInfo[] = [
-  { id: "breakfast", emoji: "🌅", name: "BREAKFAST", nameLines: ["BREAK", "FAST"], windowStart: 6,  windowEnd: 10, expectedKcal: 358 },
-  { id: "lunch",     emoji: "☀️", name: "LUNCH",     nameLines: ["LUNCH"],          windowStart: 11, windowEnd: 14, expectedKcal: 895 },
-  { id: "snack",     emoji: "🍎", name: "SNACK",     nameLines: ["SNACK"],          windowStart: 14, windowEnd: 17, expectedKcal: 250 },
-  { id: "dinner",    emoji: "🌙", name: "DINNER",    nameLines: ["DINNER"],         windowStart: 17, windowEnd: 21, expectedKcal: 900 },
+  { id: "breakfast", emoji: "🌅", name: "SARAPAN", expectedKcal: 310 },
+  { id: "lunch",     emoji: "☀️", name: "SIANG",   expectedKcal: 895 },
+  { id: "snack",     emoji: "🍎", name: "SNACK",   expectedKcal: 250 },
+  { id: "dinner",    emoji: "🌙", name: "MALAM",   expectedKcal: 900 },
 ];
 
-const EMPTY_MACROS: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+const MEAL_ID_LABEL: Record<MealType, string> = {
+  breakfast: "SARAPAN",
+  lunch: "SIANG",
+  snack: "SNACK",
+  dinner: "MALAM",
+};
+
+// One-tap add-ons surfaced under Quick Log (preset ids from lib/presets).
+const ADDONS: { id: string; emoji: string; label: string }[] = [
+  { id: "protein-scoop", emoji: "🥄", label: "Protein Powder" },
+  { id: "matcha-milk",   emoji: "🍵", label: "Matcha + Milk" },
+];
 
 function sumMealMacros(meal: MealLog): Macros {
   return meal.items.reduce<Macros>((acc, it) => {
@@ -60,10 +96,8 @@ function sumMealMacros(meal: MealLog): Macros {
       carbs: acc.carbs + m.carbs,
       fat: acc.fat + m.fat,
     };
-  }, EMPTY_MACROS);
+  }, { ...EMPTY_MACROS });
 }
-
-const DAILY_SUGAR_TARGET_G = 50;
 
 function sumMealSugar(meal: MealLog): number {
   return meal.items.reduce<number>((acc, it) => {
@@ -82,6 +116,151 @@ function addMacros(a: Macros, b: Macros): Macros {
   };
 }
 
+/** Ease a number up to its target so bars "count up" like the reference. */
+function useCountUp(target: number, active: boolean): number {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    if (!active) {
+      setV(target);
+      return;
+    }
+    let raf = 0;
+    let cur = 0;
+    const tick = () => {
+      cur = cur + (target - cur) * 0.16;
+      if (Math.abs(target - cur) < 0.4) {
+        setV(target);
+        return;
+      }
+      setV(cur);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, active]);
+  return v;
+}
+
+function toggleStyle(active: boolean): CSSProperties {
+  return {
+    flex: 1,
+    padding: "11px",
+    borderRadius: 12,
+    fontFamily: MONO,
+    fontSize: 11,
+    letterSpacing: ".06em",
+    cursor: "pointer",
+    border: active
+      ? "1px solid rgba(255,150,120,.6)"
+      : "1px solid rgba(255,255,255,.1)",
+    background: active ? FIRE : "rgba(255,255,255,.03)",
+    color: active ? "#fff" : "#7c736e",
+    boxShadow: active
+      ? "inset 0 1.5px 1px rgba(255,225,205,.6),0 6px 16px rgba(238,60,48,.35)"
+      : "none",
+    textShadow: active ? "0 1px 2px rgba(120,15,5,.5)" : "none",
+  };
+}
+
+type BarSpec = {
+  label: string;
+  value: number;
+  target: number;
+  unit: string;
+  grad: string;
+  glow: string;
+  cap: boolean;
+  delay: number;
+};
+
+function Bar({
+  label,
+  value,
+  target,
+  unit,
+  grad,
+  glow,
+  cap,
+  delay,
+  animate,
+}: BarSpec & { animate: boolean }) {
+  const shown = useCountUp(value, animate);
+  const pct = Math.max(0, Math.min(100, target ? (shown / target) * 100 : 0));
+  const over = cap && value > target;
+  const hot = pct >= 88 || over;
+  return (
+    <div style={{ marginBottom: 13 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          marginBottom: 6,
+        }}
+      >
+        <span
+          style={{
+            fontFamily: MONO,
+            fontSize: 9.5,
+            letterSpacing: ".14em",
+            color: "#7c736e",
+          }}
+        >
+          {label}
+        </span>
+        <span
+          style={{
+            fontFamily: MONO,
+            fontSize: 11,
+            color: over ? "#ee3c30" : "#f1ede9",
+          }}
+        >
+          {`${Math.round(shown)}${unit} `}
+          <span style={{ color: "#6a6660" }}>{`/ ${target}${unit}`}</span>
+        </span>
+      </div>
+      <div
+        style={{
+          position: "relative",
+          height: 9,
+          borderRadius: 999,
+          background: "rgba(255,255,255,.05)",
+          overflow: "hidden",
+          boxShadow: "inset 0 1px 2px rgba(0,0,0,.6)",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            bottom: 0,
+            width: `${pct}%`,
+            borderRadius: 999,
+            overflow: "hidden",
+            background: over ? "linear-gradient(90deg,#ff5a3c,#ee2f1f)" : grad,
+            transition: "width .6s cubic-bezier(.16,1,.3,1)",
+            boxShadow: hot ? `0 0 10px ${glow}` : "none",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "45%",
+              height: "100%",
+              background:
+                "linear-gradient(100deg,transparent,rgba(255,255,255,.6),transparent)",
+              animation: `barSheen 4.2s ${delay}s ease-in-out infinite`,
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type MealBucket = { macros: Macros; items: number };
 
 export default function MealHome() {
@@ -89,24 +268,13 @@ export default function MealHome() {
   const {
     activeDate,
     setActiveDate,
-    goPrevDay,
-    goNextDay,
-    goToday,
-    advanceToNextDay,
-    isToday,
-    canGoNext,
-    label: dateLabel,
-    short: shortDate,
     todayStr,
   } = useActiveDate();
 
   const [allMeals, setAllMeals] = useState<MealLog[]>([]);
   const [gymDay, setGymDay] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [newDayOpen, setNewDayOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [quickIds, setQuickIds] = useState<string[]>([]);
-  const [quickEditOpen, setQuickEditOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   const reloadFromStore = useCallback(() => {
@@ -119,10 +287,6 @@ export default function MealHome() {
 
   useEffect(() => {
     reloadFromStore();
-    document.body.classList.add("no-scroll");
-    return () => {
-      document.body.classList.remove("no-scroll");
-    };
   }, [reloadFromStore]);
 
   useEffect(() => {
@@ -130,29 +294,11 @@ export default function MealHome() {
     setGymDay(getDaily(activeDate).gymDay);
   }, [activeDate]);
 
-  function toggleGym() {
-    if (!activeDate) return;
-    const next = !gymDay;
+  function toggleGym(next: boolean) {
+    if (!activeDate || next === gymDay) return;
     setGymDay(next);
     const d = getDaily(activeDate);
     setDaily({ date: activeDate, gymDay: next, checklist: d.checklist ?? {} });
-  }
-
-  function handleClearActive() {
-    if (typeof window === "undefined" || !activeDate) return;
-    const confirmed = window.confirm(
-      `Clear all meals logged on ${shortDate}? This cannot be undone.`
-    );
-    if (!confirmed) return;
-    clearMealsForDate(activeDate);
-    setAllMeals(getAllMeals());
-    setSettingsOpen(false);
-  }
-
-  function handleConfirmNewDay() {
-    advanceToNextDay();
-    setNewDayOpen(false);
-    setSettingsOpen(false);
   }
 
   const dayMeals = useMemo(
@@ -177,7 +323,7 @@ export default function MealHome() {
   const totals = useMemo<Macros>(() => {
     return (Object.values(byType) as MealBucket[]).reduce(
       (a, b) => addMacros(a, b.macros),
-      EMPTY_MACROS
+      { ...EMPTY_MACROS }
     );
   }, [byType]);
 
@@ -188,6 +334,7 @@ export default function MealHome() {
 
   const target = gymDay ? TARGETS.gymDay : TARGETS.restDay;
   const wk = activeDate ? weekNumber(parseDate(activeDate)) : 1;
+  const dateLine = bahasaDate(activeDate);
 
   // Resolve which presets show on the Quick Log grid. Defaults: pick the
   // first preset for each meal type (breakfast / lunch / snack / dinner).
@@ -211,199 +358,381 @@ export default function MealHome() {
     return defaults.slice(0, QUICKLOG_MAX);
   }, [quickIds]);
 
-  function toggleQuickPreset(id: string) {
-    setQuickIds((cur) => {
-      const list = cur.length > 0 ? cur : quickResolved.map((p) => p.id);
-      if (list.includes(id)) {
-        const next = list.filter((x) => x !== id);
-        setQuickLogIds(next);
-        return next;
-      }
-      if (list.length >= QUICKLOG_MAX) return list;
-      const next = [...list, id];
-      setQuickLogIds(next);
-      return next;
-    });
-  }
-
-  // Active-meal highlight: only relevant for today; uses device local hours.
-  const currentHour = isToday ? new Date().getHours() : -1;
-  const activeMeal: MealType | null =
-    currentHour >= 6 && currentHour < 11 ? "breakfast" :
-    currentHour >= 11 && currentHour < 14 ? "lunch" :
-    currentHour >= 14 && currentHour < 17 ? "snack" :
-    currentHour >= 17 && currentHour < 22 ? "dinner" : null;
-
-  const bars: { key: keyof Macros; label: string; unit: string }[] = [
-    { key: "kcal",    label: "CALORIES", unit: "" },
-    { key: "protein", label: "PROTEIN",  unit: "g" },
-    { key: "carbs",   label: "CARBS",    unit: "g" },
-    { key: "fat",     label: "FAT",      unit: "g" },
+  const bars: BarSpec[] = [
+    {
+      label: "KALORI", value: totals.kcal, target: target.kcal, unit: "",
+      grad: "linear-gradient(90deg,#ff8a3d,#ee2f1f)", glow: "rgba(238,60,48,.6)",
+      cap: false, delay: 0,
+    },
+    {
+      label: "PROTEIN", value: totals.protein, target: target.protein, unit: "g",
+      grad: "linear-gradient(90deg,#6ff0a4,#22c55e)", glow: "rgba(34,197,94,.5)",
+      cap: false, delay: 0.5,
+    },
+    {
+      label: "KARBO", value: totals.carbs, target: target.carbs, unit: "g",
+      grad: "linear-gradient(90deg,#5ac8f5,#229ed9)", glow: "rgba(34,158,217,.5)",
+      cap: false, delay: 1,
+    },
+    {
+      label: "LEMAK", value: totals.fat, target: target.fat, unit: "g",
+      grad: "linear-gradient(90deg,#ffd25a,#eab308)", glow: "rgba(234,179,8,.5)",
+      cap: false, delay: 1.5,
+    },
+    {
+      label: "GULA", value: sugarTotal, target: DAILY_SUGAR_TARGET_G, unit: "g",
+      grad: "linear-gradient(90deg,#ff8a72,#ee3c30)", glow: "rgba(238,60,48,.6)",
+      cap: true, delay: 2,
+    },
   ];
 
   return (
-    <main className="meal-home page-rise">
-      <div className="meal-home-top">
-        <Link href="/" className="back-link">← Back</Link>
+    <main
+      style={{
+        maxWidth: 480,
+        margin: "0 auto",
+        minHeight: "100dvh",
+        padding: "calc(20px + env(safe-area-inset-top)) 20px 26px",
+        background:
+          "radial-gradient(1100px 700px at 50% -8%, #17100f 0%, #0a0809 42%, #050406 100%)",
+        fontFamily: SANS,
+      }}
+    >
+      {/* header: wordmark + date chip */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <div
+          style={{
+            fontFamily: SANS,
+            fontWeight: 700,
+            fontSize: 26,
+            letterSpacing: "-.01em",
+            color: "#f1ede9",
+          }}
+        >
+          🍽️ <span style={FIRE_TEXT}>MAKAN</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setPickerOpen(true)}
+          aria-label="Pilih tanggal"
+          style={{
+            fontFamily: MONO,
+            fontSize: 11,
+            letterSpacing: ".06em",
+            color: "#9a938d",
+            padding: "7px 12px",
+            borderRadius: 10,
+            border: "1px solid rgba(255,255,255,.1)",
+            background: "rgba(255,255,255,.03)",
+            cursor: "pointer",
+          }}
+        >
+          {dateLine} ▾
+        </button>
+      </div>
 
-        <div className="mh-header">
-          <div className="mh-header-row">
-            <h1 className="mh-title">🍽️ LOG <span>MEAL</span></h1>
-            <div className="mh-header-actions">
-              {!isToday && (
-                <button type="button" className="mh-today-btn mono" onClick={goToday}>
-                  ← TODAY
-                </button>
-              )}
-              <button
-                type="button"
-                className="mh-gear-btn"
-                onClick={() => setSettingsOpen(true)}
-                aria-label="Settings"
+      {/* meta line */}
+      <div
+        style={{
+          fontFamily: MONO,
+          fontSize: 10,
+          letterSpacing: ".1em",
+          color: "#6a6660",
+          marginTop: 11,
+        }}
+      >
+        MINGGU {wk} / 12 · {gymDay ? "HARI GYM" : "HARI REST"} ·{" "}
+        {target.kcal.toLocaleString()} KKAL TARGET
+      </div>
+
+      {/* day toggle */}
+      <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+        <button type="button" onClick={() => toggleGym(true)} style={toggleStyle(gymDay)}>
+          🏋️ HARI GYM
+        </button>
+        <button type="button" onClick={() => toggleGym(false)} style={toggleStyle(!gymDay)}>
+          🌙 HARI REST
+        </button>
+      </div>
+
+      {/* macro bars */}
+      <div
+        style={{
+          marginTop: 20,
+          padding: 16,
+          borderRadius: 18,
+          background: "#0c0a0b",
+          border: "1px solid rgba(255,255,255,.08)",
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,.06)",
+        }}
+      >
+        {bars.map((b) => (
+          <Bar key={b.label} {...b} animate={loaded} />
+        ))}
+      </div>
+
+      {/* quick log header */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginTop: 22,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: SANS,
+            fontWeight: 700,
+            fontSize: 14,
+            letterSpacing: ".02em",
+            color: "#f1ede9",
+          }}
+        >
+          ⚡ QUICK LOG
+        </div>
+        <div
+          style={{
+            fontFamily: MONO,
+            fontSize: 9.5,
+            letterSpacing: ".12em",
+            color: "#7c736e",
+          }}
+        >
+          TAP UNTUK CATAT
+        </div>
+      </div>
+
+      {/* quick tiles → real /meal/confirm logging route */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 9,
+          marginTop: 11,
+        }}
+      >
+        {quickResolved.map((p) => {
+          const kcal = Math.round(sumMacros(p.items).kcal);
+          const label = p.label.replace(/^[^\p{L}\p{N}]+/u, "").trim();
+          const href = `/meal/confirm?preset=${p.id}&date=${activeDate}`;
+          return (
+            <Link
+              key={p.id}
+              href={href}
+              className="quick-tile"
+              style={
+                {
+                  position: "relative",
+                  overflow: "hidden",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 5,
+                  padding: 14,
+                  borderRadius: 14,
+                  textAlign: "left",
+                  cursor: "pointer",
+                  background:
+                    "linear-gradient(180deg,rgba(255,255,255,.045),transparent 40%),#0d0b0c",
+                  border: "1px solid rgba(255,255,255,.09)",
+                  boxShadow: "inset 0 1px 0 rgba(255,255,255,.06)",
+                  viewTransitionName: `tile-${p.id}`,
+                } as CSSProperties
+              }
+              onClick={(e) => {
+                e.preventDefault();
+                vtNavigate(href, { haptic: null });
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: SANS,
+                  fontWeight: 700,
+                  fontSize: 14,
+                  color: "#f1ede9",
+                }}
               >
-                ⚙️
-              </button>
-            </div>
-          </div>
-          <div className="mh-date-nav">
-            <button
-              type="button"
-              className="mh-date-arrow"
-              onClick={goPrevDay}
-              aria-label="Previous day"
-            >
-              ←
-            </button>
-            <button
-              type="button"
-              className="mh-date-btn mono"
-              onClick={() => setPickerOpen(true)}
-              aria-label="Pick date"
-            >
-              {dateLabel} ▾
-            </button>
-            <button
-              type="button"
-              className="mh-date-arrow"
-              onClick={goNextDay}
-              disabled={!canGoNext}
-              aria-label="Next day"
-            >
-              →
-            </button>
-          </div>
-          <div className="mh-subtitle mono">
-            WK {wk} / 12 · {gymDay ? "GYM DAY" : "REST DAY"} · {target.kcal.toLocaleString()} kcal target
-          </div>
-        </div>
+                {label}
+              </span>
+              <span
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 9,
+                  letterSpacing: ".12em",
+                  color: "#ff8a72",
+                }}
+              >
+                {MEAL_ID_LABEL[p.mealType]} · +{kcal} KKAL
+              </span>
+            </Link>
+          );
+        })}
+      </div>
 
-        <div className="slim-bars">
-          {loaded
-            ? bars.map((b) => (
-                <SlimBar
-                  key={b.key}
-                  label={b.label}
-                  value={Math.round(totals[b.key])}
-                  target={target[b.key]}
-                  unit={b.unit}
-                  tint={b.key}
-                />
-              ))
-            : bars.map((b) => <SkeletonBar key={b.key} label={b.label} />)}
-          {loaded ? (
-            <SlimBar
-              label="SUGAR"
-              value={Math.round(sugarTotal)}
-              target={DAILY_SUGAR_TARGET_G}
-              unit="g"
-              tint="sugar"
-              warnIfOver
-            />
-          ) : (
-            <SkeletonBar label="SUGAR" />
-          )}
-        </div>
-
-        <div className="quick-section">
-          <div className="quick-head">
-            <div className="quick-label">⚡ QUICK LOG</div>
-            <button
-              type="button"
-              className="quick-edit-btn mono"
-              onClick={() => setQuickEditOpen(true)}
+      {/* one-tap add-ons: protein powder / matcha with milk */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 9,
+          marginTop: 9,
+        }}
+      >
+        {ADDONS.map((a) => {
+          const preset = PRESETS.find((p) => p.id === a.id);
+          if (!preset) return null;
+          const kcal = Math.round(sumMacros(preset.items).kcal);
+          const href = `/meal/confirm?preset=${preset.id}&date=${activeDate}`;
+          return (
+            <Link
+              key={a.id}
+              href={href}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "12px 14px",
+                borderRadius: 14,
+                cursor: "pointer",
+                textDecoration: "none",
+                background:
+                  "linear-gradient(180deg,rgba(255,138,60,.1),rgba(255,138,60,.02) 40%),#0d0b0c",
+                border: "1px solid rgba(255,138,60,.32)",
+                boxShadow: "inset 0 1px 0 rgba(255,205,175,.16)",
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                vtNavigate(href, { haptic: null });
+              }}
             >
-              EDIT
-            </button>
-          </div>
-          <div className="quick-grid">
-            {quickResolved.map((p) => {
-              const href = `/meal/confirm?preset=${p.id}&date=${activeDate}`;
-              return (
-                <Link
-                  key={p.id}
-                  href={href}
-                  className="quick-tile"
+              <span style={{ fontSize: 18 }}>{a.emoji}</span>
+              <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <span
                   style={{
-                    viewTransitionName: `tile-${p.id}`,
-                  } as React.CSSProperties}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    vtNavigate(href, { haptic: null });
+                    fontFamily: SANS,
+                    fontWeight: 700,
+                    fontSize: 13,
+                    color: "#f1ede9",
                   }}
                 >
-                  <span className="quick-tile-label">{p.label}</span>
-                  <span className="quick-tile-meal mono">
-                    {(p.mealType as string).toUpperCase()}
-                  </span>
-                </Link>
-              );
-            })}
-            {Array.from({ length: Math.max(0, QUICKLOG_MAX - quickResolved.length) }).map(
-              (_, i) => (
-                <button
-                  key={`empty-${i}`}
-                  type="button"
-                  className="quick-tile quick-tile-empty"
-                  onClick={() => setQuickEditOpen(true)}
+                  {a.label}
+                </span>
+                <span
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 9,
+                    letterSpacing: ".1em",
+                    color: "#ff8a72",
+                  }}
                 >
-                  <span className="quick-tile-plus">+</span>
-                  <span className="quick-tile-add mono">ADD PRESET</span>
-                </button>
-              )
-            )}
-          </div>
-        </div>
+                  +{kcal} KKAL
+                </span>
+              </span>
+            </Link>
+          );
+        })}
+      </div>
 
-        <div className="meal-grid">
-          {MEALS.map((m) => {
-            const bucket = byType[m.id];
-            const logged = bucket.macros.kcal > 0;
-            const isActive = activeMeal === m.id;
-            const href = `/meal/${m.id}?date=${activeDate}`;
-            const pct = logged
-              ? Math.min(100, Math.round((bucket.macros.kcal / m.expectedKcal) * 100))
-              : 0;
-            return (
-              <Link
-                key={m.id}
-                href={href}
-                className={`meal-card${isActive ? " active" : ""}${logged ? " logged" : ""}`}
+      {/* four meal windows */}
+      <div
+        style={{
+          fontFamily: MONO,
+          fontSize: 9.5,
+          letterSpacing: ".16em",
+          color: "#6a6660",
+          marginTop: 22,
+        }}
+      >
+        // EMPAT WAKTU MAKAN
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 10,
+          marginTop: 11,
+        }}
+      >
+        {MEALS.map((m) => {
+          const kc = byType[m.id].macros.kcal;
+          const logged = kc > 0;
+          const pct = logged
+            ? Math.min(100, Math.round((kc / m.expectedKcal) * 100))
+            : 0;
+          const href = `/meal/${m.id}?date=${activeDate}`;
+          const cardStyle: CSSProperties = {
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+            padding: 15,
+            borderRadius: 16,
+            cursor: "pointer",
+            textAlign: "left",
+            background: logged
+              ? "linear-gradient(180deg,rgba(255,138,60,.11),rgba(255,138,60,.02) 34%),#120d0c"
+              : "linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,0) 28%),#0d0b0c",
+            border: logged
+              ? "1px solid rgba(255,138,60,.42)"
+              : "1px solid rgba(255,255,255,.1)",
+            boxShadow: logged
+              ? "inset 0 1.5px 0 rgba(255,205,175,.28), inset 0 -7px 13px rgba(80,15,5,.42), 0 11px 24px rgba(238,60,48,.24), 0 0 20px rgba(238,60,48,.13)"
+              : "inset 0 1.5px 0 rgba(255,255,255,.09), inset 0 -7px 13px rgba(0,0,0,.4), 0 11px 22px rgba(0,0,0,.46)",
+          };
+          return (
+            <Link key={m.id} href={href} style={cardStyle}>
+              <span style={{ fontSize: 22 }}>{m.emoji}</span>
+              <span
+                style={{
+                  fontFamily: SANS,
+                  fontWeight: 700,
+                  fontSize: 13,
+                  letterSpacing: ".04em",
+                  color: "#f1ede9",
+                  marginTop: 8,
+                }}
               >
-                <span className="meal-card-emoji">{m.emoji}</span>
-                <div className="meal-card-name">
-                  {m.nameLines.map((l, i) => (
-                    <span key={i} className="meal-card-name-line">
-                      {l}
-                    </span>
-                  ))}
-                </div>
-                <div className="meal-card-bar">
-                  <div className="meal-card-bar-fill" style={{ width: `${pct}%` }} />
-                </div>
-              </Link>
-            );
-          })}
-        </div>
+                {m.name}
+              </span>
+              <div
+                style={{
+                  width: "100%",
+                  height: 6,
+                  borderRadius: 999,
+                  background: "rgba(255,255,255,.06)",
+                  overflow: "hidden",
+                  marginTop: 10,
+                }}
+              >
+                <div
+                  style={{
+                    height: "100%",
+                    width: `${pct}%`,
+                    borderRadius: 999,
+                    background: "linear-gradient(90deg,#ff8a3d,#ee2f1f)",
+                    transition: "width .6s cubic-bezier(.16,1,.3,1)",
+                    boxShadow: pct > 0 ? "0 0 8px rgba(238,60,48,.6)" : "none",
+                  }}
+                />
+              </div>
+              <span
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 9.5,
+                  color: "#8a837d",
+                  marginTop: 7,
+                }}
+              >
+                {logged ? `${Math.round(kc)} kkal` : "belum dicatat"}
+              </span>
+            </Link>
+          );
+        })}
       </div>
 
       {pickerOpen && activeDate && (
@@ -416,135 +745,6 @@ export default function MealHome() {
           }}
           onClose={() => setPickerOpen(false)}
         />
-      )}
-
-      {settingsOpen && (
-        <div className="set-modal-overlay" onClick={() => setSettingsOpen(false)}>
-          <div className="set-modal mh-settings" onClick={(e) => e.stopPropagation()}>
-            <div className="set-modal-body">
-              <div className="set-modal-head">
-                <div className="set-modal-ex">SETTINGS · {shortDate}</div>
-              </div>
-              <button type="button" className="mh-set-row" onClick={toggleGym}>
-                <span>{gymDay ? "🏋️" : "🧘"}</span>
-                <span className="mh-set-label">{gymDay ? "GYM DAY" : "REST DAY"}</span>
-                <span className="mh-set-hint mono">TAP TO TOGGLE</span>
-              </button>
-              {dayMeals.length > 0 && (
-                <button type="button" className="mh-set-row danger" onClick={handleClearActive}>
-                  <span>🗑️</span>
-                  <span className="mh-set-label">CLEAR TODAY&apos;S DATA</span>
-                  <span className="mh-set-hint mono">{dayMeals.length} meals</span>
-                </button>
-              )}
-              {isToday && (
-                <button
-                  type="button"
-                  className="mh-set-row"
-                  onClick={() => {
-                    setSettingsOpen(false);
-                    setNewDayOpen(true);
-                  }}
-                >
-                  <span>🌅</span>
-                  <span className="mh-set-label">START NEW DAY</span>
-                  <span className="mh-set-hint mono">ADVANCE DATE</span>
-                </button>
-              )}
-            </div>
-            <div className="set-modal-actions">
-              <button
-                type="button"
-                className="next-btn ghost"
-                onClick={() => setSettingsOpen(false)}
-              >
-                CLOSE
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {newDayOpen && (
-        <div className="set-modal-overlay" onClick={() => setNewDayOpen(false)}>
-          <div className="set-modal new-day-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="set-modal-body">
-              <div className="set-modal-head">
-                <div className="set-modal-ex">START NEW DAY?</div>
-              </div>
-              <div className="new-day-copy">
-                Start tracking for tomorrow?
-                <br />
-                <strong>Today&apos;s data ({shortDate}) is saved.</strong>
-                <br />
-                The tracker will jump to tomorrow with a fresh page. You can always come
-                back via the date picker.
-              </div>
-            </div>
-            <div className="set-modal-actions">
-              <button
-                type="button"
-                className="next-btn ghost"
-                onClick={() => setNewDayOpen(false)}
-              >
-                CANCEL
-              </button>
-              <button type="button" className="next-btn" onClick={handleConfirmNewDay}>
-                CONFIRM →
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {quickEditOpen && (
-        <div className="modal-overlay" onClick={() => setQuickEditOpen(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head">
-              <div className="modal-title">QUICK LOG · PICK 4</div>
-              <button className="modal-close" onClick={() => setQuickEditOpen(false)}>×</button>
-            </div>
-            <div className="quick-edit-hint mono">
-              Tap a preset to add or remove it from the home grid.
-              Up to {QUICKLOG_MAX}.
-            </div>
-            <div className="quick-edit-list">
-              {PRESETS.map((p) => {
-                const list =
-                  quickIds.length > 0 ? quickIds : quickResolved.map((q) => q.id);
-                const on = list.includes(p.id);
-                const disabled = !on && list.length >= QUICKLOG_MAX;
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    className={`quick-edit-row${on ? " on" : ""}${
-                      disabled ? " disabled" : ""
-                    }`}
-                    onClick={() => !disabled && toggleQuickPreset(p.id)}
-                    disabled={disabled}
-                  >
-                    <span className="quick-edit-tick" aria-hidden="true">
-                      {on ? "✓" : "+"}
-                    </span>
-                    <span className="quick-edit-label">{p.label}</span>
-                    <span className="quick-edit-meal mono">
-                      {(p.mealType as string).toUpperCase()}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="modal-actions">
-              <button
-                className="save"
-                onClick={() => setQuickEditOpen(false)}
-              >
-                DONE
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </main>
   );

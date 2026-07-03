@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+} from "react";
 import { macrosFor, type Macros } from "@/lib/ingredients";
 import { useSoftRefresh } from "@/lib/useSoftRefresh";
 import {
@@ -19,12 +25,42 @@ import {
   getSession,
   getTodaysWorkout,
   recommendedSessionFor,
-  workoutVolume,
   type WorkoutSession,
 } from "@/lib/workouts";
-import { computeTLvl } from "@/lib/tlvl";
+import { haptic } from "@/lib/haptics";
+
+const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
+const MONO = "var(--font-dm-mono), 'JetBrains Mono', monospace";
+const FIRE = "linear-gradient(180deg,#ff8a52,#ee3c30 55%,#c01f12)";
+const FIRE_TEXT: CSSProperties = {
+  background: "linear-gradient(100deg,#ff8a3d,#ee2f1f)",
+  WebkitBackgroundClip: "text",
+  backgroundClip: "text",
+  WebkitTextFillColor: "transparent",
+};
 
 const EMPTY: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+
+const ID_DAYS = ["MIN", "SEN", "SEL", "RAB", "KAM", "JUM", "SAB"];
+const ID_MON = [
+  "JAN", "FEB", "MAR", "APR", "MEI", "JUN",
+  "JUL", "AGU", "SEP", "OKT", "NOV", "DES",
+];
+
+function bahasaDateLine(d: Date): string {
+  const day = ID_DAYS[d.getDay()];
+  const mon = ID_MON[d.getMonth()];
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${day} · ${d.getDate()} ${mon} · ${hh}:${mm}`;
+}
+
+function greetingForHour(h: number): { top: string; hot: string } {
+  if (h >= 6 && h < 11) return { top: "BANGKIT &", hot: "TETAP PANAS." };
+  if (h >= 11 && h < 17) return { top: "LANJUT", hot: "TERUS." };
+  if (h >= 17 && h < 21) return { top: "DORONG", hot: "SAMPAI TUNTAS." };
+  return { top: "TUTUP HARI", hot: "DENGAN GAS." };
+}
 
 function sumMealItems(items: MealItem[]): Macros {
   return items.reduce<Macros>(
@@ -60,167 +96,257 @@ function dayStreak(allMeals: MealLog[], todayStr: string): number {
   return streak;
 }
 
-function greetingForHour(h: number): string {
-  if (h >= 6 && h < 11) return "GOOD MORNING.";
-  if (h >= 11 && h < 17) return "KEEP GOING.";
-  if (h >= 17 && h < 21) return "ALMOST DONE.";
-  return "WIND DOWN.";
+/** Exercise-level progress for today's push/pull/etc session. */
+function sessionProgress(
+  workout: WorkoutSession | null,
+  fallbackId: string
+): { done: number; total: number; complete: boolean } {
+  const def = getSession(workout?.sessionType ?? fallbackId);
+  if (!workout) {
+    return { done: 0, total: def?.exercises.length ?? 6, complete: false };
+  }
+  const total = def?.exercises.length ?? workout.exercises.length;
+  let done = 0;
+  workout.exercises.forEach((ex, i) => {
+    const need = def?.exercises[i]?.sets ?? 0;
+    if (need > 0 ? ex.sets.length >= need : ex.sets.length > 0) done++;
+  });
+  return { done, total, complete: workout.completed };
 }
 
-function workoutSubtitle(
-  session: WorkoutSession | null,
-  isRestDay: boolean,
-  recommendedLabel: string
-): string {
-  if (session) {
-    const vol = Math.round(workoutVolume(session));
-    const name = session.sessionType === "CUSTOM"
-      ? session.customName ?? "Custom"
-      : getSession(session.sessionType)?.name ?? session.sessionType;
-    return `✓ ${name} done · ${vol.toLocaleString()}kg volume`;
-  }
-  if (isRestDay) return "Rest day — recovery";
-  return `${recommendedLabel} recommended today`;
+/** Ease a number up to its target so ring figures "count up" like the ref. */
+function useCountUp(target: number, active: boolean): number {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    if (!active) {
+      setV(target);
+      return;
+    }
+    let raf = 0;
+    let cur = 0;
+    const tick = () => {
+      cur = cur + (target - cur) * 0.16;
+      if (Math.abs(target - cur) < 0.5) {
+        setV(target);
+        return;
+      }
+      setV(cur);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, active]);
+  return Math.round(v);
 }
 
-function mealSubtitle(logged: Set<string>, hour: number, totalKcal: number): string {
-  const all = logged.size === 4;
-  if (all) return `✓ All meals logged · ${Math.round(totalKcal).toLocaleString()} kcal`;
-  if (hour < 11) {
-    if (!logged.has("breakfast")) return "Breakfast not logged yet";
-    return "Lunch coming up";
-  }
-  if (hour < 14) {
-    if (!logged.has("lunch")) return "Lunch not logged yet";
-    return "Snack coming up";
-  }
-  if (hour < 17) {
-    if (!logged.has("snack")) return "Snack not logged · Dinner coming up";
-    return "Dinner coming up";
-  }
-  if (!logged.has("dinner")) return "Dinner not logged yet";
-  return "Wrap up your day";
-}
-
-function SkeletonRing({ label }: { label: string }) {
-  const size = 90;
-  const stroke = 7;
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  return (
-    <div className="home-ring" aria-hidden="true">
-      <div className="home-ring-wrap" style={{ width: size, height: size }}>
-        <svg
-          width={size}
-          height={size}
-          viewBox={`0 0 ${size} ${size}`}
-          className="skeleton-ring"
-        >
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={r}
-            fill="none"
-            stroke="#222222"
-            strokeWidth={stroke}
-          />
-          <circle
-            className="skeleton-ring-fill"
-            cx={size / 2}
-            cy={size / 2}
-            r={r}
-            fill="none"
-            strokeWidth={stroke}
-            strokeDasharray={`${c * 0.3} ${c}`}
-            strokeDashoffset={c}
-            strokeLinecap="round"
-            transform={`rotate(-90 ${size / 2} ${size / 2})`}
-          />
-        </svg>
-        <div className="home-ring-center">
-          <div className="home-ring-num shimmer-text">&nbsp;</div>
-        </div>
-      </div>
-      <div className="home-ring-label mono">{label}</div>
-    </div>
-  );
+function toggleStyle(active: boolean): CSSProperties {
+  return {
+    flex: 1,
+    padding: "11px",
+    borderRadius: 12,
+    fontFamily: MONO,
+    fontSize: 11,
+    letterSpacing: ".06em",
+    cursor: "pointer",
+    border: active
+      ? "1px solid rgba(255,150,120,.6)"
+      : "1px solid rgba(255,255,255,.1)",
+    background: active ? FIRE : "rgba(255,255,255,.03)",
+    color: active ? "#fff" : "#7c736e",
+    boxShadow: active
+      ? "inset 0 1.5px 1px rgba(255,225,205,.6),0 6px 16px rgba(238,60,48,.35)"
+      : "none",
+    textShadow: active ? "0 1px 2px rgba(120,15,5,.5)" : "none",
+  };
 }
 
 function Ring({
+  num,
+  unit,
+  textOverride,
   pct,
+  stops,
   color,
-  centerTop,
-  centerBottom,
+  bigSize,
+  sub,
   label,
-  complete,
-  muted,
+  animate,
 }: {
+  num: number;
+  unit?: string;
+  textOverride?: string;
   pct: number;
+  stops: string[];
   color: string;
-  centerTop: string;
-  centerBottom?: string;
+  bigSize: number;
+  sub: string;
   label: string;
-  complete?: boolean;
-  muted?: boolean;
+  animate: boolean;
 }) {
-  const size = 90;
-  const stroke = 7;
+  const size = 104;
+  const stroke = 10;
+  const pad = 20;
+  const box = size + pad * 2;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
-  const clamped = Math.max(0, Math.min(100, pct));
-  const targetOffset = c - (clamped / 100) * c;
+  const cx = box / 2;
+  const cy = box / 2;
+  const gid = "rg" + label.replace(/[^A-Za-z]/g, "");
 
-  // Start at full offset (empty ring) so it "fills in" like the iOS Timer.
-  const [offset, setOffset] = useState(c);
+  const clamped = Math.max(0, Math.min(100, pct));
+  const targetOff = c - (clamped / 100) * c;
+  const [off, setOff] = useState(c);
   useEffect(() => {
-    const raf = requestAnimationFrame(() => setOffset(targetOffset));
+    const raf = requestAnimationFrame(() => setOff(targetOff));
     return () => cancelAnimationFrame(raf);
-  }, [targetOffset, c]);
+  }, [targetOff]);
+
+  const shown = useCountUp(num, animate && textOverride === undefined);
+  const bigText =
+    textOverride !== undefined ? textOverride : `${shown}${unit ?? ""}`;
 
   return (
-    <div className={`home-ring${complete ? " complete" : ""}`}>
-      <div className="home-ring-wrap" style={{ width: size, height: size }}>
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 10,
+      }}
+    >
+      <div
+        style={{ position: "relative", width: size, height: size, overflow: "visible" }}
+      >
+        <svg
+          width={box}
+          height={box}
+          viewBox={`0 0 ${box} ${box}`}
+          style={{ position: "absolute", top: -pad, left: -pad, overflow: "visible" }}
+        >
+          <defs>
+            <linearGradient
+              id={gid}
+              gradientUnits="userSpaceOnUse"
+              x1={cx - r}
+              y1={cy - r}
+              x2={cx + r}
+              y2={cy + r}
+            >
+              <animateTransform
+                attributeName="gradientTransform"
+                type="rotate"
+                from={`0 ${cx} ${cy}`}
+                to={`360 ${cx} ${cy}`}
+                dur="5s"
+                repeatCount="indefinite"
+              />
+              {stops.map((sc, i) => (
+                <stop
+                  key={i}
+                  offset={`${Math.round((i / (stops.length - 1)) * 100)}%`}
+                  stopColor={sc}
+                />
+              ))}
+            </linearGradient>
+          </defs>
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#221b1b" strokeWidth={stroke} />
           <circle
-            cx={size / 2}
-            cy={size / 2}
+            cx={cx}
+            cy={cy}
             r={r}
             fill="none"
-            stroke="#222222"
-            strokeWidth={stroke}
+            stroke="rgba(0,0,0,.5)"
+            strokeWidth={stroke + 3}
+            strokeDasharray={c}
+            strokeDashoffset={off}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${cx} ${cy})`}
+            style={{
+              transition: "stroke-dashoffset .35s cubic-bezier(.16,1,.3,1)",
+              opacity: 0.35,
+            }}
           />
           <circle
-            cx={size / 2}
-            cy={size / 2}
+            cx={cx}
+            cy={cy}
             r={r}
             fill="none"
-            stroke={muted ? "#444444" : color}
+            stroke={`url(#${gid})`}
             strokeWidth={stroke}
             strokeDasharray={c}
-            strokeDashoffset={offset}
+            strokeDashoffset={off}
             strokeLinecap="round"
-            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            transform={`rotate(-90 ${cx} ${cy})`}
             style={{
-              transition:
-                "stroke-dashoffset var(--dur-ring) var(--ease-out), stroke var(--dur-base) var(--ease-standard)",
-              willChange: "stroke-dashoffset",
+              transition: "stroke-dashoffset .35s cubic-bezier(.16,1,.3,1)",
+              filter: `drop-shadow(0 0 6px ${color}) drop-shadow(0 0 14px ${color}77)`,
             }}
           />
         </svg>
-        <div className="home-ring-center">
+        {/* glassy 3D glare */}
+        <div
+          style={{
+            position: "absolute",
+            inset: stroke + 1,
+            borderRadius: "50%",
+            background:
+              "radial-gradient(circle at 34% 26%, rgba(255,255,255,.16), rgba(255,255,255,.03) 40%, transparent 62%)",
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
           <div
-            className="home-ring-num tnum"
-            style={{ color: muted ? "var(--muted)" : color }}
+            style={{
+              fontFamily: SANS,
+              fontWeight: 800,
+              fontSize: bigSize,
+              color: "#fff",
+              lineHeight: 1,
+              textShadow: "0 2px 6px rgba(0,0,0,.5)",
+            }}
           >
-            {centerTop}
+            {bigText}
           </div>
-          {centerBottom && <div className="home-ring-unit">{centerBottom}</div>}
+          <div
+            style={{
+              fontFamily: MONO,
+              fontSize: 8.5,
+              color: "#8a837d",
+              marginTop: 3,
+              letterSpacing: ".04em",
+            }}
+          >
+            {sub}
+          </div>
         </div>
       </div>
-      <div className="home-ring-label mono">{label}</div>
+      <div
+        style={{
+          fontFamily: MONO,
+          fontSize: 9,
+          letterSpacing: ".14em",
+          color: "#8a837d",
+        }}
+      >
+        {label}
+      </div>
     </div>
   );
 }
+
+const KCAL_STOPS = ["#ffce8a", "#ff8a3d", "#ee2f1f", "#ff6a4c"];
+const PROT_STOPS = ["#c4f9d8", "#5fe39a", "#1fae5a", "#5fe39a"];
+const SESS_STOPS = ["#ffd98a", "#ff9a3d", "#ee5a2f", "#ff8a3d"];
+const REST_STOPS = ["#6a6560", "#454140", "#6a6560"];
 
 export default function HomePage() {
   const [mounted, setMounted] = useState(false);
@@ -228,7 +354,6 @@ export default function HomePage() {
   const [meals, setMeals] = useState<MealLog[]>([]);
   const [workout, setWorkout] = useState<WorkoutSession | null>(null);
   const [gymDay, setGymDay] = useState(true);
-  const [tlvlScore, setTLvlScore] = useState<number | null>(null);
   const [streak, setStreak] = useState(0);
 
   const reloadFromStore = useCallback(() => {
@@ -238,11 +363,6 @@ export default function HomePage() {
     setWorkout(getTodaysWorkout(today));
     setGymDay(getDaily(today).gymDay);
     setStreak(dayStreak(getAllMeals(), today));
-    try {
-      setTLvlScore(Math.round(computeTLvl(today).score));
-    } catch {
-      setTLvlScore(null);
-    }
   }, []);
   useSoftRefresh(reloadFromStore);
 
@@ -250,16 +370,12 @@ export default function HomePage() {
     setMounted(true);
     reloadFromStore();
     const t = setInterval(() => setNow(new Date()), 60_000);
-    document.body.classList.add("no-scroll");
-    return () => {
-      clearInterval(t);
-      document.body.classList.remove("no-scroll");
-    };
+    return () => clearInterval(t);
   }, [reloadFromStore]);
 
   const week = weekNumber();
   const hour = now.getHours();
-  const greeting = greetingForHour(hour);
+  const greet = greetingForHour(hour);
 
   const totals: Macros = useMemo(
     () =>
@@ -279,170 +395,279 @@ export default function HomePage() {
   );
 
   const target = gymDay ? TARGETS.gymDay : TARGETS.restDay;
-  const kcalPct = Math.round((totals.kcal / target.kcal) * 100);
-  const kcalLeft = Math.max(0, target.kcal - totals.kcal);
-  const kcalOver = Math.max(0, Math.round(totals.kcal - target.kcal));
-  const kcalComplete = totals.kcal >= target.kcal;
 
-  const proteinPct = Math.round((totals.protein / target.protein) * 100);
-  const proteinLeft = Math.max(0, Math.round(target.protein - totals.protein));
-  const proteinOver = Math.max(0, Math.round(totals.protein - target.protein));
-  const proteinComplete = totals.protein >= target.protein;
-
-  const workoutDone = !!workout;
-  const workoutPct = gymDay ? (workoutDone ? 100 : 0) : 0;
-
-  const loggedTypes = useMemo(() => new Set(meals.map((m) => m.mealType)), [meals]);
-
-  const recommendedLabel = useMemo(() => {
-    const id = recommendedSessionFor(now);
-    return getSession(id)?.name ?? id;
-  }, [now]);
-
-  const isRestDay = !gymDay;
+  const recommendedId = useMemo(() => recommendedSessionFor(now), [now]);
+  const sess = sessionProgress(workout, recommendedId);
+  const sessName =
+    getSession(workout?.sessionType ?? recommendedId)?.name ?? "LATIHAN";
 
   function toggleGym(next: boolean) {
     if (next === gymDay) return;
+    haptic("tap");
     setGymDay(next);
     const today = todayKey();
     const cur = getDaily(today);
     setDaily({ date: today, gymDay: next, checklist: cur.checklist ?? {} });
   }
 
-  const dateLine = now
-    .toLocaleDateString("en", { weekday: "short", month: "short", day: "numeric" })
-    .toUpperCase();
-  const timeLine = now
-    .toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-    .toUpperCase();
+  const dateLine = bahasaDateLine(now);
 
-  const dayShort = now
-    .toLocaleDateString("en", { weekday: "short" })
-    .toUpperCase();
-  const quickStats = mounted
-    ? `${dayShort} · ${gymDay ? "GYM DAY" : "REST DAY"} · ${Math.round(
-        totals.kcal
-      ).toLocaleString()} / ${target.kcal.toLocaleString()} KCAL · ${Math.round(
-        totals.protein
-      )}G P${tlvlScore !== null ? ` · T-LVL ${tlvlScore}` : ""}`
-    : "";
+  const workoutSub = !gymDay
+    ? "Hari rest · pemulihan aktif"
+    : `${sessName} · ${sess.done}/${sess.total} gerakan · ${
+        sess.complete ? "selesai" : "lanjut"
+      }`;
+  const mealSub = `${Math.round(totals.kcal).toLocaleString()} kkal dicatat · ${Math.round(
+    totals.protein
+  )}g protein`;
 
   return (
-    <main className="home page-rise">
-      <header className="home-header">
-        <div className="home-header-row">
-          <div className="home-brand">R2<span className="brand-dot">·</span><span className="fire-text">FIT</span></div>
-          {mounted && streak > 0 ? (
-            <div className="streak-pill mono">🔥 {streak} DAY{streak === 1 ? "" : "S"}</div>
-          ) : (
-            <div className="home-week mono">WEEK {week} / 12</div>
-          )}
+    <main
+      style={{
+        maxWidth: 480,
+        margin: "0 auto",
+        minHeight: "100dvh",
+        padding: "calc(20px + env(safe-area-inset-top)) 20px 26px",
+        background:
+          "radial-gradient(1100px 700px at 50% -8%, #17100f 0%, #0a0809 42%, #050406 100%)",
+        fontFamily: SANS,
+      }}
+    >
+      {/* header row: wordmark + streak pill */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <div
+          style={{
+            fontFamily: SANS,
+            fontWeight: 800,
+            fontSize: 23,
+            letterSpacing: "-.01em",
+            color: "#f5f2ef",
+          }}
+        >
+          R2<span style={{ color: "#ee3c30" }}>·</span>
+          <span style={FIRE_TEXT}>FIT</span>
         </div>
-        <div className="home-datetime mono">
-          {dateLine} · {timeLine}
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "6px 12px",
+            borderRadius: 999,
+            border: "1px solid rgba(238,60,48,.4)",
+            background: "rgba(238,60,48,.08)",
+            fontFamily: MONO,
+            fontSize: 11,
+            letterSpacing: ".08em",
+            color: "#ff8a72",
+          }}
+        >
+          🔥 {mounted ? streak : 0} HARI
         </div>
-        {mounted && <div className="home-quickstats mono">{quickStats}</div>}
-      </header>
+      </div>
 
-      <section className="home-visual">
-        <div className="home-greeting">{greeting}</div>
-        <div className="home-rings">
-          {mounted ? (
-            <>
-              <Ring
-                pct={kcalPct}
-                color="#ff8a3d"
-                centerTop={
-                  kcalComplete
-                    ? Math.round(totals.kcal).toLocaleString()
-                    : Math.round(kcalLeft).toLocaleString()
-                }
-                centerBottom={
-                  kcalComplete
-                    ? kcalOver > 0
-                      ? `+${kcalOver.toLocaleString()} over`
-                      : "on target"
-                    : "kcal left"
-                }
-                label={kcalComplete ? "KCAL EATEN" : "KCAL LEFT"}
-                complete={kcalComplete}
-              />
-              <Ring
-                pct={proteinPct}
-                color="#22c55e"
-                centerTop={
-                  proteinComplete
-                    ? `${Math.round(totals.protein)}g`
-                    : `${proteinLeft}g`
-                }
-                centerBottom={
-                  proteinComplete
-                    ? proteinOver > 0
-                      ? `+${proteinOver}g over`
-                      : "on target"
-                    : "left"
-                }
-                label={proteinComplete ? "PROTEIN EATEN" : "PROTEIN LEFT"}
-                complete={proteinComplete}
-              />
-              <Ring
-                pct={workoutPct}
-                color="#ff8a72"
-                centerTop={!gymDay ? "REST" : workoutDone ? "✓" : "0/1"}
-                centerBottom={!gymDay ? undefined : workoutDone ? undefined : "sessions"}
-                label="SESSION"
-                complete={gymDay && workoutDone}
-                muted={!gymDay}
-              />
-            </>
-          ) : (
-            <>
-              <SkeletonRing label="KCAL" />
-              <SkeletonRing label="PROTEIN" />
-              <SkeletonRing label="SESSION" />
-            </>
-          )}
-        </div>
-      </section>
+      {/* meta line */}
+      <div
+        style={{
+          fontFamily: MONO,
+          fontSize: 10.5,
+          letterSpacing: ".14em",
+          color: "#6a6660",
+          marginTop: 12,
+          textTransform: "uppercase",
+        }}
+      >
+        {dateLine} · MINGGU {week} / 12
+      </div>
 
-      <nav className="home-actions">
-        <div className="home-daytoggle mono" role="tablist" aria-label="Day type">
-          <button
-            type="button"
-            className={`home-daytoggle-btn${gymDay ? " on" : ""}`}
-            onClick={() => toggleGym(true)}
-            role="tab"
-            aria-selected={gymDay}
-          >
-            🏋️ GYM DAY
-          </button>
-          <button
-            type="button"
-            className={`home-daytoggle-btn${!gymDay ? " on" : ""}`}
-            onClick={() => toggleGym(false)}
-            role="tab"
-            aria-selected={!gymDay}
-          >
-            🌙 REST DAY
-          </button>
-        </div>
+      {/* hero heading */}
+      <div
+        style={{
+          fontFamily: SANS,
+          fontWeight: 700,
+          fontSize: 34,
+          lineHeight: 1.05,
+          color: "#f1ede9",
+          marginTop: 20,
+          letterSpacing: "-.02em",
+        }}
+      >
+        {greet.top}
+        <br />
+        <span style={FIRE_TEXT}>{greet.hot}</span>
+      </div>
 
-        <div className="home-duo">
-          <Link href="/workout" className="home-duo-btn home-duo-workout">
-            <span className="home-duo-title">WORKOUT</span>
-            <span className="home-duo-sub mono">
-              {workoutSubtitle(workout, isRestDay, recommendedLabel)}
-            </span>
-          </Link>
+      {/* rings */}
+      <div
+        style={{
+          marginTop: 26,
+          display: "flex",
+          justifyContent: "space-around",
+          alignItems: "flex-start",
+        }}
+      >
+        <Ring
+          num={Math.round(totals.kcal)}
+          pct={(totals.kcal / target.kcal) * 100}
+          stops={KCAL_STOPS}
+          color="#ff6a4c"
+          bigSize={22}
+          sub={`/ ${target.kcal.toLocaleString()}`}
+          label="KKAL"
+          animate={mounted}
+        />
+        <Ring
+          num={Math.round(totals.protein)}
+          unit="g"
+          pct={(totals.protein / target.protein) * 100}
+          stops={PROT_STOPS}
+          color="#5fe39a"
+          bigSize={21}
+          sub={`/ ${target.protein}g`}
+          label="PROTEIN"
+          animate={mounted}
+        />
+        {gymDay ? (
+          <Ring
+            num={sess.done}
+            textOverride={sess.complete ? "✓" : `${sess.done}/${sess.total}`}
+            pct={sess.total ? (sess.done / sess.total) * 100 : 0}
+            stops={SESS_STOPS}
+            color="#ff8a3d"
+            bigSize={22}
+            sub={sess.complete ? "kelar" : "gerakan"}
+            label="SESI"
+            animate={mounted}
+          />
+        ) : (
+          <Ring
+            num={0}
+            textOverride="REST"
+            pct={100}
+            stops={REST_STOPS}
+            color="#5a5551"
+            bigSize={20}
+            sub="pemulihan"
+            label="SESI"
+            animate={mounted}
+          />
+        )}
+      </div>
 
-          <Link href="/meal" className="home-duo-btn home-duo-meal">
-            <span className="home-duo-title">MEAL</span>
-            <span className="home-duo-sub mono">
-              {mealSubtitle(loggedTypes, hour, totals.kcal)}
-            </span>
-          </Link>
-        </div>
-      </nav>
+      {/* day toggle */}
+      <div style={{ display: "flex", gap: 8, marginTop: 26 }}>
+        <button type="button" onClick={() => toggleGym(true)} style={toggleStyle(gymDay)}>
+          🏋️ HARI GYM
+        </button>
+        <button type="button" onClick={() => toggleGym(false)} style={toggleStyle(!gymDay)}>
+          🌙 HARI REST
+        </button>
+      </div>
+
+      {/* primary fire CTA */}
+      <Link
+        href="/workout"
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          display: "block",
+          width: "100%",
+          marginTop: 14,
+          padding: "18px 20px",
+          borderRadius: 18,
+          textAlign: "left",
+          cursor: "pointer",
+          background: "linear-gradient(180deg,#ff8a52,#ee3c30 55%,#c01f12)",
+          border: "1px solid rgba(255,150,120,.6)",
+          boxShadow:
+            "inset 0 1.5px 1px rgba(255,225,205,.7), inset 0 -5px 10px rgba(150,20,5,.4), 0 14px 30px rgba(238,60,48,.42)",
+        }}
+      >
+        <span
+          style={{
+            position: "absolute",
+            top: 0,
+            left: "-55%",
+            width: "55%",
+            height: "100%",
+            background:
+              "linear-gradient(105deg,transparent,rgba(255,255,255,.35),transparent)",
+            animation: "btnSheen 6s ease-in-out infinite",
+          }}
+        />
+        <span
+          style={{
+            display: "block",
+            fontFamily: SANS,
+            fontWeight: 800,
+            fontSize: 20,
+            color: "#fff",
+            textShadow: "0 1px 2px rgba(120,15,5,.5)",
+          }}
+        >
+          MULAI LATIHAN <span style={{ fontWeight: 500 }}>↗</span>
+        </span>
+        <span
+          style={{
+            display: "block",
+            fontFamily: MONO,
+            fontSize: 10.5,
+            letterSpacing: ".06em",
+            color: "rgba(255,240,235,.92)",
+            marginTop: 4,
+          }}
+        >
+          {workoutSub}
+        </span>
+      </Link>
+
+      {/* ghost CTA */}
+      <Link
+        href="/meal"
+        style={{
+          display: "block",
+          width: "100%",
+          marginTop: 10,
+          padding: "18px 20px",
+          borderRadius: 18,
+          textAlign: "left",
+          cursor: "pointer",
+          background:
+            "linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))",
+          border: "1px solid rgba(255,255,255,.12)",
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,.07)",
+        }}
+      >
+        <span
+          style={{
+            display: "block",
+            fontFamily: SANS,
+            fontWeight: 800,
+            fontSize: 20,
+            color: "#f1ede9",
+          }}
+        >
+          CATAT MAKAN
+        </span>
+        <span
+          style={{
+            display: "block",
+            fontFamily: MONO,
+            fontSize: 10.5,
+            letterSpacing: ".06em",
+            color: "#8a837d",
+            marginTop: 4,
+          }}
+        >
+          {mealSub}
+        </span>
+      </Link>
     </main>
   );
 }
