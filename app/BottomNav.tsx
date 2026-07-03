@@ -10,8 +10,8 @@ const OS_URL = "https://r2-os.vercel.app";
 type Tab = { href: string; label: string; icon: string; match: (p: string) => boolean };
 
 const LEFT: Tab[] = [
-  { href: "/",     label: "HOME",  icon: "🏠", match: (p) => p === "/" },
-  { href: "/tlvl", label: "T-LVL", icon: "⚡", match: (p) => p.startsWith("/tlvl") },
+  { href: "/",      label: "BERANDA", icon: "🏠", match: (p) => p === "/" },
+  { href: "/sleep", label: "TIDUR",   icon: "😴", match: (p) => p.startsWith("/sleep") },
 ];
 
 const RIGHT: Tab[] = [
