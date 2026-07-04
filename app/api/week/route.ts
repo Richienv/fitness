@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getUserId } from "@/lib/session";
 import { weekSnapshot } from "@/lib/hermes";
 
 const corsHeaders = {
@@ -14,9 +15,15 @@ export async function OPTIONS() {
 
 export async function GET(req: Request) {
   try {
+    const userId = await getUserId();
+    if (!userId)
+      return NextResponse.json(
+        { error: "unauthorized" },
+        { status: 401, headers: corsHeaders }
+      );
     const url = new URL(req.url);
     const weekStart = url.searchParams.get("startDate") ?? undefined;
-    const data = await weekSnapshot(weekStart ?? undefined);
+    const data = await weekSnapshot(userId, weekStart ?? undefined);
     return NextResponse.json({ ok: true, data }, { headers: corsHeaders });
   } catch (e) {
     return NextResponse.json(

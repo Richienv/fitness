@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getHermesOwnerId } from "@/lib/session";
 import { todayKey } from "@/lib/targets";
 import { getActor, logActivity } from "@/lib/audit";
 import {
@@ -48,6 +49,12 @@ async function learnCustomFood(
 
 export async function POST(req: Request) {
   try {
+    const userId = await getHermesOwnerId();
+    if (!userId)
+      return NextResponse.json(
+        { error: "hermes owner not configured" },
+        { status: 503 }
+      );
     const body = (await req.json()) as {
       text?: string;
       items?: HermesItemInput[];
@@ -88,7 +95,7 @@ export async function POST(req: Request) {
       // Mirror the web app: one row per (date, mealType). Add 3 eggs now
       // and 2 eggs later → one row with egg ×5, not two side-by-side items.
       const existing = await db.mealEntry
-        .findFirst({ where: { date, mealType }, orderBy: { createdAt: "asc" } })
+        .findFirst({ where: { userId, date, mealType }, orderBy: { createdAt: "asc" } })
         .catch(() => null);
 
       let saved;
@@ -107,6 +114,7 @@ export async function POST(req: Request) {
         saved = await db.mealEntry.create({
           data: {
             id,
+            userId,
             date,
             mealType,
             items: mergedItems as never,
@@ -121,7 +129,7 @@ export async function POST(req: Request) {
           : it.name
       );
 
-      const todayTotals = await calorieTotalsFor(date);
+      const todayTotals = await calorieTotalsFor(userId, date);
       await logActivity({
         actor,
         action: "log-meal",
@@ -221,7 +229,7 @@ export async function POST(req: Request) {
 
     // Same merge-by-mealType rule as the structured path.
     const existing = await db.mealEntry
-      .findFirst({ where: { date, mealType }, orderBy: { createdAt: "asc" } })
+      .findFirst({ where: { userId, date, mealType }, orderBy: { createdAt: "asc" } })
       .catch(() => null);
 
     let saved;
@@ -236,6 +244,7 @@ export async function POST(req: Request) {
       saved = await db.mealEntry.create({
         data: {
           id,
+          userId,
           date,
           mealType,
           items: [incomingItem] as never,
@@ -244,7 +253,7 @@ export async function POST(req: Request) {
       });
     }
 
-    const todayTotals = await calorieTotalsFor(date);
+    const todayTotals = await calorieTotalsFor(userId, date);
     await logActivity({
       actor,
       action: "log-meal",

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getHermesOwnerId } from "@/lib/session";
 import {
   DAILY_PROTEIN_TARGET,
   microTotalsFor,
@@ -28,11 +29,17 @@ export async function OPTIONS() {
  */
 export async function GET(req: Request) {
   try {
+    const userId = await getHermesOwnerId();
+    if (!userId)
+      return NextResponse.json(
+        { error: "hermes owner not configured" },
+        { status: 503, headers: corsHeaders }
+      );
     const url = new URL(req.url);
     const limit = Math.max(1, Math.min(6, Number(url.searchParams.get("limit") ?? 3)));
 
-    const today = await todaySnapshot();
-    const micros = await microTotalsFor(today.date);
+    const today = await todaySnapshot(userId);
+    const micros = await microTotalsFor(userId, today.date);
 
     const protein = today.calories.protein;
     const proteinTarget = today.calories.proteinTarget ?? DAILY_PROTEIN_TARGET;

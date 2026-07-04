@@ -26,48 +26,45 @@ model User {
   foods        FoodItem[]
 }
 
-// NOTE (Phase 1): `userId` is nullable and the legacy global `@unique` on
-// `date` is kept so existing unscoped routes keep compiling. The migration
-// phase backfills owners, switches to `@@unique([userId, date])`, and makes
-// userId required.
+// Per-user data. Prod has no legacy server rows (DB was never provisioned),
+// so userId is required and uniqueness is scoped per user from the start.
 model DailyLog {
   id        String   @id @default(cuid())
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  date      String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      String
   gymDay    Boolean  @default(false)
   checklist Json     @default("{}")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([userId, date])
   @@index([userId])
 }
 
 model MealEntry {
   id         String   @id @default(cuid())
-  userId     String?
-  user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   date       String
   mealType   String
   items      Json
   totals     Json
   createdAt  DateTime @default(now())
 
-  @@index([date])
   @@index([userId, date])
 }
 
 model WorkoutSession {
   id          String     @id @default(cuid())
-  userId      String?
-  user        User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   date        String
   sessionType String
   totalVolume Float      @default(0)
   exercises   Exercise[]
   createdAt   DateTime   @default(now())
 
-  @@index([date])
   @@index([userId, date])
 }
 
@@ -81,9 +78,9 @@ model Exercise {
 
 model Measurement {
   id          String   @id @default(cuid())
-  userId      String?
-  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  date        String   @unique
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date        String
   weightKg    Float?
   waistCm     Float?
   shoulderCm  Float?
@@ -91,14 +88,14 @@ model Measurement {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@index([date])
+  @@unique([userId, date])
   @@index([userId])
 }
 
 model SleepLog {
   id          String   @id @default(cuid())
-  userId      String?
-  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   date        String
   bedtime     String   @default("")
   wakeTime    String   @default("")
@@ -107,7 +104,7 @@ model SleepLog {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@index([userId, date])
+  @@unique([userId, date])
 }
 
 model ActivityLog {

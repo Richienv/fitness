@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getUserId } from "@/lib/session";
 import { computeStreak, type StreakType } from "@/lib/hermes";
 
 const corsHeaders = {
@@ -16,6 +17,12 @@ const VALID: StreakType[] = ["meal", "workout", "weight"];
 
 export async function GET(req: Request) {
   try {
+    const userId = await getUserId();
+    if (!userId)
+      return NextResponse.json(
+        { error: "unauthorized" },
+        { status: 401, headers: corsHeaders }
+      );
     const url = new URL(req.url);
     const type = (url.searchParams.get("type") ?? "meal") as StreakType;
     if (!VALID.includes(type)) {
@@ -28,7 +35,7 @@ export async function GET(req: Request) {
         { status: 400, headers: corsHeaders }
       );
     }
-    const streak = await computeStreak(type);
+    const streak = await computeStreak(userId, type);
     return NextResponse.json(
       { ok: true, data: { type, streak } },
       { headers: corsHeaders }

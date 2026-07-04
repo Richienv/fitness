@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getUserId } from "@/lib/session";
 import { todayKey } from "@/lib/targets";
 
 const DAILY_CALORIE_TARGET = 2200;
@@ -30,11 +31,17 @@ function payload(remainingKcal: number, remainingProtein: number) {
 
 export async function GET() {
   try {
+    const userId = await getUserId();
+    if (!userId)
+      return NextResponse.json(
+        { error: "unauthorized" },
+        { status: 401, headers: corsHeaders }
+      );
     const today = todayKey();
 
     let logs: Array<{ totals: unknown }> = [];
     try {
-      logs = await db.mealEntry.findMany({ where: { date: today } });
+      logs = await db.mealEntry.findMany({ where: { userId, date: today } });
     } catch {
       logs = [];
     }

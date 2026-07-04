@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getUserId } from "@/lib/session";
 import { todayKey } from "@/lib/targets";
 
 type MealPayload = {
@@ -24,6 +25,8 @@ function isMealPayload(x: unknown): x is MealPayload {
 
 export async function POST(req: Request) {
   try {
+    const userId = await getUserId();
+    if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     const body = await req.json();
     if (!isMealPayload(body)) {
       return NextResponse.json({ error: "invalid payload" }, { status: 400 });
@@ -32,6 +35,7 @@ export async function POST(req: Request) {
       where: { id: body.id },
       create: {
         id: body.id,
+        userId,
         date: body.date,
         mealType: body.mealType,
         items: body.items as never,
@@ -55,17 +59,19 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   try {
+    const userId = await getUserId();
+    if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     const url = new URL(req.url);
     const from = url.searchParams.get("from");
     if (from) {
       const meals = await db.mealEntry.findMany({
-        where: { date: { gte: from } },
+        where: { userId, date: { gte: from } },
         orderBy: { createdAt: "asc" },
       });
       return NextResponse.json({ from, meals });
     }
     const date = url.searchParams.get("date") ?? todayKey();
-    const meals = await db.mealEntry.findMany({ where: { date } });
+    const meals = await db.mealEntry.findMany({ where: { userId, date } });
     return NextResponse.json({ date, meals });
   } catch (e) {
     return NextResponse.json(
@@ -77,10 +83,12 @@ export async function GET(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    const userId = await getUserId();
+    if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     const url = new URL(req.url);
     const id = url.searchParams.get("id");
     if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
-    await db.mealEntry.delete({ where: { id } }).catch(() => null);
+    await db.mealEntry.deleteMany({ where: { id, userId } }).catch(() => null);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json(

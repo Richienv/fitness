@@ -1,5 +1,7 @@
 "use client";
 
+import { scopedKey } from "./userScope";
+
 export type Measurement = {
   date: string;
   weightKg?: number;
@@ -12,7 +14,7 @@ const KEY = "richie.measurements.v1";
 function read(): Measurement[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = window.localStorage.getItem(scopedKey(KEY));
     return raw ? (JSON.parse(raw) as Measurement[]) : [];
   } catch {
     return [];
@@ -21,7 +23,7 @@ function read(): Measurement[] {
 
 function write(list: Measurement[]): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(KEY, JSON.stringify(list));
+  window.localStorage.setItem(scopedKey(KEY), JSON.stringify(list));
 }
 
 export function getAllMeasurements(): Measurement[] {

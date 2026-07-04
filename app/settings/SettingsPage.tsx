@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useSession, signOut } from "next-auth/react";
 import {
   DEFAULT_SETTINGS,
   getSettings,
@@ -360,8 +361,13 @@ export default function SettingsPage() {
           )}
         </section>
 
+        <section className="settings-section">
+          <div className="settings-section-label mono">// AKUN</div>
+          <AccountRow />
+        </section>
+
         <div className="settings-foot mono">
-          All settings stored locally. Export before switching devices.
+          Datamu tersimpan di akunmu. Masuk di perangkat lain untuk melanjutkan.
         </div>
 
         <div className="today-bottom-spacer" />
@@ -472,6 +478,27 @@ function LibraryRow({
             CLEAR
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+function AccountRow() {
+  const { data: session } = useSession();
+  return (
+    <div className="settings-row">
+      <div className="settings-row-label">
+        {session?.user?.email ?? "—"}
+        <span className="settings-row-count mono">MASUK</span>
+      </div>
+      <div className="settings-row-actions">
+        <button
+          type="button"
+          className="settings-chip danger mono"
+          onClick={() => signOut({ callbackUrl: "/login" })}
+        >
+          KELUAR
+        </button>
       </div>
     </div>
   );

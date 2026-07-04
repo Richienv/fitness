@@ -3,6 +3,7 @@
 // build guard fails otherwise).
 
 import { SLEEP_FLOOR_MIN, SLEEP_TARGET_MIN } from "./targets";
+import { scopedKey } from "./userScope";
 
 export type SleepQuality = 1 | 2 | 3;
 
@@ -25,7 +26,7 @@ const DAILY_KEY = "richie.daily.v1";
 function read<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = window.localStorage.getItem(scopedKey(key));
     return raw ? (JSON.parse(raw) as T) : fallback;
   } catch {
     return fallback;
@@ -34,7 +35,7 @@ function read<T>(key: string, fallback: T): T {
 
 function write<T>(key: string, value: T): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(key, JSON.stringify(value));
+  window.localStorage.setItem(scopedKey(key), JSON.stringify(value));
 }
 
 /** Minutes slept from bedtime → wakeTime, wrapping past midnight. */
@@ -50,7 +51,7 @@ export function durationFromTimes(bedtime: string, wakeTime: string): number {
 /** One-time seed of sleep logs from the retired T-LVL `sleepHours` input. */
 function migrateFromTLvl(): void {
   if (typeof window === "undefined") return;
-  if (window.localStorage.getItem(SLEEP_MIGRATED_KEY)) return;
+  if (window.localStorage.getItem(scopedKey(SLEEP_MIGRATED_KEY))) return;
   const daily = read<Record<string, { tlvl?: { sleepHours?: number } }>>(
     DAILY_KEY,
     {}
@@ -65,7 +66,7 @@ function migrateFromTLvl(): void {
     }
   }
   if (changed) write(SLEEP_KEY, sleep);
-  window.localStorage.setItem(SLEEP_MIGRATED_KEY, "1");
+  window.localStorage.setItem(scopedKey(SLEEP_MIGRATED_KEY), "1");
 }
 
 export function getAllSleep(): Record<string, SleepLog> {

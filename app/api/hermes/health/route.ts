@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getHermesOwnerId } from "@/lib/session";
 
 // Public GET diagnostics — never returns the key itself, only enough shape
 // (length + first/last 4 chars) to spot paste errors in the Vercel env var.
@@ -29,6 +30,7 @@ export async function GET(req: Request) {
           ? `${expected.slice(0, 4)}…${expected.slice(-4)}`
           : null,
         keyMatch: candidate ? candidate === expected : null,
+        ownerConfigured: !!(await getHermesOwnerId()),
         db: { connected: dbOk, error: dbError },
         deployedAt: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
       },
