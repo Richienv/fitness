@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getHermesOwnerId } from "@/lib/session";
 import { todayKey } from "@/lib/targets";
 import { getActor, logActivity } from "@/lib/audit";
 import { normalizeSessionType } from "@/lib/hermes";
@@ -13,6 +14,12 @@ type ExerciseInput = {
 
 export async function POST(req: Request) {
   try {
+    const userId = await getHermesOwnerId();
+    if (!userId)
+      return NextResponse.json(
+        { error: "hermes owner not configured" },
+        { status: 503 }
+      );
     const body = (await req.json()) as {
       type?: string;
       notes?: string;
@@ -53,6 +60,7 @@ export async function POST(req: Request) {
 
     const session = await db.workoutSession.create({
       data: {
+        userId,
         date,
         sessionType,
         totalVolume,

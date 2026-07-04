@@ -4,7 +4,10 @@ import "./globals.css";
 import BottomNav from "./BottomNav";
 import ServerSync from "./ServerSync";
 import ToastStack from "./Toast";
+import Providers from "./Providers";
+import UserScopeInit from "./UserScopeInit";
 import { ActiveDateProvider } from "@/lib/activeDate";
+import { auth } from "@/auth";
 
 // weuseai "fire" system: Plus Jakarta Sans for everything (display + body),
 // JetBrains Mono for UI chrome. We keep the OLD variable names so the entire
@@ -70,11 +73,14 @@ export const viewport: Viewport = {
   interactiveWidget: "resizes-content",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const session = await auth();
+  const userId = session?.user?.id ?? null;
+
   return (
     <html lang="en" className={`${jakarta.variable} ${jetbrains.variable}`}>
       <head>
@@ -87,12 +93,16 @@ export default function RootLayout({
         />
       </head>
       <body>
-        <ActiveDateProvider>
-          <ServerSync />
-          <div className="app-root">{children}</div>
-          <BottomNav />
-          <ToastStack />
-        </ActiveDateProvider>
+        <Providers>
+          {/* Sets the per-user localStorage scope before ServerSync / pages read. */}
+          <UserScopeInit userId={userId} />
+          <ActiveDateProvider>
+            <ServerSync />
+            <div className="app-root">{children}</div>
+            <BottomNav />
+            <ToastStack />
+          </ActiveDateProvider>
+        </Providers>
       </body>
     </html>
   );

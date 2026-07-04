@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getUserId } from "@/lib/session";
 import { getActor, logActivity } from "@/lib/audit";
 
 const corsHeaders = {
@@ -15,7 +16,16 @@ export async function OPTIONS() {
 
 export async function GET() {
   try {
-    const foods = await db.foodItem.findMany({ orderBy: { createdAt: "asc" } });
+    const userId = await getUserId();
+    if (!userId)
+      return NextResponse.json(
+        { error: "unauthorized" },
+        { status: 401, headers: corsHeaders }
+      );
+    const foods = await db.foodItem.findMany({
+      where: { OR: [{ userId: null }, { userId }] },
+      orderBy: { createdAt: "asc" },
+    });
     return NextResponse.json({ ok: true, data: { foods } }, { headers: corsHeaders });
   } catch (e) {
     return NextResponse.json(
@@ -46,6 +56,12 @@ function isFoodPayload(x: unknown): x is FoodPayload {
 
 export async function POST(req: Request) {
   try {
+    const userId = await getUserId();
+    if (!userId)
+      return NextResponse.json(
+        { error: "unauthorized" },
+        { status: 401, headers: corsHeaders }
+      );
     const body = await req.json();
     if (!isFoodPayload(body)) {
       return NextResponse.json(
@@ -62,10 +78,10 @@ export async function POST(req: Request) {
     const saved = body.id
       ? await db.foodItem.upsert({
           where: { id: body.id },
-          create: { id: body.id, ...data },
+          create: { id: body.id, userId, ...data },
           update: data,
         })
-      : await db.foodItem.create({ data });
+      : await db.foodItem.create({ data: { userId, ...data } });
 
     await logActivity({
       actor,
@@ -86,6 +102,12 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    const userId = await getUserId();
+    if (!userId)
+      return NextResponse.json(
+        { error: "unauthorized" },
+        { status: 401, headers: corsHeaders }
+      );
     const url = new URL(req.url);
     const id = url.searchParams.get("id");
     if (!id) {
@@ -94,7 +116,7 @@ export async function DELETE(req: Request) {
         { status: 400, headers: corsHeaders }
       );
     }
-    await db.foodItem.delete({ where: { id } }).catch(() => null);
+    await db.foodItem.deleteMany({ where: { id, userId } }).catch(() => null);
     await logActivity({
       actor: getActor(req),
       action: "delete-food",

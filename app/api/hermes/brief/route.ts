@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getHermesOwnerId } from "@/lib/session";
 import { getActor, logActivity } from "@/lib/audit";
 import {
   DAILY_CALORIE_TARGET,
@@ -50,6 +51,12 @@ function microStatus(
 
 export async function POST(req: Request) {
   try {
+    const userId = await getHermesOwnerId();
+    if (!userId)
+      return NextResponse.json(
+        { error: "hermes owner not configured" },
+        { status: 503 }
+      );
     const body = (await req.json()) as { type?: string };
     const type = body.type as BriefType | undefined;
     if (!type || !VALID.includes(type)) {
@@ -61,9 +68,9 @@ export async function POST(req: Request) {
 
     let text = "";
     if (type === "today") {
-      const t = await todaySnapshot();
-      const micros = await microTotalsFor(t.date);
-      const streak = await computeStreak("meal");
+      const t = await todaySnapshot(userId);
+      const micros = await microTotalsFor(userId, t.date);
+      const streak = await computeStreak(userId, "meal");
       const status = microStatus(micros, t.calories.protein, t.calories.proteinTarget);
       const bw = t.bodyweight.current
         ? `BW ${t.bodyweight.current}${t.bodyweight.trend ? ", trend " + t.bodyweight.trend : ""}.`
@@ -89,8 +96,8 @@ export async function POST(req: Request) {
         `Streak ${streak} hari.`,
       ].join(" ");
     } else if (type === "micros") {
-      const t = await todaySnapshot();
-      const micros = await microTotalsFor(t.date);
+      const t = await todaySnapshot(userId);
+      const micros = await microTotalsFor(userId, t.date);
       const status = microStatus(micros, t.calories.protein, t.calories.proteinTarget);
       if (status.maxed === status.total) {
         text = `${status.maxed}/${status.total} micros maxed hari ini · ALL GREEN. Bonus tags: ${
@@ -111,7 +118,7 @@ export async function POST(req: Request) {
         }.`;
       }
     } else if (type === "week") {
-      const w = await weekSnapshot();
+      const w = await weekSnapshot(userId);
       const onTrack = w.avgCalories <= DAILY_CALORIE_TARGET + 100;
       text = [
         `Minggu ini ${w.workoutsCompleted} workout done`,
@@ -122,10 +129,10 @@ export async function POST(req: Request) {
         .filter(Boolean)
         .join(" ");
     } else if (type === "preworkout") {
-      const t = await todaySnapshot();
+      const t = await todaySnapshot(userId);
       const last = await db.workoutSession
         .findFirst({
-          where: { sessionType: t.workout.todayTypeKey },
+          where: { userId, sessionType: t.workout.todayTypeKey },
           orderBy: { createdAt: "desc" },
           include: { exercises: true },
         })
@@ -137,7 +144,7 @@ export async function POST(req: Request) {
         text = `${t.workout.todayType} hari ini. Last ${t.workout.todayType} ${daysAgo} hari lalu — total volume ${Math.round(last.totalVolume)}. Push 2.5kg lebih hari ini.`;
       }
     } else if (type === "postworkout") {
-      const t = await todaySnapshot();
+      const t = await todaySnapshot(userId);
       const leftKcal = t.calories.remaining;
       const leftProtein = t.calories.proteinRemaining;
       text = [

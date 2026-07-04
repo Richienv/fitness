@@ -10,6 +10,8 @@
  * Sources are shown inline in Settings so the numbers are trustworthy.
  */
 
+import { scopedKey } from "./userScope";
+
 export type NutrientKind = "hit" | "cap";
 
 export type MicroKey =
@@ -64,7 +66,7 @@ const KEY = "richie.microTargets.v1";
 export function getMicroTargets(): MicroTargets {
   if (typeof window === "undefined") return { ...DEFAULT_MICRO_TARGETS };
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = window.localStorage.getItem(scopedKey(KEY));
     if (!raw) return { ...DEFAULT_MICRO_TARGETS };
     const parsed = JSON.parse(raw) as Partial<MicroTargets>;
     return { ...DEFAULT_MICRO_TARGETS, ...parsed };
@@ -75,7 +77,7 @@ export function getMicroTargets(): MicroTargets {
 
 export function setMicroTargets(next: MicroTargets): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(KEY, JSON.stringify(next));
+  window.localStorage.setItem(scopedKey(KEY), JSON.stringify(next));
 }
 
 export function patchMicroTargets(patch: Partial<MicroTargets>): MicroTargets {

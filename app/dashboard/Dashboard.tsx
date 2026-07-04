@@ -512,10 +512,10 @@ export default function Dashboard() {
       {/* day toggle */}
       <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
         <button type="button" onClick={() => toggleGym(true)} style={toggleStyle(gymDay)}>
-          🏋️ HARI GYM
+          🏋️ GYM
         </button>
         <button type="button" onClick={() => toggleGym(false)} style={toggleStyle(!gymDay)}>
-          🌙 HARI REST
+          🌙 REST
         </button>
       </div>
 

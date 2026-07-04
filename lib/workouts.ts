@@ -2,6 +2,7 @@
 
 import type { MuscleKey, MuscleColorGroup } from "./muscles";
 import { MUSCLE_TO_GROUP } from "./muscles";
+import { scopedKey } from "./userScope";
 
 export type SessionType = "PUSH_A" | "PULL_A" | "LEGS" | "PUSH_B" | "PULL_B" | "CUSTOM";
 
@@ -194,7 +195,7 @@ const CUSTOM_TEMPLATES_KEY = "richie.customTemplates.v1";
 function read<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = window.localStorage.getItem(scopedKey(key));
     return raw ? (JSON.parse(raw) as T) : fallback;
   } catch {
     return fallback;
@@ -203,7 +204,7 @@ function read<T>(key: string, fallback: T): T {
 
 function write<T>(key: string, value: T): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(key, JSON.stringify(value));
+  window.localStorage.setItem(scopedKey(key), JSON.stringify(value));
 }
 
 export function getAllWorkouts(): WorkoutSession[] {

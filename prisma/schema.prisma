@@ -8,35 +8,64 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─── Auth ────────────────────────────────────────────────────────────────
+// Email + password accounts (Auth.js Credentials provider, JWT sessions).
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  dailyLogs    DailyLog[]
+  meals        MealEntry[]
+  workouts     WorkoutSession[]
+  measurements Measurement[]
+  sleep        SleepLog[]
+  foods        FoodItem[]
+}
+
+// Per-user data. Prod has no legacy server rows (DB was never provisioned),
+// so userId is required and uniqueness is scoped per user from the start.
 model DailyLog {
   id        String   @id @default(cuid())
-  date      String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      String
   gymDay    Boolean  @default(false)
   checklist Json     @default("{}")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId])
 }
 
 model MealEntry {
   id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   date       String
   mealType   String
   items      Json
   totals     Json
   createdAt  DateTime @default(now())
 
-  @@index([date])
+  @@index([userId, date])
 }
 
 model WorkoutSession {
   id          String     @id @default(cuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   date        String
   sessionType String
   totalVolume Float      @default(0)
   exercises   Exercise[]
   createdAt   DateTime   @default(now())
 
-  @@index([date])
+  @@index([userId, date])
 }
 
 model Exercise {
@@ -49,7 +78,9 @@ model Exercise {
 
 model Measurement {
   id          String   @id @default(cuid())
-  date        String   @unique
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date        String
   weightKg    Float?
   waistCm     Float?
   shoulderCm  Float?
@@ -57,7 +88,23 @@ model Measurement {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@index([date])
+  @@unique([userId, date])
+  @@index([userId])
+}
+
+model SleepLog {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date        String
+  bedtime     String   @default("")
+  wakeTime    String   @default("")
+  durationMin Int      @default(0)
+  quality     Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, date])
 }
 
 model ActivityLog {
@@ -72,10 +119,13 @@ model ActivityLog {
   @@index([actor, createdAt])
 }
 
-// Shared food library — web custom foods and Hermes-discovered foods both
-// land here so every client (and the bot) sees the same catalogue.
+// Food library — rows with `userId = null` are the shared base catalogue
+// (built-ins + Hermes-discovered) visible to everyone; rows with a `userId`
+// are that user's private custom foods.
 model FoodItem {
   id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   name      String
   per100g   Json
   source    String   @default("richie-web")
@@ -83,4 +133,5 @@ model FoodItem {
   updatedAt DateTime @updatedAt
 
   @@index([name])
+  @@index([userId])
 }

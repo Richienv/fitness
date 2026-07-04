@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getUserId } from "@/lib/session";
 
 type MealPayload = {
   id: string;
@@ -23,6 +24,8 @@ function isMealPayload(x: unknown): x is MealPayload {
 
 export async function POST(req: Request) {
   try {
+    const userId = await getUserId();
+    if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     const body = await req.json();
     if (!Array.isArray(body)) {
       return NextResponse.json({ error: "expected array" }, { status: 400 });
@@ -34,6 +37,7 @@ export async function POST(req: Request) {
         where: { id: m.id },
         create: {
           id: m.id,
+          userId,
           date: m.date,
           mealType: m.mealType,
           items: m.items as never,

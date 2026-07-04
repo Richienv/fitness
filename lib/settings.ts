@@ -1,5 +1,7 @@
 "use client";
 
+import { scopedKey } from "./userScope";
+
 export type MacroTarget = { kcal: number; protein: number; carbs: number; fat: number };
 
 export type UserSettings = {
@@ -23,7 +25,7 @@ const PROTEIN_BUMP_KEY = "richie.settings.proteinBumpV2";
  * full control and can edit freely without ever being clobbered again. */
 function migrateOldProteinTarget(parsed: Partial<UserSettings>): Partial<UserSettings> {
   if (typeof window === "undefined") return parsed;
-  if (window.localStorage.getItem(PROTEIN_BUMP_KEY) === "1") return parsed;
+  if (window.localStorage.getItem(scopedKey(PROTEIN_BUMP_KEY)) === "1") return parsed;
   const next = { ...parsed };
   const targets = parsed.targets;
   if (targets) {
@@ -34,16 +36,16 @@ function migrateOldProteinTarget(parsed: Partial<UserSettings>): Partial<UserSet
     if (bumped.gymDay.protein === 155) bumped.gymDay.protein = 175;
     if (bumped.restDay.protein === 155) bumped.restDay.protein = 175;
     next.targets = bumped;
-    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+    window.localStorage.setItem(scopedKey(SETTINGS_KEY), JSON.stringify(next));
   }
-  window.localStorage.setItem(PROTEIN_BUMP_KEY, "1");
+  window.localStorage.setItem(scopedKey(PROTEIN_BUMP_KEY), "1");
   return next;
 }
 
 function read(): UserSettings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
   try {
-    const raw = window.localStorage.getItem(SETTINGS_KEY);
+    const raw = window.localStorage.getItem(scopedKey(SETTINGS_KEY));
     if (!raw) return DEFAULT_SETTINGS;
     const parsed = migrateOldProteinTarget(JSON.parse(raw) as Partial<UserSettings>);
     return {
@@ -64,7 +66,7 @@ export function getSettings(): UserSettings {
 
 export function setSettings(next: UserSettings): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+  window.localStorage.setItem(scopedKey(SETTINGS_KEY), JSON.stringify(next));
 }
 
 export function patchSettings(patch: Partial<UserSettings>): UserSettings {

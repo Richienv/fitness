@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getUserId } from "@/lib/session";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,10 +15,16 @@ export async function OPTIONS() {
 
 export async function GET(req: Request) {
   try {
+    const userId = await getUserId();
+    if (!userId)
+      return NextResponse.json(
+        { error: "unauthorized" },
+        { status: 401, headers: corsHeaders }
+      );
     const url = new URL(req.url);
     const from = url.searchParams.get("from");
     const measurements = await db.measurement.findMany({
-      where: from ? { date: { gte: from } } : undefined,
+      where: from ? { userId, date: { gte: from } } : { userId },
       orderBy: { date: "asc" },
     });
     return NextResponse.json(
@@ -35,6 +42,12 @@ export async function GET(req: Request) {
 // Browser push: web-logged measurements land in the shared DB. Upsert by date.
 export async function POST(req: Request) {
   try {
+    const userId = await getUserId();
+    if (!userId)
+      return NextResponse.json(
+        { error: "unauthorized" },
+        { status: 401, headers: corsHeaders }
+      );
     const body = (await req.json()) as {
       date?: string;
       weightKg?: number;
@@ -53,8 +66,8 @@ export async function POST(req: Request) {
       ...(typeof body.shoulderCm === "number" ? { shoulderCm: body.shoulderCm } : {}),
     };
     const saved = await db.measurement.upsert({
-      where: { date: body.date },
-      create: { date: body.date, ...fields },
+      where: { userId_date: { userId, date: body.date } },
+      create: { userId, date: body.date, ...fields },
       update: fields,
     });
     return NextResponse.json({ ok: true, data: { id: saved.id } }, { headers: corsHeaders });
@@ -68,6 +81,12 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    const userId = await getUserId();
+    if (!userId)
+      return NextResponse.json(
+        { error: "unauthorized" },
+        { status: 401, headers: corsHeaders }
+      );
     const url = new URL(req.url);
     const id = url.searchParams.get("id");
     const date = url.searchParams.get("date");
@@ -77,9 +96,9 @@ export async function DELETE(req: Request) {
         { status: 400, headers: corsHeaders }
       );
     }
-    if (id) await db.measurement.delete({ where: { id } }).catch(() => null);
+    if (id) await db.measurement.deleteMany({ where: { id, userId } }).catch(() => null);
     else if (date)
-      await db.measurement.delete({ where: { date } }).catch(() => null);
+      await db.measurement.deleteMany({ where: { userId, date } }).catch(() => null);
     return NextResponse.json(
       { ok: true, data: { id: id ?? date } },
       { headers: corsHeaders }

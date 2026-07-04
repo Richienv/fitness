@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getHermesOwnerId } from "@/lib/session";
 import { todayKey } from "@/lib/targets";
 import { getActor, logActivity } from "@/lib/audit";
 
 export async function POST(req: Request) {
   try {
+    const userId = await getHermesOwnerId();
+    if (!userId)
+      return NextResponse.json(
+        { error: "hermes owner not configured" },
+        { status: 503 }
+      );
     const body = (await req.json()) as {
       kg?: number;
       notes?: string;
@@ -24,8 +31,9 @@ export async function POST(req: Request) {
 
     const date = body.date ?? todayKey();
     const saved = await db.measurement.upsert({
-      where: { date },
+      where: { userId_date: { userId, date } },
       create: {
+        userId,
         date,
         weightKg: body.kg,
         notes: body.notes ?? null,

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getUserId } from "@/lib/session";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,10 +15,16 @@ export async function OPTIONS() {
 
 export async function GET(req: Request) {
   try {
+    const userId = await getUserId();
+    if (!userId)
+      return NextResponse.json(
+        { error: "unauthorized" },
+        { status: 401, headers: corsHeaders }
+      );
     const url = new URL(req.url);
     const from = url.searchParams.get("from");
     const sessions = await db.workoutSession.findMany({
-      where: from ? { date: { gte: from } } : undefined,
+      where: from ? { userId, date: { gte: from } } : { userId },
       orderBy: { createdAt: "asc" },
       include: { exercises: true },
     });
@@ -67,6 +74,12 @@ function isWorkoutPayload(x: unknown): x is WorkoutPayload {
 // briefings and other devices see them. Upsert keyed by client-side id.
 export async function POST(req: Request) {
   try {
+    const userId = await getUserId();
+    if (!userId)
+      return NextResponse.json(
+        { error: "unauthorized" },
+        { status: 401, headers: corsHeaders }
+      );
     const body = await req.json();
     if (!isWorkoutPayload(body)) {
       return NextResponse.json(
@@ -79,6 +92,7 @@ export async function POST(req: Request) {
       where: { id: body.id },
       create: {
         id: body.id,
+        userId,
         date: body.date,
         sessionType: body.sessionType,
         totalVolume: body.totalVolume ?? 0,
@@ -107,6 +121,12 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    const userId = await getUserId();
+    if (!userId)
+      return NextResponse.json(
+        { error: "unauthorized" },
+        { status: 401, headers: corsHeaders }
+      );
     const url = new URL(req.url);
     const id = url.searchParams.get("id");
     if (!id) {
@@ -115,7 +135,7 @@ export async function DELETE(req: Request) {
         { status: 400, headers: corsHeaders }
       );
     }
-    await db.workoutSession.delete({ where: { id } }).catch(() => null);
+    await db.workoutSession.deleteMany({ where: { id, userId } }).catch(() => null);
     return NextResponse.json({ ok: true, data: { id } }, { headers: corsHeaders });
   } catch (e) {
     return NextResponse.json(

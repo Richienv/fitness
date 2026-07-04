@@ -25,6 +25,7 @@ import {
 import { TARGETS, weekNumber } from "@/lib/targets";
 import { useActiveDate, parseDate } from "@/lib/activeDate";
 import DatePicker from "./DatePicker";
+import FoodBuilder from "./FoodBuilder";
 
 // ---- shared style tokens (canonical from app/page.tsx) ----
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
@@ -276,6 +277,8 @@ export default function MealHome() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [quickIds, setQuickIds] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [mealPickOpen, setMealPickOpen] = useState(false);
+  const [builderMeal, setBuilderMeal] = useState<MealType | null>(null);
 
   const reloadFromStore = useCallback(() => {
     dedupeMeals();
@@ -437,27 +440,13 @@ export default function MealHome() {
         </button>
       </div>
 
-      {/* meta line */}
-      <div
-        style={{
-          fontFamily: MONO,
-          fontSize: 10,
-          letterSpacing: ".1em",
-          color: "#6a6660",
-          marginTop: 11,
-        }}
-      >
-        MINGGU {wk} / 12 · {gymDay ? "HARI GYM" : "HARI REST"} ·{" "}
-        {target.kcal.toLocaleString()} KKAL TARGET
-      </div>
-
       {/* day toggle */}
-      <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+      <div style={{ display: "flex", gap: 8, marginTop: 26 }}>
         <button type="button" onClick={() => toggleGym(true)} style={toggleStyle(gymDay)}>
-          🏋️ HARI GYM
+          🏋️ GYM
         </button>
         <button type="button" onClick={() => toggleGym(false)} style={toggleStyle(!gymDay)}>
-          🌙 HARI REST
+          🌙 REST
         </button>
       </div>
 
@@ -639,101 +628,118 @@ export default function MealHome() {
         })}
       </div>
 
-      {/* four meal windows */}
-      <div
+      {/* add-meal FAB */}
+      <button
+        type="button"
+        aria-label="Catat makan"
+        onClick={() => setMealPickOpen(true)}
         style={{
-          fontFamily: MONO,
-          fontSize: 9.5,
-          letterSpacing: ".16em",
-          color: "#6a6660",
-          marginTop: 22,
+          position: "fixed",
+          right: "max(18px, env(safe-area-inset-right))",
+          bottom: "calc(88px + env(safe-area-inset-bottom))",
+          zIndex: 44,
+          width: 58,
+          height: 58,
+          borderRadius: "50%",
+          fontSize: 28,
+          lineHeight: 1,
+          color: "#fff",
+          cursor: "pointer",
+          background: "linear-gradient(180deg,#ff8a52,#ee3c30 55%,#c01f12)",
+          border: "1px solid rgba(255,150,120,.6)",
+          boxShadow:
+            "inset 0 1.5px 1px rgba(255,225,205,.7),0 12px 26px rgba(238,60,48,.5)",
         }}
       >
-        // EMPAT WAKTU MAKAN
-      </div>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 10,
-          marginTop: 11,
-        }}
-      >
-        {MEALS.map((m) => {
-          const kc = byType[m.id].macros.kcal;
-          const logged = kc > 0;
-          const pct = logged
-            ? Math.min(100, Math.round((kc / m.expectedKcal) * 100))
-            : 0;
-          const href = `/meal/${m.id}?date=${activeDate}`;
-          const cardStyle: CSSProperties = {
+        ＋
+      </button>
+
+      {/* meal-time picker */}
+      {mealPickOpen && (
+        <div
+          onClick={() => setMealPickOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 71,
+            background: "rgba(5,4,6,.72)",
+            backdropFilter: "blur(4px)",
             display: "flex",
-            flexDirection: "column",
-            alignItems: "flex-start",
-            padding: 15,
-            borderRadius: 16,
-            cursor: "pointer",
-            textAlign: "left",
-            background: logged
-              ? "linear-gradient(180deg,rgba(255,138,60,.11),rgba(255,138,60,.02) 34%),#120d0c"
-              : "linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,0) 28%),#0d0b0c",
-            border: logged
-              ? "1px solid rgba(255,138,60,.42)"
-              : "1px solid rgba(255,255,255,.1)",
-            boxShadow: logged
-              ? "inset 0 1.5px 0 rgba(255,205,175,.28), inset 0 -7px 13px rgba(80,15,5,.42), 0 11px 24px rgba(238,60,48,.24), 0 0 20px rgba(238,60,48,.13)"
-              : "inset 0 1.5px 0 rgba(255,255,255,.09), inset 0 -7px 13px rgba(0,0,0,.4), 0 11px 22px rgba(0,0,0,.46)",
-          };
-          return (
-            <Link key={m.id} href={href} style={cardStyle}>
-              <span style={{ fontSize: 22 }}>{m.emoji}</span>
-              <span
-                style={{
-                  fontFamily: SANS,
-                  fontWeight: 700,
-                  fontSize: 13,
-                  letterSpacing: ".04em",
-                  color: "#f1ede9",
-                  marginTop: 8,
-                }}
-              >
-                {m.name}
-              </span>
-              <div
-                style={{
-                  width: "100%",
-                  height: 6,
-                  borderRadius: 999,
-                  background: "rgba(255,255,255,.06)",
-                  overflow: "hidden",
-                  marginTop: 10,
-                }}
-              >
-                <div
-                  style={{
-                    height: "100%",
-                    width: `${pct}%`,
-                    borderRadius: 999,
-                    background: "linear-gradient(90deg,#ff8a3d,#ee2f1f)",
-                    transition: "width .6s cubic-bezier(.16,1,.3,1)",
-                    boxShadow: pct > 0 ? "0 0 8px rgba(238,60,48,.6)" : "none",
-                  }}
-                />
-              </div>
-              <span
-                style={{
-                  fontFamily: MONO,
-                  fontSize: 9.5,
-                  color: "#8a837d",
-                  marginTop: 7,
-                }}
-              >
-                {logged ? `${Math.round(kc)} kkal` : "belum dicatat"}
-              </span>
-            </Link>
-          );
-        })}
-      </div>
+            alignItems: "flex-end",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: 480,
+              margin: "0 auto",
+              borderRadius: "26px 26px 0 0",
+              padding: "22px 20px calc(30px + env(safe-area-inset-bottom))",
+              background: "linear-gradient(180deg,#161011,#0c0a0b 60%)",
+              borderTop: "1px solid rgba(255,255,255,.1)",
+              boxShadow: "0 -20px 50px rgba(0,0,0,.6)",
+              animation: "riseIn .28s cubic-bezier(.16,1,.3,1)",
+            }}
+          >
+            <div style={{ fontFamily: SANS, fontWeight: 800, fontSize: 18, color: "#f5f2ef" }}>
+              CATAT UNTUK
+            </div>
+            <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: ".06em", color: "#7c736e", marginTop: 5 }}>
+              Pilih waktu makan
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 16 }}>
+              {MEALS.map((m) => {
+                const kc = byType[m.id].macros.kcal;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      setMealPickOpen(false);
+                      setBuilderMeal(m.id);
+                    }}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "flex-start",
+                      gap: 2,
+                      padding: 15,
+                      borderRadius: 16,
+                      textAlign: "left",
+                      cursor: "pointer",
+                      background:
+                        "linear-gradient(180deg,rgba(255,255,255,.05),transparent 40%),#0d0b0c",
+                      border: "1px solid rgba(255,255,255,.1)",
+                      boxShadow: "inset 0 1px 0 rgba(255,255,255,.06),0 8px 18px rgba(0,0,0,.4)",
+                    }}
+                  >
+                    <span style={{ fontSize: 24 }}>{m.emoji}</span>
+                    <span style={{ fontFamily: SANS, fontWeight: 700, fontSize: 15, color: "#f1ede9", marginTop: 6 }}>
+                      {m.name}
+                    </span>
+                    <span style={{ fontFamily: MONO, fontSize: 9, color: "#8a837d", marginTop: 2 }}>
+                      {kc > 0 ? `${Math.round(kc)} kkal` : "belum dicatat"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {builderMeal && (
+        <FoodBuilder
+          meal={builderMeal}
+          dateKey={activeDate}
+          onClose={() => setBuilderMeal(null)}
+          onSaved={() => {
+            setBuilderMeal(null);
+            reloadFromStore();
+          }}
+        />
+      )}
 
       {pickerOpen && activeDate && (
         <DatePicker

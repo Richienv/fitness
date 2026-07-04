@@ -2,6 +2,7 @@
 
 import type { MealType } from "./presets";
 import { macrosFor, type Macros } from "./ingredients";
+import { scopedKey } from "./userScope";
 
 export type CustomMealItem = {
   custom: true;
@@ -71,7 +72,7 @@ export const QUICKLOG_MAX = 4;
 export function getQuickLogIds(): string[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(QUICKLOG_KEY);
+    const raw = window.localStorage.getItem(scopedKey(QUICKLOG_KEY));
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) return parsed.filter((x): x is string => typeof x === "string");
@@ -81,7 +82,7 @@ export function getQuickLogIds(): string[] {
 
 export function setQuickLogIds(ids: string[]): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(QUICKLOG_KEY, JSON.stringify(ids.slice(0, QUICKLOG_MAX)));
+  window.localStorage.setItem(scopedKey(QUICKLOG_KEY), JSON.stringify(ids.slice(0, QUICKLOG_MAX)));
 }
 
 export type IngredientOverride = {
@@ -143,7 +144,7 @@ function deleteMealRemote(id: string): void {
 function read<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = window.localStorage.getItem(scopedKey(key));
     return raw ? (JSON.parse(raw) as T) : fallback;
   } catch {
     return fallback;
@@ -152,7 +153,7 @@ function read<T>(key: string, fallback: T): T {
 
 function write<T>(key: string, value: T): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(key, JSON.stringify(value));
+  window.localStorage.setItem(scopedKey(key), JSON.stringify(value));
 }
 
 export function getAllMeals(): MealLog[] {
@@ -210,10 +211,10 @@ export function deleteMeal(id: string): void {
 export async function syncMealsToDbOnce(): Promise<{ synced: number } | null> {
   if (typeof window === "undefined") return null;
   try {
-    if (window.localStorage.getItem(MEALS_SYNCED_KEY) === "1") return null;
+    if (window.localStorage.getItem(scopedKey(MEALS_SYNCED_KEY)) === "1") return null;
     const all = getAllMeals();
     if (all.length === 0) {
-      window.localStorage.setItem(MEALS_SYNCED_KEY, "1");
+      window.localStorage.setItem(scopedKey(MEALS_SYNCED_KEY), "1");
       return { synced: 0 };
     }
     const payload = all.map(mealPayload);
@@ -224,7 +225,7 @@ export async function syncMealsToDbOnce(): Promise<{ synced: number } | null> {
     });
     if (!res.ok) return null;
     const data = (await res.json()) as { synced: number };
-    window.localStorage.setItem(MEALS_SYNCED_KEY, "1");
+    window.localStorage.setItem(scopedKey(MEALS_SYNCED_KEY), "1");
     return { synced: data.synced };
   } catch {
     return null;
@@ -374,7 +375,7 @@ export function mergeServerFoods(rows: ServerFoodRow[]): number {
 export async function syncCustomFoodsToDbOnce(): Promise<{ synced: number } | null> {
   if (typeof window === "undefined") return null;
   try {
-    if (window.localStorage.getItem(FOODS_SYNCED_KEY) === "1") return null;
+    if (window.localStorage.getItem(scopedKey(FOODS_SYNCED_KEY)) === "1") return null;
     const all = getCustomFoods();
     let synced = 0;
     for (const f of all) {
@@ -385,7 +386,7 @@ export async function syncCustomFoodsToDbOnce(): Promise<{ synced: number } | nu
       });
       if (res.ok) synced++;
     }
-    window.localStorage.setItem(FOODS_SYNCED_KEY, "1");
+    window.localStorage.setItem(scopedKey(FOODS_SYNCED_KEY), "1");
     return { synced };
   } catch {
     return null;

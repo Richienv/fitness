@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getUserId } from "@/lib/session";
 import { todaySnapshot } from "@/lib/hermes";
 
 const corsHeaders = {
@@ -14,7 +15,13 @@ export async function OPTIONS() {
 
 export async function GET() {
   try {
-    const data = await todaySnapshot();
+    const userId = await getUserId();
+    if (!userId)
+      return NextResponse.json(
+        { error: "unauthorized" },
+        { status: 401, headers: corsHeaders }
+      );
+    const data = await todaySnapshot(userId);
     return NextResponse.json({ ok: true, data }, { headers: corsHeaders });
   } catch (e) {
     return NextResponse.json(

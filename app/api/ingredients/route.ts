@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { INGREDIENTS } from "@/lib/ingredients";
 import { MICROS } from "@/lib/micronutrients";
 import { db } from "@/lib/db";
+import { getUserId } from "@/lib/session";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,6 +19,12 @@ export async function OPTIONS() {
 // ingredient library (macros are PER UNIT — multiply by qty) plus the shared
 // custom-food library (macros are PER 100g).
 export async function GET() {
+  const userId = await getUserId();
+  if (!userId)
+    return NextResponse.json(
+      { error: "unauthorized" },
+      { status: 401, headers: corsHeaders }
+    );
   const ingredients = INGREDIENTS.map((i) => ({
     id: i.id,
     name: i.name,
@@ -38,7 +45,10 @@ export async function GET() {
 
   let customFoods: Array<{ id: string; name: string; per100g: unknown }> = [];
   try {
-    const foods = await db.foodItem.findMany({ orderBy: { createdAt: "asc" } });
+    const foods = await db.foodItem.findMany({
+      where: { OR: [{ userId: null }, { userId }] },
+      orderBy: { createdAt: "asc" },
+    });
     customFoods = foods.map((f) => ({ id: f.id, name: f.name, per100g: f.per100g }));
   } catch {
     customFoods = [];

@@ -42,6 +42,11 @@ const APR13_MEALS: SeedMeal[] = [
 ];
 
 export function seedApr13Meals(): { seeded: number } | null {
+  // Disabled for multi-user: new accounts start clean rather than inheriting
+  // the owner's demo history. Kept as a no-op so ServerSync's call is safe.
+  return null;
+
+  // eslint-disable-next-line no-unreachable
   if (typeof window === "undefined") return null;
   try {
     if (window.localStorage.getItem(SEED_FLAG_KEY) === "1") return null;

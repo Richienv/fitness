@@ -93,8 +93,8 @@ export type MealTotals = {
 
 export const DAILY_SUGAR_TARGET_G = 50;
 
-export async function calorieTotalsFor(date: string): Promise<MealTotals> {
-  const logs = await db.mealEntry.findMany({ where: { date } }).catch(() => []);
+export async function calorieTotalsFor(userId: string, date: string): Promise<MealTotals> {
+  const logs = await db.mealEntry.findMany({ where: { userId, date } }).catch(() => []);
   const acc: MealTotals = { kcal: 0, protein: 0, carbs: 0, fat: 0, sugar: 0 };
   for (const l of logs) {
     const t = l.totals as Partial<MealTotals> | null;
@@ -122,8 +122,8 @@ export async function calorieTotalsFor(date: string): Promise<MealTotals> {
 /** Sum extended micronutrients for a day from the stored meal items.
  * Library items resolve via the micros dataset; custom items use whatever
  * micro fields Ren attached. Lets /api/today + briefings report micros. */
-export async function microTotalsFor(date: string): Promise<MicroTotals> {
-  const logs = await db.mealEntry.findMany({ where: { date } }).catch(() => []);
+export async function microTotalsFor(userId: string, date: string): Promise<MicroTotals> {
+  const logs = await db.mealEntry.findMany({ where: { userId, date } }).catch(() => []);
   const acc: MicroTotals = {
     na: 0, k: 0, mg: 0, fe: 0, zn: 0, ca: 0, fiber: 0, omega3: 0, tags: [],
   };
@@ -153,23 +153,23 @@ export async function microTotalsFor(date: string): Promise<MicroTotals> {
   };
 }
 
-export async function todaySnapshot(today = todayKey()) {
-  const totals = await calorieTotalsFor(today);
-  const micros = await microTotalsFor(today);
+export async function todaySnapshot(userId: string, today = todayKey()) {
+  const totals = await calorieTotalsFor(userId, today);
+  const micros = await microTotalsFor(userId, today);
   const remainingKcal = Math.round(DAILY_CALORIE_TARGET - totals.kcal);
   const remainingProtein = Math.round(DAILY_PROTEIN_TARGET - totals.protein);
 
   const todayType = recommendedSessionForDay(cstDayOfWeek(today));
   const todaySession = await db.workoutSession
-    .findFirst({ where: { date: today } })
+    .findFirst({ where: { userId, date: today } })
     .catch(() => null);
   const lastSession = await db.workoutSession
-    .findFirst({ orderBy: { createdAt: "desc" } })
+    .findFirst({ where: { userId }, orderBy: { createdAt: "desc" } })
     .catch(() => null);
 
   const latestWeight = await db.measurement
     .findFirst({
-      where: { weightKg: { not: null } },
+      where: { userId, weightKg: { not: null } },
       orderBy: { date: "desc" },
     })
     .catch(() => null);
@@ -177,6 +177,7 @@ export async function todaySnapshot(today = todayKey()) {
     ? await db.measurement
         .findFirst({
           where: {
+            userId,
             weightKg: { not: null },
             date: { lt: latestWeight.date },
           },
@@ -250,7 +251,7 @@ export async function todaySnapshot(today = todayKey()) {
   };
 }
 
-export async function weekSnapshot(weekStart?: string) {
+export async function weekSnapshot(userId: string, weekStart?: string) {
   const today = todayKey();
   const start = weekStart ?? addDays(today, -((cstDayOfWeek(today) + 6) % 7));
   const days: string[] = [];
@@ -261,7 +262,7 @@ export async function weekSnapshot(weekStart?: string) {
   let totalSugar = 0;
   let daysLogged = 0;
   for (const d of days) {
-    const t = await calorieTotalsFor(d);
+    const t = await calorieTotalsFor(userId, d);
     if (t.kcal > 0) {
       daysLogged++;
       totalKcal += t.kcal;
@@ -272,13 +273,14 @@ export async function weekSnapshot(weekStart?: string) {
 
   const workouts = await db.workoutSession
     .findMany({
-      where: { date: { gte: days[0], lte: days[days.length - 1] } },
+      where: { userId, date: { gte: days[0], lte: days[days.length - 1] } },
     })
     .catch(() => []);
 
   const firstWeight = await db.measurement
     .findFirst({
       where: {
+        userId,
         weightKg: { not: null },
         date: { gte: days[0], lte: days[days.length - 1] },
       },
@@ -288,6 +290,7 @@ export async function weekSnapshot(weekStart?: string) {
   const lastWeight = await db.measurement
     .findFirst({
       where: {
+        userId,
         weightKg: { not: null },
         date: { gte: days[0], lte: days[days.length - 1] },
       },
@@ -308,29 +311,29 @@ export async function weekSnapshot(weekStart?: string) {
     avgSugar: daysLogged > 0 ? Math.round(totalSugar / daysLogged) : 0,
     workoutsCompleted: workouts.length,
     weightDelta,
-    streak: await computeStreak("meal"),
+    streak: await computeStreak(userId, "meal"),
   };
 }
 
 export type StreakType = "meal" | "workout" | "weight";
 
-export async function computeStreak(type: StreakType): Promise<number> {
+export async function computeStreak(userId: string, type: StreakType): Promise<number> {
   const today = todayKey();
   let streak = 0;
   for (let i = 0; i < 365; i++) {
     const d = addDays(today, -i);
     let hit = false;
     if (type === "meal") {
-      const totals = await calorieTotalsFor(d);
+      const totals = await calorieTotalsFor(userId, d);
       hit = totals.kcal > 0;
     } else if (type === "workout") {
       const w = await db.workoutSession
-        .findFirst({ where: { date: d } })
+        .findFirst({ where: { userId, date: d } })
         .catch(() => null);
       hit = !!w;
     } else {
       const m = await db.measurement
-        .findFirst({ where: { date: d, weightKg: { not: null } } })
+        .findFirst({ where: { userId, date: d, weightKg: { not: null } } })
         .catch(() => null);
       hit = !!m;
     }
