@@ -436,6 +436,7 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
       };
 
   return (
+    <>
     <main style={pageStyle} className="page-rise">
       <Link
         href="/workout"
@@ -1083,6 +1084,7 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
           );
         })}
       </div>
+    </main>
 
       {/* Rest overlay */}
       {restLeft > 0 && (
@@ -1092,7 +1094,7 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
           style={{
             position: "fixed",
             inset: 0,
-            zIndex: 65,
+            zIndex: 190,
             background: "rgba(5,4,6,.82)",
             backdropFilter: "blur(6px)",
             display: "grid",
@@ -1220,7 +1222,7 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
             style={{
               position: "fixed",
               inset: 0,
-              zIndex: 70,
+              zIndex: 200,
               background: "rgba(5,4,6,.72)",
               backdropFilter: "blur(4px)",
               display: "flex",
@@ -1430,7 +1432,7 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
             display: "grid",
             placeItems: "center",
             pointerEvents: "none",
-            zIndex: 80,
+            zIndex: 210,
           }}
         >
           <div style={{ position: "relative", display: "grid", placeItems: "center" }}>
@@ -1521,7 +1523,7 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
           onClose={() => setDetailFor(null)}
         />
       )}
-    </main>
+    </>
   );
 }
 
