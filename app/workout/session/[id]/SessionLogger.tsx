@@ -1685,16 +1685,16 @@ function DetailSheet({
 
   const overloadTip = useMemo(() => {
     if (!history) {
-      return `First time doing ${exerciseName}. Find a weight where ${targetReps} reps leaves 1–2 in the tank. That's your working weight.`;
+      return `Pertama kali ${exerciseName}. Cari beban yang bikin ${targetReps} rep nyisain 1–2 rep lagi. Itu beban kerjamu.`;
     }
     const { weight, reps } = history.latest;
     if (reps >= targetReps + 2) {
-      return `You hit ${weight}kg × ${reps} last session. Add ${increment}kg today — aim for ${targetReps} reps at ${weight + increment}kg.`;
+      return `Sesi lalu kamu angkat ${weight}kg × ${reps}. Tambah ${increment}kg hari ini — target ${targetReps} rep di ${weight + increment}kg.`;
     }
     if (reps >= targetReps) {
-      return `You hit ${weight}kg × ${reps} last session. Target ${weight}kg × ${reps + 1}–${reps + 2} today. Hit the top and add ${increment}kg next session.`;
+      return `Sesi lalu kamu angkat ${weight}kg × ${reps}. Target ${weight}kg × ${reps + 1}–${reps + 2} hari ini. Kalau tembus, tambah ${increment}kg sesi depan.`;
     }
-    return `You hit ${weight}kg × ${reps} last session. Stick with ${weight}kg and chase ${targetReps} clean reps today before adding weight.`;
+    return `Sesi lalu kamu angkat ${weight}kg × ${reps}. Tetap di ${weight}kg dan kejar ${targetReps} rep bersih dulu sebelum nambah beban.`;
   }, [history, exerciseName, targetReps, increment]);
 
   const mindset = detail?.mindset ?? (detail ? MINDSET_QUOTES[detail.muscleGroup] : null);
@@ -1713,22 +1713,22 @@ function DetailSheet({
             <DemoBlock exerciseName={exerciseName} canonicalName={canonicalName} />
 
             <section className="detail-section">
-              <div className="detail-section-head">🎯 MUSCLE FOCUS</div>
-              <div className="detail-row"><span className="dl">Primary:</span> {detail.primary}</div>
-              <div className="detail-row"><span className="dl">Secondary:</span> {detail.secondary}</div>
-              <div className="detail-row"><span className="dl">Feel it:</span> {detail.feelIt}</div>
+              <div className="detail-section-head">🎯 OTOT TARGET</div>
+              <div className="detail-row"><span className="dl">Utama:</span> {detail.primary}</div>
+              <div className="detail-row"><span className="dl">Pendukung:</span> {detail.secondary}</div>
+              <div className="detail-row"><span className="dl">Rasain di:</span> {detail.feelIt}</div>
               <BodyDiagram group={detail.muscleGroup} />
             </section>
 
             <section className="detail-section">
-              <div className="detail-section-head">📐 FORM TIPS</div>
+              <div className="detail-section-head">📐 TIPS FORM</div>
               <ul className="detail-list">
                 {detail.formTips.map((t, i) => <li key={i}>{t}</li>)}
               </ul>
             </section>
 
             <section className="detail-section">
-              <div className="detail-section-head">❌ COMMON MISTAKES</div>
+              <div className="detail-section-head">❌ KESALAHAN UMUM</div>
               <ul className="detail-list danger">
                 {detail.mistakes.map((t, i) => <li key={i}>{t}</li>)}
               </ul>
@@ -1742,11 +1742,11 @@ function DetailSheet({
             )}
 
             <section className="detail-section">
-              <div className="detail-section-head">📊 YOUR HISTORY</div>
+              <div className="detail-section-head">📊 RIWAYATMU</div>
               {history ? (
                 <>
                   <div className="detail-row">
-                    <span className="dl">Best:</span> {history.latest.weight}kg × {history.latest.reps} (last session)
+                    <span className="dl">Terbaik:</span> {history.latest.weight}kg × {history.latest.reps} (sesi lalu)
                   </div>
                   <ul className="history-list">
                     {history.last3.map((h, i) => {
@@ -1764,23 +1764,23 @@ function DetailSheet({
                     })}
                   </ul>
                   <div className="detail-row" style={{ marginTop: 6 }}>
-                    <span className="dl">Target today:</span> {targetReps} reps
+                    <span className="dl">Target hari ini:</span> {targetReps} rep
                   </div>
                 </>
               ) : (
                 <>
                   <div className="detail-row">
-                    <span className="dl">Best:</span> — (first time)
+                    <span className="dl">Terbaik:</span> — (pertama kali)
                   </div>
                   <div className="detail-row">
-                    <span className="dl">Target today:</span> {targetReps} reps
+                    <span className="dl">Target hari ini:</span> {targetReps} rep
                   </div>
                 </>
               )}
             </section>
 
             <section className="detail-section overload">
-              <div className="detail-section-head">💡 PROGRESSIVE OVERLOAD TIP</div>
+              <div className="detail-section-head">💡 TIPS PROGRESSIVE OVERLOAD</div>
               <div className="detail-quote">&ldquo;{overloadTip}&rdquo;</div>
             </section>
           </div>
@@ -1788,7 +1788,7 @@ function DetailSheet({
           <div className="detail-scroll">
             <DemoBlock exerciseName={exerciseName} canonicalName={canonicalName} />
             <div className="detail-fallback mono">
-              No coaching notes for this exercise yet. Focus on controlled tempo and full range of motion.
+              Belum ada catatan teknik buat gerakan ini. Fokus ke tempo terkontrol dan range gerak penuh.
             </div>
           </div>
         )}
