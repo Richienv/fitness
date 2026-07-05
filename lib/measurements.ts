@@ -6,6 +6,7 @@ export type Measurement = {
   date: string;
   weightKg?: number;
   waistCm?: number;
+  hipCm?: number;
   shoulderCm?: number;
 };
 
@@ -59,12 +60,35 @@ export function shoulderWaistRatio(m: Measurement): number | null {
   return m.shoulderCm / m.waistCm;
 }
 
+/** Waist-to-hip ratio — the female body-composition metric (healthy < 0.85). */
+export function waistHipRatio(m: Measurement): number | null {
+  if (!m.waistCm || !m.hipCm) return null;
+  return m.waistCm / m.hipCm;
+}
+
+/** 7-day rolling average bodyweight ending at each measurement date. Female
+ *  weight-trend charts should always use this (smooths cyclical water). */
+export function weightRollingAvg(
+  list: Measurement[]
+): { date: string; avg: number }[] {
+  const withW = list
+    .filter((m) => m.weightKg != null)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  return withW.map((m, i) => {
+    const window = withW.slice(Math.max(0, i - 6), i + 1);
+    const avg =
+      window.reduce((s, x) => s + (x.weightKg as number), 0) / window.length;
+    return { date: m.date, avg: Math.round(avg * 10) / 10 };
+  });
+}
+
 // ---------- Server → local pull sync (Hermes-logged weights) ----------
 
 type ServerMeasurementRow = {
   date: string;
   weightKg?: number | null;
   waistCm?: number | null;
+  hipCm?: number | null;
   shoulderCm?: number | null;
 };
 
@@ -79,6 +103,7 @@ export function mergeServerMeasurements(rows: ServerMeasurementRow[]): number {
       date: row.date,
       ...(row.weightKg != null ? { weightKg: row.weightKg } : {}),
       ...(row.waistCm != null ? { waistCm: row.waistCm } : {}),
+      ...(row.hipCm != null ? { hipCm: row.hipCm } : {}),
       ...(row.shoulderCm != null ? { shoulderCm: row.shoulderCm } : {}),
     };
     if (idx >= 0) {
