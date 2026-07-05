@@ -4,11 +4,13 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   SESSIONS,
+  femaleSessions,
   getAllWorkouts,
   getActiveWorkoutId,
   getCustomTemplates,
   getWorkout,
   recommendedSessionFor,
+  recommendedFemaleSessionFor,
   saveCustomTemplate,
   deleteCustomTemplate,
   startCustomWorkout,
@@ -19,6 +21,7 @@ import {
   type SessionType,
   type WorkoutSession,
 } from "@/lib/workouts";
+import { getProfile } from "@/lib/settings";
 import {
   MUSCLE_LABEL,
   MUSCLE_TO_GROUP,
@@ -65,15 +68,27 @@ export default function WorkoutHome() {
   const [templates, setTemplates] = useState<CustomTemplate[]>([]);
   const [query, setQuery] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [isFemale, setIsFemale] = useState(false);
 
   useEffect(() => {
     setNow(new Date());
     setWorkouts(getAllWorkouts());
     setActiveId(getActiveWorkoutId());
     setTemplates(getCustomTemplates());
+    setIsFemale(getProfile().sex === "female");
   }, []);
 
-  const recommended: SessionType | null = now ? recommendedSessionFor(now) : null;
+  // Preset source list + "recommended" highlight follow the user's program:
+  // the glute-priority female split for women, the default split otherwise.
+  const presetSessions = useMemo(
+    () => (isFemale ? femaleSessions() : SESSIONS),
+    [isFemale]
+  );
+  const recommended: SessionType | null = now
+    ? isFemale
+      ? recommendedFemaleSessionFor(now)
+      : recommendedSessionFor(now)
+    : null;
   const today = activeDate;
 
   const todaysLogged = useMemo(
@@ -102,8 +117,8 @@ export default function WorkoutHome() {
   const dateStr = dateLabel;
 
   const filteredSessions = useMemo(
-    () => SESSIONS.filter((s) => sessionMatches(query, s)),
-    [query]
+    () => presetSessions.filter((s) => sessionMatches(query, s)),
+    [presetSessions, query]
   );
   const filteredTemplates = useMemo(
     () => templates.filter((t) => templateMatches(query, t)),

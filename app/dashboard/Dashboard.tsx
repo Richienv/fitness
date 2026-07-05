@@ -23,6 +23,14 @@ import { getMicroTargets, type MicroTargets } from "@/lib/nutritionTargets";
 import { useSoftRefresh } from "@/lib/useSoftRefresh";
 import { renderNutritionCard, shareBlob } from "@/lib/shareCards";
 import { haptic } from "@/lib/haptics";
+import { getProfile, getSettings, type Profile } from "@/lib/settings";
+import {
+  SUPPLEMENT_WHITELIST,
+  SUPPLEMENT_BLOCKLIST,
+  randomDont,
+  weeksOnProgram,
+  PROGRAM_LOCK_WEEKS,
+} from "@/lib/coaching";
 
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
 const MONO = "var(--font-dm-mono), 'JetBrains Mono', monospace";
@@ -350,7 +358,16 @@ export default function Dashboard() {
   const [gymDay, setGymDay] = useState(true);
   const [microTargets, setMicroTargets] = useState<MicroTargets>(getMicroTargets);
   const [sharing, setSharing] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [startDate, setStartDate] = useState<string | null>(null);
   const t = useReveal();
+
+  useEffect(() => {
+    setProfile(getProfile());
+    setStartDate(getSettings().startDate);
+  }, []);
+
+  const isFemale = profile?.sex === "female";
 
   const reloadDay = useCallback(() => {
     if (!activeDate) return;
@@ -773,6 +790,147 @@ export default function Dashboard() {
         />
         {sharing ? "MENYIAPKAN…" : "📤 BAGIKAN HARI INI"}
       </button>
+
+      {/* recommendations — female-aware coaching (supplements, don'ts, lock) */}
+      {isFemale && (
+        <>
+          <div style={{ ...cardLabelStyle, marginTop: 24 }}>// REKOMENDASI</div>
+
+          <div style={{ ...cardStyle, marginTop: 11 }}>
+            <div style={{ ...cardLabelStyle, marginBottom: 12 }}>
+              SUPLEMEN · WORTH IT
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {SUPPLEMENT_WHITELIST.map((s) => (
+                <div key={s.id} style={{ display: "flex", gap: 10 }}>
+                  <span
+                    style={{
+                      marginTop: 5,
+                      width: 8,
+                      height: 8,
+                      flex: "0 0 auto",
+                      borderRadius: "50%",
+                      background: "#3ad97d",
+                      boxShadow: "0 0 6px rgba(58,217,125,.55)",
+                    }}
+                  />
+                  <div>
+                    <div
+                      style={{
+                        fontFamily: SANS,
+                        fontWeight: 700,
+                        fontSize: 12.5,
+                        color: "#f1ede9",
+                      }}
+                    >
+                      {s.name}
+                    </div>
+                    <div
+                      style={{
+                        fontFamily: MONO,
+                        fontSize: 10,
+                        lineHeight: 1.5,
+                        color: "#9a938d",
+                        marginTop: 2,
+                      }}
+                    >
+                      {s.note}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div
+              style={{
+                ...cardLabelStyle,
+                marginTop: 16,
+                marginBottom: 12,
+                color: "#7c6a66",
+              }}
+            >
+              SUPLEMEN · BUANG DUIT
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {SUPPLEMENT_BLOCKLIST.map((s) => (
+                <div key={s.id} style={{ display: "flex", gap: 10, opacity: 0.6 }}>
+                  <span
+                    style={{
+                      marginTop: 5,
+                      width: 8,
+                      height: 8,
+                      flex: "0 0 auto",
+                      borderRadius: "50%",
+                      background: "#5a534f",
+                    }}
+                  />
+                  <div>
+                    <div
+                      style={{
+                        fontFamily: SANS,
+                        fontWeight: 700,
+                        fontSize: 12.5,
+                        color: "#8a827c",
+                        textDecoration: "line-through",
+                        textDecorationColor: "rgba(238,60,48,.5)",
+                      }}
+                    >
+                      {s.name}
+                    </div>
+                    <div
+                      style={{
+                        fontFamily: MONO,
+                        fontSize: 10,
+                        lineHeight: 1.5,
+                        color: "#6a6660",
+                        marginTop: 2,
+                      }}
+                    >
+                      {s.note}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* rotating "don't" tip — seeded by day-of-month, no Math.random */}
+          <div
+            style={{
+              marginTop: 14,
+              padding: "13px 15px",
+              borderRadius: 14,
+              background: "rgba(238,60,48,.07)",
+              border: "1px solid rgba(238,60,48,.28)",
+              fontFamily: MONO,
+              fontSize: 11,
+              lineHeight: 1.5,
+              color: "#ffb39e",
+            }}
+          >
+            ⛔ {randomDont(parseDate(activeDate).getUTCDate())}
+          </div>
+
+          {/* program-lock encouragement */}
+          <div
+            style={{
+              marginTop: 14,
+              padding: "13px 15px",
+              borderRadius: 14,
+              background: "rgba(255,255,255,.03)",
+              border: "1px solid rgba(255,255,255,.1)",
+              fontFamily: MONO,
+              fontSize: 11,
+              lineHeight: 1.5,
+              color: "#cfc8c2",
+            }}
+          >
+            🔒 MINGGU KE-{startDate ? weeksOnProgram(startDate) : 0} /{" "}
+            {PROGRAM_LOCK_WEEKS} — tahan di program yang sama, konsistensi
+            &gt; gonta-ganti.
+          </div>
+        </>
+      )}
 
       {/* secondary nav — preserves the existing dashboard sub-routes */}
       <div style={{ ...cardLabelStyle, marginTop: 24 }}>// SELENGKAPNYA</div>

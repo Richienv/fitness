@@ -17,11 +17,7 @@ export type SessionType =
   | "FEM_LOWER_B"
   | "FEM_UPPER_B"
   | "FEM_LOWER_C"
-  | "FEM_REST"
-  // Widening tail: keeps existing `Record<SessionType, ...>` maps in other
-  // files (e.g. GymPage's SESSION_ACCENT) compiling without editing them,
-  // while the literal ids above stay first-class for autocomplete/matching.
-  | (string & {});
+  | "FEM_REST";
 
 export type ExerciseDef = {
   name: string;
