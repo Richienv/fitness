@@ -1,16 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useSession, signOut } from "next-auth/react";
 import {
+  DEFAULT_PROFILE,
   DEFAULT_SETTINGS,
+  getProfile,
   getSettings,
+  patchProfile,
+  profileComplete,
   resetSettings,
   setSettings,
+  type Goal,
   type MacroTarget,
+  type Profile,
+  type Sex,
   type UserSettings,
 } from "@/lib/settings";
+import { computeDayTargets } from "@/lib/energy";
 import { clearMealsForDate, getAllMeals, getCustomFoods, deleteCustomFood } from "@/lib/store";
 import {
   deleteCustomTemplate,
@@ -45,6 +53,36 @@ const MACRO_FIELDS: { key: MacroKey; label: string; unit: string; step: number }
   { key: "fat",     label: "Fat",      unit: "g",    step: 5  },
 ];
 
+const SEX_OPTIONS: { value: Sex; label: string }[] = [
+  { value: "male",   label: "PRIA" },
+  { value: "female", label: "WANITA" },
+];
+
+const GOAL_OPTIONS: { value: Goal; label: string }[] = [
+  { value: "fat_loss",    label: "Turun Lemak" },
+  { value: "recomp",      label: "Recomp" },
+  { value: "muscle_gain", label: "Naik Otot" },
+  { value: "maintain",    label: "Jaga" },
+];
+
+const ACTIVITY_OPTIONS: { value: number; label: string }[] = [
+  { value: 1.2,   label: "Sedenter" },
+  { value: 1.375, label: "Ringan" },
+  { value: 1.55,  label: "Sedang" },
+  { value: 1.725, label: "Aktif" },
+];
+
+// Number inputs must render ≥16px so iOS Safari doesn't zoom on focus
+// (.settings-input is 13px). Also used on the cycle date input.
+const NO_ZOOM_INPUT: CSSProperties = { fontSize: 16 };
+
+const CHIP_ACTIVE: CSSProperties = {
+  borderColor: "var(--accent)",
+  background: "rgba(238, 60, 48, 0.12)",
+  color: "var(--accent)",
+};
+const CHIP_INACTIVE: CSSProperties = { color: "var(--muted)" };
+
 export default function SettingsPage() {
   const [settings, setLocalSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [customFoodCount, setCustomFoodCount] = useState(0);
@@ -54,6 +92,7 @@ export default function SettingsPage() {
   const [confirming, setConfirming] = useState<null | "today" | "custom-foods" | "custom-templates" | "reset">(null);
   const [savedChip, setSavedChip] = useState(false);
   const [microTargets, setMicroTargetsState] = useState<MicroTargets>(getMicroTargets);
+  const [profile, setProfile] = useState<Profile>(DEFAULT_PROFILE);
 
   useEffect(() => {
     refresh();
@@ -66,6 +105,19 @@ export default function SettingsPage() {
     setMealCount(getAllMeals().length);
     setWorkoutCount(getAllWorkouts().length);
     setMicroTargetsState(getMicroTargets());
+    setProfile(getProfile());
+  }
+
+  function updateProfile(patch: Partial<Profile>) {
+    setProfile(patchProfile(patch));
+    bump();
+  }
+
+  // Blank input → null; otherwise a finite number (guards against NaN).
+  function numOrNull(v: string): number | null {
+    if (v.trim() === "") return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
   }
 
   function stepMicro(key: MicroTargetKey, delta: number) {
@@ -183,6 +235,28 @@ export default function SettingsPage() {
   const gymTotal = macroTotal(settings.targets.gymDay);
   const restTotal = macroTotal(settings.targets.restDay);
 
+  // Live preview of the derived gym-day target once the profile is complete.
+  let profilePreview: { kcal: number; protein: number; warnings: string[] } | null = null;
+  try {
+    if (profileComplete(profile) && profile.sex && profile.weightKg) {
+      const derived = computeDayTargets({
+        sex: profile.sex,
+        goal: profile.goal,
+        weightKg: profile.weightKg,
+        heightCm: profile.heightCm!,
+        age: profile.age!,
+        activity: profile.activity,
+      });
+      profilePreview = {
+        kcal: derived.gymDay.kcal,
+        protein: derived.gymDay.protein,
+        warnings: derived.warnings,
+      };
+    }
+  } catch {
+    profilePreview = null;
+  }
+
   return (
     <main className="sub-page settings-page">
       <header className="sub-head">
@@ -193,6 +267,153 @@ export default function SettingsPage() {
 
       <div className="settings-scroll">
         {savedChip && <div className="settings-saved mono">✓ SAVED</div>}
+
+        <section className="settings-section">
+          <div className="settings-section-label mono">// PROFIL</div>
+
+          <div className="settings-row">
+            <div className="settings-row-label">Jenis kelamin</div>
+            <div className="settings-row-actions">
+              {SEX_OPTIONS.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  className="settings-chip mono"
+                  style={profile.sex === o.value ? CHIP_ACTIVE : CHIP_INACTIVE}
+                  onClick={() => updateProfile({ sex: o.value })}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="settings-row">
+            <div className="settings-row-label">Tujuan</div>
+            <div className="settings-row-actions" style={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
+              {GOAL_OPTIONS.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  className="settings-chip mono"
+                  style={profile.goal === o.value ? CHIP_ACTIVE : CHIP_INACTIVE}
+                  onClick={() => updateProfile({ goal: o.value })}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="settings-row">
+            <div className="settings-row-label">Tinggi (cm)</div>
+            <input
+              type="number"
+              inputMode="numeric"
+              className="settings-input"
+              style={NO_ZOOM_INPUT}
+              value={profile.heightCm ?? ""}
+              onChange={(e) => updateProfile({ heightCm: numOrNull(e.target.value) })}
+              placeholder="—"
+            />
+          </div>
+
+          <div className="settings-row">
+            <div className="settings-row-label">Umur</div>
+            <input
+              type="number"
+              inputMode="numeric"
+              className="settings-input"
+              style={NO_ZOOM_INPUT}
+              value={profile.age ?? ""}
+              onChange={(e) => updateProfile({ age: numOrNull(e.target.value) })}
+              placeholder="—"
+            />
+          </div>
+
+          <div className="settings-row">
+            <div className="settings-row-label">Berat (kg)</div>
+            <input
+              type="number"
+              inputMode="numeric"
+              className="settings-input"
+              style={NO_ZOOM_INPUT}
+              value={profile.weightKg ?? ""}
+              onChange={(e) => updateProfile({ weightKg: numOrNull(e.target.value) })}
+              placeholder="—"
+            />
+          </div>
+
+          <div className="settings-row">
+            <div className="settings-row-label">Aktivitas</div>
+            <div className="settings-row-actions" style={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
+              {ACTIVITY_OPTIONS.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  className="settings-chip mono"
+                  style={profile.activity === o.value ? CHIP_ACTIVE : CHIP_INACTIVE}
+                  onClick={() => updateProfile({ activity: o.value })}
+                >
+                  {o.label} {o.value}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {profile.sex === "female" && (
+            <>
+              <div className="settings-row">
+                <div className="settings-row-label">Lacak siklus haid</div>
+                <div className="settings-row-actions">
+                  <button
+                    type="button"
+                    className="settings-chip mono"
+                    style={profile.menstrualTrackingEnabled ? CHIP_ACTIVE : CHIP_INACTIVE}
+                    onClick={() =>
+                      updateProfile({
+                        menstrualTrackingEnabled: !profile.menstrualTrackingEnabled,
+                      })
+                    }
+                  >
+                    {profile.menstrualTrackingEnabled ? "AKTIF" : "NONAKTIF"}
+                  </button>
+                </div>
+              </div>
+
+              {profile.menstrualTrackingEnabled && (
+                <div className="settings-row">
+                  <div className="settings-row-label">Mulai haid terakhir</div>
+                  <input
+                    type="date"
+                    className="settings-input"
+                    style={NO_ZOOM_INPUT}
+                    value={profile.cycleStartDate ?? ""}
+                    onChange={(e) =>
+                      updateProfile({ cycleStartDate: e.target.value || null })
+                    }
+                  />
+                </div>
+              )}
+
+              <div className="settings-row-hint mono">
+                Datamu tetap di akunmu sendiri — nggak dibagikan.
+              </div>
+            </>
+          )}
+
+          {profilePreview && (
+            <div className="settings-row-hint mono" style={{ marginTop: 2 }}>
+              TARGET GYM: {profilePreview.kcal.toLocaleString()} kkal ·{" "}
+              {profilePreview.protein}p
+            </div>
+          )}
+          {profilePreview && profilePreview.warnings.length > 0 && (
+            <div className="settings-row-hint mono" style={{ color: "#ffb020" }}>
+              {profilePreview.warnings.join(" ")}
+            </div>
+          )}
+        </section>
 
         <section className="settings-section">
           <div className="settings-section-label mono">// DAILY TARGETS</div>

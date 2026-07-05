@@ -4,7 +4,24 @@ import type { MuscleKey, MuscleColorGroup } from "./muscles";
 import { MUSCLE_TO_GROUP } from "./muscles";
 import { scopedKey } from "./userScope";
 
-export type SessionType = "PUSH_A" | "PULL_A" | "LEGS" | "PUSH_B" | "PULL_B" | "CUSTOM";
+export type SessionType =
+  | "PUSH_A"
+  | "PULL_A"
+  | "LEGS"
+  | "PUSH_B"
+  | "PULL_B"
+  | "CUSTOM"
+  | "FEM_LOWER_A"
+  | "FEM_UPPER_A"
+  | "FEM_CARDIO"
+  | "FEM_LOWER_B"
+  | "FEM_UPPER_B"
+  | "FEM_LOWER_C"
+  | "FEM_REST"
+  // Widening tail: keeps existing `Record<SessionType, ...>` maps in other
+  // files (e.g. GymPage's SESSION_ACCENT) compiling without editing them,
+  // while the literal ids above stay first-class for autocomplete/matching.
+  | (string & {});
 
 export type ExerciseDef = {
   name: string;
@@ -26,6 +43,10 @@ export type SessionDef = {
   name: string;
   focus: string;
   blurb: string;
+  /** Which program this session belongs to. Existing sessions are implicitly
+   * "default" (the male-default split); "female_default" marks the
+   * glute-priority female program used by the program picker. */
+  program?: "default" | "female_default";
   /** Plain-language description of the aesthetic outcome — what the user
    * is building when they pick this session. Shown on the picker cards
    * so beginners know why they'd choose it. */
@@ -134,6 +155,133 @@ export const SESSIONS: SessionDef[] = [
       { name: "Incline Curl",       sets: 3, repsLabel: "12",      targetReps: 12, increment: 1,   restSec: 60,  primary: ["bicep"],    secondary: [] },
     ],
   },
+
+  // ============ Female default program (glute-priority) ============
+  {
+    id: "FEM_LOWER_A",
+    name: "LOWER A",
+    focus: "GLUTE STRENGTH",
+    blurb: "Hip Thrust · RDL · Split Squat · Kickback",
+    aesthetic: "Rounder, stronger glutes and hamstrings — heavy hinge work with progressive overload week to week.",
+    program: "female_default",
+    recommendedDays: [1],
+    recommendedLabel: "Mon recommended",
+    dayLabel: "MON",
+    primaryMuscles: ["glute", "hamstring", "quad"],
+    exercises: [
+      { name: "Hip Thrust",           sets: 4, repsLabel: "8-10",   targetReps: 9,  increment: 5,   restSec: 120, primary: ["glute"],     secondary: ["hamstring"] },
+      { name: "Romanian Deadlift",    sets: 3, repsLabel: "10",     targetReps: 10, increment: 2.5, restSec: 120, primary: ["hamstring"], secondary: ["glute"] },
+      { name: "Bulgarian Split Squat", sets: 3, repsLabel: "10/leg", targetReps: 10, increment: 2.5, restSec: 90,  primary: ["glute"],     secondary: ["quad"] },
+      { name: "Cable Kickback",       sets: 3, repsLabel: "12",     targetReps: 12, increment: 2.5, restSec: 60,  primary: ["glute"],     secondary: [] },
+      { name: "Hip Abduction",        sets: 3, repsLabel: "15",     targetReps: 15, increment: 2.5, restSec: 45,  primary: ["glute"],     secondary: [] },
+    ],
+  },
+  {
+    id: "FEM_UPPER_A",
+    name: "UPPER A",
+    focus: "BACK + SHOULDERS",
+    blurb: "Pulldown · DB Press · Row · Arms · Core",
+    aesthetic: "Toned upper back and shoulders that balance the lower body — steady strength gains, no bulk required.",
+    program: "female_default",
+    recommendedDays: [2],
+    recommendedLabel: "Tue recommended",
+    dayLabel: "TUE",
+    primaryMuscles: ["lats", "frontDelt", "midBack", "abs"],
+    exercises: [
+      { name: "Lat Pulldown",     sets: 3, repsLabel: "10", targetReps: 10, increment: 2.5, restSec: 90, primary: ["lats"],      secondary: ["bicep"] },
+      { name: "DB Shoulder Press", sets: 3, repsLabel: "10", targetReps: 10, increment: 2.5, restSec: 90, primary: ["frontDelt"], secondary: ["sideDelt", "tricep"] },
+      { name: "Seated Row",       sets: 3, repsLabel: "10", targetReps: 10, increment: 2.5, restSec: 90, primary: ["midBack"],   secondary: ["lats", "bicep"] },
+      { name: "Bicep Curl",       sets: 2, repsLabel: "12", targetReps: 12, increment: 2.5, restSec: 45, primary: ["bicep"],     secondary: [] },
+      { name: "Tricep Pushdown",  sets: 2, repsLabel: "12", targetReps: 12, increment: 2.5, restSec: 45, primary: ["tricep"],    secondary: [] },
+      { name: "Cable Crunch",     sets: 3, repsLabel: "15", targetReps: 15, increment: 2.5, restSec: 45, primary: ["abs"],       secondary: [] },
+    ],
+  },
+  {
+    id: "FEM_CARDIO",
+    name: "CARDIO",
+    focus: "ZONE 2",
+    blurb: "Incline treadmill walk — steady-state zone-2 cardio at 12% incline / 5 km/h to build an aerobic base without burning out your legs.",
+    aesthetic: "Improved conditioning and recovery that supports your lifting days — easy, sustainable steady-state effort.",
+    program: "female_default",
+    recommendedDays: [3],
+    recommendedLabel: "Wed recommended",
+    dayLabel: "WED",
+    primaryMuscles: ["quad"],
+    exercises: [
+      { name: "Incline Treadmill Walk", sets: 1, repsLabel: "40 min", targetReps: 40, increment: 0, restSec: 0, primary: ["quad"], secondary: ["calf", "glute"] },
+    ],
+  },
+  {
+    id: "FEM_LOWER_B",
+    name: "LOWER B",
+    focus: "QUAD + GLUTE",
+    blurb: "Squat · Walking Lunge · Leg Press · Leg Curl · Calf",
+    aesthetic: "Shapely quads and glutes with an athletic lower body — squat-led strength that adds load over time.",
+    program: "female_default",
+    recommendedDays: [4],
+    recommendedLabel: "Thu recommended",
+    dayLabel: "THU",
+    primaryMuscles: ["quad", "glute", "hamstring", "calf"],
+    exercises: [
+      { name: "Squat",         sets: 4, repsLabel: "8",      targetReps: 8,  increment: 5,   restSec: 120, primary: ["quad"],      secondary: ["glute", "hamstring"] },
+      { name: "Walking Lunge", sets: 3, repsLabel: "12/leg", targetReps: 12, increment: 2.5, restSec: 90,  primary: ["quad"],      secondary: ["glute"] },
+      { name: "Leg Press",     sets: 3, repsLabel: "12",     targetReps: 12, increment: 5,   restSec: 90,  primary: ["glute"],     secondary: ["quad"] },
+      { name: "Leg Curl",      sets: 3, repsLabel: "12",     targetReps: 12, increment: 2.5, restSec: 60,  primary: ["hamstring"], secondary: [] },
+      { name: "Calf Raise",    sets: 3, repsLabel: "15",     targetReps: 15, increment: 2.5, restSec: 45,  primary: ["calf"],      secondary: [] },
+    ],
+  },
+  {
+    id: "FEM_UPPER_B",
+    name: "UPPER B",
+    focus: "PULL + PUSH",
+    blurb: "Pull-up · Incline Press · Lateral · Face Pull",
+    aesthetic: "A strong, defined upper body and healthy posture — building real pulling strength with progressive overload.",
+    program: "female_default",
+    recommendedDays: [5],
+    recommendedLabel: "Fri recommended",
+    dayLabel: "FRI",
+    primaryMuscles: ["lats", "chest", "sideDelt", "rearDelt"],
+    exercises: [
+      { name: "Pull-up (Assisted)", sets: 3, repsLabel: "8",  targetReps: 8,  increment: 2.5, restSec: 90, primary: ["lats"],     secondary: ["bicep", "midBack"] },
+      { name: "Incline DB Press",   sets: 3, repsLabel: "10", targetReps: 10, increment: 2.5, restSec: 90, primary: ["chest"],    secondary: ["frontDelt", "tricep"] },
+      { name: "Lateral Raise",      sets: 3, repsLabel: "15", targetReps: 15, increment: 2.5, restSec: 60, primary: ["sideDelt"], secondary: [] },
+      { name: "Face Pull",          sets: 3, repsLabel: "15", targetReps: 15, increment: 2.5, restSec: 60, primary: ["rearDelt"], secondary: ["midBack"] },
+    ],
+  },
+  {
+    id: "FEM_LOWER_C",
+    name: "LOWER C",
+    focus: "GLUTE PUMP",
+    blurb: "Light Hip Thrust · Back Ext · Sumo Goblet · Abduction · Stairs",
+    aesthetic: "A higher-rep glute pump session for shape and endurance — lighter loads, controlled reps, and metabolic burn.",
+    program: "female_default",
+    recommendedDays: [6],
+    recommendedLabel: "Sat recommended",
+    dayLabel: "SAT",
+    primaryMuscles: ["glute", "hamstring", "quad"],
+    exercises: [
+      { name: "Hip Thrust (Light)",   sets: 3, repsLabel: "15",     targetReps: 15, increment: 5,   restSec: 60, primary: ["glute"],     secondary: ["hamstring"] },
+      { name: "Back Extension",       sets: 3, repsLabel: "12",     targetReps: 12, increment: 2.5, restSec: 60, primary: ["glute"],     secondary: ["hamstring"] },
+      { name: "Sumo Goblet Squat",    sets: 3, repsLabel: "12",     targetReps: 12, increment: 2.5, restSec: 60, primary: ["glute"],     secondary: ["quad"] },
+      { name: "Hip Abduction",        sets: 3, repsLabel: "20",     targetReps: 20, increment: 2.5, restSec: 45, primary: ["glute"],     secondary: [] },
+      { name: "Stairmaster",          sets: 1, repsLabel: "15 min", targetReps: 15, increment: 0,   restSec: 0,  primary: ["quad"],      secondary: ["glute", "calf"] },
+    ],
+  },
+  {
+    id: "FEM_REST",
+    name: "REST",
+    focus: "RECOVERY",
+    blurb: "Rest day — aim for 8–10k steps to stay active and let your glutes and legs recover for the next training block.",
+    aesthetic: "Active recovery that keeps you moving and supports progress — walking, not lifting.",
+    program: "female_default",
+    recommendedDays: [0],
+    recommendedLabel: "REST / 8–10K STEPS",
+    dayLabel: "REST / 8–10K STEPS",
+    primaryMuscles: [],
+    exercises: [
+      { name: "Walk (8–10k steps)", sets: 1, repsLabel: "8-10k steps", targetReps: 10000, increment: 0, restSec: 0, primary: [], secondary: [] },
+    ],
+  },
 ];
 
 export function getSession(id: string): SessionDef | null {
@@ -144,6 +292,20 @@ export function recommendedSessionFor(date: Date): SessionType {
   const day = date.getDay();
   const match = SESSIONS.find((s) => s.recommendedDays.includes(day));
   return (match?.id ?? "PUSH_A") as SessionType;
+}
+
+/** Sessions belonging to the glute-priority female default program. */
+export function femaleSessions(): SessionDef[] {
+  return SESSIONS.filter((s) => s.program === "female_default");
+}
+
+/** Weekday → female-default split, mirroring recommendedSessionFor but over
+ * the female_default sessions only. */
+export function recommendedFemaleSessionFor(date: Date): SessionType {
+  const day = date.getDay();
+  const fem = femaleSessions();
+  const match = fem.find((s) => s.recommendedDays.includes(day));
+  return (match?.id ?? "FEM_LOWER_A") as SessionType;
 }
 
 // ============ Storage ============
