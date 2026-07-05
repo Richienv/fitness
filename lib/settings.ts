@@ -4,9 +4,40 @@ import { scopedKey } from "./userScope";
 
 export type MacroTarget = { kcal: number; protein: number; carbs: number; fat: number };
 
+export type Sex = "male" | "female";
+export type Goal = "fat_loss" | "recomp" | "muscle_gain" | "maintain";
+
+/** Per-user physiology profile. When `sex`, `heightCm` and `age` are all set
+ *  the app derives targets via Mifflin-St Jeor (lib/energy); otherwise it
+ *  falls back to the hardcoded `targets` below so existing users are
+ *  untouched. `weightKg` here is a fallback — the latest logged measurement
+ *  takes precedence when present. */
+export type Profile = {
+  sex: Sex | null;
+  goal: Goal;
+  heightCm: number | null;
+  age: number | null;
+  weightKg: number | null;
+  activity: number; // TDEE activity multiplier
+  menstrualTrackingEnabled: boolean;
+  cycleStartDate: string | null; // YYYY-MM-DD
+};
+
 export type UserSettings = {
   targets: { gymDay: MacroTarget; restDay: MacroTarget };
   startDate: string; // YYYY-MM-DD, week 1 of the 12-week block
+  profile: Profile;
+};
+
+export const DEFAULT_PROFILE: Profile = {
+  sex: null,
+  goal: "maintain",
+  heightCm: null,
+  age: null,
+  weightKg: null,
+  activity: 1.5,
+  menstrualTrackingEnabled: false,
+  cycleStartDate: null,
 };
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -15,7 +46,12 @@ export const DEFAULT_SETTINGS: UserSettings = {
     restDay: { kcal: 1700, protein: 175, carbs: 120, fat: 70 },
   },
   startDate: "2026-04-07",
+  profile: DEFAULT_PROFILE,
 };
+
+export function profileComplete(p: Profile): boolean {
+  return !!p.sex && p.heightCm != null && p.age != null;
+}
 
 const SETTINGS_KEY = "richie.settings.v1";
 const PROTEIN_BUMP_KEY = "richie.settings.proteinBumpV2";
@@ -54,6 +90,7 @@ function read(): UserSettings {
         restDay: { ...DEFAULT_SETTINGS.targets.restDay, ...(parsed.targets?.restDay ?? {}) },
       },
       startDate: parsed.startDate || DEFAULT_SETTINGS.startDate,
+      profile: { ...DEFAULT_PROFILE, ...(parsed.profile ?? {}) },
     };
   } catch {
     return DEFAULT_SETTINGS;
@@ -74,9 +111,21 @@ export function patchSettings(patch: Partial<UserSettings>): UserSettings {
   const next: UserSettings = {
     targets: patch.targets ?? cur.targets,
     startDate: patch.startDate ?? cur.startDate,
+    profile: patch.profile ? { ...cur.profile, ...patch.profile } : cur.profile,
   };
   setSettings(next);
   return next;
+}
+
+/** Convenience: read the profile, patch a subset, persist. */
+export function patchProfile(patch: Partial<Profile>): Profile {
+  const next = { ...read().profile, ...patch };
+  patchSettings({ profile: next });
+  return next;
+}
+
+export function getProfile(): Profile {
+  return read().profile;
 }
 
 export function resetSettings(): UserSettings {

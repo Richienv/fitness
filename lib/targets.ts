@@ -1,18 +1,44 @@
-import { DEFAULT_SETTINGS, getSettings, type MacroTarget } from "./settings";
+import {
+  DEFAULT_SETTINGS,
+  getSettings,
+  profileComplete,
+  type MacroTarget,
+} from "./settings";
+import { computeDayTargets } from "./energy";
 
 export type { MacroTarget };
 
-// Backwards-compatible `TARGETS.gymDay` / `TARGETS.restDay` — now backed by
-// the user settings store. Getters fire on every access so edits made in the
-// settings page take effect across the whole app without any prop threading.
+/** Resolve the day targets: if the user has filled a physiology profile
+ *  (sex + height + age + weight) we derive them via Mifflin-St Jeor; otherwise
+ *  we fall back to the hardcoded/edited settings targets. This keeps existing
+ *  (profile-less) users' numbers exactly as before. */
+function resolvedTargets(): { gymDay: MacroTarget; restDay: MacroTarget } {
+  const s = getSettings();
+  const p = s.profile;
+  if (profileComplete(p) && p.sex && p.weightKg != null) {
+    const { gymDay, restDay } = computeDayTargets({
+      sex: p.sex,
+      goal: p.goal,
+      weightKg: p.weightKg,
+      heightCm: p.heightCm as number,
+      age: p.age as number,
+      activity: p.activity,
+    });
+    return { gymDay, restDay };
+  }
+  return s.targets;
+}
+
+// Backwards-compatible `TARGETS.gymDay` / `TARGETS.restDay`. Getters fire on
+// every access so profile/settings edits take effect app-wide with no props.
 export const TARGETS = {
   get gymDay(): MacroTarget {
     if (typeof window === "undefined") return DEFAULT_SETTINGS.targets.gymDay;
-    return getSettings().targets.gymDay;
+    return resolvedTargets().gymDay;
   },
   get restDay(): MacroTarget {
     if (typeof window === "undefined") return DEFAULT_SETTINGS.targets.restDay;
-    return getSettings().targets.restDay;
+    return resolvedTargets().restDay;
   },
 };
 

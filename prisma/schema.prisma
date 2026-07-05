@@ -15,6 +15,12 @@ model User {
   email        String   @unique
   name         String?
   passwordHash String
+  // Physiology profile (women's mode). Nullable so existing accounts are
+  // unaffected until they fill it in.
+  sex                      String?  // "male" | "female"
+  goal                     String?  // "fat_loss" | "recomp" | "muscle_gain" | "maintain"
+  menstrualTrackingEnabled Boolean  @default(false)
+  cycleStartDate           String?  // YYYY-MM-DD
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -83,6 +89,7 @@ model Measurement {
   date        String
   weightKg    Float?
   waistCm     Float?
+  hipCm       Float?
   shoulderCm  Float?
   notes       String?
   createdAt   DateTime @default(now())
