@@ -845,7 +845,7 @@ export default function FoodBuilder({
         style={{
           position: "fixed",
           inset: 0,
-          zIndex: 60,
+          zIndex: 200,
           background:
             "radial-gradient(720px 520px at 50% -10%, #17100f, #0a0809 55%, #070608)",
           display: "flex",
@@ -1204,7 +1204,7 @@ export default function FoodBuilder({
           style={{
             position: "fixed",
             inset: 0,
-            zIndex: 72,
+            zIndex: 215,
             background: "rgba(5,4,6,.74)",
             backdropFilter: "blur(4px)",
             display: "flex",
@@ -1395,7 +1395,7 @@ export default function FoodBuilder({
           style={{
             position: "fixed",
             inset: 0,
-            zIndex: 73,
+            zIndex: 220,
             background: "rgba(5,4,6,.74)",
             backdropFilter: "blur(4px)",
             display: "flex",
