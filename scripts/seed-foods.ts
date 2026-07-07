@@ -52,6 +52,23 @@ function toDecimal(x: number | null): Prisma.Decimal | null {
 }
 
 async function main() {
+  // Safe to run on every deploy: bail out if the DB isn't reachable (e.g. a
+  // build with no DATABASE_URL) and skip if already populated. Set SEED_FORCE=1
+  // to re-seed (idempotent upserts) after data changes.
+  let existing: number | null = null;
+  try {
+    existing = await db.food.count();
+  } catch {
+    console.log("ℹ  Food DB not reachable (no DATABASE_URL?) — skipping seed.");
+    return;
+  }
+  if (existing > 0 && !process.env.SEED_FORCE) {
+    console.log(
+      `ℹ  Food table already has ${existing} rows — skipping seed (set SEED_FORCE=1 to re-seed).`
+    );
+    return;
+  }
+
   const counts: Record<string, number> = {};
   let copperClamped = 0;
   let atwaterFlags = 0;

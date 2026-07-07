@@ -4,12 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "node scripts/check-server-imports.mjs && prisma generate && (prisma db push --skip-generate || echo 'db push skipped — run npm run db:push manually') && next build",
+    "build": "node scripts/check-server-imports.mjs && prisma generate && (prisma db push --skip-generate || echo 'db push skipped — run npm run db:push manually') && (npx tsx scripts/seed-foods.ts || echo 'food seed skipped') && next build",
     "start": "next start",
     "lint": "next lint",
     "test": "node --experimental-strip-types --test lib/*.test.ts",
     "test:foods": "node --experimental-strip-types --test scripts/seed-foods.test.ts",
-    "seed:foods": "node --experimental-strip-types scripts/seed-foods.ts",
+    "seed:foods": "tsx scripts/seed-foods.ts",
     "check:server-imports": "node scripts/check-server-imports.mjs",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
@@ -30,6 +30,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "prisma": "^6.0.0",
+    "tsx": "^4.23.0",
     "typescript": "^5.6.0"
   }
 }
