@@ -126,6 +126,75 @@ model ActivityLog {
   @@index([actor, createdAt])
 }
 
+// ─── Food-composition catalogue ───────────────────────────────────────────
+// Shared, read-only reference library (all sources, not per-user). Nutrient
+// values are per 100 g edible portion. Empty CSV cells are stored as NULL —
+// NEVER 0 — so "unknown" and "genuinely zero" stay distinguishable.
+enum FoodSource {
+  TKPI
+  CUSTOM
+  USDA
+}
+
+model Food {
+  id             String     @id @default(cuid())
+  // e.g. "TKPI:DP031", "CUSTOM:CF001", "USDA:US12345"
+  sourceCode     String     @unique
+  source         FoodSource
+  name           String
+  // lowercased + diacritics stripped, for search
+  nameNormalized String
+  state          String?
+  foodGroup      String?
+
+  // 21 nutrient columns, per 100 g edible portion. Decimal (not float) to
+  // preserve the source precision; NULL means "not measured / unknown".
+  water_g            Decimal?
+  energy_kcal        Decimal?
+  protein_g          Decimal?
+  fat_g              Decimal?
+  carb_g             Decimal?
+  fiber_g            Decimal?
+  ash_g              Decimal?
+  calcium_mg         Decimal?
+  phosphorus_mg      Decimal?
+  iron_mg            Decimal?
+  sodium_mg          Decimal?
+  potassium_mg       Decimal?
+  copper_mg          Decimal?
+  zinc_mg            Decimal?
+  retinol_mcg        Decimal?
+  beta_carotene_mcg  Decimal?
+  carotene_total_mcg Decimal?
+  thiamin_mg         Decimal?
+  riboflavin_mg      Decimal?
+  niacin_mg          Decimal?
+  vitc_mg            Decimal?
+
+  // Edible-portion percentage (Bagian Dapat Dimakan). Defaults to 100.
+  bddPct         Int       @default(100)
+  // Custom foods only: cooked weight of one conventional portion.
+  portionGCooked Decimal?
+  note           String?
+
+  servings FoodServing[]
+
+  @@index([nameNormalized])
+  @@index([foodGroup])
+}
+
+// Household-measure serving sizes for a Food. These are editable conventions
+// (NOT sourced from the composition CSV) — see SERVING_CONVENTIONS in the seed.
+model FoodServing {
+  id     String  @id @default(cuid())
+  foodId String
+  food   Food    @relation(fields: [foodId], references: [id], onDelete: Cascade)
+  label  String
+  grams  Decimal
+
+  @@index([foodId])
+}
+
 // Food library — rows with `userId = null` are the shared base catalogue
 // (built-ins + Hermes-discovered) visible to everyone; rows with a `userId`
 // are that user's private custom foods.

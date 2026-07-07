@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test": "node --experimental-strip-types --test lib/*.test.ts",
+    "test:foods": "node --experimental-strip-types --test scripts/seed-foods.test.ts",
+    "seed:foods": "node --experimental-strip-types scripts/seed-foods.ts",
     "check:server-imports": "node scripts/check-server-imports.mjs",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

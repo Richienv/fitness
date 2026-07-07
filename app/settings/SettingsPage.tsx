@@ -587,6 +587,14 @@ export default function SettingsPage() {
           <AccountRow />
         </section>
 
+        <section className="settings-section">
+          {/* SUMBER DATA — attribution for the food-composition catalogue. */}
+          <div className="settings-section-label mono">// SUMBER DATA</div>
+          <div className="settings-row-hint mono">
+            Data gizi: TKPI 2019 (Kemenkes RI) + estimasi kustom.
+          </div>
+        </section>
+
         <div className="settings-foot mono">
           Datamu tersimpan di akunmu. Masuk di perangkat lain untuk melanjutkan.
         </div>
