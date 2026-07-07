@@ -12,9 +12,11 @@ export async function GET(req: Request) {
 
   let dbOk = false;
   let dbError: string | null = null;
+  let foodCount: number | null = null;
   try {
     await db.$queryRaw`SELECT 1`;
     dbOk = true;
+    foodCount = await db.food.count();
   } catch (e) {
     dbError = (e as Error).message.slice(0, 200);
   }
@@ -32,6 +34,7 @@ export async function GET(req: Request) {
         keyMatch: candidate ? candidate === expected : null,
         ownerConfigured: !!(await getHermesOwnerId()),
         db: { connected: dbOk, error: dbError },
+        foodCount,
         deployedAt: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
       },
     },
