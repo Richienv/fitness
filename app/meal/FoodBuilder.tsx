@@ -57,6 +57,16 @@ type BuilderFood = {
   favorite?: boolean;
 };
 
+// One row from /api/foods/search (per-100g values, numbers or null).
+type DbFoodRow = {
+  sourceCode: string;
+  name: string;
+  energy_kcal: number | null;
+  protein_g: number | null;
+  fat_g: number | null;
+  carb_g: number | null;
+};
+
 type MacroPatch = {
   name: string;
   kcal: number;
@@ -98,11 +108,58 @@ export default function FoodBuilder({
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ all: true });
   const [editing, setEditing] = useState<Editing | null>(null);
   const [newGroup, setNewGroup] = useState<{ name: string; emoji: string } | null>(null);
+  // TKPI/DB food-composition search results for the current query, plus a
+  // session cache so a picked DB food still resolves after the query clears.
+  const [dbResults, setDbResults] = useState<BuilderFood[]>([]);
+  const [dbCache, setDbCache] = useState<Record<string, BuilderFood>>({});
 
   // Persisted custom "libraries" load client-side (localStorage).
   useEffect(() => {
     setGroups(getFoodGroups());
   }, []);
+
+  // Live search against the shared food-composition DB (1,148 TKPI foods +
+  // custom + USDA). Debounced; per-100g values map to a "100 g" unit so the
+  // existing qty stepper (step 0.5 = 50 g) and save path work unchanged.
+  useEffect(() => {
+    const term = query.trim();
+    if (term.length < 2) {
+      setDbResults([]);
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(() => {
+      fetch(`/api/foods/search?q=${encodeURIComponent(term)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (cancelled) return;
+          const rows: DbFoodRow[] = data?.data?.foods ?? [];
+          const mapped: BuilderFood[] = rows.map((f) => ({
+            id: f.sourceCode,
+            name: f.name,
+            unit: "100 g",
+            group: STEPS[step].key,
+            kcal: f.energy_kcal ?? 0,
+            protein: f.protein_g ?? 0,
+            fat: f.fat_g ?? 0,
+            carbs: f.carb_g ?? 0,
+            gramsPerUnit: 100,
+            step: 0.5,
+          }));
+          setDbResults(mapped);
+          setDbCache((c) => {
+            const next = { ...c };
+            for (const m of mapped) next[m.id] = m;
+            return next;
+          });
+        })
+        .catch(() => {});
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [query, step]);
 
   const stepDef = STEPS[step];
   const group = stepDef.key;
@@ -119,7 +176,9 @@ export default function FoodBuilder({
   // Resolve any id (library / session custom / group food) with override applied.
   const bIng = (id: string): BuilderFood | null => {
     let base: BuilderFood | undefined =
-      INGREDIENTS.find((i) => i.id === id) || customFoods.find((i) => i.id === id);
+      INGREDIENTS.find((i) => i.id === id) ||
+      customFoods.find((i) => i.id === id) ||
+      dbCache[id];
     if (!base) {
       for (const g of groups) {
         const f = g.foods.find((i) => i.id === id);
@@ -335,7 +394,8 @@ export default function FoodBuilder({
 
   let sections: Section[];
   if (q) {
-    const items = merged.filter(match);
+    // Local library matches + live DB (TKPI/custom/USDA) results.
+    const items = merged.filter(match).concat(dbResults);
     sections = [
       {
         key: "search",
@@ -374,7 +434,17 @@ export default function FoodBuilder({
         items: open ? list.map(applyOv) : [],
       };
     };
-    sections = [mk("usual", "⭐", "USUAL KAMU", favs, false, null)];
+    sections = [];
+    // Keep picked DB foods visible/adjustable after the search box is cleared
+    // (they don't live in any static step list).
+    const selectedDb = Object.keys(selection)
+      .filter((id) => dbCache[id])
+      .map((id) => bIng(id))
+      .filter((x): x is BuilderFood => !!x);
+    if (selectedDb.length) {
+      sections.push(mk("dipilih", "✅", "DIPILIH", selectedDb, false, null));
+    }
+    sections.push(mk("usual", "⭐", "USUAL KAMU", favs, false, null));
     for (const g of groups) {
       const gFoods = g.foods.filter((f) => f.group === group).map(applyOv);
       sections.push(mk(g.id, g.emoji, g.name, gFoods, true, g.id));
