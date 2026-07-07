@@ -16,16 +16,28 @@ import {
   dedupeMeals,
   getAllMeals,
   getDaily,
-  getQuickLogIds,
   isCustomItem,
-  QUICKLOG_MAX,
+  saveMeal,
   setDaily,
   type MealLog,
 } from "@/lib/store";
+import {
+  addQuickLogEntry,
+  deleteQuickLogEntry,
+  getQuickLogEntries,
+  moveQuickLogEntry,
+  updateQuickLogEntry,
+  type QuickLogEntry,
+} from "@/lib/quicklog";
 import { TARGETS, weekNumber } from "@/lib/targets";
 import { useActiveDate, parseDate } from "@/lib/activeDate";
+import { haptic } from "@/lib/haptics";
+import { toast } from "../Toast";
 import DatePicker from "./DatePicker";
 import FoodBuilder from "./FoodBuilder";
+
+/** A blank editor draft; may or may not carry an id (edit vs. add). */
+type EditDraft = (QuickLogEntry | Omit<QuickLogEntry, "id">) & { id?: string };
 
 // ---- shared style tokens (canonical from app/page.tsx) ----
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
@@ -163,6 +175,75 @@ function toggleStyle(active: boolean): CSSProperties {
   };
 }
 
+/** Small round icon button used in the manage-sheet rows. */
+function manageIconStyle(disabled: boolean): CSSProperties {
+  return {
+    width: 30,
+    height: 30,
+    flexShrink: 0,
+    borderRadius: 9,
+    fontFamily: MONO,
+    fontSize: 13,
+    lineHeight: 1,
+    cursor: disabled ? "default" : "pointer",
+    color: disabled ? "#4a4642" : "#c9c2bc",
+    background: "rgba(255,255,255,.04)",
+    border: "1px solid rgba(255,255,255,.1)",
+    opacity: disabled ? 0.4 : 1,
+  };
+}
+
+const editLabelStyle: CSSProperties = {
+  display: "block",
+  fontFamily: MONO,
+  fontSize: 9.5,
+  letterSpacing: ".12em",
+  color: "#7c736e",
+  marginTop: 16,
+};
+
+const editInputStyle: CSSProperties = {
+  width: "100%",
+  marginTop: 8,
+  padding: "11px 12px",
+  borderRadius: 12,
+  fontFamily: SANS,
+  fontSize: 16, // ≥16 avoids iOS focus zoom
+  color: "#f1ede9",
+  background: "rgba(255,255,255,.04)",
+  border: "1px solid rgba(255,255,255,.12)",
+  outline: "none",
+  boxSizing: "border-box",
+};
+
+/** Numeric editor field (KKAL / macros). fontSize 16 to avoid iOS zoom. */
+function NumField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (n: number) => void;
+}) {
+  return (
+    <div>
+      <label style={editLabelStyle}>{label}</label>
+      <input
+        type="number"
+        inputMode="numeric"
+        value={Number.isFinite(value) ? value : 0}
+        min={0}
+        onChange={(ev) => {
+          const n = parseFloat(ev.target.value);
+          onChange(Number.isFinite(n) ? n : 0);
+        }}
+        style={editInputStyle}
+      />
+    </div>
+  );
+}
+
 type BarSpec = {
   label: string;
   value: number;
@@ -275,7 +356,10 @@ export default function MealHome() {
   const [allMeals, setAllMeals] = useState<MealLog[]>([]);
   const [gymDay, setGymDay] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [quickIds, setQuickIds] = useState<string[]>([]);
+  const [quickEntries, setQuickEntries] = useState<QuickLogEntry[]>([]);
+  const [manageOpen, setManageOpen] = useState(false);
+  const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
+  const [aturPressed, setAturPressed] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [mealPickOpen, setMealPickOpen] = useState(false);
   const [builderMeal, setBuilderMeal] = useState<MealType | null>(null);
@@ -283,7 +367,7 @@ export default function MealHome() {
   const reloadFromStore = useCallback(() => {
     dedupeMeals();
     setAllMeals(getAllMeals());
-    setQuickIds(getQuickLogIds());
+    setQuickEntries(getQuickLogEntries());
     setLoaded(true);
   }, []);
   useSoftRefresh(reloadFromStore);
@@ -339,27 +423,31 @@ export default function MealHome() {
   const wk = activeDate ? weekNumber(parseDate(activeDate)) : 1;
   const dateLine = bahasaDate(activeDate);
 
-  // Resolve which presets show on the Quick Log grid. Defaults: pick the
-  // first preset for each meal type (breakfast / lunch / snack / dinner).
-  const quickResolved = useMemo(() => {
-    const byId = new Map(PRESETS.map((p) => [p.id, p]));
-    if (quickIds.length > 0) {
-      return quickIds
-        .map((id) => byId.get(id))
-        .filter((p): p is (typeof PRESETS)[number] => !!p)
-        .slice(0, QUICKLOG_MAX);
-    }
-    const seen = new Set<string>();
-    const defaults: typeof PRESETS = [];
-    for (const order of ["breakfast", "lunch", "snack", "dinner"] as const) {
-      const p = PRESETS.find((x) => x.mealType === order && !seen.has(x.id));
-      if (p) {
-        defaults.push(p);
-        seen.add(p.id);
-      }
-    }
-    return defaults.slice(0, QUICKLOG_MAX);
-  }, [quickIds]);
+  // Log a configured quick-log entry straight into the day (no navigation).
+  const logQuick = useCallback(
+    (e: QuickLogEntry) => {
+      saveMeal({
+        date: activeDate,
+        mealType: e.mealType,
+        items: [
+          {
+            custom: true,
+            name: e.label,
+            grams: 0,
+            kcal: e.kcal,
+            protein: e.protein,
+            fat: e.fat,
+            carbs: e.carbs,
+            ...(e.sugar != null ? { sugar: e.sugar } : {}),
+          },
+        ],
+      });
+      haptic("success");
+      toast(`✓ ${e.label} · +${Math.round(e.kcal)} kkal`, "success");
+      reloadFromStore();
+    },
+    [activeDate, reloadFromStore]
+  );
 
   const bars: BarSpec[] = [
     {
@@ -486,19 +574,34 @@ export default function MealHome() {
         >
           ⚡ QUICK LOG
         </div>
-        <div
+        <button
+          type="button"
+          onClick={() => {
+            haptic("tap");
+            setManageOpen(true);
+          }}
+          onPointerDown={() => setAturPressed(true)}
+          onPointerUp={() => setAturPressed(false)}
+          onPointerLeave={() => setAturPressed(false)}
           style={{
             fontFamily: MONO,
             fontSize: 9.5,
             letterSpacing: ".12em",
-            color: "#7c736e",
+            color: aturPressed ? "#ff8a72" : "#7c736e",
+            padding: "6px 10px",
+            borderRadius: 9,
+            border: aturPressed
+              ? "1px solid rgba(255,150,120,.5)"
+              : "1px solid rgba(255,255,255,.1)",
+            background: "rgba(255,255,255,.03)",
+            cursor: "pointer",
           }}
         >
-          TAP UNTUK CATAT
-        </div>
+          ✎ ATUR
+        </button>
       </div>
 
-      {/* quick tiles → real /meal/confirm logging route */}
+      {/* quick tiles → log the configured entry straight into the day */}
       <div
         style={{
           display: "grid",
@@ -507,61 +610,50 @@ export default function MealHome() {
           marginTop: 11,
         }}
       >
-        {quickResolved.map((p) => {
-          const kcal = Math.round(sumMacros(p.items).kcal);
-          const label = p.label.replace(/^[^\p{L}\p{N}]+/u, "").trim();
-          const href = `/meal/confirm?preset=${p.id}&date=${activeDate}`;
-          return (
-            <Link
-              key={p.id}
-              href={href}
-              className="quick-tile"
-              style={
-                {
-                  position: "relative",
-                  overflow: "hidden",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 5,
-                  padding: 14,
-                  borderRadius: 14,
-                  textAlign: "left",
-                  cursor: "pointer",
-                  background:
-                    "linear-gradient(180deg,rgba(255,255,255,.045),transparent 40%),#0d0b0c",
-                  border: "1px solid rgba(255,255,255,.09)",
-                  boxShadow: "inset 0 1px 0 rgba(255,255,255,.06)",
-                  viewTransitionName: `tile-${p.id}`,
-                } as CSSProperties
-              }
-              onClick={(e) => {
-                e.preventDefault();
-                vtNavigate(href, { haptic: null });
+        {quickEntries.map((e) => (
+          <button
+            key={e.id}
+            type="button"
+            className="quick-tile"
+            onClick={() => logQuick(e)}
+            style={{
+              position: "relative",
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+              gap: 5,
+              padding: 14,
+              borderRadius: 14,
+              textAlign: "left",
+              cursor: "pointer",
+              background:
+                "linear-gradient(180deg,rgba(255,255,255,.045),transparent 40%),#0d0b0c",
+              border: "1px solid rgba(255,255,255,.09)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,.06)",
+            }}
+          >
+            <span
+              style={{
+                fontFamily: SANS,
+                fontWeight: 700,
+                fontSize: 14,
+                color: "#f1ede9",
               }}
             >
-              <span
-                style={{
-                  fontFamily: SANS,
-                  fontWeight: 700,
-                  fontSize: 14,
-                  color: "#f1ede9",
-                }}
-              >
-                {label}
-              </span>
-              <span
-                style={{
-                  fontFamily: MONO,
-                  fontSize: 9,
-                  letterSpacing: ".12em",
-                  color: "#ff8a72",
-                }}
-              >
-                {MEAL_ID_LABEL[p.mealType]} · +{kcal} KKAL
-              </span>
-            </Link>
-          );
-        })}
+              {e.label}
+            </span>
+            <span
+              style={{
+                fontFamily: MONO,
+                fontSize: 9,
+                letterSpacing: ".12em",
+                color: "#ff8a72",
+              }}
+            >
+              {MEAL_ID_LABEL[e.mealType]} · +{Math.round(e.kcal)} KKAL
+            </span>
+          </button>
+        ))}
       </div>
 
       {/* one-tap add-ons: protein powder / matcha with milk */}
@@ -739,6 +831,307 @@ export default function MealHome() {
             reloadFromStore();
           }}
         />
+      )}
+
+      {/* manage quick-log sheet */}
+      {manageOpen && (
+        <div
+          onClick={() => setManageOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 200,
+            background: "rgba(5,4,6,.72)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "flex-end",
+          }}
+        >
+          <div
+            onClick={(ev) => ev.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: 480,
+              margin: "0 auto",
+              borderRadius: "26px 26px 0 0",
+              padding: "22px 20px calc(30px + env(safe-area-inset-bottom))",
+              background: "linear-gradient(180deg,#161011,#0c0a0b 60%)",
+              borderTop: "1px solid rgba(255,255,255,.1)",
+              boxShadow: "0 -20px 50px rgba(0,0,0,.6)",
+              animation: "riseIn .28s cubic-bezier(.16,1,.3,1)",
+              maxHeight: "80dvh",
+              overflowY: "auto",
+            }}
+          >
+            <div style={{ fontFamily: SANS, fontWeight: 800, fontSize: 18, color: "#f5f2ef" }}>
+              ATUR QUICK LOG
+            </div>
+            <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: ".06em", color: "#7c736e", marginTop: 5 }}>
+              Tambah, ubah, atau hapus
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 16 }}>
+              {quickEntries.map((e, i) => (
+                <div
+                  key={e.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "10px 12px",
+                    borderRadius: 13,
+                    background: "linear-gradient(180deg,rgba(255,255,255,.04),transparent 40%),#0d0b0c",
+                    border: "1px solid rgba(255,255,255,.09)",
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontFamily: SANS,
+                        fontWeight: 700,
+                        fontSize: 13,
+                        color: "#f1ede9",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {e.label}
+                    </div>
+                    <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: ".08em", color: "#8a837d", marginTop: 2 }}>
+                      {MEAL_ID_LABEL[e.mealType]} · {Math.round(e.kcal)} kkal
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Naik"
+                    disabled={i === 0}
+                    onClick={() => setQuickEntries(moveQuickLogEntry(e.id, -1))}
+                    style={manageIconStyle(i === 0)}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Turun"
+                    disabled={i === quickEntries.length - 1}
+                    onClick={() => setQuickEntries(moveQuickLogEntry(e.id, 1))}
+                    style={manageIconStyle(i === quickEntries.length - 1)}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Ubah"
+                    onClick={() => setEditDraft(e)}
+                    style={manageIconStyle(false)}
+                  >
+                    ✎
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Hapus"
+                    onClick={() => setQuickEntries(deleteQuickLogEntry(e.id))}
+                    style={manageIconStyle(false)}
+                  >
+                    🗑
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setEditDraft({ label: "", mealType: "snack", kcal: 0, protein: 0, carbs: 0, fat: 0 })
+              }
+              style={{
+                width: "100%",
+                marginTop: 14,
+                padding: "12px",
+                borderRadius: 13,
+                fontFamily: MONO,
+                fontSize: 12,
+                letterSpacing: ".08em",
+                color: "#fff",
+                cursor: "pointer",
+                background: FIRE,
+                border: "1px solid rgba(255,150,120,.6)",
+                boxShadow: "inset 0 1.5px 1px rgba(255,225,205,.6),0 6px 16px rgba(238,60,48,.35)",
+              }}
+            >
+              ＋ TAMBAH
+            </button>
+            <button
+              type="button"
+              onClick={() => setManageOpen(false)}
+              style={{
+                width: "100%",
+                marginTop: 9,
+                padding: "11px",
+                borderRadius: 13,
+                fontFamily: MONO,
+                fontSize: 11,
+                letterSpacing: ".1em",
+                color: "#9a938d",
+                cursor: "pointer",
+                background: "rgba(255,255,255,.03)",
+                border: "1px solid rgba(255,255,255,.1)",
+              }}
+            >
+              TUTUP
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* quick-log entry editor (layered above manage sheet) */}
+      {editDraft && (
+        <div
+          onClick={() => setEditDraft(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 215,
+            background: "rgba(5,4,6,.72)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "flex-end",
+          }}
+        >
+          <div
+            onClick={(ev) => ev.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: 480,
+              margin: "0 auto",
+              borderRadius: "26px 26px 0 0",
+              padding: "22px 20px calc(30px + env(safe-area-inset-bottom))",
+              background: "linear-gradient(180deg,#161011,#0c0a0b 60%)",
+              borderTop: "1px solid rgba(255,255,255,.1)",
+              boxShadow: "0 -20px 50px rgba(0,0,0,.6)",
+              animation: "riseIn .28s cubic-bezier(.16,1,.3,1)",
+              maxHeight: "88dvh",
+              overflowY: "auto",
+            }}
+          >
+            <div style={{ fontFamily: SANS, fontWeight: 800, fontSize: 18, color: "#f5f2ef" }}>
+              {editDraft.id ? "UBAH ENTRI" : "ENTRI BARU"}
+            </div>
+
+            <label style={editLabelStyle}>NAMA</label>
+            <input
+              type="text"
+              value={editDraft.label}
+              onChange={(ev) => setEditDraft({ ...editDraft, label: ev.target.value })}
+              placeholder="mis. Oatmeal + Pisang"
+              style={editInputStyle}
+            />
+
+            <label style={editLabelStyle}>WAKTU</label>
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              {(["breakfast", "lunch", "snack", "dinner"] as const).map((mt) => (
+                <button
+                  key={mt}
+                  type="button"
+                  onClick={() => setEditDraft({ ...editDraft, mealType: mt })}
+                  style={toggleStyle(editDraft.mealType === mt)}
+                >
+                  {MEAL_ID_LABEL[mt]}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 4 }}>
+              <NumField
+                label="KKAL"
+                value={editDraft.kcal}
+                onChange={(n) => setEditDraft({ ...editDraft, kcal: n })}
+              />
+              <NumField
+                label="PROTEIN (g)"
+                value={editDraft.protein}
+                onChange={(n) => setEditDraft({ ...editDraft, protein: n })}
+              />
+              <NumField
+                label="KARBO (g)"
+                value={editDraft.carbs}
+                onChange={(n) => setEditDraft({ ...editDraft, carbs: n })}
+              />
+              <NumField
+                label="LEMAK (g)"
+                value={editDraft.fat}
+                onChange={(n) => setEditDraft({ ...editDraft, fat: n })}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 9, marginTop: 18 }}>
+              <button
+                type="button"
+                onClick={() => setEditDraft(null)}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: 13,
+                  fontFamily: MONO,
+                  fontSize: 11,
+                  letterSpacing: ".1em",
+                  color: "#9a938d",
+                  cursor: "pointer",
+                  background: "rgba(255,255,255,.03)",
+                  border: "1px solid rgba(255,255,255,.1)",
+                }}
+              >
+                BATAL
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const d = editDraft;
+                  const label = d.label.trim();
+                  if (!label) {
+                    toast("Nama tidak boleh kosong", "warn");
+                    return;
+                  }
+                  if (d.kcal < 0) {
+                    toast("KKAL harus ≥ 0", "warn");
+                    return;
+                  }
+                  const payload = {
+                    label,
+                    mealType: d.mealType,
+                    kcal: d.kcal,
+                    protein: d.protein,
+                    carbs: d.carbs,
+                    fat: d.fat,
+                    ...(d.sugar != null ? { sugar: d.sugar } : {}),
+                  };
+                  const next = d.id
+                    ? updateQuickLogEntry(d.id, payload)
+                    : addQuickLogEntry(payload);
+                  setQuickEntries(next);
+                  haptic("success");
+                  setEditDraft(null);
+                }}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: 13,
+                  fontFamily: MONO,
+                  fontSize: 11,
+                  letterSpacing: ".1em",
+                  color: "#fff",
+                  cursor: "pointer",
+                  background: FIRE,
+                  border: "1px solid rgba(255,150,120,.6)",
+                  boxShadow: "inset 0 1.5px 1px rgba(255,225,205,.6),0 6px 16px rgba(238,60,48,.35)",
+                }}
+              >
+                SIMPAN ✓
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {pickerOpen && activeDate && (
