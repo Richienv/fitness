@@ -661,7 +661,7 @@ export default function MealHome() {
           style={{
             position: "fixed",
             inset: 0,
-            zIndex: 71,
+            zIndex: 200,
             background: "rgba(5,4,6,.72)",
             backdropFilter: "blur(4px)",
             display: "flex",
