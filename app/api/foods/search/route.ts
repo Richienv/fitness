@@ -74,52 +74,30 @@ export async function GET(req: Request) {
     const terms = expandAliases(q);
     const prefixLike = `${q}%`;
 
-    // Match = any expanded term is a name prefix OR trigram-similar (> 0.2).
-    // Rank = exact prefix first, then 'Olahan' boost, then best similarity.
+    // Substring (ILIKE) matching — no pg_trgm dependency, so it works whether
+    // or not the extension is enabled. Rank: name-prefix first, then a boost
+    // for the primary query being a prefix, then 'Olahan' dishes, then shorter
+    // (more specific) names, then alphabetical.
+    const anyMatch = Prisma.join(
+      terms.map((t) => Prisma.sql`f."nameNormalized" ILIKE ${`%${t}%`}`),
+      " OR "
+    );
+    const anyPrefix = Prisma.join(
+      terms.map((t) => Prisma.sql`f."nameNormalized" ILIKE ${`${t}%`}`),
+      " OR "
+    );
     const rows = await db.$queryRaw<SearchRow[]>(Prisma.sql`
-      WITH scored AS (
-        SELECT
-          f.id,
-          f."sourceCode",
-          f.name,
-          f.state,
-          f."foodGroup",
-          f.energy_kcal,
-          f.protein_g,
-          f.fat_g,
-          f.carb_g,
-          lower(f."nameNormalized") AS n
-        FROM "Food" f
-      ),
-      matched AS (
-        SELECT
-          s.*,
-          (s.n ILIKE ${prefixLike}) AS is_prefix,
-          GREATEST(${Prisma.join(
-            terms.map((t) => Prisma.sql`similarity(s.n, ${t})`),
-            ", "
-          )}) AS sim,
-          (s.state = 'Olahan') AS is_olahan
-        FROM scored s
-        WHERE
-          (${Prisma.join(
-            terms.map((t) => Prisma.sql`s.n ILIKE ${`${t}%`}`),
-            " OR "
-          )})
-          OR
-          (${Prisma.join(
-            terms.map((t) => Prisma.sql`similarity(s.n, ${t}) > 0.2`),
-            " OR "
-          )})
-      )
-      SELECT id, "sourceCode", name, state, "foodGroup",
-             energy_kcal, protein_g, fat_g, carb_g
-      FROM matched
+      SELECT
+        f.id, f."sourceCode", f.name, f.state, f."foodGroup",
+        f.energy_kcal, f.protein_g, f.fat_g, f.carb_g
+      FROM "Food" f
+      WHERE ${anyMatch}
       ORDER BY
-        is_prefix DESC,
-        is_olahan DESC,
-        sim DESC,
-        name ASC
+        (${anyPrefix}) DESC,
+        (f."nameNormalized" ILIKE ${prefixLike}) DESC,
+        (f.state = 'Olahan') DESC,
+        length(f.name) ASC,
+        f.name ASC
       LIMIT 30;
     `);
 
