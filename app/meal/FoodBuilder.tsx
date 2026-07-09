@@ -111,6 +111,7 @@ export default function FoodBuilder({
   // TKPI/DB food-composition search results for the current query, plus a
   // session cache so a picked DB food still resolves after the query clears.
   const [dbResults, setDbResults] = useState<BuilderFood[]>([]);
+  const [dbBrowse, setDbBrowse] = useState<BuilderFood[]>([]);
   const [dbCache, setDbCache] = useState<Record<string, BuilderFood>>({});
 
   // Persisted custom "libraries" load client-side (localStorage).
@@ -160,6 +161,40 @@ export default function FoodBuilder({
       clearTimeout(t);
     };
   }, [query, step]);
+
+  // Browse the DB library for the current step (no query needed) so the full
+  // TKPI catalogue is visible while scrolling, not only when searching.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/foods/search?group=${encodeURIComponent(STEPS[step].key)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        const rows: DbFoodRow[] = data?.data?.foods ?? [];
+        const mapped: BuilderFood[] = rows.map((f) => ({
+          id: f.sourceCode,
+          name: f.name,
+          unit: "100 g",
+          group: STEPS[step].key,
+          kcal: f.energy_kcal ?? 0,
+          protein: f.protein_g ?? 0,
+          fat: f.fat_g ?? 0,
+          carbs: f.carb_g ?? 0,
+          gramsPerUnit: 100,
+          step: 0.5,
+        }));
+        setDbBrowse(mapped);
+        setDbCache((c) => {
+          const next = { ...c };
+          for (const m of mapped) next[m.id] = m;
+          return next;
+        });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [step]);
 
   const stepDef = STEPS[step];
   const group = stepDef.key;
@@ -445,6 +480,9 @@ export default function FoodBuilder({
       sections.push(mk("dipilih", "✅", "DIPILIH", selectedDb, false, null));
     }
     sections.push(mk("usual", "⭐", "USUAL KAMU", favs, false, null));
+    if (dbBrowse.length) {
+      sections.push(mk("tkpidb", "🇮🇩", "DATABASE TKPI", dbBrowse, false, null));
+    }
     for (const g of groups) {
       const gFoods = g.foods.filter((f) => f.group === group).map(applyOv);
       sections.push(mk(g.id, g.emoji, g.name, gFoods, true, g.id));

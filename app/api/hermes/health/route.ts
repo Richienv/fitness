@@ -13,10 +13,15 @@ export async function GET(req: Request) {
   let dbOk = false;
   let dbError: string | null = null;
   let foodCount: number | null = null;
+  let foodSampleAyam: number | null = null;
   try {
     await db.$queryRaw`SELECT 1`;
     dbOk = true;
     foodCount = await db.food.count();
+    // Diagnostic: does an ILIKE name search return rows? (verifies search path)
+    foodSampleAyam = await db.food.count({
+      where: { nameNormalized: { contains: "ayam" } },
+    });
   } catch (e) {
     dbError = (e as Error).message.slice(0, 200);
   }
@@ -35,6 +40,7 @@ export async function GET(req: Request) {
         ownerConfigured: !!(await getHermesOwnerId()),
         db: { connected: dbOk, error: dbError },
         foodCount,
+        foodSampleAyam,
         deployedAt: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
       },
     },
