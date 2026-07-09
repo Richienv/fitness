@@ -50,6 +50,16 @@ function num(x: Prisma.Decimal | null): number | null {
   return x == null ? null : Number(x.toString());
 }
 
+// Builder step → TKPI food groups, so a step can BROWSE the DB library (not
+// just search it). Custom composite dishes ride along in the protein step.
+const STEP_GROUPS: Record<string, string[]> = {
+  protein: ["Daging", "Ikan dsb", "Telur", "Kacang", "Custom/Estimasi"],
+  carb: ["Serealia", "Umbi", "Buah", "Gula"],
+  vegetable: ["Sayur"],
+  extra: ["Lemak", "Bumbu"],
+  drink: ["Minuman", "Susu"],
+};
+
 export async function GET(req: Request) {
   try {
     const userId = await getUserId();
@@ -63,7 +73,11 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const raw = url.searchParams.get("q") ?? "";
     const q = normalize(raw);
-    if (q.length < 1) {
+    const groupKey = url.searchParams.get("group") ?? "";
+    const groups = STEP_GROUPS[groupKey];
+
+    // Need either a query or a valid group to return anything.
+    if (q.length < 1 && !groups) {
       return NextResponse.json(
         { ok: true, data: { foods: [] } },
         { headers: corsHeaders }
@@ -71,34 +85,48 @@ export async function GET(req: Request) {
     }
 
     // Expand via the alias map (e.g. "somay" → also "siomay", "siomai").
-    const terms = expandAliases(q);
+    const terms = q.length >= 1 ? expandAliases(q) : [];
     const prefixLike = `${q}%`;
 
     // Substring (ILIKE) matching — no pg_trgm dependency, so it works whether
-    // or not the extension is enabled. Rank: name-prefix first, then a boost
-    // for the primary query being a prefix, then 'Olahan' dishes, then shorter
-    // (more specific) names, then alphabetical.
-    const anyMatch = Prisma.join(
-      terms.map((t) => Prisma.sql`f."nameNormalized" ILIKE ${`%${t}%`}`),
-      " OR "
-    );
-    const anyPrefix = Prisma.join(
-      terms.map((t) => Prisma.sql`f."nameNormalized" ILIKE ${`${t}%`}`),
-      " OR "
-    );
+    // or not the extension is enabled. `group` (browse) filters by TKPI group;
+    // `q` (search) filters by name. Either or both may be present.
+    const clauses: Prisma.Sql[] = [];
+    if (terms.length) {
+      clauses.push(
+        Prisma.sql`(${Prisma.join(
+          terms.map((t) => Prisma.sql`f."nameNormalized" ILIKE ${`%${t}%`}`),
+          " OR "
+        )})`
+      );
+    }
+    if (groups) {
+      clauses.push(
+        Prisma.sql`f."foodGroup" IN (${Prisma.join(groups.map((g) => Prisma.sql`${g}`), ", ")})`
+      );
+    }
+    const where = Prisma.join(clauses, " AND ");
+    const anyPrefix = terms.length
+      ? Prisma.join(
+          terms.map((t) => Prisma.sql`f."nameNormalized" ILIKE ${`${t}%`}`),
+          " OR "
+        )
+      : Prisma.sql`false`;
+    const limit = groups && q.length < 1 ? 80 : 30;
+
     const rows = await db.$queryRaw<SearchRow[]>(Prisma.sql`
       SELECT
         f.id, f."sourceCode", f.name, f.state, f."foodGroup",
         f.energy_kcal, f.protein_g, f.fat_g, f.carb_g
       FROM "Food" f
-      WHERE ${anyMatch}
+      WHERE ${where}
       ORDER BY
         (${anyPrefix}) DESC,
         (f."nameNormalized" ILIKE ${prefixLike}) DESC,
         (f.state = 'Olahan') DESC,
         length(f.name) ASC,
         f.name ASC
-      LIMIT 30;
+      LIMIT ${limit};
     `);
 
     const foods = rows.map((r) => ({
