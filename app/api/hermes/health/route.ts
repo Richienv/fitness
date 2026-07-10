@@ -26,6 +26,14 @@ export async function GET(req: Request) {
     dbError = (e as Error).message.slice(0, 200);
   }
 
+  // Resolve owner separately so a DB failure here can't 500 the whole route.
+  let ownerConfigured = false;
+  try {
+    ownerConfigured = !!(await getHermesOwnerId());
+  } catch {
+    ownerConfigured = false;
+  }
+
   return NextResponse.json(
     {
       ok: true,
@@ -37,7 +45,7 @@ export async function GET(req: Request) {
           ? `${expected.slice(0, 4)}…${expected.slice(-4)}`
           : null,
         keyMatch: candidate ? candidate === expected : null,
-        ownerConfigured: !!(await getHermesOwnerId()),
+        ownerConfigured,
         db: { connected: dbOk, error: dbError },
         foodCount,
         foodSampleAyam,
