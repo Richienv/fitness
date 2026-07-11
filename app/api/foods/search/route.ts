@@ -56,7 +56,7 @@ const STEP_GROUPS: Record<string, string[]> = {
   protein: ["Daging", "Ikan dsb", "Telur", "Kacang", "Custom/Estimasi"],
   carb: ["Serealia", "Umbi", "Buah", "Gula"],
   vegetable: ["Sayur"],
-  extra: ["Lemak", "Bumbu"],
+  extra: ["Lemak", "Bumbu", "Kue/Dessert"],
   drink: ["Minuman", "Susu"],
 };
 

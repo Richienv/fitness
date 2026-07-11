@@ -43,6 +43,7 @@ interface SeedTask {
 const TASKS: SeedTask[] = [
   { file: "tkpi_2019_full.csv", source: "TKPI", prefix: "TKPI:" },
   { file: "custom_foods.csv", source: "CUSTOM", prefix: "CUSTOM:" },
+  { file: "desserts.csv", source: "CUSTOM", prefix: "DESSERT:" },
   // Optional — skipped silently if the file is absent.
   { file: "usda_foods.csv", source: "USDA", prefix: "USDA:" },
 ];
@@ -52,28 +53,9 @@ function toDecimal(x: number | null): Prisma.Decimal | null {
 }
 
 async function main() {
-  // Safe to run on every deploy: bail out if the DB isn't reachable (e.g. a
-  // build with no DATABASE_URL) and skip if already populated. Set SEED_FORCE=1
-  // to re-seed (idempotent upserts) after data changes.
-  let existing: number | null = null;
-  try {
-    existing = await db.food.count();
-  } catch {
-    console.log("ℹ  Food DB not reachable (no DATABASE_URL?) — skipping seed.");
-    return;
-  }
-  if (existing > 0 && !process.env.SEED_FORCE) {
-    console.log(
-      `ℹ  Food table already has ${existing} rows — skipping seed (set SEED_FORCE=1 to re-seed).`
-    );
-    return;
-  }
-
-  const counts: Record<string, number> = {};
-  let copperClamped = 0;
-  let atwaterFlags = 0;
-  const atwaterRows: string[] = [];
-
+  // Parse every source file up front so we know the expected total row count.
+  // A task file that is absent is fatal (except the optional USDA one).
+  const parsed: { task: SeedTask; rows: FoodRow[] }[] = [];
   for (const task of TASKS) {
     const path = join(DATA_DIR, task.file);
     if (!existsSync(path)) {
@@ -83,9 +65,41 @@ async function main() {
       }
       throw new Error(`Required data file missing: ${path}`);
     }
+    parsed.push({ task, rows: parseFoodCsv(readFileSync(path, "utf8")) });
+  }
+  const total = parsed.reduce((n, p) => n + p.rows.length, 0);
 
-    const rows = parseFoodCsv(readFileSync(path, "utf8"));
-    counts[task.source] = rows.length;
+  // Safe to run on every deploy: bail out if the DB isn't reachable (e.g. a
+  // build with no DATABASE_URL). Skip only when the table already holds at
+  // least as many rows as our sources define — so adding new foods (e.g. a new
+  // desserts CSV) re-seeds automatically on the next deploy. Upserts are
+  // idempotent; SEED_FORCE=1 always re-seeds regardless of counts.
+  let existing: number | null = null;
+  try {
+    existing = await db.food.count();
+  } catch {
+    console.log("ℹ  Food DB not reachable (no DATABASE_URL?) — skipping seed.");
+    return;
+  }
+  if (existing >= total && !process.env.SEED_FORCE) {
+    console.log(
+      `ℹ  Food table already has ${existing} rows (≥ ${total} defined) — skipping seed (set SEED_FORCE=1 to re-seed).`
+    );
+    return;
+  }
+  if (existing > 0) {
+    console.log(
+      `ℹ  Food table has ${existing} rows, sources define ${total} — re-seeding (idempotent upserts) to add new foods.`
+    );
+  }
+
+  const counts: Record<string, number> = {};
+  let copperClamped = 0;
+  let atwaterFlags = 0;
+  const atwaterRows: string[] = [];
+
+  for (const { task, rows } of parsed) {
+    counts[task.source] = (counts[task.source] ?? 0) + rows.length;
 
     for (const row of rows) {
       // Clamp copper before persisting; log every affected row.
