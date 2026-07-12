@@ -52,6 +52,8 @@ type BuilderFood = {
   sugar?: number;
   zh?: string;
   pinyin?: string;
+  englishName?: string;
+  foodGroup?: string;
   step?: number;
   gramsPerUnit?: number;
   favorite?: boolean;
@@ -61,10 +63,33 @@ type BuilderFood = {
 type DbFoodRow = {
   sourceCode: string;
   name: string;
+  nameEn?: string | null;
+  foodGroup?: string | null;
   energy_kcal: number | null;
   protein_g: number | null;
   fat_g: number | null;
   carb_g: number | null;
+};
+
+// Friendly header (emoji + label) for each food group, used to organize search
+// results into scannable sections instead of one long flat list.
+const GROUP_META: Record<string, { emoji: string; label: string }> = {
+  Susu: { emoji: "🥛", label: "SUSU & PLANT MILK" },
+  Minuman: { emoji: "🧋", label: "MINUMAN" },
+  Daging: { emoji: "🥩", label: "DAGING" },
+  "Ikan dsb": { emoji: "🐟", label: "IKAN & SEAFOOD" },
+  Telur: { emoji: "🥚", label: "TELUR" },
+  Kacang: { emoji: "🫘", label: "KACANG" },
+  "Masakan Nusantara": { emoji: "🍛", label: "MASAKAN & RESTO" },
+  "Custom/Estimasi": { emoji: "✍️", label: "CUSTOM" },
+  Serealia: { emoji: "🌾", label: "SEREALIA" },
+  Umbi: { emoji: "🥔", label: "UMBI" },
+  Buah: { emoji: "🍎", label: "BUAH" },
+  Gula: { emoji: "🍬", label: "GULA" },
+  Sayur: { emoji: "🥬", label: "SAYUR" },
+  Lemak: { emoji: "🧈", label: "LEMAK & MINYAK" },
+  Bumbu: { emoji: "🧂", label: "BUMBU" },
+  "Kue/Dessert": { emoji: "🍰", label: "KUE & DESSERT" },
 };
 
 type MacroPatch = {
@@ -138,6 +163,8 @@ export default function FoodBuilder({
           const mapped: BuilderFood[] = rows.map((f) => ({
             id: f.sourceCode,
             name: f.name,
+            englishName: f.nameEn ?? undefined,
+            foodGroup: f.foodGroup ?? undefined,
             unit: "100 g",
             group: STEPS[step].key,
             kcal: f.energy_kcal ?? 0,
@@ -174,6 +201,7 @@ export default function FoodBuilder({
         const mapped: BuilderFood[] = rows.map((f) => ({
           id: f.sourceCode,
           name: f.name,
+          englishName: f.nameEn ?? undefined,
           unit: "100 g",
           group: STEPS[step].key,
           kcal: f.energy_kcal ?? 0,
@@ -429,22 +457,70 @@ export default function FoodBuilder({
 
   let sections: Section[];
   if (q) {
-    // Local library matches + live DB (TKPI/custom/USDA) results.
-    const items = merged.filter(match).concat(dbResults);
-    sections = [
-      {
+    // Grouped search results — instead of one long flat list, split by food
+    // group so soy milks, protein dishes, drinks, etc. are scannable. Local
+    // "usual" matches lead; DB results follow, bucketed by category in
+    // best-score order (dbResults arrives already ranked).
+    sections = [];
+    const localMatches = merged.filter(match);
+    if (localMatches.length) {
+      const key = "search:usual";
+      const open = !collapsed[key];
+      sections.push({
+        key,
+        chev: open ? "▾" : "▸",
+        emoji: "⭐",
+        name: "USUAL KAMU",
+        countLabel: String(localMatches.length),
+        open,
+        canAdd: false,
+        onToggle: () => toggleSection(key),
+        onAddFood: () => {},
+        items: open ? localMatches : [],
+      });
+    }
+    // Bucket DB results by foodGroup, preserving first-seen (= best-score) order.
+    const order: string[] = [];
+    const buckets: Record<string, BuilderFood[]> = {};
+    for (const f of dbResults) {
+      const g = f.foodGroup || "Lainnya";
+      if (!buckets[g]) {
+        buckets[g] = [];
+        order.push(g);
+      }
+      buckets[g].push(f);
+    }
+    for (const g of order) {
+      const meta = GROUP_META[g] ?? { emoji: "🍽️", label: g.toUpperCase() };
+      const key = `search:${g}`;
+      const open = !collapsed[key];
+      sections.push({
+        key,
+        chev: open ? "▾" : "▸",
+        emoji: meta.emoji,
+        name: meta.label,
+        countLabel: String(buckets[g].length),
+        open,
+        canAdd: false,
+        onToggle: () => toggleSection(key),
+        onAddFood: () => {},
+        items: open ? buckets[g] : [],
+      });
+    }
+    if (!sections.length) {
+      sections.push({
         key: "search",
         chev: "▾",
         emoji: "🔎",
         name: "HASIL PENCARIAN",
-        countLabel: String(items.length),
+        countLabel: "0",
         open: true,
         canAdd: false,
         onToggle: () => {},
         onAddFood: () => {},
-        items,
-      },
-    ];
+        items: [],
+      });
+    }
   } else {
     const mk = (
       key: string,
@@ -634,6 +710,20 @@ export default function FoodBuilder({
             >
               {ing.name}
             </div>
+            {ing.englishName ? (
+              <div
+                style={{
+                  fontFamily: SANS,
+                  fontWeight: 600,
+                  fontSize: 12,
+                  color: "rgba(42,13,8,.55)",
+                  marginTop: 2,
+                  lineHeight: 1.1,
+                }}
+              >
+                {ing.englishName}
+              </div>
+            ) : null}
             <div
               style={{
                 fontFamily: MONO,
@@ -827,6 +917,21 @@ export default function FoodBuilder({
             >
               {ing.name}
             </div>
+            {ing.englishName ? (
+              <div
+                style={{
+                  fontFamily: SANS,
+                  fontSize: 11,
+                  color: "#9a938d",
+                  marginTop: 2,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {ing.englishName}
+              </div>
+            ) : null}
             <div
               style={{
                 fontFamily: MONO,

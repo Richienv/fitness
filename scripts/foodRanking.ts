@@ -68,6 +68,23 @@ function noteHead(note: string | null): string {
 }
 
 /**
+ * The English name of a dish, when the note carries one. Our structured notes
+ * (R2FIT library, drinks, café foods) are "<English name> · <serving> · conf:…";
+ * the English name is the first "·"-segment. Only such structured notes (they
+ * contain "conf:") are trusted — TKPI/dessert notes have no English name.
+ * Returns null when there's no distinct English name.
+ */
+export function extractNameEn(row: FoodRow): string | null {
+  const note = row.note ?? "";
+  if (!/·\s*conf:/i.test(note)) return null;
+  const first = (note.split("·")[0] ?? "").trim();
+  if (!first) return null;
+  // Don't echo the Indonesian name back.
+  if (normalizeName(first) === row.nameNormalized) return null;
+  return first;
+}
+
+/**
  * Build the persisted `searchText` recall bag for a row: normalized, punctuation
  * flattened to spaces, deduped-ish whitespace. Safe for ILIKE '%term%' matching.
  */

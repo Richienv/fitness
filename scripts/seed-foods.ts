@@ -18,7 +18,11 @@ import {
   NUTRIENT_KEYS,
   type FoodRow,
 } from "./foodCsv.ts";
-import { buildSearchText, computePopularity } from "./foodRanking.ts";
+import {
+  buildSearchText,
+  computePopularity,
+  extractNameEn,
+} from "./foodRanking.ts";
 
 const db = new PrismaClient();
 
@@ -83,8 +87,13 @@ async function main() {
   try {
     existing = await db.food.count();
     // Rows with an empty searchText haven't been indexed yet (new column, or a
-    // ranking-logic change). Their presence forces a re-seed to backfill.
-    missingIndex = await db.food.count({ where: { searchText: "" } });
+    // ranking-logic change). Rows whose note carries an English name but whose
+    // nameEn is still null need the bilingual backfill. Either forces a re-seed.
+    missingIndex =
+      (await db.food.count({ where: { searchText: "" } })) +
+      (await db.food.count({
+        where: { nameEn: null, note: { contains: "conf:" } },
+      }));
   } catch {
     console.log("ℹ  Food DB not reachable (no DATABASE_URL?) — skipping seed.");
     return;
@@ -160,6 +169,7 @@ async function main() {
         bddPct: row.bddPct,
         portionGCooked: toDecimal(row.portionGCooked),
         note: row.note,
+        nameEn: extractNameEn(row),
         // Persisted search index (see scripts/foodRanking.ts).
         searchText: buildSearchText(row),
         popularity: computePopularity(row, task.source),
