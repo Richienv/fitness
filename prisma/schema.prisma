@@ -177,10 +177,19 @@ model Food {
   portionGCooked Decimal?
   note           String?
 
+  // ─── Persisted search index (computed at seed time; see scripts/foodRanking) ─
+  // Recall bag: normalized name + English name + serving desc + group, so a
+  // query matches on more than the Indonesian name alone. Empty = not yet
+  // backfilled (the seed treats "" as a signal to re-index).
+  searchText String @default("")
+  // Static popularity prior — staples & high-confidence entries rank first.
+  popularity Int    @default(0)
+
   servings FoodServing[]
 
   @@index([nameNormalized])
   @@index([foodGroup])
+  @@index([popularity])
 }
 
 // Household-measure serving sizes for a Food. These are editable conventions
