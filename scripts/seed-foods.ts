@@ -18,6 +18,7 @@ import {
   NUTRIENT_KEYS,
   type FoodRow,
 } from "./foodCsv.ts";
+import { buildSearchText, computePopularity } from "./foodRanking.ts";
 
 const db = new PrismaClient();
 
@@ -76,21 +77,29 @@ async function main() {
   // desserts CSV) re-seeds automatically on the next deploy. Upserts are
   // idempotent; SEED_FORCE=1 always re-seeds regardless of counts.
   let existing: number | null = null;
+  let missingIndex = 0;
   try {
     existing = await db.food.count();
+    // Rows with an empty searchText haven't been indexed yet (new column, or a
+    // ranking-logic change). Their presence forces a re-seed to backfill.
+    missingIndex = await db.food.count({ where: { searchText: "" } });
   } catch {
     console.log("ℹ  Food DB not reachable (no DATABASE_URL?) — skipping seed.");
     return;
   }
-  if (existing >= total && !process.env.SEED_FORCE) {
+  if (existing >= total && missingIndex === 0 && !process.env.SEED_FORCE) {
     console.log(
-      `ℹ  Food table already has ${existing} rows (≥ ${total} defined) — skipping seed (set SEED_FORCE=1 to re-seed).`
+      `ℹ  Food table already has ${existing} rows (≥ ${total} defined) and is fully indexed — skipping seed (set SEED_FORCE=1 to re-seed).`
     );
     return;
   }
   if (existing > 0) {
+    const why =
+      missingIndex > 0
+        ? `${missingIndex} rows need (re)indexing`
+        : `sources define ${total}`;
     console.log(
-      `ℹ  Food table has ${existing} rows, sources define ${total} — re-seeding (idempotent upserts) to add new foods.`
+      `ℹ  Food table has ${existing} rows, ${why} — re-seeding (idempotent upserts).`
     );
   }
 
@@ -149,6 +158,9 @@ async function main() {
         bddPct: row.bddPct,
         portionGCooked: toDecimal(row.portionGCooked),
         note: row.note,
+        // Persisted search index (see scripts/foodRanking.ts).
+        searchText: buildSearchText(row),
+        popularity: computePopularity(row, task.source),
         ...nutrientData,
       };
 
@@ -168,7 +180,10 @@ async function main() {
     await db.$executeRawUnsafe(
       `CREATE INDEX IF NOT EXISTS food_name_trgm ON "Food" USING gin (lower("nameNormalized") gin_trgm_ops);`
     );
-    console.log("✓ pg_trgm extension + food_name_trgm GIN index ensured.");
+    await db.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS food_searchtext_trgm ON "Food" USING gin (lower("searchText") gin_trgm_ops);`
+    );
+    console.log("✓ pg_trgm extension + food name/searchText GIN indexes ensured.");
   } catch (e) {
     console.warn(
       `⚠  Could not create pg_trgm extension / index (search will still work via ILIKE): ${(e as Error).message}`
