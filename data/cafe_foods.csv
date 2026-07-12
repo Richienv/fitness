@@ -1,0 +1,26 @@
+code,name,energy_kcal,protein_g,fat_g,carb_g,calcium_mg,bdd_pct,state,group,portion_g_cooked,note
+JP001,Sushi salmon (nigiri),140,12.0,3.5,16.0,,100,Olahan,Masakan Nusantara,40,Salmon nigiri (rice + salmon) · per 100g · conf:med · Estimasi
+JP002,Salmon sashimi,180,20.0,11.0,0.0,,100,Olahan,Masakan Nusantara,60,Raw salmon slices · per 100g · conf:high · Estimasi
+JP003,Salmon panggang (grilled salmon),206,22.0,13.0,0.0,,100,Olahan,Masakan Nusantara,120,Grilled salmon fillet · per 100g · conf:high · Estimasi
+JP004,Salmon teriyaki,200,21.0,10.0,6.0,,100,Olahan,Masakan Nusantara,120,Salmon in teriyaki glaze · per 100g · conf:med · Estimasi
+JP005,Salmon poke bowl,150,12.0,5.0,14.0,,100,Olahan,Masakan Nusantara,300,Salmon + rice + veg bowl · per 100g · conf:med · Estimasi
+JP006,California roll,130,5.0,3.0,20.0,,100,Olahan,Masakan Nusantara,120,Crab/surimi + avocado maki · per 100g · conf:med · Estimasi
+JP007,Salmon roll / maki,145,8.0,4.0,20.0,,100,Olahan,Masakan Nusantara,120,Salmon maki roll · per 100g · conf:med · Estimasi
+JP008,Sushi tuna (maguro nigiri),130,12.0,1.5,17.0,,100,Olahan,Masakan Nusantara,40,Tuna nigiri · per 100g · conf:med · Estimasi
+JP009,Tuna sashimi,110,24.0,1.0,0.0,,100,Olahan,Masakan Nusantara,60,Raw tuna slices · per 100g · conf:high · Estimasi
+JP010,Ebi tempura (udang),245,12.0,13.0,20.0,,100,Olahan,Masakan Nusantara,90,Prawn tempura · per 100g · conf:med · Estimasi
+JP011,Chicken teriyaki,190,18.0,8.0,10.0,,100,Olahan,Masakan Nusantara,150,Chicken in teriyaki sauce · per 100g · conf:high · Estimasi
+JP012,Chicken katsu,260,16.0,15.0,15.0,,100,Olahan,Masakan Nusantara,150,Breaded fried chicken cutlet · per 100g · conf:high · Estimasi
+JP013,Chicken karaage,270,17.0,17.0,12.0,,100,Olahan,Masakan Nusantara,120,Japanese fried chicken · per 100g · conf:med · Estimasi
+JP014,Edamame (rebus),121,11.0,5.0,9.0,,100,Olahan,Masakan Nusantara,100,Boiled soybeans · per 100g · conf:high · Estimasi
+JP015,Miso soup,40,3.0,1.5,4.0,,100,Olahan,Masakan Nusantara,200,Miso soup · per 100g · conf:high · Estimasi
+JP016,Gyoza (pan-fried),210,8.0,11.0,19.0,,100,Olahan,Masakan Nusantara,90,Pan-fried dumplings · per 100g · conf:med · Estimasi
+JP017,Ramen (with broth),145,6.0,5.0,18.0,,100,Olahan,Masakan Nusantara,500,Ramen noodle soup · per 100g · conf:med · Estimasi
+JP018,Udon,130,4.5,1.0,26.0,,100,Olahan,Masakan Nusantara,400,Udon noodles · per 100g · conf:med · Estimasi
+JP019,Onigiri (rice ball),170,3.0,1.5,35.0,,100,Olahan,Masakan Nusantara,110,Rice ball · per 100g · conf:high · Estimasi
+JP020,Chicken teriyaki don (rice bowl),165,9.0,4.5,22.0,,100,Olahan,Masakan Nusantara,350,Teriyaki chicken rice bowl · per 100g · conf:med · Estimasi
+JP021,Beef yakiniku,210,18.0,14.0,4.0,,100,Olahan,Masakan Nusantara,150,Grilled marinated beef · per 100g · conf:med · Estimasi
+JP022,Takoyaki,180,6.0,9.0,19.0,,100,Olahan,Masakan Nusantara,120,Octopus balls · per 100g · conf:med · Estimasi
+JP023,Dorayaki,280,6.0,5.0,53.0,,100,Olahan,Masakan Nusantara,80,Red-bean pancake dessert · per 100g · conf:med · Estimasi
+JP024,Katsu curry (chicken),190,10.0,9.0,18.0,,100,Olahan,Masakan Nusantara,400,Chicken katsu + Japanese curry rice · per 100g · conf:med · Estimasi
+JP025,Unagi (grilled eel),235,19.0,15.0,4.0,,100,Olahan,Masakan Nusantara,100,Grilled eel w/ sauce · per 100g · conf:med · Estimasi
