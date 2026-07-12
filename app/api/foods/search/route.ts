@@ -41,6 +41,7 @@ interface SearchRow {
   id: string;
   sourceCode: string;
   name: string;
+  nameEn: string | null;
   state: string | null;
   foodGroup: string | null;
   energy_kcal: Prisma.Decimal | null;
@@ -54,6 +55,7 @@ interface SearchFood {
   id: string;
   sourceCode: string;
   name: string;
+  nameEn: string | null;
   state: string | null;
   foodGroup: string | null;
   energy_kcal: number | null;
@@ -158,14 +160,18 @@ export async function GET(req: Request) {
       Prisma.sql`${col} ILIKE ${pat}`;
     const nameCol = Prisma.sql`f."nameNormalized"`;
     const textCol = Prisma.sql`f."searchText"`;
+    // English name, lowercased for matching (null → '').
+    const enCol = Prisma.sql`lower(COALESCE(f."nameEn", ''))`;
     const orOver = (frags: Prisma.Sql[]) =>
       frags.length ? Prisma.join(frags, " OR ") : Prisma.sql`false`;
 
-    // WHERE: any alias term appears in the name or the search index.
+    // WHERE: any alias term appears in the Indonesian name, the English name, or
+    // the search index — so a query in either language finds the row.
     const clauses: Prisma.Sql[] = [];
     if (terms.length) {
       const nameOrText = terms.flatMap((t) => [
         like(nameCol, `%${t}%`),
+        like(enCol, `%${t}%`),
         like(textCol, `%${t}%`),
       ]);
       clauses.push(Prisma.sql`(${orOver(nameOrText)})`);
@@ -184,24 +190,33 @@ export async function GET(req: Request) {
 
     // Weighted relevance score. Each tier uses GREATEST over alias terms via OR
     // (a CASE that fires once), so aliases never double-count.
+    // A query word counts if it appears in the Indonesian OR the English name.
     const wordBonus = words.length
       ? Prisma.join(
           words.map(
             (w) =>
-              Prisma.sql`(CASE WHEN ${like(nameCol, `%${w}%`)} THEN 40 ELSE 0 END)`
+              Prisma.sql`(CASE WHEN ${like(nameCol, `%${w}%`)} OR ${like(enCol, `%${w}%`)} THEN 40 ELSE 0 END)`
           ),
           " + "
         )
       : Prisma.sql`0`;
 
+    // Both names are scored at parallel tiers (English a hair below Indonesian),
+    // so typing either language surfaces the row near the top.
     const scoreExpr = hasQuery
       ? Prisma.sql`(
           (CASE WHEN ${nameCol} = ${q} THEN 1000 ELSE 0 END)
+          + (CASE WHEN ${enCol} = ${q} THEN 900 ELSE 0 END)
           + (CASE WHEN (${orOver(terms.map((t) => like(nameCol, `${t}%`)))}) THEN 500 ELSE 0 END)
+          + (CASE WHEN (${orOver(terms.map((t) => like(enCol, `${t}%`)))}) THEN 450 ELSE 0 END)
           + (CASE WHEN (${orOver(
             terms.map((t) => Prisma.sql`(' ' || ${nameCol} || ' ') ILIKE ${`% ${t} %`}`)
           )}) THEN 250 ELSE 0 END)
+          + (CASE WHEN (${orOver(
+            terms.map((t) => Prisma.sql`(' ' || ${enCol} || ' ') ILIKE ${`% ${t} %`}`)
+          )}) THEN 230 ELSE 0 END)
           + (CASE WHEN (${orOver(terms.map((t) => like(nameCol, `%${t}%`)))}) THEN 120 ELSE 0 END)
+          + (CASE WHEN (${orOver(terms.map((t) => like(enCol, `%${t}%`)))}) THEN 110 ELSE 0 END)
           + (CASE WHEN (${orOver(terms.map((t) => like(textCol, `%${t}%`)))}) THEN 60 ELSE 0 END)
           + (${wordBonus})
           + (CASE WHEN f.state = 'Olahan' THEN 30 ELSE 0 END)
@@ -213,7 +228,7 @@ export async function GET(req: Request) {
 
     const rows = await db.$queryRaw<SearchRow[]>(Prisma.sql`
       SELECT
-        f.id, f."sourceCode", f.name, f.state, f."foodGroup",
+        f.id, f."sourceCode", f.name, f."nameEn", f.state, f."foodGroup",
         f.energy_kcal, f.protein_g, f.fat_g, f.carb_g,
         ${scoreExpr} AS score
       FROM "Food" f
@@ -226,6 +241,7 @@ export async function GET(req: Request) {
       id: r.id,
       sourceCode: r.sourceCode,
       name: r.name,
+      nameEn: r.nameEn,
       state: r.state,
       foodGroup: r.foodGroup,
       energy_kcal: num(r.energy_kcal),

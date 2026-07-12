@@ -7,7 +7,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseFoodCsv, type FoodRow } from "./foodCsv.ts";
-import { buildSearchText, computePopularity } from "./foodRanking.ts";
+import {
+  buildSearchText,
+  computePopularity,
+  extractNameEn,
+} from "./foodRanking.ts";
 
 const DATA = join(process.cwd(), "data");
 const lib = parseFoodCsv(readFileSync(join(DATA, "r2fit_library.csv"), "utf8"));
@@ -43,6 +47,33 @@ test("low-confidence rows are penalized vs high-confidence", () => {
   const high = computePopularity(byCode("kt-roti-bakar-srikaya-butter"), "CUSTOM"); // conf:high
   const low = computePopularity(byCode("bp-saus-gota"), "CUSTOM"); // conf:low
   assert.ok(high > low);
+});
+
+test("extractNameEn pulls the English name from structured notes only", () => {
+  // R2FIT row: note is "<English> · <serving> · conf:… · …"
+  assert.equal(
+    extractNameEn(byCode("kb-bolo-bun")),
+    "Pineapple Bun (plain)"
+  );
+  assert.equal(
+    extractNameEn(byCode("kt-roti-bakar-srikaya-butter")),
+    "Kaya Butter Toast"
+  );
+});
+
+test("extractNameEn returns null for unstructured (dessert/TKPI) notes", () => {
+  const fake = {
+    code: "X",
+    name: "Bolu",
+    nameNormalized: "bolu",
+    state: "Olahan",
+    foodGroup: "Kue/Dessert",
+    bddPct: 100,
+    portionGCooked: null,
+    note: "Estimasi per 100g: tepung, telur, gula.",
+    nutrients: {},
+  } as unknown as FoodRow;
+  assert.equal(extractNameEn(fake), null);
 });
 
 test("popularity is never negative", () => {

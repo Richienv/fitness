@@ -176,6 +176,9 @@ model Food {
   // Custom foods only: cooked weight of one conventional portion.
   portionGCooked Decimal?
   note           String?
+  // English name, when the source carries one (R2FIT library, drinks, café).
+  // Used for bilingual search + display; null for TKPI/dessert rows.
+  nameEn         String?
 
   // ─── Persisted search index (computed at seed time; see scripts/foodRanking) ─
   // Recall bag: normalized name + English name + serving desc + group, so a

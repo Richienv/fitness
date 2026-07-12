@@ -52,6 +52,7 @@ type BuilderFood = {
   sugar?: number;
   zh?: string;
   pinyin?: string;
+  englishName?: string;
   step?: number;
   gramsPerUnit?: number;
   favorite?: boolean;
@@ -61,6 +62,7 @@ type BuilderFood = {
 type DbFoodRow = {
   sourceCode: string;
   name: string;
+  nameEn?: string | null;
   energy_kcal: number | null;
   protein_g: number | null;
   fat_g: number | null;
@@ -138,6 +140,7 @@ export default function FoodBuilder({
           const mapped: BuilderFood[] = rows.map((f) => ({
             id: f.sourceCode,
             name: f.name,
+            englishName: f.nameEn ?? undefined,
             unit: "100 g",
             group: STEPS[step].key,
             kcal: f.energy_kcal ?? 0,
@@ -174,6 +177,7 @@ export default function FoodBuilder({
         const mapped: BuilderFood[] = rows.map((f) => ({
           id: f.sourceCode,
           name: f.name,
+          englishName: f.nameEn ?? undefined,
           unit: "100 g",
           group: STEPS[step].key,
           kcal: f.energy_kcal ?? 0,
@@ -634,6 +638,20 @@ export default function FoodBuilder({
             >
               {ing.name}
             </div>
+            {ing.englishName ? (
+              <div
+                style={{
+                  fontFamily: SANS,
+                  fontWeight: 600,
+                  fontSize: 12,
+                  color: "rgba(42,13,8,.55)",
+                  marginTop: 2,
+                  lineHeight: 1.1,
+                }}
+              >
+                {ing.englishName}
+              </div>
+            ) : null}
             <div
               style={{
                 fontFamily: MONO,
@@ -827,6 +845,21 @@ export default function FoodBuilder({
             >
               {ing.name}
             </div>
+            {ing.englishName ? (
+              <div
+                style={{
+                  fontFamily: SANS,
+                  fontSize: 11,
+                  color: "#9a938d",
+                  marginTop: 2,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {ing.englishName}
+              </div>
+            ) : null}
             <div
               style={{
                 fontFamily: MONO,
