@@ -53,7 +53,14 @@ function num(x: Prisma.Decimal | null): number | null {
 // Builder step → TKPI food groups, so a step can BROWSE the DB library (not
 // just search it). Custom composite dishes ride along in the protein step.
 const STEP_GROUPS: Record<string, string[]> = {
-  protein: ["Daging", "Ikan dsb", "Telur", "Kacang", "Custom/Estimasi"],
+  protein: [
+    "Daging",
+    "Ikan dsb",
+    "Telur",
+    "Kacang",
+    "Custom/Estimasi",
+    "Masakan Nusantara",
+  ],
   carb: ["Serealia", "Umbi", "Buah", "Gula"],
   vegetable: ["Sayur"],
   extra: ["Lemak", "Bumbu", "Kue/Dessert"],

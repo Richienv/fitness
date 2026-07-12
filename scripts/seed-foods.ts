@@ -44,6 +44,7 @@ const TASKS: SeedTask[] = [
   { file: "tkpi_2019_full.csv", source: "TKPI", prefix: "TKPI:" },
   { file: "custom_foods.csv", source: "CUSTOM", prefix: "CUSTOM:" },
   { file: "desserts.csv", source: "CUSTOM", prefix: "DESSERT:" },
+  { file: "r2fit_library.csv", source: "CUSTOM", prefix: "R2LIB:" },
   // Optional — skipped silently if the file is absent.
   { file: "usda_foods.csv", source: "USDA", prefix: "USDA:" },
 ];
