@@ -17,6 +17,7 @@ export type SessionType =
   | "FEM_LOWER_B"
   | "FEM_UPPER_B"
   | "FEM_LOWER_C"
+  | "FEM_ARMS"
   | "FEM_REST";
 
 export type ExerciseDef = {
@@ -57,8 +58,8 @@ export type SessionDef = {
 export const SESSIONS: SessionDef[] = [
   {
     id: "PUSH_A",
-    name: "PUSH A",
-    focus: "CHEST FOCUS",
+    name: "BESARIN DADA",
+    focus: "DADA · PRIA",
     blurb: "Bench · Incline · OHP · Dips",
     aesthetic: "Thicker chest, shirt-filling upper body, sharper triceps line",
     recommendedDays: [1],
@@ -76,8 +77,8 @@ export const SESSIONS: SessionDef[] = [
   },
   {
     id: "PULL_A",
-    name: "PULL A",
-    focus: "BACK WIDTH",
+    name: "LEBARIN PUNGGUNG",
+    focus: "V-TAPER · PRIA",
     blurb: "Pulldown · Row · Curl",
     aesthetic: "Wider lats for the V-taper, fuller biceps peak, broader frame",
     recommendedDays: [2],
@@ -95,8 +96,8 @@ export const SESSIONS: SessionDef[] = [
   },
   {
     id: "LEGS",
-    name: "LEGS + ABS",
-    focus: "LOWER BODY",
+    name: "GEDEIN KAKI",
+    focus: "KAKI + PERUT",
     blurb: "Squat · RDL · Press · Crunch",
     aesthetic: "Defined quads and glutes, tighter waist, athletic proportions",
     recommendedDays: [4],
@@ -115,8 +116,8 @@ export const SESSIONS: SessionDef[] = [
   },
   {
     id: "PUSH_B",
-    name: "PUSH B",
-    focus: "SHOULDER FOCUS",
+    name: "LEBARIN BAHU",
+    focus: "BAHU · PRIA",
     blurb: "OHP · Lateral · Incline",
     aesthetic: "Capped 3D delts, broader shoulders, that wide-shoulder silhouette",
     recommendedDays: [5],
@@ -134,8 +135,8 @@ export const SESSIONS: SessionDef[] = [
   },
   {
     id: "PULL_B",
-    name: "PULL B",
-    focus: "BACK THICKNESS",
+    name: "TEBELIN PUNGGUNG",
+    focus: "PUNGGUNG TEBAL · PRIA",
     blurb: "Deadlift · Row · Pulldown",
     aesthetic: "Dense rear delts and traps, deeper back from the side, stronger posture",
     recommendedDays: [6, 0],
@@ -155,8 +156,8 @@ export const SESSIONS: SessionDef[] = [
   // ============ Female default program (glute-priority) ============
   {
     id: "FEM_LOWER_A",
-    name: "LOWER A",
-    focus: "GLUTE STRENGTH",
+    name: "GEDEIN GLUTES",
+    focus: "GLUTES · WANITA",
     blurb: "Hip Thrust · RDL · Split Squat · Kickback",
     aesthetic: "Rounder, stronger glutes and hamstrings — heavy hinge work with progressive overload week to week.",
     program: "female_default",
@@ -174,8 +175,8 @@ export const SESSIONS: SessionDef[] = [
   },
   {
     id: "FEM_UPPER_A",
-    name: "UPPER A",
-    focus: "BACK + SHOULDERS",
+    name: "KENCENGIN BADAN ATAS",
+    focus: "PUNGGUNG + BAHU · WANITA",
     blurb: "Pulldown · DB Press · Row · Arms · Core",
     aesthetic: "Toned upper back and shoulders that balance the lower body — steady strength gains, no bulk required.",
     program: "female_default",
@@ -194,8 +195,8 @@ export const SESSIONS: SessionDef[] = [
   },
   {
     id: "FEM_CARDIO",
-    name: "CARDIO",
-    focus: "ZONE 2",
+    name: "BAKAR LEMAK",
+    focus: "CARDIO ZONE 2 · WANITA",
     blurb: "Incline treadmill walk — steady-state zone-2 cardio at 12% incline / 5 km/h to build an aerobic base without burning out your legs.",
     aesthetic: "Improved conditioning and recovery that supports your lifting days — easy, sustainable steady-state effort.",
     program: "female_default",
@@ -209,8 +210,8 @@ export const SESSIONS: SessionDef[] = [
   },
   {
     id: "FEM_LOWER_B",
-    name: "LOWER B",
-    focus: "QUAD + GLUTE",
+    name: "BENTUK PAHA & GLUTES",
+    focus: "PAHA + GLUTES · WANITA",
     blurb: "Squat · Walking Lunge · Leg Press · Leg Curl · Calf",
     aesthetic: "Shapely quads and glutes with an athletic lower body — squat-led strength that adds load over time.",
     program: "female_default",
@@ -228,8 +229,8 @@ export const SESSIONS: SessionDef[] = [
   },
   {
     id: "FEM_UPPER_B",
-    name: "UPPER B",
-    focus: "PULL + PUSH",
+    name: "POSTUR & BADAN ATAS",
+    focus: "PULL + PUSH · WANITA",
     blurb: "Pull-up · Incline Press · Lateral · Face Pull",
     aesthetic: "A strong, defined upper body and healthy posture — building real pulling strength with progressive overload.",
     program: "female_default",
@@ -246,8 +247,8 @@ export const SESSIONS: SessionDef[] = [
   },
   {
     id: "FEM_LOWER_C",
-    name: "LOWER C",
-    focus: "GLUTE PUMP",
+    name: "GLUTE PUMP",
+    focus: "GLUTES · PUMP · WANITA",
     blurb: "Light Hip Thrust · Back Ext · Sumo Goblet · Abduction · Stairs",
     aesthetic: "A higher-rep glute pump session for shape and endurance — lighter loads, controlled reps, and metabolic burn.",
     program: "female_default",
@@ -264,9 +265,31 @@ export const SESSIONS: SessionDef[] = [
     ],
   },
   {
+    id: "FEM_ARMS",
+    name: "KENCENGIN TANGAN",
+    focus: "LENGAN · WANITA",
+    blurb: "Pushdown · OH Extension · Lateral · Curl · Walk",
+    aesthetic:
+      "Lengan lebih kencang dan padat, bahu berbentuk — beban ringan reps tinggi plus finisher cardio biar toned, bukan bulk.",
+    program: "female_default",
+    // Optional add-on day — selectable any time, not tied to the weekly split.
+    recommendedDays: [],
+    recommendedLabel: "Opsional",
+    dayLabel: "OPSIONAL",
+    primaryMuscles: ["tricep", "bicep", "sideDelt"],
+    exercises: [
+      { name: "Tricep Rope Pushdown",      sets: 3, repsLabel: "15",     targetReps: 15, increment: 2.5, restSec: 45, primary: ["tricep"],   secondary: [] },
+      { name: "Overhead Tricep Extension", sets: 3, repsLabel: "12-15",  targetReps: 13, increment: 2.5, restSec: 45, primary: ["tricep"],   secondary: [] },
+      { name: "DB Lateral Raise",          sets: 3, repsLabel: "15",     targetReps: 15, increment: 1,   restSec: 45, primary: ["sideDelt"], secondary: [] },
+      { name: "DB Bicep Curl",             sets: 3, repsLabel: "12-15",  targetReps: 13, increment: 1,   restSec: 45, primary: ["bicep"],    secondary: [] },
+      { name: "Cable Hammer Curl",         sets: 2, repsLabel: "15",     targetReps: 15, increment: 1,   restSec: 45, primary: ["bicep"],    secondary: [] },
+      { name: "Incline Treadmill Walk",    sets: 1, repsLabel: "15 min", targetReps: 15, increment: 0,   restSec: 0,  primary: ["quad"],     secondary: ["calf", "glute"] },
+    ],
+  },
+  {
     id: "FEM_REST",
-    name: "REST",
-    focus: "RECOVERY",
+    name: "ISTIRAHAT AKTIF",
+    focus: "RECOVERY · WANITA",
     blurb: "Rest day — aim for 8–10k steps to stay active and let your glutes and legs recover for the next training block.",
     aesthetic: "Active recovery that keeps you moving and supports progress — walking, not lifting.",
     program: "female_default",
