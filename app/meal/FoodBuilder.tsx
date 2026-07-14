@@ -104,12 +104,23 @@ type Editing = {
   mode: "edit" | "new";
   id: string | null;
   name: string;
+  // Serving totals (what the user sees / eats for this portion).
   kcal: number;
   protein: number;
   carbs: number;
   fat: number;
+  // Portion the totals correspond to, and the per-unit density used to keep
+  // grams ↔ kcal ↔ macros consistent. gramsPerUnit is 100 for DB foods.
+  grams: number;
+  gramsPerUnit: number;
+  densityKcal: number;
+  densityProtein: number;
+  densityCarbs: number;
+  densityFat: number;
   groupId?: string | null;
 };
+
+const round1 = (x: number) => Math.round(x * 10) / 10;
 
 export default function FoodBuilder({
   meal,
@@ -172,7 +183,7 @@ export default function FoodBuilder({
             fat: f.fat_g ?? 0,
             carbs: f.carb_g ?? 0,
             gramsPerUnit: 100,
-            step: 0.5,
+            step: 0.1, // ±10 g nudges (gramsPerUnit 100)
           }));
           setDbResults(mapped);
           setDbCache((c) => {
@@ -209,7 +220,7 @@ export default function FoodBuilder({
           fat: f.fat_g ?? 0,
           carbs: f.carb_g ?? 0,
           gramsPerUnit: 100,
-          step: 0.5,
+          step: 0.1, // ±10 g nudges (gramsPerUnit 100)
         }));
         setDbBrowse(mapped);
         setDbCache((c) => {
@@ -261,14 +272,14 @@ export default function FoodBuilder({
     const st = (ing && ing.step) || 1;
     setSelection((sel) => ({
       ...sel,
-      [id]: Math.round(((sel[id] || 0) + st) * 100) / 100,
+      [id]: Math.round(((sel[id] || 0) + st) * 1000) / 1000,
     }));
   };
   const bSub = (id: string) => {
     const ing = bIng(id);
     const st = (ing && ing.step) || 1;
     setSelection((sel) => {
-      const after = Math.round(((sel[id] || 0) - st) * 100) / 100;
+      const after = Math.round(((sel[id] || 0) - st) * 1000) / 1000;
       const next = { ...sel };
       if (after <= 0) delete next[id];
       else next[id] = after;
@@ -338,38 +349,107 @@ export default function FoodBuilder({
   const openEdit = (id: string) => {
     const ing = bIng(id);
     if (!ing) return;
+    // Density = the food's current per-unit (per-100 g for DB foods) macros.
+    const gpu = ing.gramsPerUnit ?? 100;
+    const curQty = selection[id] || 1; // default to one unit if not yet added
+    const grams = round1(curQty * gpu);
     setEditing({
       mode: "edit",
       id,
       name: ing.name,
-      kcal: ing.kcal,
-      protein: ing.protein,
-      carbs: ing.carbs,
-      fat: ing.fat,
+      grams,
+      gramsPerUnit: gpu,
+      densityKcal: ing.kcal,
+      densityProtein: ing.protein,
+      densityCarbs: ing.carbs,
+      densityFat: ing.fat,
+      kcal: round1(ing.kcal * curQty),
+      protein: round1(ing.protein * curQty),
+      carbs: round1(ing.carbs * curQty),
+      fat: round1(ing.fat * curQty),
     });
   };
   const openNewFood = (groupId: string | null = null) =>
-    setEditing({ mode: "new", id: null, name: "", kcal: 0, protein: 0, carbs: 0, fat: 0, groupId });
-  const editAdj = (key: "kcal" | "protein" | "carbs" | "fat", d: number) =>
+    setEditing({
+      mode: "new",
+      id: null,
+      name: "",
+      kcal: 0,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+      grams: 100,
+      gramsPerUnit: 100,
+      densityKcal: 0,
+      densityProtein: 0,
+      densityCarbs: 0,
+      densityFat: 0,
+      groupId,
+    });
+
+  // Portion is the anchor: typing grams recomputes kcal + macros from density.
+  const editSetGrams = (grams: number) =>
     setEditing((e) => {
       if (!e) return e;
-      const st = key === "kcal" ? 10 : 1;
-      return { ...e, [key]: Math.max(0, Math.round((e[key] + d * st) * 10) / 10) };
+      const g = Math.max(0, Math.min(5000, grams));
+      const f = g / (e.gramsPerUnit || 100);
+      return {
+        ...e,
+        grams: g,
+        kcal: round1(e.densityKcal * f),
+        protein: round1(e.densityProtein * f),
+        carbs: round1(e.densityCarbs * f),
+        fat: round1(e.densityFat * f),
+      };
     });
+  // Editing total calories back-solves grams at the current density, then
+  // rescales macros. If energy is unknown (density 0), just set kcal.
+  const editSetKcal = (kcal: number) =>
+    setEditing((e) => {
+      if (!e) return e;
+      const k = Math.max(0, kcal);
+      if (e.densityKcal > 0) {
+        const g = Math.min(5000, (k / e.densityKcal) * (e.gramsPerUnit || 100));
+        const f = g / (e.gramsPerUnit || 100);
+        return {
+          ...e,
+          kcal: k,
+          grams: round1(g),
+          protein: round1(e.densityProtein * f),
+          carbs: round1(e.densityCarbs * f),
+          fat: round1(e.densityFat * f),
+        };
+      }
+      return { ...e, kcal: k };
+    });
+  // Set a serving field directly (used for macros in both modes, and for kcal
+  // in "new food" mode where there's no density to back-solve from).
+  const editSetField = (
+    key: "kcal" | "protein" | "carbs" | "fat",
+    val: number
+  ) => setEditing((e) => (e ? { ...e, [key]: Math.max(0, val) } : e));
   const editSave = () => {
     setEditing((e) => {
       if (!e) return null;
       if (e.mode === "edit" && e.id) {
+        const gpu = e.gramsPerUnit || 100;
+        const qty = e.grams > 0 ? Math.round((e.grams / gpu) * 1000) / 1000 : 0;
+        if (qty <= 0) return null;
+        const id = e.id;
+        // Store per-unit macros (serving ÷ qty) so the card's `macro × qty`
+        // math reproduces exactly the serving the user configured.
         setOverrides((ov) => ({
           ...ov,
-          [e.id as string]: {
+          [id]: {
             name: e.name,
-            kcal: e.kcal,
-            protein: e.protein,
-            carbs: e.carbs,
-            fat: e.fat,
+            kcal: e.kcal / qty,
+            protein: e.protein / qty,
+            carbs: e.carbs / qty,
+            fat: e.fat / qty,
           },
         }));
+        // Reflect the chosen portion in the selection (adds it if not present).
+        setSelection((sel) => ({ ...sel, [id]: qty }));
         return null;
       }
       // new custom food
@@ -418,6 +498,12 @@ export default function FoodBuilder({
       protein: 0,
       carbs: 0,
       fat: 0,
+      grams: 100,
+      gramsPerUnit: 100,
+      densityKcal: 0,
+      densityProtein: 0,
+      densityCarbs: 0,
+      densityFat: 0,
       groupId: g.id,
     });
   };
@@ -1476,84 +1562,153 @@ export default function FoodBuilder({
                 margin: "18px 0 10px",
               }}
             >
-              PER PORSI
+              {editing.mode === "edit" ? "PORSI & GIZI" : "PER PORSI"}
             </div>
-            {(
-              [
-                ["KALORI", "kcal", Math.round(editing.kcal)],
-                ["PROTEIN (g)", "protein", Math.round(editing.protein)],
-                ["KARBO (g)", "carbs", Math.round(editing.carbs)],
-                ["LEMAK (g)", "fat", Math.round(editing.fat)],
-              ] as [string, "kcal" | "protein" | "carbs" | "fat", number][]
-            ).map(([label, key, val], i, arr) => (
+            {editing.mode === "edit" && (
               <div
-                key={key}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: i === arr.length - 1 ? 4 : 11,
+                  fontFamily: MONO,
+                  fontSize: 9,
+                  color: "#6a6660",
+                  marginBottom: 12,
+                  lineHeight: 1.4,
                 }}
               >
-                <span
+                Ubah PORSI atau KALORI — sisanya dihitung otomatis. Ketik angka
+                berapa pun (mis. 300, 30).
+              </div>
+            )}
+            {(() => {
+              const e = editing;
+              type Row = {
+                label: string;
+                val: number;
+                step: number;
+                onStep: (d: number) => void;
+                onSet: (n: number) => void;
+              };
+              const rows: Row[] = [];
+              if (e.mode === "edit") {
+                rows.push({
+                  label: e.gramsPerUnit === 100 ? "PORSI (g)" : "PORSI",
+                  val: round1(e.grams),
+                  step: e.gramsPerUnit === 100 ? 10 : 0.5,
+                  onStep: (d) =>
+                    editSetGrams(e.grams + d * (e.gramsPerUnit === 100 ? 10 : 0.5)),
+                  onSet: editSetGrams,
+                });
+                rows.push({
+                  label: "KALORI",
+                  val: Math.round(e.kcal),
+                  step: 10,
+                  onStep: (d) => editSetKcal(e.kcal + d * 10),
+                  onSet: editSetKcal,
+                });
+              } else {
+                rows.push({
+                  label: "KALORI",
+                  val: Math.round(e.kcal),
+                  step: 10,
+                  onStep: (d) => editSetField("kcal", e.kcal + d * 10),
+                  onSet: (n) => editSetField("kcal", n),
+                });
+              }
+              (["protein", "carbs", "fat"] as const).forEach((key) => {
+                rows.push({
+                  label:
+                    key === "protein"
+                      ? "PROTEIN (g)"
+                      : key === "carbs"
+                        ? "KARBO (g)"
+                        : "LEMAK (g)",
+                  val: round1(e[key]),
+                  step: 1,
+                  onStep: (d) => editSetField(key, e[key] + d),
+                  onSet: (n) => editSetField(key, n),
+                });
+              });
+              return rows.map((r, i, arr) => (
+                <div
+                  key={r.label}
                   style={{
-                    fontFamily: MONO,
-                    fontSize: 11,
-                    letterSpacing: ".1em",
-                    color: "#8a837d",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: i === arr.length - 1 ? 4 : 11,
                   }}
                 >
-                  {label}
-                </span>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <button
-                    type="button"
-                    onClick={() => editAdj(key, -1)}
-                    style={{
-                      width: 42,
-                      height: 42,
-                      borderRadius: 13,
-                      fontSize: 17,
-                      color: "#f1ede9",
-                      cursor: "pointer",
-                      background: "rgba(255,255,255,.05)",
-                      border: "1px solid rgba(255,255,255,.12)",
-                    }}
-                  >
-                    −
-                  </button>
                   <span
                     style={{
-                      fontFamily: SANS,
-                      fontWeight: 800,
-                      fontSize: 20,
-                      color: "#fff",
-                      minWidth: 60,
-                      textAlign: "center",
+                      fontFamily: MONO,
+                      fontSize: 11,
+                      letterSpacing: ".1em",
+                      color: "#8a837d",
                     }}
                   >
-                    {val}
+                    {r.label}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => editAdj(key, 1)}
-                    style={{
-                      width: 42,
-                      height: 42,
-                      borderRadius: 13,
-                      fontSize: 17,
-                      color: "#fff",
-                      cursor: "pointer",
-                      background: FIRE,
-                      border: "1px solid rgba(255,150,120,.6)",
-                      boxShadow: "inset 0 1px 1px rgba(255,225,205,.6)",
-                    }}
-                  >
-                    +
-                  </button>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => r.onStep(-1)}
+                      style={{
+                        width: 40,
+                        height: 42,
+                        borderRadius: 13,
+                        fontSize: 17,
+                        color: "#f1ede9",
+                        cursor: "pointer",
+                        background: "rgba(255,255,255,.05)",
+                        border: "1px solid rgba(255,255,255,.12)",
+                      }}
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      value={r.val}
+                      onChange={(ev) => {
+                        const n = parseFloat(ev.target.value);
+                        r.onSet(Number.isFinite(n) ? n : 0);
+                      }}
+                      onFocus={(ev) => ev.currentTarget.select()}
+                      style={{
+                        width: 76,
+                        height: 42,
+                        boxSizing: "border-box",
+                        textAlign: "center",
+                        fontFamily: SANS,
+                        fontWeight: 800,
+                        fontSize: 19,
+                        color: "#fff",
+                        background: "rgba(255,255,255,.05)",
+                        border: "1px solid rgba(255,255,255,.14)",
+                        borderRadius: 11,
+                        outline: "none",
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => r.onStep(1)}
+                      style={{
+                        width: 40,
+                        height: 42,
+                        borderRadius: 13,
+                        fontSize: 17,
+                        color: "#fff",
+                        cursor: "pointer",
+                        background: FIRE,
+                        border: "1px solid rgba(255,150,120,.6)",
+                        boxShadow: "inset 0 1px 1px rgba(255,225,205,.6)",
+                      }}
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ));
+            })()}
             <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
               <button
                 type="button"

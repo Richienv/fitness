@@ -15,6 +15,9 @@ export type QuickLogEntry = {
   carbs: number;
   fat: number;
   sugar?: number;
+  // Portion (grams) the stored macros correspond to. Optional + backward-
+  // compatible: entries without it are fixed macros (no portion scaling).
+  baseGrams?: number;
 };
 
 const QUICKLOG_ENTRIES_KEY = "richie.quicklog.entries.v1";

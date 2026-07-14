@@ -51,6 +51,7 @@ const FIRE_TEXT: CSSProperties = {
 };
 
 const EMPTY_MACROS: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+const round1 = (x: number) => Math.round(x * 10) / 10;
 const DAILY_SUGAR_TARGET_G = 50;
 
 const ID_DAYS = ["MIN", "SEN", "SEL", "RAB", "KAM", "JUM", "SAB"];
@@ -359,6 +360,7 @@ export default function MealHome() {
   const [quickEntries, setQuickEntries] = useState<QuickLogEntry[]>([]);
   const [manageOpen, setManageOpen] = useState(false);
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
+  const [lockRatio, setLockRatio] = useState(true);
   const [aturPressed, setAturPressed] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [mealPickOpen, setMealPickOpen] = useState(false);
@@ -433,7 +435,7 @@ export default function MealHome() {
           {
             custom: true,
             name: e.label,
-            grams: 0,
+            grams: e.baseGrams ?? 0,
             kcal: e.kcal,
             protein: e.protein,
             fat: e.fat,
@@ -1042,11 +1044,82 @@ export default function MealHome() {
               ))}
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 4 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginTop: 14,
+              }}
+            >
+              <label style={{ ...editLabelStyle, marginTop: 0 }}>
+                PORSI (g) &amp; RASIO
+              </label>
+              <button
+                type="button"
+                onClick={() => setLockRatio((v) => !v)}
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 10,
+                  letterSpacing: ".08em",
+                  padding: "6px 11px",
+                  borderRadius: 10,
+                  cursor: "pointer",
+                  color: lockRatio ? "#fff" : "#9a938d",
+                  background: lockRatio ? FIRE : "rgba(255,255,255,.04)",
+                  border: lockRatio
+                    ? "1px solid rgba(255,150,120,.6)"
+                    : "1px solid rgba(255,255,255,.12)",
+                }}
+              >
+                {lockRatio ? "🔒 KUNCI RASIO" : "🔓 BEBAS"}
+              </button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 8 }}>
+              <NumField
+                label="PORSI (g)"
+                value={editDraft.baseGrams ?? 0}
+                onChange={(n) =>
+                  setEditDraft((d) => {
+                    if (!d) return d;
+                    const old = d.baseGrams ?? 0;
+                    if (lockRatio && old > 0) {
+                      const s = n / old;
+                      return {
+                        ...d,
+                        baseGrams: n,
+                        kcal: Math.round(d.kcal * s),
+                        protein: round1(d.protein * s),
+                        carbs: round1(d.carbs * s),
+                        fat: round1(d.fat * s),
+                      };
+                    }
+                    return { ...d, baseGrams: n };
+                  })
+                }
+              />
               <NumField
                 label="KKAL"
                 value={editDraft.kcal}
-                onChange={(n) => setEditDraft({ ...editDraft, kcal: n })}
+                onChange={(n) =>
+                  setEditDraft((d) => {
+                    if (!d) return d;
+                    if (lockRatio && d.kcal > 0) {
+                      const s = n / d.kcal;
+                      return {
+                        ...d,
+                        kcal: n,
+                        protein: round1(d.protein * s),
+                        carbs: round1(d.carbs * s),
+                        fat: round1(d.fat * s),
+                        ...(d.baseGrams
+                          ? { baseGrams: Math.round(d.baseGrams * s) }
+                          : {}),
+                      };
+                    }
+                    return { ...d, kcal: n };
+                  })
+                }
               />
               <NumField
                 label="PROTEIN (g)"
@@ -1105,6 +1178,7 @@ export default function MealHome() {
                     carbs: d.carbs,
                     fat: d.fat,
                     ...(d.sugar != null ? { sugar: d.sugar } : {}),
+                    ...(d.baseGrams ? { baseGrams: d.baseGrams } : {}),
                   };
                   const next = d.id
                     ? updateQuickLogEntry(d.id, payload)
