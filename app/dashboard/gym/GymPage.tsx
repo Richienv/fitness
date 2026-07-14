@@ -27,6 +27,7 @@ const SESSION_ACCENT: Record<SessionType, string> = {
   FEM_UPPER_A: "#ff8a3d",
   FEM_UPPER_B: "#ff8a3d",
   FEM_CARDIO: "#22c55e",
+  FEM_ARMS: "#ff8a3d",
   FEM_REST: "#8b47ff",
 };
 

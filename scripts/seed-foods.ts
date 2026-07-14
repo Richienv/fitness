@@ -52,6 +52,7 @@ const TASKS: SeedTask[] = [
   { file: "r2fit_library.csv", source: "CUSTOM", prefix: "R2LIB:" },
   { file: "drinks.csv", source: "CUSTOM", prefix: "DRINK:" },
   { file: "cafe_foods.csv", source: "CUSTOM", prefix: "CAFE:" },
+  { file: "fruits.csv", source: "CUSTOM", prefix: "FRUIT:" },
   // Optional — skipped silently if the file is absent.
   { file: "usda_foods.csv", source: "USDA", prefix: "USDA:" },
 ];
