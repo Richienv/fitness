@@ -9,14 +9,16 @@ const OS_URL = "https://r2-os.vercel.app";
 
 type Tab = { href: string; label: string; icon: string; match: (p: string) => boolean };
 
+// The daily loop (eat / train / stats) lives in the nav; TIDUR is a card on
+// Beranda and SET is the gear icon in the Beranda header.
 const LEFT: Tab[] = [
-  { href: "/",      label: "BERANDA", icon: "🏠", match: (p) => p === "/" },
-  { href: "/sleep", label: "TIDUR",   icon: "😴", match: (p) => p.startsWith("/sleep") },
+  { href: "/",     label: "BERANDA", icon: "🏠", match: (p) => p === "/" || p.startsWith("/sleep") || p.startsWith("/settings") },
+  { href: "/meal", label: "MAKAN",   icon: "🍽️", match: (p) => p.startsWith("/meal") },
 ];
 
 const RIGHT: Tab[] = [
-  { href: "/dashboard", label: "STATS", icon: "📊", match: (p) => p.startsWith("/dashboard") },
-  { href: "/settings",  label: "SET",   icon: "⚙️", match: (p) => p.startsWith("/settings") },
+  { href: "/workout",   label: "LATIHAN", icon: "🏋️", match: (p) => p.startsWith("/workout") },
+  { href: "/dashboard", label: "STATS",   icon: "📊", match: (p) => p.startsWith("/dashboard") },
 ];
 
 export default function BottomNav() {

@@ -30,6 +30,7 @@ import {
 } from "@/lib/muscles";
 import { EQUIPMENT } from "@/lib/equipment";
 import { useActiveDate } from "@/lib/activeDate";
+import { useSheetBack } from "@/lib/backSheet";
 import { useVTNavigate } from "@/lib/navigate";
 import SessionSilhouette from "./SessionSilhouette";
 
@@ -69,6 +70,9 @@ export default function WorkoutHome() {
   const [query, setQuery] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [isFemale, setIsFemale] = useState(false);
+
+  // Hardware back closes the custom-session modal instead of leaving the page.
+  useSheetBack(modalOpen, () => setModalOpen(false));
 
   useEffect(() => {
     setNow(new Date());
@@ -168,7 +172,7 @@ export default function WorkoutHome() {
       }}
     >
       <div className="workout-home-top">
-        <Link href="/" className="back-link">← Kembali</Link>
+        <Link href="/" className="back-link">← BERANDA</Link>
         <h1 className="section-title">LOG <span className="fire-text">LATIHAN</span></h1>
         <div className="wo-date mono">{dateStr} · MINGGU {wkNum} / 12</div>
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSheetBack } from "@/lib/backSheet";
 import {
   INGREDIENTS,
   addMacros,
@@ -84,6 +85,10 @@ export default function MealBuilder({
     | { mode: "edit"; food: CustomFood }
     | { mode: "edit-ing"; ing: Ingredient }
   >({ mode: "closed" });
+  // Hardware back closes the food modal instead of leaving the builder.
+  useSheetBack(modalState.mode !== "closed", () =>
+    setModalState({ mode: "closed" })
+  );
   const [overrides, setOverrides] = useState<Record<string, IngredientOverride>>({});
   const [query, setQuery] = useState("");
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
@@ -460,7 +465,7 @@ export default function MealBuilder({
         <div className="mb-scroll-hint mono" aria-hidden="true">↑ SCROLL FOR MORE</div>
       )}
       <div className="mb-header">
-        <Link href="/meal" className="back-link">← Back</Link>
+        <Link href="/meal" className="back-link">← MAKAN</Link>
 
         <div className="step-head">
           <div className="step-pills">

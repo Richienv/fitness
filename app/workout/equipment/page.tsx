@@ -23,7 +23,7 @@ export default function EquipmentPage() {
   return (
     <main className="equipment-page">
       <div className="equipment-top">
-        <Link href="/workout" className="back-link">← WORKOUT</Link>
+        <Link href="/workout" className="back-link">← LATIHAN</Link>
         <h1 className="section-title">EQUIPMENT</h1>
         <div className="eq-count mono">{results.length} / {EQUIPMENT.length}</div>
 

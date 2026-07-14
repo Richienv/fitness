@@ -453,22 +453,44 @@ export default function HomePage() {
           R2<span style={{ color: "#ee3c30" }}>·</span>
           <span style={FIRE_TEXT}>FIT</span>
         </div>
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "6px 12px",
-            borderRadius: 999,
-            border: "1px solid rgba(238,60,48,.4)",
-            background: "rgba(238,60,48,.08)",
-            fontFamily: MONO,
-            fontSize: 11,
-            letterSpacing: ".08em",
-            color: "#ff8a72",
-          }}
-        >
-          🔥 {mounted ? streak : 0} HARI
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 12px",
+              borderRadius: 999,
+              border: "1px solid rgba(238,60,48,.4)",
+              background: "rgba(238,60,48,.08)",
+              fontFamily: MONO,
+              fontSize: 11,
+              letterSpacing: ".08em",
+              color: "#ff8a72",
+            }}
+          >
+            🔥 {mounted ? streak : 0} HARI
+          </div>
+          {/* Settings moved out of the bottom nav (nav now carries the daily
+              loop: Makan / Latihan / Stats). */}
+          <Link
+            href="/settings"
+            aria-label="Pengaturan"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 34,
+              height: 34,
+              borderRadius: 999,
+              border: "1px solid rgba(255,255,255,.14)",
+              background: "rgba(255,255,255,.05)",
+              fontSize: 15,
+              textDecoration: "none",
+            }}
+          >
+            ⚙️
+          </Link>
         </div>
       </div>
 
@@ -666,6 +688,48 @@ export default function HomePage() {
           }}
         >
           {mealSub}
+        </span>
+      </Link>
+
+      {/* sleep CTA — moved here from the bottom nav (night-blue accent) */}
+      <Link
+        href="/sleep"
+        style={{
+          display: "block",
+          width: "100%",
+          marginTop: 10,
+          padding: "18px 20px",
+          borderRadius: 18,
+          textAlign: "left",
+          cursor: "pointer",
+          background:
+            "linear-gradient(180deg,rgba(91,110,224,.14),rgba(58,63,158,.06))",
+          border: "1px solid rgba(124,140,240,.28)",
+          boxShadow: "inset 0 1px 0 rgba(174,184,255,.12)",
+        }}
+      >
+        <span
+          style={{
+            display: "block",
+            fontFamily: SANS,
+            fontWeight: 800,
+            fontSize: 20,
+            color: "#dfe4ff",
+          }}
+        >
+          😴 CATAT TIDUR
+        </span>
+        <span
+          style={{
+            display: "block",
+            fontFamily: MONO,
+            fontSize: 10.5,
+            letterSpacing: ".06em",
+            color: "#8a90b5",
+            marginTop: 4,
+          }}
+        >
+          Target 8 jam · konsistensi &amp; recovery
         </span>
       </Link>
     </main>
