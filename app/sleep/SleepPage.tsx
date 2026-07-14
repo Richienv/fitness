@@ -8,6 +8,7 @@ import {
   type CSSProperties,
 } from "react";
 import { useSoftRefresh } from "@/lib/useSoftRefresh";
+import { useSheetBack } from "@/lib/backSheet";
 import { SLEEP_TARGET_MIN, todayKey, weekNumber } from "@/lib/targets";
 import {
   consistencyScore,
@@ -256,6 +257,8 @@ export default function SleepPage() {
   const [now, setNow] = useState(() => new Date());
   const [all, setAll] = useState<Record<string, SleepLog>>({});
   const [sheetOpen, setSheetOpen] = useState(false);
+  // Hardware back closes the log sheet instead of leaving the page.
+  useSheetBack(sheetOpen, () => setSheetOpen(false));
   const [bedMin, setBedMin] = useState(23 * 60);
   const [wakeMin, setWakeMin] = useState(7 * 60);
   const [quality, setQuality] = useState<SleepQuality>(2);

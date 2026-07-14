@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSheetBack } from "@/lib/backSheet";
 import {
   getDefForWorkout,
   getWorkout,
@@ -110,6 +111,10 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
   const [justLogged, setJustLogged] = useState<string | null>(null);
   const [swapFor, setSwapFor] = useState<number | null>(null);
   const [detailFor, setDetailFor] = useState<number | null>(null);
+  // Hardware back closes the swap / detail sheets instead of leaving the
+  // in-progress session.
+  useSheetBack(swapFor !== null, () => setSwapFor(null));
+  useSheetBack(detailFor !== null, () => setDetailFor(null));
   const [celeb, setCeleb] = useState<Celebration | null>(null);
   const celebTimer = useRef<number | undefined>(undefined);
 

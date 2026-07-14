@@ -55,7 +55,7 @@ export default function ConfirmMeal({
   if (!preset) {
     return (
       <main className="shell">
-        <Link href="/meal" className="back-link">← Back</Link>
+        <Link href="/meal" className="back-link">← MAKAN</Link>
         <h1 className="section-title">PRESET NOT FOUND</h1>
         <p style={{ color: "var(--muted)" }}>That preset doesn&apos;t exist.</p>
       </main>
@@ -162,7 +162,7 @@ export default function ConfirmMeal({
   return (
     <main className="confirm-shell page-rise">
       <div className="confirm-top">
-        <Link href="/meal" className="back-link">← Back</Link>
+        <Link href="/meal" className="back-link">← MAKAN</Link>
         <div
           className="confirm-hero"
           style={{

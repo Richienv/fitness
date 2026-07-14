@@ -260,7 +260,7 @@ export default function SettingsPage() {
   return (
     <main className="sub-page settings-page">
       <header className="sub-head">
-        <Link href="/" className="sub-back">← HOME</Link>
+        <Link href="/" className="sub-back">← BERANDA</Link>
         <div className="sub-title">SETTINGS</div>
         <div className="sub-sub mono">CONFIG · DATA</div>
       </header>

@@ -35,6 +35,7 @@ import { haptic } from "@/lib/haptics";
 import { toast } from "../Toast";
 import DatePicker from "./DatePicker";
 import FoodBuilder from "./FoodBuilder";
+import { useSheetBack } from "@/lib/backSheet";
 
 /** A blank editor draft; may or may not carry an id (edit vs. add). */
 type EditDraft = (QuickLogEntry | Omit<QuickLogEntry, "id">) & { id?: string };
@@ -365,6 +366,13 @@ export default function MealHome() {
   const [loaded, setLoaded] = useState(false);
   const [mealPickOpen, setMealPickOpen] = useState(false);
   const [builderMeal, setBuilderMeal] = useState<MealType | null>(null);
+
+  // Hardware back closes the top-most open sheet instead of leaving the page.
+  // (FoodBuilder wires its own step-aware handler internally.)
+  useSheetBack(pickerOpen, () => setPickerOpen(false));
+  useSheetBack(manageOpen, () => setManageOpen(false));
+  useSheetBack(!!editDraft, () => setEditDraft(null));
+  useSheetBack(mealPickOpen, () => setMealPickOpen(false));
 
   const reloadFromStore = useCallback(() => {
     dedupeMeals();

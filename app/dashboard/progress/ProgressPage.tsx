@@ -12,6 +12,7 @@ import {
   type Measurement,
 } from "@/lib/measurements";
 import { useActiveDate } from "@/lib/activeDate";
+import { useSheetBack } from "@/lib/backSheet";
 import { getAllWorkouts, weekNumber } from "@/lib/workouts";
 import { parseDate } from "@/lib/activeDate";
 import { haptic } from "@/lib/haptics";
@@ -32,6 +33,8 @@ export default function ProgressPage() {
   const [latest, setLatest] = useState<Measurement | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [sheet, setSheet] = useState(false);
+  // Hardware back closes the measurement sheet instead of leaving the page.
+  useSheetBack(sheet, () => setSheet(false));
   const [form, setForm] = useState<Measurement>({
     date: "",
     weightKg: undefined,

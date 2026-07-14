@@ -6,6 +6,7 @@
 // saves the assembled selection as a single meal.
 
 import { useEffect, useState } from "react";
+import { useSheetBack } from "@/lib/backSheet";
 import { INGREDIENTS, type Ingredient } from "@/lib/ingredients";
 import { saveMeal, type MealItem, type CustomMealItem } from "@/lib/store";
 import {
@@ -308,6 +309,25 @@ export default function FoodBuilder({
     }
     goStep(step - 1);
   };
+
+  // Hardware/browser back mirrors the UI: close an inner sheet first, then
+  // step back through the wizard, and only then leave the builder.
+  useSheetBack(true, () => {
+    if (editing) {
+      setEditing(null);
+      return true;
+    }
+    if (newGroup) {
+      setNewGroup(null);
+      return true;
+    }
+    if (step > 0) {
+      goStep(step - 1);
+      return true;
+    }
+    onClose();
+    return false;
+  });
 
   // ---------- save ----------
   const saveBuilderMeal = () => {
@@ -1186,21 +1206,34 @@ export default function FoodBuilder({
               STEP {step + 1} / {STEPS.length}
             </span>
           </div>
+          {/* Tappable step segments — jump straight to any step (selections
+              persist across steps, so hopping around is safe). */}
           <div style={{ display: "flex", gap: 5, marginTop: 13 }}>
             {STEPS.map((s, i) => (
-              <span
+              <button
                 key={s.key}
+                type="button"
+                aria-label={`Ke step ${s.title}`}
+                onClick={() => goStep(i)}
                 style={{
                   flex: 1,
                   height: 4,
+                  padding: 0,
+                  border: "none",
+                  cursor: "pointer",
                   borderRadius: 999,
                   transition: "all .3s",
+                  // Enlarge the touch target without changing the visual bar.
+                  boxSizing: "content-box",
+                  borderTop: "8px solid transparent",
+                  borderBottom: "8px solid transparent",
+                  backgroundClip: "padding-box",
                   background:
                     i === step
-                      ? "linear-gradient(90deg,#ff8a3d,#ee2f1f)"
+                      ? "linear-gradient(90deg,#ff8a3d,#ee2f1f) padding-box"
                       : i < step
-                      ? "rgba(238,60,48,.45)"
-                      : "rgba(255,255,255,.1)",
+                      ? "rgba(238,60,48,.45) padding-box"
+                      : "rgba(255,255,255,.1) padding-box",
                   boxShadow: i === step ? "0 0 8px rgba(238,60,48,.6)" : "none",
                 }}
               />

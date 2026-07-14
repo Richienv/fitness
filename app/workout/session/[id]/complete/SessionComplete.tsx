@@ -30,7 +30,7 @@ export default function SessionComplete({ workoutId }: { workoutId: string }) {
   if (!workout) {
     return (
       <main className="shell">
-        <Link href="/workout" className="back-link">← Back</Link>
+        <Link href="/workout" className="back-link">← LATIHAN</Link>
         <h1 className="section-title">SESSION NOT FOUND</h1>
       </main>
     );
