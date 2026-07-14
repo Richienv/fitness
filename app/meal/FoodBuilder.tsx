@@ -5,7 +5,7 @@
 // Walks PROTEIN → KARBO → SAYUR → EKSTRA → MINUM, one group per step, and
 // saves the assembled selection as a single meal.
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useSheetBack } from "@/lib/backSheet";
 import { INGREDIENTS, type Ingredient } from "@/lib/ingredients";
 import { saveMeal, type MealItem, type CustomMealItem } from "@/lib/store";
@@ -123,6 +123,22 @@ type Editing = {
 
 const round1 = (x: number) => Math.round(x * 10) / 10;
 
+// −/+ pill buttons inside the running tray.
+const trayBtn = (plus: boolean): CSSProperties => ({
+  width: 28,
+  height: 28,
+  flex: "none",
+  borderRadius: 999,
+  fontSize: 16,
+  lineHeight: 1,
+  cursor: "pointer",
+  color: plus ? "#fff" : "#f1ede9",
+  background: plus
+    ? "linear-gradient(180deg,#ff8a52,#ee3c30 60%,#c01f12)"
+    : "rgba(255,255,255,.06)",
+  border: plus ? "1px solid rgba(255,150,120,.5)" : "1px solid rgba(255,255,255,.12)",
+});
+
 export default function FoodBuilder({
   meal,
   dateKey,
@@ -143,6 +159,8 @@ export default function FoodBuilder({
   const [customFoods, setCustomFoods] = useState<CustomFoodDef[]>([]);
   const [groups, setGroups] = useState<FoodGroup[]>([]);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ all: true });
+  // Fire layout: browse library is collapsed by default (search is the hero).
+  const [browseOpen, setBrowseOpen] = useState(false);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [newGroup, setNewGroup] = useState<{ name: string; emoji: string } | null>(null);
   // TKPI/DB food-composition search results for the current query, plus a
@@ -561,27 +579,17 @@ export default function FoodBuilder({
     items: BuilderFood[];
   };
 
-  let sections: Section[];
+  // ── Search results (grouped) — shown at the top whenever there's a query ──
+  const searchSections: Section[] = [];
   if (q) {
-    // Grouped search results — instead of one long flat list, split by food
-    // group so soy milks, protein dishes, drinks, etc. are scannable. Local
-    // "usual" matches lead; DB results follow, bucketed by category in
-    // best-score order (dbResults arrives already ranked).
-    sections = [];
     const localMatches = merged.filter(match);
     if (localMatches.length) {
       const key = "search:usual";
       const open = !collapsed[key];
-      sections.push({
-        key,
-        chev: open ? "▾" : "▸",
-        emoji: "⭐",
-        name: "USUAL KAMU",
-        countLabel: String(localMatches.length),
-        open,
-        canAdd: false,
-        onToggle: () => toggleSection(key),
-        onAddFood: () => {},
+      searchSections.push({
+        key, chev: open ? "▾" : "▸", emoji: "⭐", name: "USUAL KAMU",
+        countLabel: String(localMatches.length), open, canAdd: false,
+        onToggle: () => toggleSection(key), onAddFood: () => {},
         items: open ? localMatches : [],
       });
     }
@@ -590,87 +598,55 @@ export default function FoodBuilder({
     const buckets: Record<string, BuilderFood[]> = {};
     for (const f of dbResults) {
       const g = f.foodGroup || "Lainnya";
-      if (!buckets[g]) {
-        buckets[g] = [];
-        order.push(g);
-      }
+      if (!buckets[g]) { buckets[g] = []; order.push(g); }
       buckets[g].push(f);
     }
     for (const g of order) {
       const meta = GROUP_META[g] ?? { emoji: "🍽️", label: g.toUpperCase() };
       const key = `search:${g}`;
       const open = !collapsed[key];
-      sections.push({
-        key,
-        chev: open ? "▾" : "▸",
-        emoji: meta.emoji,
-        name: meta.label,
-        countLabel: String(buckets[g].length),
-        open,
-        canAdd: false,
-        onToggle: () => toggleSection(key),
-        onAddFood: () => {},
+      searchSections.push({
+        key, chev: open ? "▾" : "▸", emoji: meta.emoji, name: meta.label,
+        countLabel: String(buckets[g].length), open, canAdd: false,
+        onToggle: () => toggleSection(key), onAddFood: () => {},
         items: open ? buckets[g] : [],
       });
     }
-    if (!sections.length) {
-      sections.push({
-        key: "search",
-        chev: "▾",
-        emoji: "🔎",
-        name: "HASIL PENCARIAN",
-        countLabel: "0",
-        open: true,
-        canAdd: false,
-        onToggle: () => {},
-        onAddFood: () => {},
-        items: [],
-      });
-    }
-  } else {
-    const mk = (
-      key: string,
-      emoji: string,
-      name: string,
-      list: BuilderFood[],
-      canAdd: boolean,
-      gid: string | null
-    ): Section => {
-      const open = !collapsed[key];
-      const sc = list.filter((x) => (selection[x.id] || 0) > 0).length;
-      return {
-        key,
-        chev: open ? "▾" : "▸",
-        emoji,
-        name,
-        countLabel: sc > 0 ? `${sc} dipilih` : String(list.length),
-        open,
-        canAdd,
-        onToggle: () => toggleSection(key),
-        onAddFood: gid ? () => openNewFood(gid) : () => {},
-        items: open ? list.map(applyOv) : [],
-      };
-    };
-    sections = [];
-    // Keep picked DB foods visible/adjustable after the search box is cleared
-    // (they don't live in any static step list).
-    const selectedDb = Object.keys(selection)
-      .filter((id) => dbCache[id])
-      .map((id) => bIng(id))
-      .filter((x): x is BuilderFood => !!x);
-    if (selectedDb.length) {
-      sections.push(mk("dipilih", "✅", "DIPILIH", selectedDb, false, null));
-    }
-    sections.push(mk("usual", "⭐", "USUAL KAMU", favs, false, null));
-    if (dbBrowse.length) {
-      sections.push(mk("tkpidb", "🇮🇩", "DATABASE TKPI", dbBrowse, false, null));
-    }
-    for (const g of groups) {
-      const gFoods = g.foods.filter((f) => f.group === group).map(applyOv);
-      sections.push(mk(g.id, g.emoji, g.name, gFoods, true, g.id));
-    }
-    sections.push(mk("all", "🍽️", "SEMUA " + stepDef.title, others, false, null));
   }
+  const searchResultCount = q
+    ? merged.filter(match).length + dbResults.length
+    : 0;
+
+  // ── Browse library — collapsed by default in the Fire layout ──
+  const mk = (
+    key: string,
+    emoji: string,
+    name: string,
+    list: BuilderFood[],
+    canAdd: boolean,
+    gid: string | null
+  ): Section => {
+    const open = !collapsed[key];
+    const sc = list.filter((x) => (selection[x.id] || 0) > 0).length;
+    return {
+      key, chev: open ? "▾" : "▸", emoji, name,
+      countLabel: sc > 0 ? `${sc} dipilih` : String(list.length),
+      open, canAdd,
+      onToggle: () => toggleSection(key),
+      onAddFood: gid ? () => openNewFood(gid) : () => {},
+      items: open ? list.map(applyOv) : [],
+    };
+  };
+  const browseSections: Section[] = [];
+  browseSections.push(mk("usual", "⭐", "USUAL KAMU", favs, false, null));
+  if (dbBrowse.length) {
+    browseSections.push(mk("tkpidb", "🇮🇩", "DATABASE TKPI", dbBrowse, false, null));
+  }
+  for (const g of groups) {
+    const gFoods = g.foods.filter((f) => f.group === group).map(applyOv);
+    browseSections.push(mk(g.id, g.emoji, g.name, gFoods, true, g.id));
+  }
+  browseSections.push(mk("all", "🍽️", "SEMUA " + stepDef.title, others, false, null));
 
   // ---------- totals ----------
   let tk = 0,
@@ -687,6 +663,23 @@ export default function FoodBuilder({
     tf += ing.fat * qty;
   }
   const count = Object.values(selection).filter((x) => x > 0).length;
+
+  // ── Running "what you've eaten" tray — every selected item across all steps,
+  // resolved with overrides, so the tray is a live cart, not per-step. ──
+  const traySelected = Object.keys(selection)
+    .filter((id) => (selection[id] || 0) > 0)
+    .map((id) => {
+      const ing = bIng(id);
+      return ing ? { id, ing, qty: selection[id] } : null;
+    })
+    .filter((x): x is { id: string; ing: BuilderFood; qty: number } => !!x);
+
+  const bRemove = (id: string) =>
+    setSelection((sel) => {
+      const next = { ...sel };
+      delete next[id];
+      return next;
+    });
 
   // ---------- card renderer (prototype bCard) ----------
   const renderCard = (raw: BuilderFood) => {
@@ -1157,6 +1150,73 @@ export default function FoodBuilder({
     );
   };
 
+  // Collapsible section (header + cards), reused by search results and browse.
+  const renderSection = (sec: Section) => (
+    <div key={sec.key} style={{ marginBottom: 4 }}>
+      <div
+        onClick={sec.onToggle}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 9,
+          padding: "11px 3px",
+          cursor: "pointer",
+        }}
+      >
+        <span style={{ fontFamily: MONO, fontSize: 11, color: "#8a837d", width: 11, flex: "none" }}>
+          {sec.chev}
+        </span>
+        <span style={{ fontSize: 14 }}>{sec.emoji}</span>
+        <span
+          style={{
+            fontFamily: MONO,
+            fontSize: 10,
+            letterSpacing: ".14em",
+            color: "#cfc8c2",
+            flex: 1,
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {sec.name}
+        </span>
+        <span style={{ fontFamily: MONO, fontSize: 9, color: "#6a6660", flex: "none" }}>
+          {sec.countLabel}
+        </span>
+        {sec.canAdd ? (
+          <button
+            type="button"
+            onClick={(ev) => {
+              ev.stopPropagation();
+              sec.onAddFood();
+            }}
+            style={{
+              flex: "none",
+              fontFamily: MONO,
+              fontSize: 9,
+              letterSpacing: ".05em",
+              padding: "5px 9px",
+              borderRadius: 8,
+              cursor: "pointer",
+              color: "#ff8a72",
+              background: "rgba(238,60,48,.08)",
+              border: "1px solid rgba(238,60,48,.3)",
+            }}
+          >
+            + FOOD
+          </button>
+        ) : null}
+      </div>
+      {sec.open ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 7, margin: "1px 0 14px" }}>
+          {sec.items.map(renderCard)}
+        </div>
+      ) : null}
+    </div>
+  );
+
   return (
     <>
       {/* ============ FOOD BUILDER ============ */}
@@ -1280,115 +1340,228 @@ export default function FoodBuilder({
             flex: 1,
             overflowY: "auto",
             overflowX: "hidden",
-            padding: "4px 18px 210px 18px",
+            padding: "6px 18px 128px 18px",
           }}
         >
-          {sections.map((sec) => (
-            <div key={sec.key} style={{ marginBottom: 4 }}>
+          {/* ── RUNNING TRAY — what you've eaten, live totals ── */}
+          {count > 0 ? (
+            <div
+              style={{
+                borderRadius: 18,
+                padding: 15,
+                background:
+                  "linear-gradient(180deg,rgba(255,138,60,.07),transparent 42%),#0c0a0b",
+                border: "1px solid rgba(255,138,60,.24)",
+                boxShadow:
+                  "0 14px 34px rgba(0,0,0,.45),0 0 22px rgba(238,60,48,.08)",
+                animation: "trayPop .34s cubic-bezier(.16,1,.3,1)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: ".12em", color: "#ff8a72", whiteSpace: "nowrap" }}>
+                  🔥 YANG KAMU MAKAN
+                </span>
+                <span style={{ fontFamily: MONO, fontSize: 9, color: "#6a6660", flex: "none", whiteSpace: "nowrap", marginLeft: 8 }}>
+                  {count} ITEM
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 7, marginTop: 9 }}>
+                <span
+                  key={Math.round(tk)}
+                  style={{
+                    fontFamily: SANS,
+                    fontWeight: 800,
+                    fontSize: 30,
+                    color: "#fff",
+                    lineHeight: 1,
+                    animation: "totalKick .4s ease-out",
+                  }}
+                >
+                  {Math.round(tk)}
+                </span>
+                <span style={{ fontFamily: SANS, fontWeight: 600, fontSize: 13, color: "#7c736e" }}>kkal</span>
+              </div>
+              <div style={{ fontFamily: MONO, fontSize: 10, color: "#9a938d", marginTop: 4 }}>
+                <span style={{ color: "#5fe39a" }}>{Math.round(tp)}g protein</span> · {Math.round(tc)}c · {Math.round(tf)}f
+              </div>
               <div
-                onClick={sec.onToggle}
                 style={{
                   display: "flex",
-                  alignItems: "center",
-                  gap: 9,
-                  padding: "11px 3px",
-                  cursor: "pointer",
+                  flexDirection: "column",
+                  gap: 7,
+                  marginTop: 13,
+                  maxHeight: 210,
+                  overflowY: "auto",
+                  overflowX: "hidden",
                 }}
               >
-                <span
-                  style={{
-                    fontFamily: MONO,
-                    fontSize: 11,
-                    color: "#8a837d",
-                    width: 11,
-                    flex: "none",
-                  }}
-                >
-                  {sec.chev}
-                </span>
-                <span style={{ fontSize: 14 }}>{sec.emoji}</span>
-                <span
-                  style={{
-                    fontFamily: MONO,
-                    fontSize: 10,
-                    letterSpacing: ".14em",
-                    color: "#cfc8c2",
-                    flex: 1,
-                    minWidth: 0,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {sec.name}
-                </span>
-                <span
-                  style={{
-                    fontFamily: MONO,
-                    fontSize: 9,
-                    color: "#6a6660",
-                    flex: "none",
-                  }}
-                >
-                  {sec.countLabel}
-                </span>
-                {sec.canAdd ? (
+                {traySelected.map(({ id, ing, qty }) => {
+                  const gp = ing.gramsPerUnit ? Math.round(ing.gramsPerUnit * qty) : null;
+                  const qtyLabel = gp != null ? `${gp}g` : `×${qty}`;
+                  return (
+                    <div
+                      key={id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "9px 10px",
+                        borderRadius: 12,
+                        background: "rgba(255,255,255,.04)",
+                        border: "1px solid rgba(255,138,60,.16)",
+                        animation: "trayPop2 .3s cubic-bezier(.16,1,.3,1)",
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: SANS, fontWeight: 700, fontSize: 13.5, color: "#f8ede8", lineHeight: 1.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {ing.name}
+                        </div>
+                        <div style={{ fontFamily: MONO, fontSize: 9, marginTop: 3, color: "#ff9a80", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {Math.round(ing.kcal * qty)} kkal
+                          <span style={{ color: "#7c736e" }}> · {Math.round(ing.protein * qty)}p {Math.round(ing.carbs * qty)}c {Math.round(ing.fat * qty)}f</span>
+                        </div>
+                      </div>
+                      <button type="button" onClick={() => bSub(id)} style={trayBtn(false)}>−</button>
+                      <span style={{ fontFamily: SANS, fontWeight: 700, fontSize: 12, color: "#ffb39e", minWidth: 30, textAlign: "center" }}>
+                        {qtyLabel}
+                      </span>
+                      <button type="button" onClick={() => bAdd(id)} style={trayBtn(true)}>+</button>
+                      <button
+                        type="button"
+                        onClick={() => bRemove(id)}
+                        aria-label="Hapus"
+                        style={{ width: 26, height: 26, flex: "none", borderRadius: 8, fontSize: 12, cursor: "pointer", background: "transparent", border: "none", color: "#6a6660" }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          {/* ── HERO SEARCH — the primary action ── */}
+          <div style={{ position: "relative", marginTop: count > 0 ? 16 : 2 }}>
+            <span style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", fontSize: 16, pointerEvents: "none", opacity: 0.9 }}>
+              🔎
+            </span>
+            <input
+              type="text"
+              value={query}
+              onChange={(ev) => setQuery(ev.target.value)}
+              placeholder="Cari makanan — ayam, nasi, kopi…"
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "16px 16px 16px 44px",
+                borderRadius: 16,
+                fontFamily: SANS,
+                fontSize: 15,
+                color: "#f1ede9",
+                background: "rgba(255,255,255,.05)",
+                border: "1px solid rgba(255,255,255,.13)",
+                outline: "none",
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,.05),0 8px 20px rgba(0,0,0,.3)",
+              }}
+            />
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 11 }}>
+            <button
+              type="button"
+              onClick={() => openNewFood(null)}
+              style={{
+                fontFamily: MONO,
+                fontSize: 10,
+                letterSpacing: ".06em",
+                padding: "7px 11px",
+                borderRadius: 9,
+                cursor: "pointer",
+                color: "#ff8a72",
+                background: "rgba(238,60,48,.06)",
+                border: "1px dashed rgba(238,60,48,.4)",
+              }}
+            >
+              + TAMBAH MANUAL
+            </button>
+            <button
+              type="button"
+              onClick={() => setBrowseOpen((v) => !v)}
+              style={{
+                fontFamily: MONO,
+                fontSize: 10,
+                letterSpacing: ".06em",
+                padding: "7px 4px",
+                cursor: "pointer",
+                color: "#8a837d",
+                background: "none",
+                border: "none",
+              }}
+            >
+              {browseOpen ? "Tutup library ▴" : "Jelajahi library ▾"}
+            </button>
+          </div>
+
+          {/* ── SEARCH RESULTS ── */}
+          {q ? (
+            <>
+              <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: ".16em", color: "#6a6660", margin: "17px 0 10px" }}>
+                // {searchResultCount} HASIL
+              </div>
+              {searchSections.map(renderSection)}
+              {searchResultCount === 0 ? (
+                <div style={{ textAlign: "center", padding: "26px 10px" }}>
+                  <div style={{ fontFamily: MONO, fontSize: 11, color: "#7c736e" }}>
+                    Ga ketemu &ldquo;{query}&rdquo;
+                  </div>
                   <button
                     type="button"
-                    onClick={(ev) => {
-                      ev.stopPropagation();
-                      sec.onAddFood();
-                    }}
+                    onClick={() => openNewFood(null)}
                     style={{
-                      flex: "none",
+                      marginTop: 12,
                       fontFamily: MONO,
-                      fontSize: 9,
-                      letterSpacing: ".05em",
-                      padding: "5px 9px",
-                      borderRadius: 8,
+                      fontSize: 10,
+                      padding: "9px 14px",
+                      borderRadius: 10,
                       cursor: "pointer",
                       color: "#ff8a72",
                       background: "rgba(238,60,48,.08)",
-                      border: "1px solid rgba(238,60,48,.3)",
+                      border: "1px solid rgba(238,60,48,.35)",
                     }}
                   >
-                    + FOOD
+                    + TAMBAH MANUAL
                   </button>
-                ) : null}
-              </div>
-              {sec.open ? (
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 7,
-                    margin: "1px 0 14px",
-                  }}
-                >
-                  {sec.items.map(renderCard)}
                 </div>
               ) : null}
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={openNewGroup}
-            style={{
-              width: "100%",
-              marginTop: 2,
-              padding: 13,
-              borderRadius: 13,
-              fontFamily: MONO,
-              fontSize: 10,
-              letterSpacing: ".08em",
-              cursor: "pointer",
-              color: "#9a938d",
-              background: "transparent",
-              border: "1px dashed rgba(255,255,255,.16)",
-            }}
-          >
-            + GRUP BARU · SIMPAN KE LIBRARY
-          </button>
+            </>
+          ) : null}
+
+          {/* ── OPTIONAL BROWSE (collapsed by default) ── */}
+          {browseOpen ? (
+            <>
+              <div style={{ height: 1, background: "rgba(255,255,255,.06)", margin: "16px 0 2px" }} />
+              {browseSections.map(renderSection)}
+              <button
+                type="button"
+                onClick={openNewGroup}
+                style={{
+                  width: "100%",
+                  marginTop: 2,
+                  padding: 13,
+                  borderRadius: 13,
+                  fontFamily: MONO,
+                  fontSize: 10,
+                  letterSpacing: ".08em",
+                  cursor: "pointer",
+                  color: "#9a938d",
+                  background: "transparent",
+                  border: "1px dashed rgba(255,255,255,.16)",
+                }}
+              >
+                + GRUP BARU · SIMPAN KE LIBRARY
+              </button>
+            </>
+          ) : null}
         </div>
 
         <div
@@ -1402,75 +1575,7 @@ export default function FoodBuilder({
               "linear-gradient(180deg,rgba(7,6,8,0),#070608 26%)",
           }}
         >
-          <div
-            style={{
-              textAlign: "center",
-              fontFamily: MONO,
-              fontSize: 12,
-              marginBottom: 11,
-            }}
-          >
-            {count > 0 ? (
-              <>
-                <span
-                  style={{
-                    color: "#f5f2ef",
-                    fontWeight: 600,
-                    letterSpacing: ".02em",
-                  }}
-                >
-                  {Math.round(tk)} KKAL
-                </span>
-                <span style={{ color: "#7c736e" }}>
-                  {" "}
-                  · {Math.round(tp)}p · {Math.round(tc)}c · {Math.round(tf)}f
-                </span>
-              </>
-            ) : (
-              <span style={{ color: "#6a6660", letterSpacing: ".12em" }}>
-                TAP MAKANAN UNTUK TAMBAH
-              </span>
-            )}
-          </div>
           <div style={{ display: "flex", gap: 9 }}>
-            <input
-              type="text"
-              value={query}
-              onChange={(ev) => setQuery(ev.target.value)}
-              placeholder="Cari makanan…"
-              style={{
-                flex: 1,
-                minWidth: 0,
-                padding: "13px 15px",
-                borderRadius: 13,
-                fontFamily: SANS,
-                fontSize: 14,
-                color: "#f1ede9",
-                background: "rgba(255,255,255,.04)",
-                border: "1px solid rgba(255,255,255,.1)",
-                outline: "none",
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => openNewFood(null)}
-              style={{
-                flex: "none",
-                padding: "0 16px",
-                borderRadius: 13,
-                fontFamily: MONO,
-                fontSize: 11,
-                letterSpacing: ".06em",
-                cursor: "pointer",
-                color: "#ff8a72",
-                background: "rgba(238,60,48,.06)",
-                border: "1px dashed rgba(238,60,48,.5)",
-              }}
-            >
-              + FOOD
-            </button>
-          </div>
-          <div style={{ display: "flex", gap: 9, marginTop: 10 }}>
             <button
               type="button"
               onClick={onBack}
