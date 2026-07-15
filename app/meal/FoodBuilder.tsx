@@ -72,26 +72,6 @@ type DbFoodRow = {
   carb_g: number | null;
 };
 
-// Friendly header (emoji + label) for each food group, used to organize search
-// results into scannable sections instead of one long flat list.
-const GROUP_META: Record<string, { emoji: string; label: string }> = {
-  Susu: { emoji: "🥛", label: "SUSU & PLANT MILK" },
-  Minuman: { emoji: "🧋", label: "MINUMAN" },
-  Daging: { emoji: "🥩", label: "DAGING" },
-  "Ikan dsb": { emoji: "🐟", label: "IKAN & SEAFOOD" },
-  Telur: { emoji: "🥚", label: "TELUR" },
-  Kacang: { emoji: "🫘", label: "KACANG" },
-  "Masakan Nusantara": { emoji: "🍛", label: "MASAKAN & RESTO" },
-  "Custom/Estimasi": { emoji: "✍️", label: "CUSTOM" },
-  Serealia: { emoji: "🌾", label: "SEREALIA" },
-  Umbi: { emoji: "🥔", label: "UMBI" },
-  Buah: { emoji: "🍎", label: "BUAH" },
-  Gula: { emoji: "🍬", label: "GULA" },
-  Sayur: { emoji: "🥬", label: "SAYUR" },
-  Lemak: { emoji: "🧈", label: "LEMAK & MINYAK" },
-  Bumbu: { emoji: "🧂", label: "BUMBU" },
-  "Kue/Dessert": { emoji: "🍰", label: "KUE & DESSERT" },
-};
 
 type MacroPatch = {
   name: string;
@@ -153,7 +133,6 @@ export default function FoodBuilder({
   const [step, setStep] = useState(0);
   const [selection, setSelection] = useState<Record<string, number>>({});
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
-  const [grams, setGrams] = useState<Record<string, boolean>>({});
   const [query, setQuery] = useState("");
   const [overrides, setOverrides] = useState<Record<string, MacroPatch>>({});
   const [customFoods, setCustomFoods] = useState<CustomFoodDef[]>([]);
@@ -307,7 +286,6 @@ export default function FoodBuilder({
   };
   const toggleReveal = (id: string) =>
     setRevealed((r) => ({ ...r, [id]: !r[id] }));
-  const toggleGrams = (id: string) => setGrams((g) => ({ ...g, [id]: !g[id] }));
   const toggleSection = (key: string) =>
     setCollapsed((c) => ({ ...c, [key]: !c[key] }));
 
@@ -579,43 +557,12 @@ export default function FoodBuilder({
     items: BuilderFood[];
   };
 
-  // ── Search results (grouped) — shown at the top whenever there's a query ──
-  const searchSections: Section[] = [];
-  if (q) {
-    const localMatches = merged.filter(match);
-    if (localMatches.length) {
-      const key = "search:usual";
-      const open = !collapsed[key];
-      searchSections.push({
-        key, chev: open ? "▾" : "▸", emoji: "⭐", name: "USUAL KAMU",
-        countLabel: String(localMatches.length), open, canAdd: false,
-        onToggle: () => toggleSection(key), onAddFood: () => {},
-        items: open ? localMatches : [],
-      });
-    }
-    // Bucket DB results by foodGroup, preserving first-seen (= best-score) order.
-    const order: string[] = [];
-    const buckets: Record<string, BuilderFood[]> = {};
-    for (const f of dbResults) {
-      const g = f.foodGroup || "Lainnya";
-      if (!buckets[g]) { buckets[g] = []; order.push(g); }
-      buckets[g].push(f);
-    }
-    for (const g of order) {
-      const meta = GROUP_META[g] ?? { emoji: "🍽️", label: g.toUpperCase() };
-      const key = `search:${g}`;
-      const open = !collapsed[key];
-      searchSections.push({
-        key, chev: open ? "▾" : "▸", emoji: meta.emoji, name: meta.label,
-        countLabel: String(buckets[g].length), open, canAdd: false,
-        onToggle: () => toggleSection(key), onAddFood: () => {},
-        items: open ? buckets[g] : [],
-      });
-    }
-  }
-  const searchResultCount = q
-    ? merged.filter(match).length + dbResults.length
-    : 0;
+  // ── Search results — one flat, ranked list (matches the reference): local
+  // library matches lead, DB hits (already score-ranked) follow. ──
+  const searchFlat: BuilderFood[] = q
+    ? merged.filter(match).concat(dbResults)
+    : [];
+  const searchResultCount = searchFlat.length;
 
   // ── Browse library — collapsed by default in the Fire layout ──
   const mk = (
@@ -688,316 +635,26 @@ export default function FoodBuilder({
     const qty = selection[id] || 0;
     const selected = qty > 0;
     const gp = ing.gramsPerUnit ? Math.round(ing.gramsPerUnit * qty) : null;
-    const gm = !!grams[id];
+    const qtyLabel = gp != null ? `${gp}g` : `×${qty}`;
     const isRevealed = !!revealed[id] && !!ing.zh;
     const showZi = !!ing.zh;
-    const qtyLabel = gm && gp != null ? gp + "g" : "×" + qty;
-
-    if (selected) {
-      return (
-        <div
-          key={id}
-          style={{
-            position: "relative",
-            overflow: "hidden",
-            borderRadius: 16,
-            padding: "14px",
-            cursor: "pointer",
-            background: "linear-gradient(155deg,#ff7a45,#f4402c 55%,#e22a17)",
-            border: "1px solid rgba(255,185,155,.7)",
-            boxShadow:
-              "inset 0 1.5px 1px rgba(255,225,205,.5), 0 12px 30px rgba(238,60,48,.45), 0 0 22px rgba(238,60,48,.3)",
-          }}
-        >
-          <div style={{ overflow: "hidden" }}>
-            <div
-              style={{
-                float: "right",
-                display: "flex",
-                gap: 4,
-                alignItems: "center",
-                marginLeft: 8,
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: MONO,
-                  fontSize: 10,
-                  padding: "4px 8px",
-                  borderRadius: 999,
-                  background: "#1a0806",
-                  color: "#ff6a4c",
-                }}
-              >
-                {qtyLabel}
-              </span>
-              {ing.gramsPerUnit ? (
-                <button
-                  type="button"
-                  onClick={(ev) => {
-                    ev.stopPropagation();
-                    toggleGrams(id);
-                  }}
-                  style={{
-                    width: 26,
-                    height: 26,
-                    flex: "none",
-                    borderRadius: 999,
-                    fontFamily: MONO,
-                    fontSize: 11,
-                    cursor: "pointer",
-                    background: "rgba(24,6,3,.5)",
-                    border: "none",
-                    color: "#f0d9d0",
-                  }}
-                >
-                  g
-                </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={(ev) => {
-                  ev.stopPropagation();
-                  openEdit(id);
-                }}
-                style={{
-                  width: 26,
-                  height: 26,
-                  flex: "none",
-                  borderRadius: 8,
-                  fontSize: 11,
-                  cursor: "pointer",
-                  background: "transparent",
-                  border: "1px solid rgba(30,8,4,.45)",
-                  color: "#2a0d08",
-                }}
-              >
-                ✎
-              </button>
-              {showZi ? (
-                <button
-                  type="button"
-                  onClick={(ev) => {
-                    ev.stopPropagation();
-                    toggleReveal(id);
-                  }}
-                  style={{
-                    width: 26,
-                    height: 26,
-                    flex: "none",
-                    borderRadius: 8,
-                    fontFamily: ZH,
-                    fontSize: 12,
-                    cursor: "pointer",
-                    background: "#d42a17",
-                    border: "none",
-                    color: "#ffe9e2",
-                  }}
-                >
-                  字
-                </button>
-              ) : null}
-            </div>
-            <div
-              style={{
-                fontFamily: SANS,
-                fontWeight: 800,
-                fontSize: 19,
-                color: "#2a0d08",
-                lineHeight: 1.12,
-              }}
-            >
-              {ing.name}
-            </div>
-            {ing.englishName ? (
-              <div
-                style={{
-                  fontFamily: SANS,
-                  fontWeight: 600,
-                  fontSize: 12,
-                  color: "rgba(42,13,8,.55)",
-                  marginTop: 2,
-                  lineHeight: 1.1,
-                }}
-              >
-                {ing.englishName}
-              </div>
-            ) : null}
-            <div
-              style={{
-                fontFamily: MONO,
-                fontSize: 9.5,
-                color: "rgba(42,13,8,.62)",
-                marginTop: 4,
-              }}
-            >
-              {ing.unit}
-              {gp != null ? ` · ${gp}g total` : ""}
-            </div>
-          </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 8,
-              marginTop: 13,
-            }}
-          >
-            <div
-              style={{
-                padding: "11px 13px",
-                borderRadius: 12,
-                background: "rgba(26,6,2,.14)",
-              }}
-            >
-              <div
-                style={{
-                  fontFamily: SANS,
-                  fontWeight: 800,
-                  fontSize: 23,
-                  color: "#1c0704",
-                  lineHeight: 1,
-                }}
-              >
-                {Math.round(ing.protein * qty)}g
-              </div>
-              <div
-                style={{
-                  fontFamily: MONO,
-                  fontSize: 8.5,
-                  letterSpacing: ".1em",
-                  color: "rgba(42,13,8,.55)",
-                  marginTop: 5,
-                }}
-              >
-                PROTEIN
-              </div>
-            </div>
-            <div
-              style={{
-                padding: "11px 13px",
-                borderRadius: 12,
-                background: "rgba(26,6,2,.14)",
-              }}
-            >
-              <div
-                style={{
-                  fontFamily: SANS,
-                  fontWeight: 800,
-                  fontSize: 23,
-                  color: "#1c0704",
-                  lineHeight: 1,
-                }}
-              >
-                {Math.round(ing.kcal * qty)}
-              </div>
-              <div
-                style={{
-                  fontFamily: MONO,
-                  fontSize: 8.5,
-                  letterSpacing: ".1em",
-                  color: "rgba(42,13,8,.55)",
-                  marginTop: 5,
-                }}
-              >
-                KCAL
-              </div>
-            </div>
-          </div>
-          {isRevealed ? (
-            <div
-              style={{
-                marginTop: 10,
-                fontFamily: MONO,
-                fontSize: 10,
-                color: "rgba(42,13,8,.7)",
-              }}
-            >
-              <span style={{ fontFamily: ZH, fontSize: 13, color: "#2a0d08" }}>
-                {ing.zh}
-              </span>{" "}
-              {ing.pinyin}
-            </div>
-          ) : null}
-          <div
-            style={{
-              height: 1,
-              background: "rgba(30,8,4,.18)",
-              margin: "13px 0 10px",
-            }}
-          />
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <button
-              type="button"
-              onClick={(ev) => {
-                ev.stopPropagation();
-                bSub(id);
-              }}
-              style={{
-                width: 46,
-                height: 46,
-                borderRadius: 999,
-                fontSize: 20,
-                cursor: "pointer",
-                background: "#1a0806",
-                border: "none",
-                color: "#ffd9cf",
-              }}
-            >
-              −
-            </button>
-            <span
-              style={{
-                fontFamily: SANS,
-                fontWeight: 800,
-                fontSize: 19,
-                color: "#2a0d08",
-              }}
-            >
-              {qtyLabel}
-            </span>
-            <button
-              type="button"
-              onClick={(ev) => {
-                ev.stopPropagation();
-                bAdd(id);
-              }}
-              style={{
-                width: 46,
-                height: 46,
-                borderRadius: 999,
-                fontSize: 20,
-                cursor: "pointer",
-                background: "#1a0806",
-                border: "none",
-                color: "#ffd9cf",
-              }}
-            >
-              +
-            </button>
-          </div>
-        </div>
-      );
-    }
-
-    // unselected
+    const macroLine = `${Math.round(ing.protein)}p · ${Math.round(
+      ing.carbs
+    )}c · ${Math.round(ing.fat)}f`;
     return (
       <div
         key={id}
         onClick={() => bAdd(id)}
         style={{
-          position: "relative",
-          borderRadius: 12,
-          padding: "11px 13px",
+          borderRadius: 14,
+          padding: "13px 14px",
           cursor: "pointer",
-          background: "#0c0a0b",
-          border: "1px solid rgba(255,255,255,.07)",
+          background:
+            "linear-gradient(180deg,rgba(255,255,255,.045),transparent 40%),#0d0b0c",
+          border: selected
+            ? "1px solid rgba(255,138,60,.4)"
+            : "1px solid rgba(255,255,255,.09)",
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,.05)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
@@ -1016,21 +673,6 @@ export default function FoodBuilder({
             >
               {ing.name}
             </div>
-            {ing.englishName ? (
-              <div
-                style={{
-                  fontFamily: SANS,
-                  fontSize: 11,
-                  color: "#9a938d",
-                  marginTop: 2,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {ing.englishName}
-              </div>
-            ) : null}
             <div
               style={{
                 fontFamily: MONO,
@@ -1043,10 +685,8 @@ export default function FoodBuilder({
               }}
             >
               {ing.unit} <span style={{ color: "#5a5551" }}>·</span>{" "}
-              <span style={{ color: "#ff8a72" }}>{ing.kcal} kkal</span>{" "}
-              <span style={{ color: "#6a6660" }}>
-                · {ing.protein}p · {ing.carbs}c · {ing.fat}f
-              </span>
+              <span style={{ color: "#ff8a72" }}>{Math.round(ing.kcal)} kkal</span>{" "}
+              <span style={{ color: "#6a6660" }}>· {macroLine}</span>
             </div>
             {isRevealed ? (
               <div
@@ -1064,6 +704,21 @@ export default function FoodBuilder({
               </div>
             ) : null}
           </div>
+          {selected ? (
+            <span
+              style={{
+                fontFamily: MONO,
+                fontSize: 9,
+                padding: "3px 7px",
+                borderRadius: 999,
+                background: "rgba(238,60,48,.15)",
+                color: "#ff8a72",
+                flex: "none",
+              }}
+            >
+              {qtyLabel}
+            </span>
+          ) : null}
           {showZi ? (
             <button
               type="button"
@@ -1071,33 +726,20 @@ export default function FoodBuilder({
                 ev.stopPropagation();
                 toggleReveal(id);
               }}
-              style={
-                isRevealed
-                  ? {
-                      width: 28,
-                      height: 28,
-                      flex: "none",
-                      borderRadius: 8,
-                      fontFamily: ZH,
-                      fontSize: 12,
-                      cursor: "pointer",
-                      background: "rgba(255,138,60,.12)",
-                      border: "1px solid rgba(255,138,60,.6)",
-                      color: "#ff8a3d",
-                    }
-                  : {
-                      width: 28,
-                      height: 28,
-                      flex: "none",
-                      borderRadius: 8,
-                      fontFamily: ZH,
-                      fontSize: 12,
-                      cursor: "pointer",
-                      background: "transparent",
-                      border: "1px solid rgba(255,255,255,.1)",
-                      color: "rgba(255,255,255,.4)",
-                    }
-              }
+              style={{
+                width: 28,
+                height: 28,
+                flex: "none",
+                borderRadius: 8,
+                fontFamily: ZH,
+                fontSize: 13,
+                cursor: "pointer",
+                background: isRevealed ? "#d42a17" : "transparent",
+                border: isRevealed
+                  ? "none"
+                  : "1px solid rgba(255,255,255,.1)",
+                color: isRevealed ? "#ffe9e2" : "#cfc8c2",
+              }}
             >
               字
             </button>
@@ -1498,17 +1140,19 @@ export default function FoodBuilder({
                 border: "none",
               }}
             >
-              {browseOpen ? "Tutup library ▴" : "Jelajahi library ▾"}
+              {browseOpen ? "TUTUP ▴" : "LIHAT SEMUA ▾"}
             </button>
           </div>
 
-          {/* ── SEARCH RESULTS ── */}
+          {/* ── SEARCH RESULTS — flat ranked list (matches reference) ── */}
           {q ? (
             <>
               <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: ".16em", color: "#6a6660", margin: "17px 0 10px" }}>
                 // {searchResultCount} HASIL
               </div>
-              {searchSections.map(renderSection)}
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {searchFlat.map(renderCard)}
+              </div>
               {searchResultCount === 0 ? (
                 <div style={{ textAlign: "center", padding: "26px 10px" }}>
                   <div style={{ fontFamily: MONO, fontSize: 11, color: "#7c736e" }}>
