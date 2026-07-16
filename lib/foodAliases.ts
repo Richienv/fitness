@@ -30,6 +30,16 @@ export const FOOD_ALIASES: Record<string, string[]> = {
   // meatball soup
   bakso: ["bakso", "baso"],
   baso: ["bakso", "baso"],
+  // chicken noodles
+  "mie ayam": ["mie ayam", "mi ayam", "bakmi ayam"],
+  "mi ayam": ["mie ayam", "mi ayam", "bakmi ayam"],
+  "bakmi ayam": ["mie ayam", "mi ayam", "bakmi ayam"],
+  // peanut-sauce blanched veggies
+  pecel: ["pecel", "pecal"],
+  pecal: ["pecel", "pecal"],
+  // stuffed pan-fried pancake
+  martabak: ["martabak", "murtabak"],
+  murtabak: ["martabak", "murtabak"],
 };
 
 /**

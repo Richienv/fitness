@@ -4,18 +4,25 @@
 // R2FIT library, USDA — NOT per-user). Session-gated like the app's other web
 // routes.
 //
-// Ranking is a weighted score, not a flat sort, so the most relevant hit lands
-// first (see scoreExpr below). It matches against a persisted `searchText`
-// index (name + English name + serving desc + group) in addition to the name,
-// and mixes in a static `popularity` prior. Results are cached in-process with
-// a short TTL so debounced keystrokes and repeat/browse queries are instant and
-// don't re-hit Postgres. No pg_trgm dependency — pure ILIKE, works everywhere.
+// v2 "TikTok-grade" search (see docs/enhanced-search-prompt.md): the whole
+// catalogue is loaded into process memory once per instance (TTL-refreshed)
+// and every query is answered from RAM by lib/foodSearchEngine — typo-tolerant
+// (bounded Damerau–Levenshtein), bilingual (EN↔ID token synonyms, so
+// "beef minced" finds "daging sapi cincang" and vice versa), order-independent,
+// with the same tiered ranking + popularity prior as before. Computed result
+// lists are additionally cached in a short-TTL LRU so debounced keystrokes and
+// repeat/browse queries never recompute. No pg_trgm dependency — pure
+// TypeScript, works everywhere.
 
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getUserId } from "@/lib/session";
-import { expandAliases } from "@/lib/foodAliases";
+import {
+  FoodSearchIndex,
+  normalizeQuery,
+  type FoodDoc,
+  type ScoredFood,
+} from "@/lib/foodSearchEngine";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,47 +33,6 @@ const corsHeaders = {
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: corsHeaders });
-}
-
-/** lowercase + strip diacritics — must match normalizeName used at seed time. */
-function normalize(q: string): string {
-  return q
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase()
-    .trim();
-}
-
-interface SearchRow {
-  id: string;
-  sourceCode: string;
-  name: string;
-  nameEn: string | null;
-  state: string | null;
-  foodGroup: string | null;
-  energy_kcal: Prisma.Decimal | null;
-  protein_g: Prisma.Decimal | null;
-  fat_g: Prisma.Decimal | null;
-  carb_g: Prisma.Decimal | null;
-  score: number;
-}
-
-interface SearchFood {
-  id: string;
-  sourceCode: string;
-  name: string;
-  nameEn: string | null;
-  state: string | null;
-  foodGroup: string | null;
-  energy_kcal: number | null;
-  protein_g: number | null;
-  fat_g: number | null;
-  carb_g: number | null;
-  score: number;
-}
-
-function num(x: Prisma.Decimal | null): number | null {
-  return x == null ? null : Number(x.toString());
 }
 
 // Builder step → food groups, so a step can BROWSE the library (not just search
@@ -86,14 +52,81 @@ const STEP_GROUPS: Record<string, string[]> = {
   drink: ["Minuman", "Susu"],
 };
 
+// ─── In-process catalogue index (TTL-refreshed) ─────────────────────────────
+// The catalogue is small (thousands of rows) and shared across users, so one
+// findMany per instance per TTL replaces a SQL round-trip per keystroke. On
+// refresh failure the stale index keeps serving — search never goes dark.
+const INDEX_TTL_MS = 10 * 60 * 1000;
+let indexCache: { at: number; index: FoodSearchIndex } | null = null;
+let indexLoading: Promise<FoodSearchIndex> | null = null;
+
+async function loadIndex(): Promise<FoodSearchIndex> {
+  const rows = await db.food.findMany({
+    select: {
+      id: true,
+      sourceCode: true,
+      name: true,
+      nameEn: true,
+      state: true,
+      foodGroup: true,
+      energy_kcal: true,
+      protein_g: true,
+      fat_g: true,
+      carb_g: true,
+      searchText: true,
+      popularity: true,
+    },
+  });
+  const docs: FoodDoc[] = rows.map((r) => ({
+    id: r.id,
+    sourceCode: r.sourceCode,
+    name: r.name,
+    nameEn: r.nameEn,
+    state: r.state,
+    foodGroup: r.foodGroup,
+    energy_kcal: r.energy_kcal == null ? null : Number(r.energy_kcal),
+    protein_g: r.protein_g == null ? null : Number(r.protein_g),
+    fat_g: r.fat_g == null ? null : Number(r.fat_g),
+    carb_g: r.carb_g == null ? null : Number(r.carb_g),
+    searchText: r.searchText,
+    popularity: r.popularity,
+  }));
+  return new FoodSearchIndex(docs);
+}
+
+async function getIndex(): Promise<FoodSearchIndex> {
+  const now = Date.now();
+  if (indexCache && now - indexCache.at <= INDEX_TTL_MS) {
+    return indexCache.index;
+  }
+  // Single-flight: concurrent keystrokes share one findMany.
+  if (!indexLoading) {
+    indexLoading = loadIndex()
+      .then((index) => {
+        indexCache = { at: Date.now(), index };
+        return index;
+      })
+      .finally(() => {
+        indexLoading = null;
+      });
+  }
+  // Serve the stale index while a refresh is in flight; only a cold instance
+  // actually waits.
+  if (indexCache) {
+    indexLoading.catch(() => {}); // stale-while-revalidate: swallow refresh errors
+    return indexCache.index;
+  }
+  return indexLoading;
+}
+
 // ─── In-process result cache (TTL + LRU) ───────────────────────────────────
 // Per-instance, best-effort. The catalogue is shared (not per-user), so a hit
 // is safe to reuse across sessions. Keyed by normalized query + group + limit.
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const CACHE_MAX = 400;
-const cache = new Map<string, { at: number; foods: SearchFood[] }>();
+const cache = new Map<string, { at: number; foods: ScoredFood[] }>();
 
-function cacheGet(key: string): SearchFood[] | null {
+function cacheGet(key: string): ScoredFood[] | null {
   const hit = cache.get(key);
   if (!hit) return null;
   if (Date.now() - hit.at > CACHE_TTL_MS) {
@@ -106,7 +139,7 @@ function cacheGet(key: string): SearchFood[] | null {
   return hit.foods;
 }
 
-function cacheSet(key: string, foods: SearchFood[]): void {
+function cacheSet(key: string, foods: ScoredFood[]): void {
   if (cache.size >= CACHE_MAX) {
     const oldest = cache.keys().next().value;
     if (oldest !== undefined) cache.delete(oldest);
@@ -126,7 +159,7 @@ export async function GET(req: Request) {
 
     const url = new URL(req.url);
     const raw = url.searchParams.get("q") ?? "";
-    const q = normalize(raw);
+    const q = normalizeQuery(raw);
     const groupKey = url.searchParams.get("group") ?? "";
     const groups = STEP_GROUPS[groupKey];
     const hasQuery = q.length >= 1;
@@ -149,107 +182,10 @@ export async function GET(req: Request) {
       );
     }
 
-    // Expand via the alias map (e.g. "somay" → also "siomay", "siomai").
-    const terms = hasQuery ? expandAliases(q) : [];
-    // Individual words (order-independent multi-word matching).
-    const words = hasQuery
-      ? q.split(/\s+/).filter((w) => w.length >= 2)
-      : [];
-
-    const like = (col: Prisma.Sql, pat: string) =>
-      Prisma.sql`${col} ILIKE ${pat}`;
-    const nameCol = Prisma.sql`f."nameNormalized"`;
-    const textCol = Prisma.sql`f."searchText"`;
-    // English name, lowercased for matching (null → '').
-    const enCol = Prisma.sql`lower(COALESCE(f."nameEn", ''))`;
-    const orOver = (frags: Prisma.Sql[]) =>
-      frags.length ? Prisma.join(frags, " OR ") : Prisma.sql`false`;
-
-    // WHERE: any alias term appears in the Indonesian name, the English name, or
-    // the search index — so a query in either language finds the row.
-    const clauses: Prisma.Sql[] = [];
-    if (terms.length) {
-      const nameOrText = terms.flatMap((t) => [
-        like(nameCol, `%${t}%`),
-        like(enCol, `%${t}%`),
-        like(textCol, `%${t}%`),
-      ]);
-      clauses.push(Prisma.sql`(${orOver(nameOrText)})`);
-    }
-    if (groups) {
-      clauses.push(
-        Prisma.sql`f."foodGroup" IN (${Prisma.join(
-          groups.map((g) => Prisma.sql`${g}`),
-          ", "
-        )})`
-      );
-    }
-    const where = clauses.length
-      ? Prisma.join(clauses, " AND ")
-      : Prisma.sql`true`;
-
-    // Weighted relevance score. Each tier uses GREATEST over alias terms via OR
-    // (a CASE that fires once), so aliases never double-count.
-    // A query word counts if it appears in the Indonesian OR the English name.
-    const wordBonus = words.length
-      ? Prisma.join(
-          words.map(
-            (w) =>
-              Prisma.sql`(CASE WHEN ${like(nameCol, `%${w}%`)} OR ${like(enCol, `%${w}%`)} THEN 40 ELSE 0 END)`
-          ),
-          " + "
-        )
-      : Prisma.sql`0`;
-
-    // Both names are scored at parallel tiers (English a hair below Indonesian),
-    // so typing either language surfaces the row near the top.
-    const scoreExpr = hasQuery
-      ? Prisma.sql`(
-          (CASE WHEN ${nameCol} = ${q} THEN 1000 ELSE 0 END)
-          + (CASE WHEN ${enCol} = ${q} THEN 900 ELSE 0 END)
-          + (CASE WHEN (${orOver(terms.map((t) => like(nameCol, `${t}%`)))}) THEN 500 ELSE 0 END)
-          + (CASE WHEN (${orOver(terms.map((t) => like(enCol, `${t}%`)))}) THEN 450 ELSE 0 END)
-          + (CASE WHEN (${orOver(
-            terms.map((t) => Prisma.sql`(' ' || ${nameCol} || ' ') ILIKE ${`% ${t} %`}`)
-          )}) THEN 250 ELSE 0 END)
-          + (CASE WHEN (${orOver(
-            terms.map((t) => Prisma.sql`(' ' || ${enCol} || ' ') ILIKE ${`% ${t} %`}`)
-          )}) THEN 230 ELSE 0 END)
-          + (CASE WHEN (${orOver(terms.map((t) => like(nameCol, `%${t}%`)))}) THEN 120 ELSE 0 END)
-          + (CASE WHEN (${orOver(terms.map((t) => like(enCol, `%${t}%`)))}) THEN 110 ELSE 0 END)
-          + (CASE WHEN (${orOver(terms.map((t) => like(textCol, `%${t}%`)))}) THEN 60 ELSE 0 END)
-          + (${wordBonus})
-          + (CASE WHEN f.state = 'Olahan' THEN 30 ELSE 0 END)
-          + LEAST(COALESCE(f.popularity, 0), 200)
-          - (length(f.name)::float * 0.4)
-        )`
-      : // Browse mode (no query): rank purely by popularity.
-        Prisma.sql`(LEAST(COALESCE(f.popularity, 0), 200) - length(f.name)::float * 0.4)`;
-
-    const rows = await db.$queryRaw<SearchRow[]>(Prisma.sql`
-      SELECT
-        f.id, f."sourceCode", f.name, f."nameEn", f.state, f."foodGroup",
-        f.energy_kcal, f.protein_g, f.fat_g, f.carb_g,
-        ${scoreExpr} AS score
-      FROM "Food" f
-      WHERE ${where}
-      ORDER BY score DESC, length(f.name) ASC, f.name ASC
-      LIMIT ${limit};
-    `);
-
-    const foods: SearchFood[] = rows.map((r) => ({
-      id: r.id,
-      sourceCode: r.sourceCode,
-      name: r.name,
-      nameEn: r.nameEn,
-      state: r.state,
-      foodGroup: r.foodGroup,
-      energy_kcal: num(r.energy_kcal),
-      protein_g: num(r.protein_g),
-      fat_g: num(r.fat_g),
-      carb_g: num(r.carb_g),
-      score: Math.round(Number(r.score)),
-    }));
+    const index = await getIndex();
+    const foods = hasQuery
+      ? index.search(q, { groups, limit })
+      : index.browse(groups!, limit);
 
     cacheSet(cacheKey, foods);
 

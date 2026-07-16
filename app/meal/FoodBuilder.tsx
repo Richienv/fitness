@@ -78,6 +78,19 @@ type DbFoodRow = {
   carb_g: number | null;
 };
 
+// Session-scoped search cache: query → mapped results, so backspacing or
+// retyping a term renders instantly with zero network. Module-level on purpose
+// (survives builder remounts within the tab); bounded LRU-ish.
+const SEARCH_CACHE_MAX = 150;
+const searchCache = new Map<string, BuilderFood[]>();
+function searchCachePut(term: string, foods: BuilderFood[]) {
+  if (searchCache.size >= SEARCH_CACHE_MAX) {
+    const oldest = searchCache.keys().next().value;
+    if (oldest !== undefined) searchCache.delete(oldest);
+  }
+  searchCache.set(term, foods);
+}
+
 type MacroPatch = {
   name: string;
   kcal: number;
@@ -294,17 +307,33 @@ export default function FoodBuilder({
   }, []);
 
   // Live search against the shared food DB (TKPI + custom + libraries).
-  // Debounced; per-100g values map to a "100 g" unit so the qty math and the
-  // save path work unchanged.
+  // TikTok-feel: repeats serve from the session cache with zero network,
+  // debounce is short, stale in-flight requests are aborted, and the previous
+  // list stays on screen while the next one loads (no flicker).
+  // Per-100g values map to a "100 g" unit so the qty math and the save path
+  // work unchanged.
   useEffect(() => {
-    const term = query.trim();
+    const term = query.trim().toLowerCase();
     if (term.length < 2) {
       setDbResults([]);
       return;
     }
+    const hit = searchCache.get(term);
+    if (hit) {
+      setDbResults(hit);
+      setDbCache((c) => {
+        const next = { ...c };
+        for (const m of hit) next[m.id] = m;
+        return next;
+      });
+      return;
+    }
     let cancelled = false;
+    const ctrl = new AbortController();
     const t = setTimeout(() => {
-      fetch(`/api/foods/search?q=${encodeURIComponent(term)}`)
+      fetch(`/api/foods/search?q=${encodeURIComponent(term)}`, {
+        signal: ctrl.signal,
+      })
         .then((r) => (r.ok ? r.json() : null))
         .then((data) => {
           if (cancelled) return;
@@ -323,6 +352,7 @@ export default function FoodBuilder({
             gramsPerUnit: 100,
             step: 0.1, // ±10 g nudges (gramsPerUnit 100)
           }));
+          searchCachePut(term, mapped);
           setDbResults(mapped);
           setDbCache((c) => {
             const next = { ...c };
@@ -331,9 +361,10 @@ export default function FoodBuilder({
           });
         })
         .catch(() => {});
-    }, 250);
+    }, 150);
     return () => {
       cancelled = true;
+      ctrl.abort();
       clearTimeout(t);
     };
   }, [query]);
