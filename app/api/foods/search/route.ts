@@ -9,13 +9,20 @@
 // index (name + English name + serving desc + group) in addition to the name,
 // and mixes in a static `popularity` prior. Results are cached in-process with
 // a short TTL so debounced keystrokes and repeat/browse queries are instant and
-// don't re-hit Postgres. No pg_trgm dependency — pure ILIKE, works everywhere.
+// don't re-hit Postgres.
+//
+// Matching is enhanced two ways over plain ILIKE:
+//   1. English↔Indonesian synonyms + common typo fixes are expanded per word
+//      (lib/foodAliases), so "beef minced" finds "daging sapi giling".
+//   2. A fuzzy pg_trgm `word_similarity` tier catches arbitrary typos ("dagin
+//      cincang" → "daging cincang"). It is probed once and guarded: if the
+//      extension isn't installed the route degrades cleanly to pure ILIKE.
 
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getUserId } from "@/lib/session";
-import { expandAliases } from "@/lib/foodAliases";
+import { expandQuery } from "@/lib/foodAliases";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -89,8 +96,10 @@ const STEP_GROUPS: Record<string, string[]> = {
 // ─── In-process result cache (TTL + LRU) ───────────────────────────────────
 // Per-instance, best-effort. The catalogue is shared (not per-user), so a hit
 // is safe to reuse across sessions. Keyed by normalized query + group + limit.
-const CACHE_TTL_MS = 5 * 60 * 1000;
-const CACHE_MAX = 400;
+// The catalogue only changes on a re-seed, so a longer TTL and roomier cap keep
+// far more keystrokes off Postgres without risking stale results in practice.
+const CACHE_TTL_MS = 10 * 60 * 1000;
+const CACHE_MAX = 600;
 const cache = new Map<string, { at: number; foods: SearchFood[] }>();
 
 function cacheGet(key: string): SearchFood[] | null {
@@ -112,6 +121,27 @@ function cacheSet(key: string, foods: SearchFood[]): void {
     if (oldest !== undefined) cache.delete(oldest);
   }
   cache.set(key, { at: Date.now(), foods });
+}
+
+// ─── pg_trgm availability probe (guarded, cached) ───────────────────────────
+// The fuzzy tier calls word_similarity(), which only exists when the pg_trgm
+// extension is installed. Historically an unguarded similarity() call 500'd
+// where it wasn't enabled, so probe once and remember the answer; on any error
+// we assume unavailable and fall back to pure ILIKE.
+const FUZZY_THRESHOLD = 0.4;
+let trgmAvailable: boolean | null = null;
+
+async function pgTrgmAvailable(): Promise<boolean> {
+  if (trgmAvailable !== null) return trgmAvailable;
+  try {
+    const rows = await db.$queryRaw<{ ok: boolean }[]>(
+      Prisma.sql`SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm') AS ok`
+    );
+    trgmAvailable = rows[0]?.ok === true;
+  } catch {
+    trgmAvailable = false;
+  }
+  return trgmAvailable;
 }
 
 export async function GET(req: Request) {
@@ -149,12 +179,16 @@ export async function GET(req: Request) {
       );
     }
 
-    // Expand via the alias map (e.g. "somay" → also "siomay", "siomai").
-    const terms = hasQuery ? expandAliases(q) : [];
-    // Individual words (order-independent multi-word matching).
-    const words = hasQuery
-      ? q.split(/\s+/).filter((w) => w.length >= 2)
-      : [];
+    // Expand the query: whole-query phrase aliases (`terms`), per-word EN↔ID
+    // synonyms + typo fixes (`wordGroups`), and their flattened union for broad
+    // recall (`allTerms`).
+    const { terms, wordGroups, allTerms } = hasQuery
+      ? expandQuery(q)
+      : { terms: [] as string[], wordGroups: [] as string[][], allTerms: [] as string[] };
+
+    // Fuzzy matching is only worth it for queries long enough to have a stable
+    // trigram signature, and only when the extension is actually present.
+    const fuzzyOn = hasQuery && q.length >= 3 && (await pgTrgmAvailable());
 
     const like = (col: Prisma.Sql, pat: string) =>
       Prisma.sql`${col} ILIKE ${pat}`;
@@ -165,16 +199,32 @@ export async function GET(req: Request) {
     const orOver = (frags: Prisma.Sql[]) =>
       frags.length ? Prisma.join(frags, " OR ") : Prisma.sql`false`;
 
-    // WHERE: any alias term appears in the Indonesian name, the English name, or
-    // the search index — so a query in either language finds the row.
+    // Best trigram similarity of the whole query against either name or the
+    // search index. word_similarity finds the closest contiguous extent, so a
+    // typo'd multi-word query still scores against the intended phrase.
+    const simExpr = Prisma.sql`GREATEST(
+      word_similarity(${q}, ${nameCol}),
+      word_similarity(${q}, ${enCol}),
+      word_similarity(${q}, ${textCol})
+    )`;
+
+    // WHERE: any expanded term appears in the Indonesian name, the English name,
+    // or the search index (so a query in either language finds the row) — OR the
+    // row is a close fuzzy match (typo tolerance).
     const clauses: Prisma.Sql[] = [];
-    if (terms.length) {
-      const nameOrText = terms.flatMap((t) => [
+    if (hasQuery) {
+      const recall: Prisma.Sql[] = allTerms.flatMap((t) => [
         like(nameCol, `%${t}%`),
         like(enCol, `%${t}%`),
         like(textCol, `%${t}%`),
       ]);
-      clauses.push(Prisma.sql`(${orOver(nameOrText)})`);
+      if (fuzzyOn) {
+        recall.push(
+          Prisma.sql`word_similarity(${q}, ${nameCol}) >= ${FUZZY_THRESHOLD}`,
+          Prisma.sql`word_similarity(${q}, ${textCol}) >= ${FUZZY_THRESHOLD}`
+        );
+      }
+      clauses.push(Prisma.sql`(${orOver(recall)})`);
     }
     if (groups) {
       clauses.push(
@@ -188,21 +238,31 @@ export async function GET(req: Request) {
       ? Prisma.join(clauses, " AND ")
       : Prisma.sql`true`;
 
-    // Weighted relevance score. Each tier uses GREATEST over alias terms via OR
-    // (a CASE that fires once), so aliases never double-count.
-    // A query word counts if it appears in the Indonesian OR the English name.
-    const wordBonus = words.length
+    // Concept coverage: one bonus per query word if ANY of its synonyms appears
+    // in either name. Rewards rows that cover every part of a multi-word,
+    // possibly translated query (e.g. "beef minced" → both "sapi"/"daging" AND
+    // "giling" present), floating them above rows matching only one part.
+    const groupBonus = wordGroups.length
       ? Prisma.join(
-          words.map(
-            (w) =>
-              Prisma.sql`(CASE WHEN ${like(nameCol, `%${w}%`)} OR ${like(enCol, `%${w}%`)} THEN 40 ELSE 0 END)`
-          ),
+          wordGroups.map((grp) => {
+            const anyMatch = orOver(
+              grp.flatMap((s) => [like(nameCol, `%${s}%`), like(enCol, `%${s}%`)])
+            );
+            return Prisma.sql`(CASE WHEN (${anyMatch}) THEN 45 ELSE 0 END)`;
+          }),
           " + "
         )
       : Prisma.sql`0`;
 
+    // Fuzzy score contribution (0 when the extension is unavailable).
+    const fuzzyScore = fuzzyOn
+      ? Prisma.sql`(${simExpr} * 300)`
+      : Prisma.sql`0`;
+
     // Both names are scored at parallel tiers (English a hair below Indonesian),
-    // so typing either language surfaces the row near the top.
+    // so typing either language surfaces the row near the top. Exact / prefix /
+    // word-boundary tiers use the precise whole-query phrase forms; the broad
+    // substring tiers use the full synonym-expanded term set.
     const scoreExpr = hasQuery
       ? Prisma.sql`(
           (CASE WHEN ${nameCol} = ${q} THEN 1000 ELSE 0 END)
@@ -215,10 +275,11 @@ export async function GET(req: Request) {
           + (CASE WHEN (${orOver(
             terms.map((t) => Prisma.sql`(' ' || ${enCol} || ' ') ILIKE ${`% ${t} %`}`)
           )}) THEN 230 ELSE 0 END)
-          + (CASE WHEN (${orOver(terms.map((t) => like(nameCol, `%${t}%`)))}) THEN 120 ELSE 0 END)
-          + (CASE WHEN (${orOver(terms.map((t) => like(enCol, `%${t}%`)))}) THEN 110 ELSE 0 END)
-          + (CASE WHEN (${orOver(terms.map((t) => like(textCol, `%${t}%`)))}) THEN 60 ELSE 0 END)
-          + (${wordBonus})
+          + (CASE WHEN (${orOver(allTerms.map((t) => like(nameCol, `%${t}%`)))}) THEN 120 ELSE 0 END)
+          + (CASE WHEN (${orOver(allTerms.map((t) => like(enCol, `%${t}%`)))}) THEN 110 ELSE 0 END)
+          + (CASE WHEN (${orOver(allTerms.map((t) => like(textCol, `%${t}%`)))}) THEN 60 ELSE 0 END)
+          + (${groupBonus})
+          + (${fuzzyScore})
           + (CASE WHEN f.state = 'Olahan' THEN 30 ELSE 0 END)
           + LEAST(COALESCE(f.popularity, 0), 200)
           - (length(f.name)::float * 0.4)
