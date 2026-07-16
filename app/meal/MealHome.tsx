@@ -634,12 +634,12 @@ export default function MealHome() {
           <button
             key={e.id}
             type="button"
-            className="quick-tile"
             onClick={() => logQuick(e)}
             style={{
               position: "relative",
               overflow: "hidden",
               display: "flex",
+              flexDirection: "row",
               alignItems: "center",
               gap: 13,
               padding: "13px 15px",
