@@ -2,7 +2,7 @@
 // Pure data module: NO "use client" (mirrors lib/sleep.ts conventions so
 // server routes may import it without tripping the build guard).
 
-import { sumMacros } from "./ingredients";
+import { INGREDIENTS, sumMacros } from "./ingredients";
 import { PRESETS, type MealType } from "./presets";
 import { scopedKey } from "./userScope";
 
@@ -18,6 +18,9 @@ export type QuickLogEntry = {
   // Portion (grams) the stored macros correspond to. Optional + backward-
   // compatible: entries without it are fixed macros (no portion scaling).
   baseGrams?: number;
+  // Short ingredient list shown under the name on the Quick Log row
+  // ("Telur · oat · pisang"). Optional; rows without it show macros instead.
+  sub?: string;
 };
 
 const QUICKLOG_ENTRIES_KEY = "richie.quicklog.entries.v1";
@@ -43,6 +46,16 @@ function cleanLabel(label: string): string {
   return label.replace(/^[^\p{L}\p{N}]+/u, "").trim();
 }
 
+/** "chicken-breast" → "Dada ayam" (first 3 item names, lowercased tail). */
+function presetSub(items: { id: string; qty: number }[]): string {
+  const names = items
+    .map((it) => INGREDIENTS.find((i) => i.id === it.id)?.name)
+    .filter((n): n is string => !!n)
+    .slice(0, 3)
+    .map((n, i) => (i === 0 ? n : n.toLowerCase()));
+  return names.join(" · ");
+}
+
 /** Seed list: the first PRESET per meal type mapped to a QuickLogEntry. */
 export function defaultEntries(): QuickLogEntry[] {
   const out: QuickLogEntry[] = [];
@@ -58,6 +71,7 @@ export function defaultEntries(): QuickLogEntry[] {
       protein: Math.round(m.protein),
       carbs: Math.round(m.carbs),
       fat: Math.round(m.fat),
+      sub: presetSub(preset.items),
     });
   }
   return out;

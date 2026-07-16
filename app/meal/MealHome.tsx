@@ -81,6 +81,14 @@ const MEALS: MealInfo[] = [
   { id: "dinner",    emoji: "🌙", name: "MALAM",   expectedKcal: 900 },
 ];
 
+// Emoji tile on Quick Log rows, by meal time (reference: 🍳/🍛/🥜/🥩).
+const QUICK_EMOJI: Record<MealType, string> = {
+  breakfast: "🍳",
+  lunch: "🍛",
+  snack: "🥜",
+  dinner: "🥩",
+};
+
 const MEAL_ID_LABEL: Record<MealType, string> = {
   breakfast: "SARAPAN",
   lunch: "SIANG",
@@ -611,11 +619,13 @@ export default function MealHome() {
         </button>
       </div>
 
-      {/* quick tiles → log the configured entry straight into the day */}
+      {/* quick rows → log the configured entry straight into the day.
+          Reference layout: full-width row — emoji tile · name + ingredient
+          list · big kcal on the right. */}
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
+          display: "flex",
+          flexDirection: "column",
           gap: 9,
           marginTop: 11,
         }}
@@ -630,10 +640,10 @@ export default function MealHome() {
               position: "relative",
               overflow: "hidden",
               display: "flex",
-              flexDirection: "column",
-              gap: 5,
-              padding: 14,
-              borderRadius: 14,
+              alignItems: "center",
+              gap: 13,
+              padding: "13px 15px",
+              borderRadius: 16,
               textAlign: "left",
               cursor: "pointer",
               background:
@@ -643,24 +653,79 @@ export default function MealHome() {
             }}
           >
             <span
+              aria-hidden="true"
               style={{
-                fontFamily: SANS,
-                fontWeight: 700,
-                fontSize: 14,
-                color: "#f1ede9",
+                width: 52,
+                height: 52,
+                flex: "none",
+                borderRadius: 14,
+                display: "grid",
+                placeItems: "center",
+                fontSize: 24,
+                background: "rgba(238,60,48,.08)",
+                border: "1px solid rgba(238,60,48,.22)",
               }}
             >
-              {e.label}
+              {QUICK_EMOJI[e.mealType]}
             </span>
-            <span
-              style={{
-                fontFamily: MONO,
-                fontSize: 9,
-                letterSpacing: ".12em",
-                color: "#ff8a72",
-              }}
-            >
-              {MEAL_ID_LABEL[e.mealType]} · +{Math.round(e.kcal)} KKAL
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span
+                style={{
+                  display: "block",
+                  fontFamily: SANS,
+                  fontWeight: 700,
+                  fontSize: 16,
+                  color: "#f1ede9",
+                  lineHeight: 1.15,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {e.label}
+              </span>
+              <span
+                style={{
+                  display: "block",
+                  fontFamily: MONO,
+                  fontSize: 10,
+                  letterSpacing: ".04em",
+                  color: "#8a837d",
+                  marginTop: 4,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {e.sub ||
+                  `${Math.round(e.protein)}p · ${Math.round(e.carbs)}c · ${Math.round(e.fat)}f`}
+              </span>
+            </span>
+            <span style={{ flex: "none", textAlign: "right" }}>
+              <span
+                style={{
+                  display: "block",
+                  fontFamily: MONO,
+                  fontWeight: 700,
+                  fontSize: 22,
+                  color: "#ff8a5c",
+                  lineHeight: 1,
+                }}
+              >
+                {Math.round(e.kcal)}
+              </span>
+              <span
+                style={{
+                  display: "block",
+                  fontFamily: MONO,
+                  fontSize: 8.5,
+                  letterSpacing: ".16em",
+                  color: "#7c736e",
+                  marginTop: 4,
+                }}
+              >
+                KKAL
+              </span>
             </span>
           </button>
         ))}
