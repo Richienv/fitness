@@ -1,13 +1,21 @@
 "use client";
 
-// Multi-step Food Builder — pixel-matched to the R2·FIT reference prototype
-// (R2FIT_Fire.dc.html lines 211-370) and wired to the real data layer.
-// Walks PROTEIN → KARBO → SAYUR → EKSTRA → MINUM, one group per step, and
-// saves the assembled selection as a single meal.
+// Food Builder — R2·FIT "Fire" single-screen revamp, pixel-matched to the
+// R2FIT-Fire standalone reference and wired to the real data layer.
+//
+// The old PROTEIN → KARBO → … 5-step wizard is gone. This is one search-first
+// screen scoped to a meal time:
+//   · empty state: big library count, glowing centered search, ambient embers
+//   · typing: flat ranked result rows (category icon + chip + serving/kcal + add)
+//   · picks collect in the "yang kamu makan" tray up top with live totals
+//   · browse-all + custom library groups live behind the floating ⋯ button
+//   · floating ＋ adds a manual food
+// Saving writes one meal via the existing store (same shape as before).
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useSheetBack } from "@/lib/backSheet";
-import { INGREDIENTS, type Ingredient } from "@/lib/ingredients";
+import { haptic } from "@/lib/haptics";
+import { INGREDIENTS } from "@/lib/ingredients";
 import { saveMeal, type MealItem, type CustomMealItem } from "@/lib/store";
 import {
   getFoodGroups,
@@ -20,15 +28,12 @@ import {
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
 const MONO = "var(--font-dm-mono), 'JetBrains Mono', monospace";
 const FIRE = "linear-gradient(180deg,#ff8a52,#ee3c30 55%,#c01f12)";
-const ZH = "'Noto Serif SC',serif";
-
-const STEPS = [
-  { key: "protein", title: "PROTEIN" },
-  { key: "carb", title: "KARBO" },
-  { key: "vegetable", title: "SAYUR" },
-  { key: "extra", title: "EKSTRA" },
-  { key: "drink", title: "MINUM" },
-] as const;
+const FIRE_TEXT: CSSProperties = {
+  background: "linear-gradient(100deg,#ff8a3d,#ee2f1f)",
+  WebkitBackgroundClip: "text",
+  backgroundClip: "text",
+  WebkitTextFillColor: "transparent",
+};
 
 const BLABEL: Record<string, string> = {
   breakfast: "SARAPAN",
@@ -72,7 +77,6 @@ type DbFoodRow = {
   carb_g: number | null;
 };
 
-
 type MacroPatch = {
   name: string;
   kcal: number;
@@ -103,20 +107,119 @@ type Editing = {
 
 const round1 = (x: number) => Math.round(x * 10) / 10;
 
+// ─── Category chips ─────────────────────────────────────────────────────────
+// Color families for the result-row chips + icon tiles (reference: PROTEIN is
+// fire-orange, SAYUR green, …). Foods resolve via foodGroup (DB rows) or the
+// legacy step-key group (local ingredients).
+
+type Fam = { text: string; bg: string; bd: string };
+const FAMS: Record<string, Fam> = {
+  fire: { text: "#ff9a80", bg: "rgba(238,60,48,.09)", bd: "rgba(238,60,48,.32)" },
+  green: { text: "#5fe39a", bg: "rgba(34,197,94,.09)", bd: "rgba(34,197,94,.35)" },
+  blue: { text: "#58b7ff", bg: "rgba(56,142,255,.09)", bd: "rgba(56,142,255,.35)" },
+  gold: { text: "#ffd25a", bg: "rgba(255,210,90,.08)", bd: "rgba(255,210,90,.3)" },
+  pink: { text: "#ff8ac2", bg: "rgba(255,110,180,.08)", bd: "rgba(255,110,180,.3)" },
+  cyan: { text: "#7ce7de", bg: "rgba(80,220,205,.08)", bd: "rgba(80,220,205,.3)" },
+};
+
+type Cat = { emoji: string; label: string; fam: Fam };
+const CAT: Record<string, Cat> = {
+  // DB food groups
+  Daging: { emoji: "🥩", label: "PROTEIN", fam: FAMS.fire },
+  "Ikan dsb": { emoji: "🐟", label: "PROTEIN", fam: FAMS.fire },
+  Telur: { emoji: "🥚", label: "PROTEIN", fam: FAMS.fire },
+  Kacang: { emoji: "🫘", label: "PROTEIN", fam: FAMS.fire },
+  "Masakan Nusantara": { emoji: "🍛", label: "MASAKAN", fam: FAMS.fire },
+  "Custom/Estimasi": { emoji: "✍️", label: "CUSTOM", fam: FAMS.fire },
+  Serealia: { emoji: "🌾", label: "KARBO", fam: FAMS.blue },
+  Umbi: { emoji: "🥔", label: "KARBO", fam: FAMS.blue },
+  Buah: { emoji: "🍎", label: "BUAH", fam: FAMS.green },
+  Gula: { emoji: "🍬", label: "GULA", fam: FAMS.pink },
+  Sayur: { emoji: "🥬", label: "SAYUR", fam: FAMS.green },
+  Lemak: { emoji: "🧈", label: "LEMAK", fam: FAMS.gold },
+  Bumbu: { emoji: "🧂", label: "BUMBU", fam: FAMS.gold },
+  Susu: { emoji: "🥛", label: "SUSU", fam: FAMS.cyan },
+  Minuman: { emoji: "🧋", label: "MINUMAN", fam: FAMS.cyan },
+  "Kue/Dessert": { emoji: "🍰", label: "DESSERT", fam: FAMS.pink },
+  // legacy step-key groups (local ingredients + session customs)
+  protein: { emoji: "🥩", label: "PROTEIN", fam: FAMS.fire },
+  carb: { emoji: "🌾", label: "KARBO", fam: FAMS.blue },
+  vegetable: { emoji: "🥬", label: "SAYUR", fam: FAMS.green },
+  extra: { emoji: "✨", label: "EKSTRA", fam: FAMS.gold },
+  drink: { emoji: "🥤", label: "MINUMAN", fam: FAMS.cyan },
+  custom: { emoji: "✍️", label: "CUSTOM", fam: FAMS.fire },
+};
+const CAT_FALLBACK: Cat = { emoji: "🍽️", label: "MAKANAN", fam: FAMS.fire };
+
+function catFor(f: BuilderFood): Cat {
+  return (f.foodGroup && CAT[f.foodGroup]) || CAT[f.group] || CAT_FALLBACK;
+}
+
+// ─── Small helpers ──────────────────────────────────────────────────────────
+
+/** "1527" → "1.527" (Indonesian thousands separator, like the reference). */
+function fmtCount(n: number): string {
+  return n.toLocaleString("id-ID");
+}
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/** Ease a number up to its target for the "count-up" hero number. */
+function useCountUp(target: number): number {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    if (prefersReducedMotion() || target <= 0) {
+      setV(target);
+      return;
+    }
+    let raf = 0;
+    let cur = 0;
+    const tick = () => {
+      cur = cur + (target - cur) * 0.14;
+      if (Math.abs(target - cur) < 1) {
+        setV(target);
+        return;
+      }
+      setV(Math.round(cur));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target]);
+  return v;
+}
+
+// Deterministic ember positions (left %, size px, delay s, duration s).
+const EMBERS: [number, number, number, number][] = [
+  [12, 5, 0.0, 7.5],
+  [26, 3, 1.8, 6.2],
+  [38, 4, 3.1, 8.4],
+  [55, 3, 0.9, 7.0],
+  [67, 5, 2.4, 6.6],
+  [79, 3, 4.2, 8.8],
+  [88, 4, 1.2, 7.8],
+];
+
 // −/+ pill buttons inside the running tray.
 const trayBtn = (plus: boolean): CSSProperties => ({
-  width: 28,
-  height: 28,
+  width: 32,
+  height: 32,
   flex: "none",
   borderRadius: 999,
-  fontSize: 16,
+  fontSize: 17,
   lineHeight: 1,
   cursor: "pointer",
   color: plus ? "#fff" : "#f1ede9",
   background: plus
     ? "linear-gradient(180deg,#ff8a52,#ee3c30 60%,#c01f12)"
     : "rgba(255,255,255,.06)",
-  border: plus ? "1px solid rgba(255,150,120,.5)" : "1px solid rgba(255,255,255,.12)",
+  border: plus
+    ? "1px solid rgba(255,150,120,.5)"
+    : "1px solid rgba(255,255,255,.12)",
+  boxShadow: plus ? "inset 0 1px 1px rgba(255,225,205,.5)" : "none",
 });
 
 export default function FoodBuilder({
@@ -130,32 +233,54 @@ export default function FoodBuilder({
   onClose: () => void;
   onSaved?: () => void;
 }) {
-  const [step, setStep] = useState(0);
   const [selection, setSelection] = useState<Record<string, number>>({});
-  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [query, setQuery] = useState("");
   const [overrides, setOverrides] = useState<Record<string, MacroPatch>>({});
   const [customFoods, setCustomFoods] = useState<CustomFoodDef[]>([]);
   const [groups, setGroups] = useState<FoodGroup[]>([]);
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ all: true });
-  // Fire layout: browse library is collapsed by default (search is the hero).
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
+    all: true,
+  });
+  // Browse-all lives behind the floating ⋯ button (search is the hero).
   const [browseOpen, setBrowseOpen] = useState(false);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [newGroup, setNewGroup] = useState<{ name: string; emoji: string } | null>(null);
-  // TKPI/DB food-composition search results for the current query, plus a
-  // session cache so a picked DB food still resolves after the query clears.
+  // DB food-composition search results, plus a session cache so a picked DB
+  // food still resolves after the query clears.
   const [dbResults, setDbResults] = useState<BuilderFood[]>([]);
-  const [dbBrowse, setDbBrowse] = useState<BuilderFood[]>([]);
   const [dbCache, setDbCache] = useState<Record<string, BuilderFood>>({});
+  // Shared library size for the empty-state hero count.
+  const [libCount, setLibCount] = useState<number | null>(null);
+  const searchRef = useRef<HTMLInputElement | null>(null);
 
   // Persisted custom "libraries" load client-side (localStorage).
   useEffect(() => {
     setGroups(getFoodGroups());
   }, []);
 
-  // Live search against the shared food-composition DB (1,148 TKPI foods +
-  // custom + USDA). Debounced; per-100g values map to a "100 g" unit so the
-  // existing qty stepper (step 0.5 = 50 g) and save path work unchanged.
+  // Library size — the public health endpoint reports the shared Food count.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/hermes/health")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        const n = data?.data?.foodCount;
+        if (typeof n === "number" && n > 0) {
+          setLibCount(n + INGREDIENTS.length);
+        } else {
+          setLibCount(INGREDIENTS.length);
+        }
+      })
+      .catch(() => setLibCount(INGREDIENTS.length));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Live search against the shared food DB (TKPI + custom + libraries).
+  // Debounced; per-100g values map to a "100 g" unit so the qty math and the
+  // save path work unchanged.
   useEffect(() => {
     const term = query.trim();
     if (term.length < 2) {
@@ -175,7 +300,7 @@ export default function FoodBuilder({
             englishName: f.nameEn ?? undefined,
             foodGroup: f.foodGroup ?? undefined,
             unit: "100 g",
-            group: STEPS[step].key,
+            group: "custom",
             kcal: f.energy_kcal ?? 0,
             protein: f.protein_g ?? 0,
             fat: f.fat_g ?? 0,
@@ -196,46 +321,7 @@ export default function FoodBuilder({
       cancelled = true;
       clearTimeout(t);
     };
-  }, [query, step]);
-
-  // Browse the DB library for the current step (no query needed) so the full
-  // TKPI catalogue is visible while scrolling, not only when searching.
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/foods/search?group=${encodeURIComponent(STEPS[step].key)}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (cancelled) return;
-        const rows: DbFoodRow[] = data?.data?.foods ?? [];
-        const mapped: BuilderFood[] = rows.map((f) => ({
-          id: f.sourceCode,
-          name: f.name,
-          englishName: f.nameEn ?? undefined,
-          unit: "100 g",
-          group: STEPS[step].key,
-          kcal: f.energy_kcal ?? 0,
-          protein: f.protein_g ?? 0,
-          fat: f.fat_g ?? 0,
-          carbs: f.carb_g ?? 0,
-          gramsPerUnit: 100,
-          step: 0.1, // ±10 g nudges (gramsPerUnit 100)
-        }));
-        setDbBrowse(mapped);
-        setDbCache((c) => {
-          const next = { ...c };
-          for (const m of mapped) next[m.id] = m;
-          return next;
-        });
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [step]);
-
-  const stepDef = STEPS[step];
-  const group = stepDef.key;
-  const isLast = step >= STEPS.length - 1;
+  }, [query]);
 
   const applyOv = (f: BuilderFood): BuilderFood =>
     overrides[f.id] ? { ...f, ...overrides[f.id] } : f;
@@ -266,6 +352,7 @@ export default function FoodBuilder({
 
   // ---------- selection ----------
   const bAdd = (id: string) => {
+    haptic("tap");
     const ing = bIng(id);
     const st = (ing && ing.step) || 1;
     setSelection((sel) => ({
@@ -284,30 +371,17 @@ export default function FoodBuilder({
       return next;
     });
   };
-  const toggleReveal = (id: string) =>
-    setRevealed((r) => ({ ...r, [id]: !r[id] }));
+  const bRemove = (id: string) =>
+    setSelection((sel) => {
+      const next = { ...sel };
+      delete next[id];
+      return next;
+    });
   const toggleSection = (key: string) =>
     setCollapsed((c) => ({ ...c, [key]: !c[key] }));
 
-  // ---------- step nav ----------
-  const goStep = (n: number) => {
-    setStep(n);
-    setQuery("");
-  };
-  const onNext = () => {
-    if (isLast) saveBuilderMeal();
-    else goStep(step + 1);
-  };
-  const onBack = () => {
-    if (step <= 0) {
-      onClose();
-      return;
-    }
-    goStep(step - 1);
-  };
-
   // Hardware/browser back mirrors the UI: close an inner sheet first, then
-  // step back through the wizard, and only then leave the builder.
+  // the browse layer, and only then leave the builder.
   useSheetBack(true, () => {
     if (editing) {
       setEditing(null);
@@ -317,8 +391,8 @@ export default function FoodBuilder({
       setNewGroup(null);
       return true;
     }
-    if (step > 0) {
-      goStep(step - 1);
+    if (browseOpen) {
+      setBrowseOpen(false);
       return true;
     }
     onClose();
@@ -356,6 +430,7 @@ export default function FoodBuilder({
       onClose();
       return;
     }
+    haptic("success");
     saveMeal({ date: dateKey, mealType: meal, items });
     onSaved?.();
     onClose();
@@ -452,7 +527,7 @@ export default function FoodBuilder({
         const qty = e.grams > 0 ? Math.round((e.grams / gpu) * 1000) / 1000 : 0;
         if (qty <= 0) return null;
         const id = e.id;
-        // Store per-unit macros (serving ÷ qty) so the card's `macro × qty`
+        // Store per-unit macros (serving ÷ qty) so the tray's `macro × qty`
         // math reproduces exactly the serving the user configured.
         setOverrides((ov) => ({
           ...ov,
@@ -474,7 +549,7 @@ export default function FoodBuilder({
         id,
         name: e.name || "Makanan baru",
         unit: "1 porsi",
-        group: STEPS[step].key,
+        group: "custom",
         kcal: e.kcal,
         protein: e.protein,
         carbs: e.carbs,
@@ -524,7 +599,7 @@ export default function FoodBuilder({
     });
   };
 
-  // ---------- derived: sections ----------
+  // ---------- derived ----------
   const merged: BuilderFood[] = (INGREDIENTS as BuilderFood[])
     .concat(customFoods)
     .concat(groupFoods)
@@ -536,14 +611,15 @@ export default function FoodBuilder({
     (!!i.zh && i.zh.includes(q)) ||
     (!!i.pinyin && i.pinyin.toLowerCase().includes(q));
 
-  const favs: BuilderFood[] = (INGREDIENTS as BuilderFood[])
-    .filter((i) => i.group === group && i.favorite)
-    .map(applyOv);
-  const others: BuilderFood[] = (INGREDIENTS as BuilderFood[])
-    .filter((i) => i.group === group && !i.favorite)
-    .map(applyOv)
-    .concat(customFoods.filter((f) => f.group === group).map(applyOv));
+  // Search results — one flat, ranked list: local library matches lead, DB
+  // hits (already score-ranked by the API) follow.
+  const searchFlat: BuilderFood[] = q
+    ? merged.filter(match).concat(dbResults)
+    : [];
+  const searchResultCount = searchFlat.length;
 
+  // Browse-all sections (behind ⋯): favorites, each custom library group and
+  // the whole local catalogue — no step scoping anymore.
   type Section = {
     key: string;
     chev: string;
@@ -556,15 +632,6 @@ export default function FoodBuilder({
     onAddFood: () => void;
     items: BuilderFood[];
   };
-
-  // ── Search results — one flat, ranked list (matches the reference): local
-  // library matches lead, DB hits (already score-ranked) follow. ──
-  const searchFlat: BuilderFood[] = q
-    ? merged.filter(match).concat(dbResults)
-    : [];
-  const searchResultCount = searchFlat.length;
-
-  // ── Browse library — collapsed by default in the Fire layout ──
   const mk = (
     key: string,
     emoji: string,
@@ -576,24 +643,28 @@ export default function FoodBuilder({
     const open = !collapsed[key];
     const sc = list.filter((x) => (selection[x.id] || 0) > 0).length;
     return {
-      key, chev: open ? "▾" : "▸", emoji, name,
+      key,
+      chev: open ? "▾" : "▸",
+      emoji,
+      name,
       countLabel: sc > 0 ? `${sc} dipilih` : String(list.length),
-      open, canAdd,
+      open,
+      canAdd,
       onToggle: () => toggleSection(key),
       onAddFood: gid ? () => openNewFood(gid) : () => {},
       items: open ? list.map(applyOv) : [],
     };
   };
+  const favs = (INGREDIENTS as BuilderFood[]).filter((i) => i.favorite);
+  const nonFavs = (INGREDIENTS as BuilderFood[])
+    .filter((i) => !i.favorite)
+    .concat(customFoods);
   const browseSections: Section[] = [];
   browseSections.push(mk("usual", "⭐", "USUAL KAMU", favs, false, null));
-  if (dbBrowse.length) {
-    browseSections.push(mk("tkpidb", "🇮🇩", "DATABASE TKPI", dbBrowse, false, null));
-  }
   for (const g of groups) {
-    const gFoods = g.foods.filter((f) => f.group === group).map(applyOv);
-    browseSections.push(mk(g.id, g.emoji, g.name, gFoods, true, g.id));
+    browseSections.push(mk(g.id, g.emoji, g.name, g.foods, true, g.id));
   }
-  browseSections.push(mk("all", "🍽️", "SEMUA " + stepDef.title, others, false, null));
+  browseSections.push(mk("all", "🍽️", "SEMUA MAKANAN", nonFavs, false, null));
 
   // ---------- totals ----------
   let tk = 0,
@@ -611,8 +682,7 @@ export default function FoodBuilder({
   }
   const count = Object.values(selection).filter((x) => x > 0).length;
 
-  // ── Running "what you've eaten" tray — every selected item across all steps,
-  // resolved with overrides, so the tray is a live cart, not per-step. ──
+  // The running tray — every selected item, resolved with overrides.
   const traySelected = Object.keys(selection)
     .filter((id) => (selection[id] || 0) > 0)
     .map((id) => {
@@ -621,49 +691,70 @@ export default function FoodBuilder({
     })
     .filter((x): x is { id: string; ing: BuilderFood; qty: number } => !!x);
 
-  const bRemove = (id: string) =>
-    setSelection((sel) => {
-      const next = { ...sel };
-      delete next[id];
-      return next;
-    });
+  const shownLibCount = useCountUp(libCount ?? 0);
+  const emptyState = !q && count === 0 && !browseOpen;
 
-  // ---------- card renderer (prototype bCard) ----------
-  const renderCard = (raw: BuilderFood) => {
+  // ---------- result row (reference: icon tile + chip + serving/kcal + add) --
+  const renderRow = (raw: BuilderFood) => {
     const ing = applyOv(raw);
     const id = ing.id;
     const qty = selection[id] || 0;
     const selected = qty > 0;
+    const cat = catFor(ing);
     const gp = ing.gramsPerUnit ? Math.round(ing.gramsPerUnit * qty) : null;
-    const qtyLabel = gp != null ? `${gp}g` : `×${qty}`;
-    const isRevealed = !!revealed[id] && !!ing.zh;
-    const showZi = !!ing.zh;
-    const macroLine = `${Math.round(ing.protein)}p · ${Math.round(
-      ing.carbs
-    )}c · ${Math.round(ing.fat)}f`;
+    const qtyBadge =
+      ing.gramsPerUnit === 100 && gp != null ? `${gp}g` : `×${qty}`;
     return (
       <div
         key={id}
         onClick={() => bAdd(id)}
         style={{
-          borderRadius: 14,
-          padding: "13px 14px",
+          display: "flex",
+          alignItems: "center",
+          gap: 11,
+          borderRadius: 16,
+          padding: "11px 12px",
           cursor: "pointer",
           background:
-            "linear-gradient(180deg,rgba(255,255,255,.045),transparent 40%),#0d0b0c",
+            "linear-gradient(180deg,rgba(255,255,255,.04),transparent 45%),#0d0b0c",
           border: selected
-            ? "1px solid rgba(255,138,60,.4)"
+            ? "1px solid rgba(255,138,60,.42)"
             : "1px solid rgba(255,255,255,.09)",
-          boxShadow: "inset 0 1px 0 rgba(255,255,255,.05)",
+          boxShadow: selected
+            ? "inset 0 1px 0 rgba(255,255,255,.05),0 0 18px rgba(238,60,48,.12)"
+            : "inset 0 1px 0 rgba(255,255,255,.05)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
+        {/* category icon tile */}
+        <div
+          style={{
+            width: 46,
+            height: 46,
+            flex: "none",
+            borderRadius: 13,
+            display: "grid",
+            placeItems: "center",
+            fontSize: 22,
+            background: cat.fam.bg,
+            border: `1px solid ${cat.fam.bd}`,
+          }}
+        >
+          {cat.emoji}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              minWidth: 0,
+            }}
+          >
+            <span
               style={{
                 fontFamily: SANS,
                 fontWeight: 700,
-                fontSize: 14,
+                fontSize: 15.5,
                 color: "#f1ede9",
                 lineHeight: 1.2,
                 overflow: "hidden",
@@ -672,127 +763,97 @@ export default function FoodBuilder({
               }}
             >
               {ing.name}
-            </div>
-            <div
+            </span>
+            {selected ? (
+              <span
+                style={{
+                  flex: "none",
+                  fontFamily: MONO,
+                  fontSize: 9,
+                  padding: "2px 7px",
+                  borderRadius: 999,
+                  background: "rgba(238,60,48,.15)",
+                  color: "#ff8a72",
+                }}
+              >
+                {qtyBadge}
+              </span>
+            ) : null}
+          </div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              marginTop: 5,
+              minWidth: 0,
+            }}
+          >
+            <span
+              style={{
+                flex: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                padding: "3px 8px",
+                borderRadius: 999,
+                fontFamily: MONO,
+                fontSize: 8.5,
+                letterSpacing: ".08em",
+                color: cat.fam.text,
+                background: cat.fam.bg,
+                border: `1px solid ${cat.fam.bd}`,
+              }}
+            >
+              <span style={{ fontSize: 9 }}>{cat.emoji}</span>
+              {cat.label}
+            </span>
+            <span
               style={{
                 fontFamily: MONO,
-                fontSize: 9,
+                fontSize: 10,
                 color: "#8a837d",
-                marginTop: 3,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
               }}
             >
-              {ing.unit} <span style={{ color: "#5a5551" }}>·</span>{" "}
-              <span style={{ color: "#ff8a72" }}>{Math.round(ing.kcal)} kkal</span>{" "}
-              <span style={{ color: "#6a6660" }}>· {macroLine}</span>
-            </div>
-            {isRevealed ? (
-              <div
-                style={{
-                  marginTop: 4,
-                  fontFamily: MONO,
-                  fontSize: 9.5,
-                  color: "#8a837d",
-                }}
-              >
-                <span style={{ fontFamily: ZH, fontSize: 12, color: "#cfc8c2" }}>
-                  {ing.zh}
-                </span>{" "}
-                {ing.pinyin}
-              </div>
-            ) : null}
-          </div>
-          {selected ? (
-            <span
-              style={{
-                fontFamily: MONO,
-                fontSize: 9,
-                padding: "3px 7px",
-                borderRadius: 999,
-                background: "rgba(238,60,48,.15)",
-                color: "#ff8a72",
-                flex: "none",
-              }}
-            >
-              {qtyLabel}
+              {ing.unit} ·{" "}
+              <span style={{ color: "#ff8a72" }}>
+                {Math.round(ing.kcal)} kkal
+              </span>
             </span>
-          ) : null}
-          {showZi ? (
-            <button
-              type="button"
-              onClick={(ev) => {
-                ev.stopPropagation();
-                toggleReveal(id);
-              }}
-              style={{
-                width: 28,
-                height: 28,
-                flex: "none",
-                borderRadius: 8,
-                fontFamily: ZH,
-                fontSize: 13,
-                cursor: "pointer",
-                background: isRevealed ? "#d42a17" : "transparent",
-                border: isRevealed
-                  ? "none"
-                  : "1px solid rgba(255,255,255,.1)",
-                color: isRevealed ? "#ffe9e2" : "#cfc8c2",
-              }}
-            >
-              字
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={(ev) => {
-              ev.stopPropagation();
-              openEdit(id);
-            }}
-            style={{
-              width: 28,
-              height: 28,
-              flex: "none",
-              borderRadius: 8,
-              fontSize: 11,
-              cursor: "pointer",
-              background: "transparent",
-              border: "1px solid rgba(255,255,255,.1)",
-              color: "rgba(255,255,255,.4)",
-            }}
-          >
-            ✎
-          </button>
-          <button
-            type="button"
-            onClick={(ev) => {
-              ev.stopPropagation();
-              bAdd(id);
-            }}
-            style={{
-              width: 30,
-              height: 30,
-              flex: "none",
-              borderRadius: 9,
-              fontSize: 18,
-              lineHeight: 1,
-              cursor: "pointer",
-              color: "#fff",
-              background: "linear-gradient(180deg,#ff8a52,#ee3c30 60%,#c01f12)",
-              border: "1px solid rgba(255,150,120,.5)",
-              boxShadow:
-                "inset 0 1px 1px rgba(255,225,205,.5),0 4px 10px rgba(238,60,48,.35)",
-            }}
-          >
-            +
-          </button>
+          </div>
         </div>
+        <button
+          type="button"
+          aria-label={`Tambah ${ing.name}`}
+          onClick={(ev) => {
+            ev.stopPropagation();
+            bAdd(id);
+          }}
+          style={{
+            width: 44,
+            height: 44,
+            flex: "none",
+            borderRadius: 13,
+            fontSize: 20,
+            lineHeight: 1,
+            cursor: "pointer",
+            color: "#fff",
+            background: "linear-gradient(180deg,#ff8a52,#ee3c30 60%,#c01f12)",
+            border: "1px solid rgba(255,150,120,.5)",
+            boxShadow:
+              "inset 0 1px 1px rgba(255,225,205,.5),0 4px 10px rgba(238,60,48,.35)",
+          }}
+        >
+          +
+        </button>
       </div>
     );
   };
 
-  // Collapsible section (header + cards), reused by search results and browse.
+  // Collapsible browse section (header + rows).
   const renderSection = (sec: Section) => (
     <div key={sec.key} style={{ marginBottom: 4 }}>
       <div
@@ -805,7 +866,15 @@ export default function FoodBuilder({
           cursor: "pointer",
         }}
       >
-        <span style={{ fontFamily: MONO, fontSize: 11, color: "#8a837d", width: 11, flex: "none" }}>
+        <span
+          style={{
+            fontFamily: MONO,
+            fontSize: 11,
+            color: "#8a837d",
+            width: 11,
+            flex: "none",
+          }}
+        >
           {sec.chev}
         </span>
         <span style={{ fontSize: 14 }}>{sec.emoji}</span>
@@ -824,7 +893,14 @@ export default function FoodBuilder({
         >
           {sec.name}
         </span>
-        <span style={{ fontFamily: MONO, fontSize: 9, color: "#6a6660", flex: "none" }}>
+        <span
+          style={{
+            fontFamily: MONO,
+            fontSize: 9,
+            color: "#6a6660",
+            flex: "none",
+          }}
+        >
           {sec.countLabel}
         </span>
         {sec.canAdd ? (
@@ -852,8 +928,15 @@ export default function FoodBuilder({
         ) : null}
       </div>
       {sec.open ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 7, margin: "1px 0 14px" }}>
-          {sec.items.map(renderCard)}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 7,
+            margin: "1px 0 14px",
+          }}
+        >
+          {sec.items.map(renderRow)}
         </div>
       ) : null}
     </div>
@@ -861,7 +944,7 @@ export default function FoodBuilder({
 
   return (
     <>
-      {/* ============ FOOD BUILDER ============ */}
+      {/* ============ FOOD BUILDER (single screen) ============ */}
       <div
         style={{
           position: "fixed",
@@ -871,9 +954,54 @@ export default function FoodBuilder({
             "radial-gradient(720px 520px at 50% -10%, #17100f, #0a0809 55%, #070608)",
           display: "flex",
           flexDirection: "column",
+          overflow: "hidden",
         }}
       >
-        <div style={{ padding: "42px 18px 14px 18px", flex: "none" }}>
+        {/* ambient fire glow + embers (empty state only, like the reference) */}
+        {emptyState ? (
+          <>
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                left: "50%",
+                top: "34%",
+                width: 420,
+                height: 420,
+                transform: "translate(-50%,-50%)",
+                borderRadius: "50%",
+                background:
+                  "radial-gradient(circle, rgba(238,60,48,.16), rgba(238,60,48,.05) 46%, transparent 70%)",
+                filter: "blur(26px)",
+                pointerEvents: "none",
+                animation: "glowPulse 5.5s ease-in-out infinite",
+              }}
+            />
+            {EMBERS.map(([left, size, delay, dur], i) => (
+              <span
+                key={i}
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  left: `${left}%`,
+                  bottom: 90,
+                  width: size,
+                  height: size,
+                  borderRadius: "50%",
+                  background:
+                    i % 2 === 0 ? "rgba(255,170,90,.85)" : "rgba(255,120,70,.7)",
+                  boxShadow: "0 0 8px rgba(255,140,70,.8)",
+                  pointerEvents: "none",
+                  animation: `emberFloat ${dur}s linear ${delay}s infinite`,
+                  opacity: 0,
+                }}
+              />
+            ))}
+          </>
+        ) : null}
+
+        {/* header */}
+        <div style={{ padding: "42px 18px 6px 18px", flex: "none" }}>
           <div
             style={{
               display: "flex",
@@ -900,89 +1028,35 @@ export default function FoodBuilder({
             <span
               style={{
                 fontFamily: MONO,
-                fontSize: 10,
-                letterSpacing: ".1em",
-                color: "#6a6660",
-              }}
-            >
-              STEP {step + 1} / {STEPS.length}
-            </span>
-          </div>
-          {/* Tappable step segments — jump straight to any step (selections
-              persist across steps, so hopping around is safe). */}
-          <div style={{ display: "flex", gap: 5, marginTop: 13 }}>
-            {STEPS.map((s, i) => (
-              <button
-                key={s.key}
-                type="button"
-                aria-label={`Ke step ${s.title}`}
-                onClick={() => goStep(i)}
-                style={{
-                  flex: 1,
-                  height: 4,
-                  padding: 0,
-                  border: "none",
-                  cursor: "pointer",
-                  borderRadius: 999,
-                  transition: "all .3s",
-                  // Enlarge the touch target without changing the visual bar.
-                  boxSizing: "content-box",
-                  borderTop: "8px solid transparent",
-                  borderBottom: "8px solid transparent",
-                  backgroundClip: "padding-box",
-                  background:
-                    i === step
-                      ? "linear-gradient(90deg,#ff8a3d,#ee2f1f) padding-box"
-                      : i < step
-                      ? "rgba(238,60,48,.45) padding-box"
-                      : "rgba(255,255,255,.1) padding-box",
-                  boxShadow: i === step ? "0 0 8px rgba(238,60,48,.6)" : "none",
-                }}
-              />
-            ))}
-          </div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              gap: 8,
-              marginTop: 15,
-            }}
-          >
-            <span
-              style={{
-                fontFamily: SANS,
-                fontWeight: 700,
-                fontSize: 24,
-                color: "#f1ede9",
-                letterSpacing: "-.01em",
+                fontSize: 11,
+                letterSpacing: ".14em",
+                color: "#ff8a72",
               }}
             >
               {BLABEL[meal]}
             </span>
-            <span style={{ color: "#5a5551", fontSize: 20 }}>·</span>
-            <span
-              style={{
-                fontFamily: SANS,
-                fontWeight: 700,
-                fontSize: 24,
-                background: "linear-gradient(100deg,#ff8a3d,#ee2f1f)",
-                WebkitBackgroundClip: "text",
-                backgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-              }}
-            >
-              {stepDef.title}
-            </span>
+          </div>
+          <div
+            style={{
+              fontFamily: SANS,
+              fontWeight: 800,
+              fontSize: 28,
+              letterSpacing: "-.01em",
+              color: "#f1ede9",
+              marginTop: 12,
+            }}
+          >
+            CATAT <span style={FIRE_TEXT}>MAKAN</span>
           </div>
         </div>
 
+        {/* scroll area */}
         <div
           style={{
             flex: 1,
             overflowY: "auto",
             overflowX: "hidden",
-            padding: "6px 18px 128px 18px",
+            padding: "10px 18px 170px 18px",
           }}
         >
           {/* ── RUNNING TRAY — what you've eaten, live totals ── */}
@@ -991,6 +1065,7 @@ export default function FoodBuilder({
               style={{
                 borderRadius: 18,
                 padding: 15,
+                marginBottom: 18,
                 background:
                   "linear-gradient(180deg,rgba(255,138,60,.07),transparent 42%),#0c0a0b",
                 border: "1px solid rgba(255,138,60,.24)",
@@ -999,32 +1074,80 @@ export default function FoodBuilder({
                 animation: "trayPop .34s cubic-bezier(.16,1,.3,1)",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: ".12em", color: "#ff8a72", whiteSpace: "nowrap" }}>
-                  🔥 YANG KAMU MAKAN
-                </span>
-                <span style={{ fontFamily: MONO, fontSize: 9, color: "#6a6660", flex: "none", whiteSpace: "nowrap", marginLeft: 8 }}>
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <span
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 9,
+                    letterSpacing: ".12em",
+                    color: "#6a6660",
+                  }}
+                >
                   {count} ITEM
                 </span>
               </div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 7, marginTop: 9 }}>
-                <span
-                  key={Math.round(tk)}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  marginTop: 2,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+                  <span
+                    key={Math.round(tk)}
+                    style={{
+                      fontFamily: SANS,
+                      fontWeight: 800,
+                      fontSize: 38,
+                      color: "#ffe9d6",
+                      lineHeight: 1,
+                      animation: "totalKick .4s ease-out",
+                    }}
+                  >
+                    {Math.round(tk)}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: SANS,
+                      fontWeight: 600,
+                      fontSize: 14,
+                      color: "#7c736e",
+                    }}
+                  >
+                    kkal
+                  </span>
+                </div>
+                {/* protein / carbs / fat stat block */}
+                <div
                   style={{
-                    fontFamily: SANS,
-                    fontWeight: 800,
-                    fontSize: 30,
-                    color: "#fff",
-                    lineHeight: 1,
-                    animation: "totalKick .4s ease-out",
+                    flex: "none",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "9px 13px",
+                    borderRadius: 12,
+                    fontFamily: MONO,
+                    fontSize: 11.5,
+                    background: "rgba(255,255,255,.04)",
+                    border: "1px solid rgba(255,255,255,.09)",
                   }}
                 >
-                  {Math.round(tk)}
-                </span>
-                <span style={{ fontFamily: SANS, fontWeight: 600, fontSize: 13, color: "#7c736e" }}>kkal</span>
-              </div>
-              <div style={{ fontFamily: MONO, fontSize: 10, color: "#9a938d", marginTop: 4 }}>
-                <span style={{ color: "#5fe39a" }}>{Math.round(tp)}g protein</span> · {Math.round(tc)}c · {Math.round(tf)}f
+                  <span>
+                    <span style={{ color: "#5fe39a" }}>{Math.round(tp)}</span>
+                    <span style={{ color: "#6a6660" }}>p</span>
+                  </span>
+                  <span>
+                    <span style={{ color: "#58b7ff" }}>{Math.round(tc)}</span>
+                    <span style={{ color: "#6a6660" }}>c</span>
+                  </span>
+                  <span>
+                    <span style={{ color: "#ffd25a" }}>{Math.round(tf)}</span>
+                    <span style={{ color: "#6a6660" }}>f</span>
+                  </span>
+                </div>
               </div>
               <div
                 style={{
@@ -1032,14 +1155,19 @@ export default function FoodBuilder({
                   flexDirection: "column",
                   gap: 7,
                   marginTop: 13,
-                  maxHeight: 210,
+                  maxHeight: 218,
                   overflowY: "auto",
                   overflowX: "hidden",
                 }}
               >
                 {traySelected.map(({ id, ing, qty }) => {
-                  const gp = ing.gramsPerUnit ? Math.round(ing.gramsPerUnit * qty) : null;
-                  const qtyLabel = gp != null ? `${gp}g` : `×${qty}`;
+                  const gp = ing.gramsPerUnit
+                    ? Math.round(ing.gramsPerUnit * qty)
+                    : null;
+                  const qtyLabel =
+                    ing.gramsPerUnit === 100 && gp != null
+                      ? `${gp}g`
+                      : `×${qty}`;
                   return (
                     <div
                       key={id}
@@ -1047,32 +1175,106 @@ export default function FoodBuilder({
                         display: "flex",
                         alignItems: "center",
                         gap: 8,
-                        padding: "9px 10px",
-                        borderRadius: 12,
+                        padding: "10px 11px",
+                        borderRadius: 13,
                         background: "rgba(255,255,255,.04)",
                         border: "1px solid rgba(255,138,60,.16)",
                         animation: "trayPop2 .3s cubic-bezier(.16,1,.3,1)",
                       }}
                     >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: SANS, fontWeight: 700, fontSize: 13.5, color: "#f8ede8", lineHeight: 1.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {/* Tap the name to fine-tune portion / calories. */}
+                      <button
+                        type="button"
+                        onClick={() => openEdit(id)}
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          textAlign: "left",
+                          background: "none",
+                          border: "none",
+                          padding: 0,
+                          cursor: "pointer",
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: "block",
+                            fontFamily: SANS,
+                            fontWeight: 700,
+                            fontSize: 14,
+                            color: "#f8ede8",
+                            lineHeight: 1.15,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
                           {ing.name}
-                        </div>
-                        <div style={{ fontFamily: MONO, fontSize: 9, marginTop: 3, color: "#ff9a80", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        </span>
+                        <span
+                          style={{
+                            display: "block",
+                            fontFamily: MONO,
+                            fontSize: 9,
+                            marginTop: 3,
+                            color: "#ff9a80",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {Math.round(ing.protein * qty)}g protein ·{" "}
                           {Math.round(ing.kcal * qty)} kkal
-                          <span style={{ color: "#7c736e" }}> · {Math.round(ing.protein * qty)}p {Math.round(ing.carbs * qty)}c {Math.round(ing.fat * qty)}f</span>
-                        </div>
-                      </div>
-                      <button type="button" onClick={() => bSub(id)} style={trayBtn(false)}>−</button>
-                      <span style={{ fontFamily: SANS, fontWeight: 700, fontSize: 12, color: "#ffb39e", minWidth: 30, textAlign: "center" }}>
+                          <span style={{ color: "#7c736e" }}>
+                            {" "}
+                            · {Math.round(ing.carbs * qty)}c ·{" "}
+                            {Math.round(ing.fat * qty)}f
+                          </span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Kurangi"
+                        onClick={() => bSub(id)}
+                        style={trayBtn(false)}
+                      >
+                        −
+                      </button>
+                      <span
+                        style={{
+                          fontFamily: SANS,
+                          fontWeight: 700,
+                          fontSize: 12.5,
+                          color: "#ffb39e",
+                          minWidth: 34,
+                          textAlign: "center",
+                        }}
+                      >
                         {qtyLabel}
                       </span>
-                      <button type="button" onClick={() => bAdd(id)} style={trayBtn(true)}>+</button>
+                      <button
+                        type="button"
+                        aria-label="Tambah"
+                        onClick={() => bAdd(id)}
+                        style={trayBtn(true)}
+                      >
+                        +
+                      </button>
                       <button
                         type="button"
                         onClick={() => bRemove(id)}
                         aria-label="Hapus"
-                        style={{ width: 26, height: 26, flex: "none", borderRadius: 8, fontSize: 12, cursor: "pointer", background: "transparent", border: "none", color: "#6a6660" }}
+                        style={{
+                          width: 26,
+                          height: 26,
+                          flex: "none",
+                          borderRadius: 8,
+                          fontSize: 12,
+                          cursor: "pointer",
+                          background: "transparent",
+                          border: "none",
+                          color: "#6a6660",
+                        }}
                       >
                         ✕
                       </button>
@@ -1083,12 +1285,62 @@ export default function FoodBuilder({
             </div>
           ) : null}
 
-          {/* ── HERO SEARCH — the primary action ── */}
-          <div style={{ position: "relative", marginTop: count > 0 ? 16 : 2 }}>
-            <span style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", fontSize: 16, pointerEvents: "none", opacity: 0.9 }}>
+          {/* ── EMPTY-STATE HERO — library size + hint ── */}
+          {emptyState ? (
+            <div style={{ textAlign: "center", padding: "64px 10px 40px" }}>
+              <div
+                style={{
+                  fontFamily: SANS,
+                  fontWeight: 800,
+                  fontSize: 58,
+                  lineHeight: 1,
+                  ...FIRE_TEXT,
+                }}
+              >
+                {libCount == null ? "…" : fmtCount(shownLibCount)}
+              </div>
+              <div
+                style={{
+                  fontFamily: SANS,
+                  fontWeight: 500,
+                  fontSize: 19,
+                  color: "#cfc8c2",
+                  marginTop: 10,
+                }}
+              >
+                makanan di library
+              </div>
+              <div
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 10,
+                  letterSpacing: ".22em",
+                  color: "#6a6660",
+                  marginTop: 9,
+                }}
+              >
+                TINGGAL KETIK
+              </div>
+            </div>
+          ) : null}
+
+          {/* ── HERO SEARCH — glowing, the primary action ── */}
+          <div style={{ position: "relative" }}>
+            <span
+              style={{
+                position: "absolute",
+                left: 17,
+                top: "50%",
+                transform: "translateY(-50%)",
+                fontSize: 16,
+                pointerEvents: "none",
+                opacity: 0.9,
+              }}
+            >
               🔎
             </span>
             <input
+              ref={searchRef}
               type="text"
               value={query}
               onChange={(ev) => setQuery(ev.target.value)}
@@ -1096,66 +1348,42 @@ export default function FoodBuilder({
               style={{
                 width: "100%",
                 boxSizing: "border-box",
-                padding: "16px 16px 16px 44px",
-                borderRadius: 16,
+                padding: "17px 16px 17px 46px",
+                borderRadius: 18,
                 fontFamily: SANS,
-                fontSize: 15,
+                fontSize: 15.5,
                 color: "#f1ede9",
-                background: "rgba(255,255,255,.05)",
-                border: "1px solid rgba(255,255,255,.13)",
+                background: "rgba(255,255,255,.045)",
+                border: "1px solid rgba(255,138,60,.4)",
                 outline: "none",
-                boxShadow: "inset 0 1px 0 rgba(255,255,255,.05),0 8px 20px rgba(0,0,0,.3)",
+                boxShadow:
+                  "inset 0 1px 0 rgba(255,255,255,.05),0 0 26px rgba(238,60,48,.16),0 10px 26px rgba(0,0,0,.35)",
               }}
             />
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 11 }}>
-            <button
-              type="button"
-              onClick={() => openNewFood(null)}
-              style={{
-                fontFamily: MONO,
-                fontSize: 10,
-                letterSpacing: ".06em",
-                padding: "7px 11px",
-                borderRadius: 9,
-                cursor: "pointer",
-                color: "#ff8a72",
-                background: "rgba(238,60,48,.06)",
-                border: "1px dashed rgba(238,60,48,.4)",
-              }}
-            >
-              + TAMBAH MANUAL
-            </button>
-            <button
-              type="button"
-              onClick={() => setBrowseOpen((v) => !v)}
-              style={{
-                fontFamily: MONO,
-                fontSize: 10,
-                letterSpacing: ".06em",
-                padding: "7px 4px",
-                cursor: "pointer",
-                color: "#8a837d",
-                background: "none",
-                border: "none",
-              }}
-            >
-              {browseOpen ? "TUTUP ▴" : "LIHAT SEMUA ▾"}
-            </button>
-          </div>
 
-          {/* ── SEARCH RESULTS — flat ranked list (matches reference) ── */}
+          {/* ── SEARCH RESULTS — flat ranked rows ── */}
           {q ? (
             <>
-              <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: ".16em", color: "#6a6660", margin: "17px 0 10px" }}>
+              <div
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 9.5,
+                  letterSpacing: ".16em",
+                  color: "#6a6660",
+                  margin: "16px 0 10px",
+                }}
+              >
                 // {searchResultCount} HASIL
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                {searchFlat.map(renderCard)}
+                {searchFlat.map(renderRow)}
               </div>
               {searchResultCount === 0 ? (
                 <div style={{ textAlign: "center", padding: "26px 10px" }}>
-                  <div style={{ fontFamily: MONO, fontSize: 11, color: "#7c736e" }}>
+                  <div
+                    style={{ fontFamily: MONO, fontSize: 11, color: "#7c736e" }}
+                  >
                     Ga ketemu &ldquo;{query}&rdquo;
                   </div>
                   <button
@@ -1180,10 +1408,44 @@ export default function FoodBuilder({
             </>
           ) : null}
 
-          {/* ── OPTIONAL BROWSE (collapsed by default) ── */}
+          {/* ── BROWSE ALL (behind the ⋯ button) ── */}
           {browseOpen ? (
             <>
-              <div style={{ height: 1, background: "rgba(255,255,255,.06)", margin: "16px 0 2px" }} />
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  margin: "18px 0 4px",
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 9.5,
+                    letterSpacing: ".16em",
+                    color: "#6a6660",
+                  }}
+                >
+                  // LIBRARY KAMU
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setBrowseOpen(false)}
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 10,
+                    letterSpacing: ".06em",
+                    padding: "6px 10px",
+                    cursor: "pointer",
+                    color: "#8a837d",
+                    background: "none",
+                    border: "none",
+                  }}
+                >
+                  TUTUP ▴
+                </button>
+              </div>
               {browseSections.map(renderSection)}
               <button
                 type="button"
@@ -1208,6 +1470,69 @@ export default function FoodBuilder({
           ) : null}
         </div>
 
+        {/* floating ⋯ (browse all) + ＋ (add manual) — reference bottom-right */}
+        <div
+          style={{
+            position: "absolute",
+            right: 16,
+            bottom: 104,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 10,
+            zIndex: 5,
+          }}
+        >
+          <button
+            type="button"
+            aria-label="Jelajahi semua makanan"
+            onClick={() => {
+              haptic("tap");
+              setBrowseOpen((v) => !v);
+            }}
+            style={{
+              width: 46,
+              height: 46,
+              borderRadius: "50%",
+              fontSize: 18,
+              lineHeight: 1,
+              cursor: "pointer",
+              color: browseOpen ? "#ff8a72" : "#9a938d",
+              background: "linear-gradient(180deg,#191314,#0d0b0c)",
+              border: browseOpen
+                ? "1px solid rgba(255,138,60,.45)"
+                : "1px solid rgba(255,255,255,.12)",
+              boxShadow: "0 10px 24px rgba(0,0,0,.5)",
+            }}
+          >
+            ⋯
+          </button>
+          <button
+            type="button"
+            aria-label="Tambah makanan manual"
+            onClick={() => {
+              haptic("tap");
+              openNewFood(null);
+            }}
+            style={{
+              width: 58,
+              height: 58,
+              borderRadius: "50%",
+              fontSize: 26,
+              lineHeight: 1,
+              cursor: "pointer",
+              color: "#fff",
+              background: FIRE,
+              border: "1px solid rgba(255,150,120,.6)",
+              boxShadow:
+                "inset 0 1.5px 1px rgba(255,225,205,.7),0 12px 26px rgba(238,60,48,.5)",
+            }}
+          >
+            ＋
+          </button>
+        </div>
+
+        {/* bottom bar — BATAL + SIMPAN (reference) */}
         <div
           style={{
             position: "absolute",
@@ -1215,17 +1540,16 @@ export default function FoodBuilder({
             right: 0,
             bottom: 0,
             padding: "16px 16px 22px 16px",
-            background:
-              "linear-gradient(180deg,rgba(7,6,8,0),#070608 26%)",
+            background: "linear-gradient(180deg,rgba(7,6,8,0),#070608 30%)",
           }}
         >
           <div style={{ display: "flex", gap: 9 }}>
             <button
               type="button"
-              onClick={onBack}
+              onClick={onClose}
               style={{
                 flex: "none",
-                padding: "15px 18px",
+                padding: "15px 20px",
                 borderRadius: 14,
                 fontFamily: MONO,
                 fontSize: 12,
@@ -1235,11 +1559,11 @@ export default function FoodBuilder({
                 border: "1px solid rgba(255,255,255,.1)",
               }}
             >
-              {step === 0 ? "← MAKAN" : "← BALIK"}
+              BATAL
             </button>
             <button
               type="button"
-              onClick={onNext}
+              onClick={saveBuilderMeal}
               style={{
                 flex: 1,
                 position: "relative",
@@ -1256,6 +1580,7 @@ export default function FoodBuilder({
                 boxShadow:
                   "inset 0 1.5px 1px rgba(255,225,205,.7),0 12px 26px rgba(238,60,48,.45)",
                 textShadow: "0 1px 2px rgba(120,15,5,.5)",
+                opacity: count > 0 ? 1 : 0.55,
               }}
             >
               <span
@@ -1271,7 +1596,7 @@ export default function FoodBuilder({
                 }}
               />
               <span style={{ position: "relative" }}>
-                {isLast ? "SIMPAN ✓" : "LANJUT →"}
+                SIMPAN ✓{count > 0 ? ` · ${Math.round(tk)} KKAL` : ""}
               </span>
             </button>
           </div>
@@ -1376,7 +1701,9 @@ export default function FoodBuilder({
                   val: round1(e.grams),
                   step: e.gramsPerUnit === 100 ? 10 : 0.5,
                   onStep: (d) =>
-                    editSetGrams(e.grams + d * (e.gramsPerUnit === 100 ? 10 : 0.5)),
+                    editSetGrams(
+                      e.grams + d * (e.gramsPerUnit === 100 ? 10 : 0.5)
+                    ),
                   onSet: editSetGrams,
                 });
                 rows.push({
@@ -1429,7 +1756,9 @@ export default function FoodBuilder({
                   >
                     {r.label}
                   </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 10 }}
+                  >
                     <button
                       type="button"
                       onClick={() => r.onStep(-1)}
