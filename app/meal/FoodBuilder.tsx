@@ -1763,14 +1763,19 @@ export default function FoodBuilder({
           </div>
         ) : null}
 
-        {/* bottom bar — BATAL + SIMPAN (reference) */}
+        {/* bottom bar — BATAL + SIMPAN (reference).
+            zIndex must clear the scroll container (z1) and floating buttons
+            (z5): the scroll container is flex:1 and its box (incl. its empty
+            bottom padding) overlaps this bar, so without a higher z-index it
+            paints on top and swallows every tap on SIMPAN. */}
         <div
           style={{
             position: "absolute",
             left: 0,
             right: 0,
             bottom: 0,
-            padding: "16px 16px 22px 16px",
+            zIndex: 10,
+            padding: "16px 16px calc(22px + env(safe-area-inset-bottom)) 16px",
             background: "linear-gradient(180deg,rgba(7,6,8,0),#070608 30%)",
           }}
         >
