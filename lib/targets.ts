@@ -14,6 +14,9 @@ export type { MacroTarget };
  *  (profile-less) users' numbers exactly as before. */
 function resolvedTargets(): { gymDay: MacroTarget; restDay: MacroTarget } {
   const s = getSettings();
+  // A hand-edited target always wins — the user's explicit number beats the
+  // physiology-derived estimate.
+  if (s.targetsCustom) return s.targets;
   const p = s.profile;
   if (profileComplete(p) && p.sex && p.weightKg != null) {
     const { gymDay, restDay } = computeDayTargets({

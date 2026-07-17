@@ -27,6 +27,9 @@ export type UserSettings = {
   targets: { gymDay: MacroTarget; restDay: MacroTarget };
   startDate: string; // YYYY-MM-DD, week 1 of the 12-week block
   profile: Profile;
+  // Set once the user hand-edits a daily target. When true the manual targets
+  // win over profile-derived numbers everywhere (see lib/targets).
+  targetsCustom?: boolean;
 };
 
 export const DEFAULT_PROFILE: Profile = {
@@ -91,6 +94,7 @@ function read(): UserSettings {
       },
       startDate: parsed.startDate || DEFAULT_SETTINGS.startDate,
       profile: { ...DEFAULT_PROFILE, ...(parsed.profile ?? {}) },
+      targetsCustom: parsed.targetsCustom ?? false,
     };
   } catch {
     return DEFAULT_SETTINGS;
@@ -112,6 +116,7 @@ export function patchSettings(patch: Partial<UserSettings>): UserSettings {
     targets: patch.targets ?? cur.targets,
     startDate: patch.startDate ?? cur.startDate,
     profile: patch.profile ? { ...cur.profile, ...patch.profile } : cur.profile,
+    targetsCustom: patch.targetsCustom ?? cur.targetsCustom,
   };
   setSettings(next);
   return next;
