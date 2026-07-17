@@ -5,8 +5,11 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { getIngredient, macrosFor, sumMacros, type Macros } from "@/lib/ingredients";
 import { useSoftRefresh } from "@/lib/useSoftRefresh";
@@ -19,6 +22,7 @@ import {
   isCustomItem,
   saveMeal,
   setDaily,
+  updateMealItems,
   type MealLog,
 } from "@/lib/store";
 import {
@@ -76,12 +80,124 @@ function fmtTime(ms: number): string {
 /** One flattened food entry from today's meals, for the home food-log timeline. */
 type LoggedRow = {
   key: string;
+  mealId: string;
+  itemIndex: number;
   mealType: MealType;
   name: string;
   detail: string;
   kcal: number;
   at: number;
 };
+
+/** A single row that can be swiped (left or right) to delete. Below a small
+ *  drag threshold a tap opens the meal; past the threshold the row flings off
+ *  and calls onDelete. Uses pointer events so it works on touch and mouse. */
+function SwipeRow({
+  onTap,
+  onDelete,
+  children,
+}: {
+  onTap: () => void;
+  onDelete: () => void;
+  children: ReactNode;
+}) {
+  const [dx, setDx] = useState(0);
+  const [gone, setGone] = useState(false);
+  const st = useRef<{ x: number; y: number; drag: boolean } | null>(null);
+  const THRESH = 96;
+
+  const down = (e: ReactPointerEvent<HTMLDivElement>) => {
+    st.current = { x: e.clientX, y: e.clientY, drag: false };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  };
+  const move = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const s = st.current;
+    if (!s) return;
+    const ddx = e.clientX - s.x;
+    const ddy = e.clientY - s.y;
+    if (!s.drag && Math.abs(ddx) > 8 && Math.abs(ddx) > Math.abs(ddy)) s.drag = true;
+    if (s.drag) setDx(ddx);
+  };
+  const up = () => {
+    const s = st.current;
+    st.current = null;
+    if (!s) return;
+    if (!s.drag) {
+      onTap();
+      return;
+    }
+    if (Math.abs(dx) > THRESH) {
+      setGone(true);
+      setDx(dx > 0 ? 520 : -520);
+      window.setTimeout(onDelete, 190);
+    } else {
+      setDx(0);
+    }
+  };
+
+  const dragging = st.current?.drag ?? false;
+  return (
+    <div style={{ position: "relative", borderRadius: 13 }}>
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: dx < 0 ? "flex-end" : "flex-start",
+          padding: "0 18px",
+          borderRadius: 13,
+          background:
+            "linear-gradient(90deg,rgba(238,60,48,.24),rgba(238,60,48,.08))",
+          color: "#ff9a80",
+          fontFamily: MONO,
+          fontSize: 11,
+          letterSpacing: ".12em",
+          opacity: Math.min(1, Math.abs(dx) / THRESH),
+        }}
+      >
+        🗑 HAPUS
+      </div>
+      <div
+        onPointerDown={down}
+        onPointerMove={move}
+        onPointerUp={up}
+        onPointerCancel={() => {
+          st.current = null;
+          setDx(0);
+        }}
+        style={{
+          position: "relative",
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 10,
+          padding: "9px 12px",
+          borderRadius: 13,
+          textAlign: "left",
+          cursor: "pointer",
+          touchAction: "pan-y",
+          transform: `translateX(${dx}px)`,
+          transition: dragging
+            ? "none"
+            : "transform .18s cubic-bezier(.16,1,.3,1), opacity .18s",
+          opacity: gone ? 0 : 1,
+          background:
+            "linear-gradient(180deg,rgba(255,255,255,.045),transparent 40%),#0d0b0c",
+          border: "1px solid rgba(255,255,255,.09)",
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,.06)",
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
 
 type MealInfo = {
   id: MealType;
@@ -469,6 +585,8 @@ export default function MealHome() {
           const g = it.grams > 0 ? `${Math.round(it.grams)}g · ` : "";
           rows.push({
             key: `${meal.id}:${idx}`,
+            mealId: meal.id,
+            itemIndex: idx,
             mealType: meal.mealType,
             name: it.name,
             detail: `${g}${label}`,
@@ -485,6 +603,8 @@ export default function MealHome() {
               : "";
           rows.push({
             key: `${meal.id}:${idx}`,
+            mealId: meal.id,
+            itemIndex: idx,
             mealType: meal.mealType,
             name: ing?.name ?? it.id,
             detail: `${g}${label}`,
@@ -497,6 +617,22 @@ export default function MealHome() {
     rows.sort((a, b) => b.at - a.at);
     return rows;
   }, [dayMeals]);
+
+  // Remove one logged food (from the swipe gesture). Drops the item from its
+  // meal — updateMealItems deletes the whole meal if it was the last item and
+  // syncs the change to the server.
+  const deleteLoggedItem = useCallback(
+    (mealId: string, itemIndex: number, name: string) => {
+      const meal = dayMeals.find((m) => m.id === mealId);
+      if (!meal) return;
+      const items = meal.items.filter((_, i) => i !== itemIndex);
+      updateMealItems(meal.id, items);
+      haptic("warn");
+      toast(`Dihapus · ${name}`, "success");
+      reloadFromStore();
+    },
+    [dayMeals, reloadFromStore]
+  );
 
   const target = gymDay ? TARGETS.gymDay : TARGETS.restDay;
   const wk = activeDate ? weekNumber(parseDate(activeDate)) : 1;
@@ -691,7 +827,7 @@ export default function MealHome() {
             marginTop: 6,
           }}
         >
-          {loggedItems.length} item · {Math.round(totals.kcal)} kkal dicatat
+          {loggedItems.length} item · {Math.round(totals.kcal)} kkal · geser untuk hapus
         </div>
       ) : null}
 
@@ -739,29 +875,13 @@ export default function MealHome() {
           </div>
         ) : (
           loggedItems.map((row) => (
-            <button
+            <SwipeRow
               key={row.key}
-              type="button"
-              onClick={() => {
+              onTap={() => {
                 haptic("tap");
                 setBuilderMeal(row.mealType);
               }}
-              style={{
-                position: "relative",
-                overflow: "hidden",
-                display: "flex",
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 10,
-                padding: "9px 12px",
-                borderRadius: 13,
-                textAlign: "left",
-                cursor: "pointer",
-                background:
-                  "linear-gradient(180deg,rgba(255,255,255,.045),transparent 40%),#0d0b0c",
-                border: "1px solid rgba(255,255,255,.09)",
-                boxShadow: "inset 0 1px 0 rgba(255,255,255,.06)",
-              }}
+              onDelete={() => deleteLoggedItem(row.mealId, row.itemIndex, row.name)}
             >
               <span
                 aria-hidden="true"
@@ -837,7 +957,7 @@ export default function MealHome() {
                   {fmtTime(row.at)}
                 </span>
               </span>
-            </button>
+            </SwipeRow>
           ))
         )}
       </div>

@@ -46,11 +46,18 @@ function microStep(key: MicroTargetKey): number {
   return 1; // fe, zn
 }
 
-const MACRO_FIELDS: { key: MacroKey; label: string; unit: string; step: number }[] = [
-  { key: "kcal",    label: "Calories", unit: "kcal", step: 50 },
-  { key: "protein", label: "Protein",  unit: "g",    step: 5  },
-  { key: "carbs",   label: "Carbs",    unit: "g",    step: 5  },
-  { key: "fat",     label: "Fat",      unit: "g",    step: 5  },
+const MACRO_FIELDS: {
+  key: MacroKey;
+  label: string;
+  unit: string;
+  step: number;
+  min: number;
+  max: number;
+}[] = [
+  { key: "kcal",    label: "Calories", unit: "kcal", step: 25, min: 1000, max: 4000 },
+  { key: "protein", label: "Protein",  unit: "g",    step: 5,  min: 40,   max: 300  },
+  { key: "carbs",   label: "Carbs",    unit: "g",    step: 5,  min: 20,   max: 400  },
+  { key: "fat",     label: "Fat",      unit: "g",    step: 5,  min: 20,   max: 200  },
 ];
 
 const SEX_OPTIONS: { value: Sex; label: string }[] = [
@@ -137,9 +144,9 @@ export default function SettingsPage() {
     setTimeout(() => setSavedChip(false), 1200);
   }
 
-  function updateTarget(day: "gymDay" | "restDay", field: MacroKey, delta: number) {
+  function setTarget(day: "gymDay" | "restDay", field: MacroKey, value: number) {
     const cur = { ...settings };
-    const val = Math.max(0, cur.targets[day][field] + delta);
+    const val = Math.max(0, Math.round(value));
     cur.targets = {
       ...cur.targets,
       [day]: { ...cur.targets[day], [field]: val },
@@ -437,14 +444,14 @@ export default function SettingsPage() {
             emoji="🏋️"
             target={settings.targets.gymDay}
             total={gymTotal}
-            onStep={(k, d) => updateTarget("gymDay", k, d)}
+            onSet={(k, v) => setTarget("gymDay", k, v)}
           />
           <TargetBlock
             title="REST DAY"
             emoji="🌙"
             target={settings.targets.restDay}
             total={restTotal}
-            onStep={(k, d) => updateTarget("restDay", k, d)}
+            onSet={(k, v) => setTarget("restDay", k, v)}
           />
         </section>
 
@@ -628,13 +635,13 @@ function TargetBlock({
   emoji,
   target,
   total,
-  onStep,
+  onSet,
 }: {
   title: string;
   emoji: string;
   target: MacroTarget;
   total: string;
-  onStep: (key: MacroKey, delta: number) => void;
+  onSet: (key: MacroKey, value: number) => void;
 }) {
   return (
     <div className="settings-target">
@@ -645,30 +652,56 @@ function TargetBlock({
         </div>
         <div className="settings-target-total mono">{total}</div>
       </div>
-      <div className="settings-macro-grid">
+      {/* Sliders — drag to set each target instead of tap-tap stepping. */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 12 }}>
         {MACRO_FIELDS.map((f) => (
-          <div key={f.key} className="settings-macro">
-            <div className="settings-macro-label mono">{f.label}</div>
-            <div className="settings-macro-row">
-              <button
-                type="button"
-                className="settings-step"
-                onClick={() => onStep(f.key, -f.step)}
+          <div key={f.key}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "baseline",
+                marginBottom: 6,
+              }}
+            >
+              <span
+                className="mono"
+                style={{ fontSize: 10, letterSpacing: ".1em", color: "#8a837d" }}
               >
-                −
-              </button>
-              <div className="settings-macro-val">
-                <span className="settings-macro-num">{target[f.key]}</span>
-                <span className="settings-macro-unit mono">{f.unit}</span>
-              </div>
-              <button
-                type="button"
-                className="settings-step"
-                onClick={() => onStep(f.key, f.step)}
-              >
-                +
-              </button>
+                {f.label}
+              </span>
+              <span style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+                <span
+                  style={{
+                    fontFamily: "var(--font-dm-sans), sans-serif",
+                    fontWeight: 800,
+                    fontSize: 18,
+                    color: "#ff8a5c",
+                    lineHeight: 1,
+                  }}
+                >
+                  {target[f.key]}
+                </span>
+                <span className="mono" style={{ fontSize: 9, color: "#6a6660" }}>
+                  {f.unit}
+                </span>
+              </span>
             </div>
+            <input
+              type="range"
+              min={f.min}
+              max={f.max}
+              step={f.step}
+              value={Math.min(f.max, Math.max(f.min, target[f.key]))}
+              onChange={(e) => onSet(f.key, Number(e.target.value))}
+              aria-label={`${title} ${f.label}`}
+              style={{
+                width: "100%",
+                accentColor: "#ff6a4c",
+                height: 24,
+                cursor: "pointer",
+              }}
+            />
           </div>
         ))}
       </div>
