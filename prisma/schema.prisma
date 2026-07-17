@@ -30,6 +30,18 @@ model User {
   measurements Measurement[]
   sleep        SleepLog[]
   foods        FoodItem[]
+  target       UserTarget?
+}
+
+// The user's current resolved daily target (today's gym/rest goal). Pushed by
+// the client on load + whenever targets are edited, so the widget always shows
+// the latest goal with no re-paste. One row per user.
+model UserTarget {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kcal      Int
+  protein   Int
+  updatedAt DateTime @updatedAt
 }
 
 // Per-user data. Prod has no legacy server rows (DB was never provisioned),

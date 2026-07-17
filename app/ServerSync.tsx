@@ -9,6 +9,7 @@ import {
 } from "@/lib/store";
 import { mergeServerWorkouts } from "@/lib/workouts";
 import { mergeServerMeasurements } from "@/lib/measurements";
+import { syncResolvedTargets } from "@/lib/targetSync";
 import { seedApr13Meals } from "@/lib/mealSeed";
 import { todayKey } from "@/lib/targets";
 
@@ -84,6 +85,10 @@ export default function ServerSync() {
     pushLocalMealsToDb().then((res) => {
       if (res) console.log("[ServerSync] pushed", res.pushed, "meals to DB");
     });
+
+    // Keep the server's copy of today's calorie/protein target fresh so the
+    // widget reflects the current goal without re-pasting its script.
+    syncResolvedTargets();
     syncCustomFoodsToDbOnce().then((res) => {
       if (res) console.log("[ServerSync] pushed", res.synced, "foods to DB");
     });

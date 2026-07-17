@@ -6,6 +6,7 @@
 // widget always agrees with the app (targets: 2200 kcal / 175g protein).
 
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
 import { verifyWidgetToken } from "@/lib/widgetToken";
 import { todaySnapshot } from "@/lib/hermes";
 
@@ -41,14 +42,24 @@ export async function GET(req: Request) {
 
     const snap = await todaySnapshot(userId);
     const c = snap.calories;
-    // Personal targets: the user's real daily goal lives client-side, so the
-    // widget passes it as ?kt=/&pt=. Fall back to the snapshot defaults.
+    // Personal target priority: the server-saved target (kept fresh by the app,
+    // so goal edits reflect with no re-paste) → the URL ?kt=/&pt= baked at setup
+    // (fallback for older widgets) → the snapshot default.
+    const saved = await db.userTarget.findUnique({ where: { userId } }).catch(() => null);
     const ktRaw = Number(url.searchParams.get("kt"));
     const ptRaw = Number(url.searchParams.get("pt"));
     const kcalTarget =
-      Number.isFinite(ktRaw) && ktRaw > 0 ? Math.round(ktRaw) : c.target;
+      saved?.kcal && saved.kcal > 0
+        ? saved.kcal
+        : Number.isFinite(ktRaw) && ktRaw > 0
+          ? Math.round(ktRaw)
+          : c.target;
     const proteinTarget =
-      Number.isFinite(ptRaw) && ptRaw > 0 ? Math.round(ptRaw) : c.proteinTarget;
+      saved?.protein && saved.protein > 0
+        ? saved.protein
+        : Number.isFinite(ptRaw) && ptRaw > 0
+          ? Math.round(ptRaw)
+          : c.proteinTarget;
     const data = {
       date: snap.date,
       totals: {
