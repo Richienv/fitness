@@ -43,6 +43,9 @@ const BLABEL: Record<string, string> = {
   dinner: "MALAM",
 };
 
+type MealT = "breakfast" | "lunch" | "snack" | "dinner";
+const MEAL_KEYS: MealT[] = ["breakfast", "lunch", "snack", "dinner"];
+
 const EMOJI_OPTS = ["🍜", "🍽️", "🥡", "☕", "🍔", "🥗", "🔥", "🏪"];
 
 // Common shape shared by library ingredients, session custom foods and
@@ -238,11 +241,15 @@ export default function FoodBuilder({
   onClose,
   onSaved,
 }: {
-  meal: "breakfast" | "lunch" | "snack" | "dinner";
+  meal: MealT;
   dateKey: string;
   onClose: () => void;
   onSaved?: () => void;
 }) {
+  // The meal time is auto-picked from the clock (see MealHome), but stays
+  // changeable here via the header chip in case you're logging for another slot.
+  const [activeMeal, setActiveMeal] = useState<MealT>(meal);
+  const [mealMenuOpen, setMealMenuOpen] = useState(false);
   const [selection, setSelection] = useState<Record<string, number>>({});
   // Which item was just added + a parity counter, so only the freshest tray
   // row animates (alternating trayPop/trayPop2), matching the reference.
@@ -450,7 +457,7 @@ export default function FoodBuilder({
       return;
     }
     haptic("success");
-    saveMeal({ date: dateKey, mealType: meal, items });
+    saveMeal({ date: dateKey, mealType: activeMeal, items });
     onSaved?.();
     onClose();
   };
@@ -1188,16 +1195,71 @@ export default function FoodBuilder({
             >
               ← MAKAN
             </button>
-            <span
-              style={{
-                fontFamily: MONO,
-                fontSize: 10,
-                letterSpacing: ".14em",
-                color: "#ff8a72",
-              }}
-            >
-              {BLABEL[meal]}
-            </span>
+            <div style={{ position: "relative" }}>
+              <button
+                type="button"
+                onClick={() => setMealMenuOpen((v) => !v)}
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 10,
+                  letterSpacing: ".14em",
+                  color: "#ff8a72",
+                  background: "rgba(255,138,60,.1)",
+                  border: "1px solid rgba(255,138,60,.32)",
+                  borderRadius: 8,
+                  padding: "4px 9px",
+                  cursor: "pointer",
+                }}
+              >
+                {BLABEL[activeMeal]} ▾
+              </button>
+              {mealMenuOpen ? (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "130%",
+                    left: 0,
+                    zIndex: 30,
+                    minWidth: 130,
+                    padding: 4,
+                    borderRadius: 10,
+                    background: "#161011",
+                    border: "1px solid rgba(255,255,255,.12)",
+                    boxShadow: "0 12px 28px rgba(0,0,0,.55)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 2,
+                  }}
+                >
+                  {MEAL_KEYS.map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => {
+                        setActiveMeal(k);
+                        setMealMenuOpen(false);
+                        haptic("tap");
+                      }}
+                      style={{
+                        textAlign: "left",
+                        fontFamily: MONO,
+                        fontSize: 11,
+                        letterSpacing: ".08em",
+                        padding: "8px 10px",
+                        borderRadius: 7,
+                        cursor: "pointer",
+                        color: k === activeMeal ? "#ff8a72" : "#cfc8c2",
+                        background:
+                          k === activeMeal ? "rgba(255,138,60,.12)" : "transparent",
+                        border: "none",
+                      }}
+                    >
+                      {BLABEL[k]}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </div>
           <div
             style={{
