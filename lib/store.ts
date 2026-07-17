@@ -14,8 +14,11 @@ export type CustomMealItem = {
   carbs: number;
   sugar?: number;
   sodium?: number;
+  /** Epoch ms when this food was logged. Optional so pre-existing rows (which
+   *  only carry the meal-level loggedAt) stay valid; stamped in saveMeal. */
+  addedAt?: number;
 };
-export type IngredientMealItem = { id: string; qty: number };
+export type IngredientMealItem = { id: string; qty: number; addedAt?: number };
 export type MealItem = IngredientMealItem | CustomMealItem;
 
 export function isCustomItem(item: MealItem): item is CustomMealItem {
@@ -164,20 +167,29 @@ export function getMealsForDate(date: string): MealLog[] {
   return getAllMeals().filter((m) => m.date === date);
 }
 
+/** Stamp each item with its own log time (once), so the home food-log can show
+ *  when each food was added. Items already carrying an addedAt keep it. */
+function stampItems(items: MealItem[], now: number): MealItem[] {
+  return items.map((it) => (it.addedAt != null ? it : { ...it, addedAt: now }));
+}
+
 export function saveMeal(log: Omit<MealLog, "id" | "loggedAt">): MealLog {
+  const now = Date.now();
+  const items = stampItems(log.items, now);
   const all = getAllMeals();
   const existing = all.find((m) => m.date === log.date && m.mealType === log.mealType);
   if (existing) {
-    existing.items = [...existing.items, ...log.items];
-    existing.loggedAt = Date.now();
+    existing.items = [...existing.items, ...items];
+    existing.loggedAt = now;
     write(MEALS_KEY, all);
     postMeal(existing);
     return existing;
   }
   const entry: MealLog = {
     ...log,
+    items,
     id: crypto.randomUUID(),
-    loggedAt: Date.now(),
+    loggedAt: now,
   };
   all.push(entry);
   write(MEALS_KEY, all);
@@ -195,7 +207,9 @@ export function updateMealItems(id: string, items: MealItem[]): void {
     deleteMealRemote(id);
     return;
   }
-  all[idx] = { ...all[idx], items, loggedAt: Date.now() };
+  // Preserve each item's original addedAt through edits; backfill only genuinely
+  // new items (an edit spreads the original object, so its stamp survives).
+  all[idx] = { ...all[idx], items: stampItems(items, Date.now()), loggedAt: Date.now() };
   write(MEALS_KEY, all);
   postMeal(all[idx]);
 }
@@ -262,6 +276,7 @@ function coerceServerItems(raw: unknown): MealItem[] {
   for (const it of raw) {
     if (!it || typeof it !== "object") continue;
     const o = it as Record<string, unknown>;
+    const at = typeof o.addedAt === "number" && isFinite(o.addedAt) ? { addedAt: o.addedAt } : {};
     if (o.custom === true && typeof o.name === "string") {
       out.push({
         custom: true,
@@ -271,9 +286,10 @@ function coerceServerItems(raw: unknown): MealItem[] {
         protein: typeof o.protein === "number" ? o.protein : 0,
         fat: typeof o.fat === "number" ? o.fat : 0,
         carbs: typeof o.carbs === "number" ? o.carbs : 0,
+        ...at,
       });
     } else if (typeof o.id === "string" && typeof o.qty === "number") {
-      out.push({ id: o.id, qty: o.qty });
+      out.push({ id: o.id, qty: o.qty, ...at });
     } else if (typeof o.name === "string" && typeof o.kcal === "number") {
       out.push({
         custom: true,
@@ -283,6 +299,7 @@ function coerceServerItems(raw: unknown): MealItem[] {
         protein: typeof o.protein === "number" ? o.protein : 0,
         fat: typeof o.fat === "number" ? o.fat : 0,
         carbs: typeof o.carbs === "number" ? o.carbs : 0,
+        ...at,
       });
     }
   }
