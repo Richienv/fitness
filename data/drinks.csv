@@ -69,3 +69,8 @@ DK067,Wedang jahe gula merah,35,0.1,0.0,8.5,5,100,Olahan,Minuman,250,Ginger palm
 DK068,Jus alpukat + susu coklat,120,1.5,7.0,13.0,30,100,Olahan,Minuman,300,Avocado shake w/ choc milk · per 100ml · conf:med · Estimasi
 DK069,Es jeruk peras,38,0.3,0.1,9.2,6,100,Olahan,Minuman,250,Iced fresh orange · per 100ml · conf:high · Estimasi
 DK070,Kombucha,25,0.0,0.0,6.0,,100,Olahan,Minuman,250,Kombucha · per 100ml · conf:med · Estimasi
+tz-almond-boba-jelly,Teazzi Almond Milk Tea (boba + jelly),88,1.0,2.2,16.0,,100,Olahan,Minuman,500,"Almond milk tea w/ boba & jelly · 1 cup 500ml · conf:low · Teazzi, 100% sugar base — atur kadar gula di editor. · Estimasi"
+tz-brown-sugar-boba,Teazzi Brown Sugar Boba Milk,100,1.2,2.4,17.6,,100,Olahan,Minuman,500,"Brown sugar boba milk · 1 cup 500ml · conf:low · Teazzi, 100% sugar base — atur kadar gula di editor. · Estimasi"
+sb-caffe-latte,Starbucks Caffe Latte (grande),40,2.7,1.5,4.0,,100,Olahan,Minuman,473,"Caffe latte grande · 1 grande 473ml · conf:med · Starbucks 2% milk · Estimasi"
+sb-caramel-macchiato,Starbucks Caramel Macchiato (grande),53,2.1,1.5,7.4,,100,Olahan,Minuman,473,"Caramel macchiato grande · 1 grande 473ml · conf:med · Starbucks 2% milk · Estimasi"
+sb-java-chip-frap,Starbucks Java Chip Frappuccino (grande),93,1.3,3.8,14.0,,100,Olahan,Minuman,473,"Java chip frappuccino grande · 1 grande 473ml · conf:med · Starbucks whole milk + whip · Estimasi"

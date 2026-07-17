@@ -16,6 +16,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useSheetBack } from "@/lib/backSheet";
 import { haptic } from "@/lib/haptics";
 import { INGREDIENTS } from "@/lib/ingredients";
+import { drinkSugarFull, SUGAR_LEVELS } from "@/lib/drinkSugar";
 import { saveMeal, type MealItem, type CustomMealItem } from "@/lib/store";
 import {
   getFoodGroups,
@@ -87,6 +88,7 @@ type MacroPatch = {
   protein: number;
   carbs: number;
   fat: number;
+  sugar?: number;
 };
 
 type Editing = {
@@ -107,7 +109,27 @@ type Editing = {
   densityCarbs: number;
   densityFat: number;
   groupId?: string | null;
+  // Sweetness selector (boba/tea drinks only). sugarFull = g sugar per
+  // gramsPerUnit at 100%; sugarPct = chosen level. Undefined = not adjustable.
+  sugarFull?: number;
+  sugarPct?: number;
 };
+
+/** Per-unit macros after applying the chosen sweetness — removes sugar as
+ *  4 kcal + 1 carb gram per gram, from the 100%-sweet density. No-op when the
+ *  food has no adjustable sugar. */
+function sugarAdjustedDensity(e: Editing) {
+  const pct = e.sugarPct ?? 100;
+  const full = e.sugarFull ?? 0;
+  const removed = full * (1 - pct / 100);
+  return {
+    kcal: Math.max(0, e.densityKcal - removed * 4),
+    protein: e.densityProtein,
+    carbs: Math.max(0, e.densityCarbs - removed),
+    fat: e.densityFat,
+    sugarPerUnit: full * (pct / 100),
+  };
+}
 
 const round1 = (x: number) => Math.round(x * 10) / 10;
 
@@ -470,6 +492,10 @@ export default function FoodBuilder({
     const gpu = ing.gramsPerUnit ?? 100;
     const curQty = selection[id] || 1; // default to one unit if not yet added
     const grams = round1(curQty * gpu);
+    // Adjustable-sweetness drinks: baseline sugar per unit at 100% (DB drinks
+    // are per-100 with gpu 100, so the per-100 value maps straight through).
+    const sf = drinkSugarFull(id);
+    const sugarFull = sf != null ? (sf * gpu) / 100 : undefined;
     setEditing({
       mode: "edit",
       id,
@@ -484,6 +510,8 @@ export default function FoodBuilder({
       protein: round1(ing.protein * curQty),
       carbs: round1(ing.carbs * curQty),
       fat: round1(ing.fat * curQty),
+      sugarFull,
+      sugarPct: sugarFull != null ? 100 : undefined,
     });
   };
   const openNewFood = (groupId: string | null = null) =>
@@ -510,13 +538,30 @@ export default function FoodBuilder({
       if (!e) return e;
       const g = Math.max(0, Math.min(5000, grams));
       const f = g / (e.gramsPerUnit || 100);
+      const d = sugarAdjustedDensity(e);
       return {
         ...e,
         grams: g,
-        kcal: round1(e.densityKcal * f),
-        protein: round1(e.densityProtein * f),
-        carbs: round1(e.densityCarbs * f),
-        fat: round1(e.densityFat * f),
+        kcal: round1(d.kcal * f),
+        protein: round1(d.protein * f),
+        carbs: round1(d.carbs * f),
+        fat: round1(d.fat * f),
+      };
+    });
+  // Pick a sweetness level for boba/tea drinks; recompute the serving from the
+  // current grams with sugar removed.
+  const editSetSugarPct = (pct: number) =>
+    setEditing((e) => {
+      if (!e) return e;
+      const next = { ...e, sugarPct: pct };
+      const f = e.grams / (e.gramsPerUnit || 100);
+      const d = sugarAdjustedDensity(next);
+      return {
+        ...next,
+        kcal: round1(d.kcal * f),
+        protein: round1(d.protein * f),
+        carbs: round1(d.carbs * f),
+        fat: round1(d.fat * f),
       };
     });
   // Editing total calories back-solves grams at the current density, then
@@ -553,6 +598,9 @@ export default function FoodBuilder({
         const qty = e.grams > 0 ? Math.round((e.grams / gpu) * 1000) / 1000 : 0;
         if (qty <= 0) return null;
         const id = e.id;
+        // Per-unit sugar at the chosen sweetness (only for adjustable drinks).
+        const sugarPerUnit =
+          e.sugarFull != null ? sugarAdjustedDensity(e).sugarPerUnit : null;
         // Store per-unit macros (serving ÷ qty) so the tray's `macro × qty`
         // math reproduces exactly the serving the user configured.
         setOverrides((ov) => ({
@@ -563,6 +611,7 @@ export default function FoodBuilder({
             protein: e.protein / qty,
             carbs: e.carbs / qty,
             fat: e.fat / qty,
+            ...(sugarPerUnit != null ? { sugar: sugarPerUnit } : {}),
           },
         }));
         // Reflect the chosen portion in the selection (adds it if not present).
@@ -1995,6 +2044,50 @@ export default function FoodBuilder({
                 berapa pun (mis. 300, 30).
               </div>
             )}
+            {editing.sugarFull != null ? (
+              <div style={{ marginBottom: 4 }}>
+                <div
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 9.5,
+                    letterSpacing: ".12em",
+                    color: "#7c736e",
+                  }}
+                >
+                  KADAR GULA
+                </div>
+                <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                  {SUGAR_LEVELS.map((lvl) => {
+                    const active = (editing.sugarPct ?? 100) === lvl;
+                    return (
+                      <button
+                        key={lvl}
+                        type="button"
+                        onClick={() => editSetSugarPct(lvl)}
+                        style={{
+                          flex: 1,
+                          padding: "9px 0",
+                          borderRadius: 10,
+                          fontFamily: MONO,
+                          fontSize: 12,
+                          fontWeight: active ? 700 : 400,
+                          cursor: "pointer",
+                          color: active ? "#fff" : "#9a938d",
+                          background: active
+                            ? FIRE
+                            : "rgba(255,255,255,.04)",
+                          border: active
+                            ? "1px solid rgba(255,150,120,.6)"
+                            : "1px solid rgba(255,255,255,.1)",
+                        }}
+                      >
+                        {lvl}%
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
             {(() => {
               const e = editing;
               type Row = {
