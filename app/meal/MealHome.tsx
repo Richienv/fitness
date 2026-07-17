@@ -199,20 +199,6 @@ function SwipeRow({
   );
 }
 
-type MealInfo = {
-  id: MealType;
-  emoji: string;
-  name: string;
-  expectedKcal: number;
-};
-
-const MEALS: MealInfo[] = [
-  { id: "breakfast", emoji: "🌅", name: "SARAPAN", expectedKcal: 310 },
-  { id: "lunch",     emoji: "☀️", name: "SIANG",   expectedKcal: 895 },
-  { id: "snack",     emoji: "🍎", name: "SNACK",   expectedKcal: 250 },
-  { id: "dinner",    emoji: "🌙", name: "MALAM",   expectedKcal: 900 },
-];
-
 // Emoji tile on Quick Log rows, by meal time (reference: 🍳/🍛/🥜/🥩).
 const QUICK_EMOJI: Record<MealType, string> = {
   breakfast: "🍳",
@@ -227,6 +213,16 @@ const MEAL_ID_LABEL: Record<MealType, string> = {
   snack: "SNACK",
   dinner: "MALAM",
 };
+
+/** Pick the meal slot from the current clock time, so logging is one tap — no
+ *  breakfast/lunch/dinner prompt. You can still change it inside the builder. */
+function inferMealType(): MealType {
+  const h = new Date().getHours();
+  if (h >= 4 && h < 11) return "breakfast";
+  if (h >= 11 && h < 15) return "lunch";
+  if (h >= 15 && h < 18) return "snack";
+  return "dinner";
+}
 
 // One-tap add-ons surfaced under Quick Log (preset ids from lib/presets).
 const ADDONS: { id: string; emoji: string; label: string }[] = [
@@ -504,7 +500,6 @@ export default function MealHome() {
   const [lockRatio, setLockRatio] = useState(true);
   const [aturPressed, setAturPressed] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [mealPickOpen, setMealPickOpen] = useState(false);
   const [quickPickOpen, setQuickPickOpen] = useState(false);
   const [builderMeal, setBuilderMeal] = useState<MealType | null>(null);
 
@@ -513,7 +508,6 @@ export default function MealHome() {
   useSheetBack(pickerOpen, () => setPickerOpen(false));
   useSheetBack(manageOpen, () => setManageOpen(false));
   useSheetBack(!!editDraft, () => setEditDraft(null));
-  useSheetBack(mealPickOpen, () => setMealPickOpen(false));
   useSheetBack(quickPickOpen, () => setQuickPickOpen(false));
 
   const reloadFromStore = useCallback(() => {
@@ -966,7 +960,7 @@ export default function MealHome() {
       <button
         type="button"
         aria-label="Catat makan"
-        onClick={() => setMealPickOpen(true)}
+        onClick={() => setBuilderMeal(inferMealType())}
         style={{
           position: "fixed",
           right: "max(18px, env(safe-area-inset-right))",
@@ -987,81 +981,6 @@ export default function MealHome() {
       >
         ＋
       </button>
-
-      {/* meal-time picker */}
-      {mealPickOpen && (
-        <div
-          onClick={() => setMealPickOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 200,
-            background: "rgba(5,4,6,.72)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "flex-end",
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "100%",
-              maxWidth: 480,
-              margin: "0 auto",
-              borderRadius: "26px 26px 0 0",
-              padding: "22px 20px calc(30px + env(safe-area-inset-bottom))",
-              background: "linear-gradient(180deg,#161011,#0c0a0b 60%)",
-              borderTop: "1px solid rgba(255,255,255,.1)",
-              boxShadow: "0 -20px 50px rgba(0,0,0,.6)",
-              animation: "riseIn .28s cubic-bezier(.16,1,.3,1)",
-            }}
-          >
-            <div style={{ fontFamily: SANS, fontWeight: 800, fontSize: 18, color: "#f5f2ef" }}>
-              CATAT UNTUK
-            </div>
-            <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: ".06em", color: "#7c736e", marginTop: 5 }}>
-              Pilih waktu makan
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 16 }}>
-              {MEALS.map((m) => {
-                const kc = byType[m.id].macros.kcal;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => {
-                      setMealPickOpen(false);
-                      setBuilderMeal(m.id);
-                    }}
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "flex-start",
-                      gap: 2,
-                      padding: 15,
-                      borderRadius: 16,
-                      textAlign: "left",
-                      cursor: "pointer",
-                      background:
-                        "linear-gradient(180deg,rgba(255,255,255,.05),transparent 40%),#0d0b0c",
-                      border: "1px solid rgba(255,255,255,.1)",
-                      boxShadow: "inset 0 1px 0 rgba(255,255,255,.06),0 8px 18px rgba(0,0,0,.4)",
-                    }}
-                  >
-                    <span style={{ fontSize: 24 }}>{m.emoji}</span>
-                    <span style={{ fontFamily: SANS, fontWeight: 700, fontSize: 15, color: "#f1ede9", marginTop: 6 }}>
-                      {m.name}
-                    </span>
-                    <span style={{ fontFamily: MONO, fontSize: 9, color: "#8a837d", marginTop: 2 }}>
-                      {kc > 0 ? `${Math.round(kc)} kkal` : "belum dicatat"}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
 
       {builderMeal && (
         <FoodBuilder
