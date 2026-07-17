@@ -67,6 +67,22 @@ function bahasaDate(dateStr: string): string {
   return `${ID_DAYS[dt.getUTCDay()]} · ${dt.getUTCDate()} ${ID_MON[dt.getUTCMonth()]}`;
 }
 
+/** Local clock time (HH:MM) of an epoch-ms stamp — when a food was logged. */
+function fmtTime(ms: number): string {
+  const d = new Date(ms);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/** One flattened food entry from today's meals, for the home food-log timeline. */
+type LoggedRow = {
+  key: string;
+  mealType: MealType;
+  name: string;
+  detail: string;
+  kcal: number;
+  at: number;
+};
+
 type MealInfo = {
   id: MealType;
   emoji: string;
@@ -373,6 +389,7 @@ export default function MealHome() {
   const [aturPressed, setAturPressed] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [mealPickOpen, setMealPickOpen] = useState(false);
+  const [quickPickOpen, setQuickPickOpen] = useState(false);
   const [builderMeal, setBuilderMeal] = useState<MealType | null>(null);
 
   // Hardware back closes the top-most open sheet instead of leaving the page.
@@ -381,6 +398,7 @@ export default function MealHome() {
   useSheetBack(manageOpen, () => setManageOpen(false));
   useSheetBack(!!editDraft, () => setEditDraft(null));
   useSheetBack(mealPickOpen, () => setMealPickOpen(false));
+  useSheetBack(quickPickOpen, () => setQuickPickOpen(false));
 
   const reloadFromStore = useCallback(() => {
     dedupeMeals();
@@ -436,6 +454,49 @@ export default function MealHome() {
     () => dayMeals.reduce((acc, m) => acc + sumMealSugar(m), 0),
     [dayMeals]
   );
+
+  // Today's actually-logged foods, flattened across meal types into a single
+  // time-ordered timeline (most recent first) so you can see what — and when —
+  // you ate today. Per-item `addedAt` drives the time; legacy items without one
+  // fall back to the meal's loggedAt.
+  const loggedItems = useMemo<LoggedRow[]>(() => {
+    const rows: LoggedRow[] = [];
+    for (const meal of dayMeals) {
+      meal.items.forEach((it, idx) => {
+        const at = it.addedAt ?? meal.loggedAt;
+        const label = MEAL_ID_LABEL[meal.mealType];
+        if (isCustomItem(it)) {
+          const g = it.grams > 0 ? `${Math.round(it.grams)}g · ` : "";
+          rows.push({
+            key: `${meal.id}:${idx}`,
+            mealType: meal.mealType,
+            name: it.name,
+            detail: `${g}${label}`,
+            kcal: it.kcal,
+            at,
+          });
+        } else {
+          const ing = getIngredient(it.id);
+          const m = macrosFor(it.id, it.qty);
+          const g = ing?.gramsPerUnit
+            ? `${Math.round(ing.gramsPerUnit * it.qty)}g · `
+            : it.qty > 1
+              ? `${it.qty}× · `
+              : "";
+          rows.push({
+            key: `${meal.id}:${idx}`,
+            mealType: meal.mealType,
+            name: ing?.name ?? it.id,
+            detail: `${g}${label}`,
+            kcal: m.kcal,
+            at,
+          });
+        }
+      });
+    }
+    rows.sort((a, b) => b.at - a.at);
+    return rows;
+  }, [dayMeals]);
 
   const target = gymDay ? TARGETS.gymDay : TARGETS.restDay;
   const wk = activeDate ? weekNumber(parseDate(activeDate)) : 1;
@@ -572,7 +633,7 @@ export default function MealHome() {
         ))}
       </div>
 
-      {/* quick log header */}
+      {/* today's food-log header */}
       <div
         style={{
           display: "flex",
@@ -590,13 +651,13 @@ export default function MealHome() {
             color: "#f1ede9",
           }}
         >
-          ⚡ QUICK LOG
+          🍽️ HARI INI
         </div>
         <button
           type="button"
           onClick={() => {
             haptic("tap");
-            setManageOpen(true);
+            setQuickPickOpen(true);
           }}
           onPointerDown={() => setAturPressed(true)}
           onPointerUp={() => setAturPressed(false)}
@@ -615,13 +676,27 @@ export default function MealHome() {
             cursor: "pointer",
           }}
         >
-          ✎ ATUR
+          ⚡ QUICK
         </button>
       </div>
 
-      {/* quick rows → log the configured entry straight into the day.
-          Reference layout: full-width row — emoji tile · name + ingredient
-          list · big kcal on the right. */}
+      {/* count · total kcal logged today */}
+      {loggedItems.length > 0 ? (
+        <div
+          style={{
+            fontFamily: MONO,
+            fontSize: 9.5,
+            letterSpacing: ".06em",
+            color: "#7c736e",
+            marginTop: 6,
+          }}
+        >
+          {loggedItems.length} item · {Math.round(totals.kcal)} kkal dicatat
+        </div>
+      ) : null}
+
+      {/* today's food log — what (and when) you ate today. Tap a row to open
+          that meal in the builder. Empty until you log something. */}
       <div
         style={{
           display: "flex",
@@ -630,169 +705,141 @@ export default function MealHome() {
           marginTop: 10,
         }}
       >
-        {quickEntries.map((e) => (
-          <button
-            key={e.id}
-            type="button"
-            onClick={() => logQuick(e)}
+        {loggedItems.length === 0 ? (
+          <div
             style={{
-              position: "relative",
-              overflow: "hidden",
-              display: "flex",
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 10,
-              padding: "9px 12px",
-              borderRadius: 13,
-              textAlign: "left",
-              cursor: "pointer",
-              background:
-                "linear-gradient(180deg,rgba(255,255,255,.045),transparent 40%),#0d0b0c",
-              border: "1px solid rgba(255,255,255,.09)",
-              boxShadow: "inset 0 1px 0 rgba(255,255,255,.06)",
+              padding: "22px 16px",
+              borderRadius: 14,
+              textAlign: "center",
+              background: "#0d0b0c",
+              border: "1px dashed rgba(255,255,255,.12)",
             }}
           >
-            <span
-              aria-hidden="true"
+            <div
               style={{
-                width: 38,
-                height: 38,
-                flex: "none",
-                borderRadius: 11,
-                display: "grid",
-                placeItems: "center",
-                fontSize: 18,
-                background: "rgba(238,60,48,.08)",
-                border: "1px solid rgba(238,60,48,.22)",
+                fontFamily: SANS,
+                fontWeight: 700,
+                fontSize: 13.5,
+                color: "#cfc8c2",
               }}
             >
-              {QUICK_EMOJI[e.mealType]}
-            </span>
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <span
-                style={{
-                  display: "block",
-                  fontFamily: SANS,
-                  fontWeight: 700,
-                  fontSize: 14,
-                  color: "#f1ede9",
-                  lineHeight: 1.15,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {e.label}
-              </span>
-              <span
-                style={{
-                  display: "block",
-                  fontFamily: MONO,
-                  fontSize: 9.5,
-                  letterSpacing: ".04em",
-                  color: "#8a837d",
-                  marginTop: 2,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {e.sub ||
-                  `${Math.round(e.protein)}p · ${Math.round(e.carbs)}c · ${Math.round(e.fat)}f`}
-              </span>
-            </span>
-            <span style={{ flex: "none", textAlign: "right" }}>
-              <span
-                style={{
-                  display: "block",
-                  fontFamily: MONO,
-                  fontWeight: 700,
-                  fontSize: 18,
-                  color: "#ff8a5c",
-                  lineHeight: 1,
-                }}
-              >
-                {Math.round(e.kcal)}
-              </span>
-              <span
-                style={{
-                  display: "block",
-                  fontFamily: MONO,
-                  fontSize: 8,
-                  letterSpacing: ".16em",
-                  color: "#7c736e",
-                  marginTop: 2,
-                }}
-              >
-                KKAL
-              </span>
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* one-tap add-ons: protein powder / matcha with milk */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 9,
-          marginTop: 9,
-        }}
-      >
-        {ADDONS.map((a) => {
-          const preset = PRESETS.find((p) => p.id === a.id);
-          if (!preset) return null;
-          const kcal = Math.round(sumMacros(preset.items).kcal);
-          const href = `/meal/confirm?preset=${preset.id}&date=${activeDate}`;
-          return (
-            <Link
-              key={a.id}
-              href={href}
+              Belum ada yang dicatat hari ini
+            </div>
+            <div
               style={{
+                fontFamily: MONO,
+                fontSize: 9.5,
+                letterSpacing: ".06em",
+                color: "#7c736e",
+                marginTop: 6,
+              }}
+            >
+              Tap ＋ untuk catat makan · ⚡ QUICK buat cepat
+            </div>
+          </div>
+        ) : (
+          loggedItems.map((row) => (
+            <button
+              key={row.key}
+              type="button"
+              onClick={() => {
+                haptic("tap");
+                setBuilderMeal(row.mealType);
+              }}
+              style={{
+                position: "relative",
+                overflow: "hidden",
                 display: "flex",
+                flexDirection: "row",
                 alignItems: "center",
-                gap: 8,
-                padding: "12px 14px",
-                borderRadius: 14,
+                gap: 10,
+                padding: "9px 12px",
+                borderRadius: 13,
+                textAlign: "left",
                 cursor: "pointer",
-                textDecoration: "none",
                 background:
-                  "linear-gradient(180deg,rgba(255,138,60,.1),rgba(255,138,60,.02) 40%),#0d0b0c",
-                border: "1px solid rgba(255,138,60,.32)",
-                boxShadow: "inset 0 1px 0 rgba(255,205,175,.16)",
-              }}
-              onClick={(e) => {
-                e.preventDefault();
-                vtNavigate(href, { haptic: null });
+                  "linear-gradient(180deg,rgba(255,255,255,.045),transparent 40%),#0d0b0c",
+                border: "1px solid rgba(255,255,255,.09)",
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,.06)",
               }}
             >
-              <span style={{ fontSize: 18 }}>{a.emoji}</span>
-              <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 38,
+                  height: 38,
+                  flex: "none",
+                  borderRadius: 11,
+                  display: "grid",
+                  placeItems: "center",
+                  fontSize: 18,
+                  background: "rgba(238,60,48,.08)",
+                  border: "1px solid rgba(238,60,48,.22)",
+                }}
+              >
+                {QUICK_EMOJI[row.mealType]}
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>
                 <span
                   style={{
+                    display: "block",
                     fontFamily: SANS,
                     fontWeight: 700,
-                    fontSize: 13,
+                    fontSize: 14,
                     color: "#f1ede9",
+                    lineHeight: 1.15,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
                   }}
                 >
-                  {a.label}
+                  {row.name}
                 </span>
                 <span
                   style={{
+                    display: "block",
                     fontFamily: MONO,
-                    fontSize: 9,
-                    letterSpacing: ".1em",
-                    color: "#ff8a72",
+                    fontSize: 9.5,
+                    letterSpacing: ".04em",
+                    color: "#8a837d",
+                    marginTop: 2,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
                   }}
                 >
-                  +{kcal} KKAL
+                  {row.detail}
                 </span>
               </span>
-            </Link>
-          );
-        })}
+              <span style={{ flex: "none", textAlign: "right" }}>
+                <span
+                  style={{
+                    display: "block",
+                    fontFamily: MONO,
+                    fontWeight: 700,
+                    fontSize: 18,
+                    color: "#ff8a5c",
+                    lineHeight: 1,
+                  }}
+                >
+                  {Math.round(row.kcal)}
+                </span>
+                <span
+                  style={{
+                    display: "block",
+                    fontFamily: MONO,
+                    fontSize: 9,
+                    letterSpacing: ".08em",
+                    color: "#7c736e",
+                    marginTop: 3,
+                  }}
+                >
+                  {fmtTime(row.at)}
+                </span>
+              </span>
+            </button>
+          ))
+        )}
       </div>
 
       {/* add-meal FAB */}
@@ -906,6 +953,245 @@ export default function MealHome() {
             reloadFromStore();
           }}
         />
+      )}
+
+      {/* quick-log picker — one-tap presets + add-ons (kept behind ⚡ QUICK
+          now that the home surface shows today's food log instead). */}
+      {quickPickOpen && (
+        <div
+          onClick={() => setQuickPickOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 200,
+            background: "rgba(5,4,6,.72)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "flex-end",
+          }}
+        >
+          <div
+            onClick={(ev) => ev.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: 480,
+              margin: "0 auto",
+              borderRadius: "26px 26px 0 0",
+              padding: "22px 20px calc(30px + env(safe-area-inset-bottom))",
+              background: "linear-gradient(180deg,#161011,#0c0a0b 60%)",
+              borderTop: "1px solid rgba(255,255,255,.1)",
+              boxShadow: "0 -20px 50px rgba(0,0,0,.6)",
+              animation: "riseIn .28s cubic-bezier(.16,1,.3,1)",
+              maxHeight: "80dvh",
+              overflowY: "auto",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div style={{ fontFamily: SANS, fontWeight: 800, fontSize: 18, color: "#f5f2ef" }}>
+                ⚡ QUICK LOG
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickPickOpen(false);
+                  setManageOpen(true);
+                }}
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 9.5,
+                  letterSpacing: ".12em",
+                  color: "#7c736e",
+                  padding: "6px 10px",
+                  borderRadius: 9,
+                  border: "1px solid rgba(255,255,255,.1)",
+                  background: "rgba(255,255,255,.03)",
+                  cursor: "pointer",
+                }}
+              >
+                ✎ ATUR
+              </button>
+            </div>
+            <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: ".06em", color: "#7c736e", marginTop: 5 }}>
+              Catat cepat — sekali tap
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 16 }}>
+              {quickEntries.map((e) => (
+                <button
+                  key={e.id}
+                  type="button"
+                  onClick={() => {
+                    logQuick(e);
+                    setQuickPickOpen(false);
+                  }}
+                  style={{
+                    position: "relative",
+                    overflow: "hidden",
+                    display: "flex",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "9px 12px",
+                    borderRadius: 13,
+                    textAlign: "left",
+                    cursor: "pointer",
+                    background:
+                      "linear-gradient(180deg,rgba(255,255,255,.045),transparent 40%),#0d0b0c",
+                    border: "1px solid rgba(255,255,255,.09)",
+                    boxShadow: "inset 0 1px 0 rgba(255,255,255,.06)",
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: 38,
+                      height: 38,
+                      flex: "none",
+                      borderRadius: 11,
+                      display: "grid",
+                      placeItems: "center",
+                      fontSize: 18,
+                      background: "rgba(238,60,48,.08)",
+                      border: "1px solid rgba(238,60,48,.22)",
+                    }}
+                  >
+                    {QUICK_EMOJI[e.mealType]}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span
+                      style={{
+                        display: "block",
+                        fontFamily: SANS,
+                        fontWeight: 700,
+                        fontSize: 14,
+                        color: "#f1ede9",
+                        lineHeight: 1.15,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {e.label}
+                    </span>
+                    <span
+                      style={{
+                        display: "block",
+                        fontFamily: MONO,
+                        fontSize: 9.5,
+                        letterSpacing: ".04em",
+                        color: "#8a837d",
+                        marginTop: 2,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {e.sub ||
+                        `${Math.round(e.protein)}p · ${Math.round(e.carbs)}c · ${Math.round(e.fat)}f`}
+                    </span>
+                  </span>
+                  <span style={{ flex: "none", textAlign: "right" }}>
+                    <span
+                      style={{
+                        display: "block",
+                        fontFamily: MONO,
+                        fontWeight: 700,
+                        fontSize: 18,
+                        color: "#ff8a5c",
+                        lineHeight: 1,
+                      }}
+                    >
+                      {Math.round(e.kcal)}
+                    </span>
+                    <span
+                      style={{
+                        display: "block",
+                        fontFamily: MONO,
+                        fontSize: 8,
+                        letterSpacing: ".16em",
+                        color: "#7c736e",
+                        marginTop: 2,
+                      }}
+                    >
+                      KKAL
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* one-tap add-ons */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 9,
+                marginTop: 9,
+              }}
+            >
+              {ADDONS.map((a) => {
+                const preset = PRESETS.find((p) => p.id === a.id);
+                if (!preset) return null;
+                const kcal = Math.round(sumMacros(preset.items).kcal);
+                const href = `/meal/confirm?preset=${preset.id}&date=${activeDate}`;
+                return (
+                  <Link
+                    key={a.id}
+                    href={href}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "12px 14px",
+                      borderRadius: 14,
+                      cursor: "pointer",
+                      textDecoration: "none",
+                      background:
+                        "linear-gradient(180deg,rgba(255,138,60,.1),rgba(255,138,60,.02) 40%),#0d0b0c",
+                      border: "1px solid rgba(255,138,60,.32)",
+                      boxShadow: "inset 0 1px 0 rgba(255,205,175,.16)",
+                    }}
+                    onClick={(ev) => {
+                      ev.preventDefault();
+                      setQuickPickOpen(false);
+                      vtNavigate(href, { haptic: null });
+                    }}
+                  >
+                    <span style={{ fontSize: 18 }}>{a.emoji}</span>
+                    <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                      <span
+                        style={{
+                          fontFamily: SANS,
+                          fontWeight: 700,
+                          fontSize: 13,
+                          color: "#f1ede9",
+                        }}
+                      >
+                        {a.label}
+                      </span>
+                      <span
+                        style={{
+                          fontFamily: MONO,
+                          fontSize: 9,
+                          letterSpacing: ".1em",
+                          color: "#ff8a72",
+                        }}
+                      >
+                        +{kcal} KKAL
+                      </span>
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* manage quick-log sheet */}
