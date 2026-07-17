@@ -16,6 +16,8 @@ const PUBLIC_API_PATHS = [
   "/api/ingredients",
   "/api/workouts",
   "/api/measurements",
+  "/api/targets",
+  "/api/widget",
   "/api/og",
   "/api/register",
   "/api/auth",
