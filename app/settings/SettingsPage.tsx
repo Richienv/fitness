@@ -269,6 +269,20 @@ export default function SettingsPage() {
         {savedChip && <div className="settings-saved mono">✓ SAVED</div>}
 
         <section className="settings-section">
+          <div className="settings-section-label mono">// WIDGET</div>
+          <Link
+            href="/widget"
+            className="settings-row"
+            style={{ textDecoration: "none", cursor: "pointer" }}
+          >
+            <div className="settings-row-label">📱 iPhone Widget</div>
+            <span className="settings-chip mono" style={CHIP_INACTIVE}>
+              BUKA →
+            </span>
+          </Link>
+        </section>
+
+        <section className="settings-section">
           <div className="settings-section-label mono">// PROFIL</div>
 
           <div className="settings-row">
