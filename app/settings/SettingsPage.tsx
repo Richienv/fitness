@@ -151,6 +151,8 @@ export default function SettingsPage() {
       ...cur.targets,
       [day]: { ...cur.targets[day], [field]: val },
     };
+    // Hand-edited targets become authoritative (win over profile-derived).
+    cur.targetsCustom = true;
     setLocalSettings(cur);
     setSettings(cur);
     bump();

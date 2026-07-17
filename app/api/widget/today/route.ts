@@ -41,6 +41,14 @@ export async function GET(req: Request) {
 
     const snap = await todaySnapshot(userId);
     const c = snap.calories;
+    // Personal targets: the user's real daily goal lives client-side, so the
+    // widget passes it as ?kt=/&pt=. Fall back to the snapshot defaults.
+    const ktRaw = Number(url.searchParams.get("kt"));
+    const ptRaw = Number(url.searchParams.get("pt"));
+    const kcalTarget =
+      Number.isFinite(ktRaw) && ktRaw > 0 ? Math.round(ktRaw) : c.target;
+    const proteinTarget =
+      Number.isFinite(ptRaw) && ptRaw > 0 ? Math.round(ptRaw) : c.proteinTarget;
     const data = {
       date: snap.date,
       totals: {
@@ -50,8 +58,11 @@ export async function GET(req: Request) {
         fat: c.fat,
         sugar: c.sugar,
       },
-      targets: { kcal: c.target, protein: c.proteinTarget, sugar: c.sugarTarget },
-      remaining: { kcal: c.remaining, protein: c.proteinRemaining },
+      targets: { kcal: kcalTarget, protein: proteinTarget, sugar: c.sugarTarget },
+      remaining: {
+        kcal: kcalTarget - c.consumed,
+        protein: proteinTarget - c.protein,
+      },
       updatedAt: new Date().toISOString(),
     };
     return NextResponse.json({ ok: true, data }, { headers: cors });
