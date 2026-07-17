@@ -522,6 +522,17 @@ export default function MealHome() {
     reloadFromStore();
   }, [reloadFromStore]);
 
+  // Deep-link from the iPhone widget: /meal?add=1 opens the food builder right
+  // away at the time-inferred meal — one tap from the home screen to logging.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (new URLSearchParams(window.location.search).get("add")) {
+      setBuilderMeal(inferMealType());
+      // Strip the param so a later refresh/back doesn't re-open the builder.
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
+
   useEffect(() => {
     if (!activeDate) return;
     setGymDay(getDaily(activeDate).gymDay);

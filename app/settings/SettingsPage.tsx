@@ -273,7 +273,21 @@ export default function SettingsPage() {
       </header>
 
       <div className="settings-scroll">
-        {savedChip && <div className="settings-saved mono">✓ SAVED</div>}
+        {savedChip && (
+          <div
+            className="settings-saved mono"
+            style={{
+              position: "fixed",
+              top: "calc(10px + env(safe-area-inset-top))",
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 60,
+              pointerEvents: "none",
+            }}
+          >
+            ✓ SAVED
+          </div>
+        )}
 
         <section className="settings-section">
           <div className="settings-section-label mono">// WIDGET</div>
