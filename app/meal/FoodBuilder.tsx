@@ -1437,18 +1437,30 @@ export default function FoodBuilder({
                       >
                         −
                       </button>
-                      <span
+                      {/* Tap to type an exact portion (grams) instead of
+                          nudging by steps. Shows grams for weight-based foods,
+                          else the ×N multiplier. */}
+                      <button
+                        type="button"
+                        onClick={() => openEdit(id)}
+                        aria-label="Ubah gram"
                         style={{
                           fontFamily: SANS,
                           fontWeight: 700,
-                          fontSize: 12,
+                          fontSize: 11.5,
                           color: "#ffb39e",
-                          minWidth: 26,
+                          minWidth: 40,
                           textAlign: "center",
+                          lineHeight: 1,
+                          padding: "6px 7px",
+                          borderRadius: 8,
+                          cursor: "pointer",
+                          background: "rgba(255,138,60,.1)",
+                          border: "1px solid rgba(255,138,60,.3)",
                         }}
                       >
-                        ×{qty}
-                      </span>
+                        {grams != null ? `${grams}g` : `×${qty}`}
+                      </button>
                       <button
                         type="button"
                         aria-label="Tambah"

@@ -626,8 +626,8 @@ export default function MealHome() {
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: 9,
-          marginTop: 11,
+          gap: 7,
+          marginTop: 10,
         }}
       >
         {quickEntries.map((e) => (
@@ -641,9 +641,9 @@ export default function MealHome() {
               display: "flex",
               flexDirection: "row",
               alignItems: "center",
-              gap: 13,
-              padding: "13px 15px",
-              borderRadius: 16,
+              gap: 10,
+              padding: "9px 12px",
+              borderRadius: 13,
               textAlign: "left",
               cursor: "pointer",
               background:
@@ -655,13 +655,13 @@ export default function MealHome() {
             <span
               aria-hidden="true"
               style={{
-                width: 52,
-                height: 52,
+                width: 38,
+                height: 38,
                 flex: "none",
-                borderRadius: 14,
+                borderRadius: 11,
                 display: "grid",
                 placeItems: "center",
-                fontSize: 24,
+                fontSize: 18,
                 background: "rgba(238,60,48,.08)",
                 border: "1px solid rgba(238,60,48,.22)",
               }}
@@ -674,7 +674,7 @@ export default function MealHome() {
                   display: "block",
                   fontFamily: SANS,
                   fontWeight: 700,
-                  fontSize: 16,
+                  fontSize: 14,
                   color: "#f1ede9",
                   lineHeight: 1.15,
                   overflow: "hidden",
@@ -688,10 +688,10 @@ export default function MealHome() {
                 style={{
                   display: "block",
                   fontFamily: MONO,
-                  fontSize: 10,
+                  fontSize: 9.5,
                   letterSpacing: ".04em",
                   color: "#8a837d",
-                  marginTop: 4,
+                  marginTop: 2,
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
@@ -707,7 +707,7 @@ export default function MealHome() {
                   display: "block",
                   fontFamily: MONO,
                   fontWeight: 700,
-                  fontSize: 22,
+                  fontSize: 18,
                   color: "#ff8a5c",
                   lineHeight: 1,
                 }}
@@ -718,10 +718,10 @@ export default function MealHome() {
                 style={{
                   display: "block",
                   fontFamily: MONO,
-                  fontSize: 8.5,
+                  fontSize: 8,
                   letterSpacing: ".16em",
                   color: "#7c736e",
-                  marginTop: 4,
+                  marginTop: 2,
                 }}
               >
                 KKAL
