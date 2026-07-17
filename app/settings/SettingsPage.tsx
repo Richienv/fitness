@@ -26,6 +26,7 @@ import {
   getCustomTemplates,
 } from "@/lib/workouts";
 import { todayKey } from "@/lib/targets";
+import { syncResolvedTargets } from "@/lib/targetSync";
 import {
   MICRO_DEFS,
   getMicroTargets,
@@ -155,6 +156,7 @@ export default function SettingsPage() {
     cur.targetsCustom = true;
     setLocalSettings(cur);
     setSettings(cur);
+    syncResolvedTargets();
     bump();
   }
 
