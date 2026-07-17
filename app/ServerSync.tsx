@@ -4,8 +4,8 @@ import { useEffect } from "react";
 import {
   mergeServerFoods,
   mergeServerMeals,
+  pushLocalMealsToDb,
   syncCustomFoodsToDbOnce,
-  syncMealsToDbOnce,
 } from "@/lib/store";
 import { mergeServerWorkouts } from "@/lib/workouts";
 import { mergeServerMeasurements } from "@/lib/measurements";
@@ -33,7 +33,7 @@ async function fetchJson<T>(url: string): Promise<T | null> {
 /** Pull server data (Hermes/Telegram-logged + other devices) into the local
  * store. Returns the number of records imported. */
 async function pullFromServer(): Promise<number> {
-  const from = daysBefore(todayKey(), 14);
+  const from = daysBefore(todayKey(), 45);
 
   const [mealsRes, foodsRes, workoutsRes, measRes] = await Promise.all([
     fetchJson<{ meals: never[] }>(`/api/meals?from=${from}`),
@@ -79,9 +79,10 @@ export default function ServerSync() {
     if (seed && seed.seeded > 0)
       console.log("[ServerSync] seeded", seed.seeded, "APR 13 meals");
 
-    // One-shot legacy pushes: local meals + custom foods up to the DB.
-    syncMealsToDbOnce().then((res) => {
-      if (res) console.log("[ServerSync] pushed", res.synced, "meals to DB");
+    // Push local meals up to the DB on every load (idempotent) so anything a
+    // flaky save missed becomes durable — then a fresh login can restore it.
+    pushLocalMealsToDb().then((res) => {
+      if (res) console.log("[ServerSync] pushed", res.pushed, "meals to DB");
     });
     syncCustomFoodsToDbOnce().then((res) => {
       if (res) console.log("[ServerSync] pushed", res.synced, "foods to DB");

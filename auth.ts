@@ -10,7 +10,19 @@ import { db } from "@/lib/db";
 // add route-gating middleware (Phase 4) it must use a separate edge-safe
 // `auth.config.ts` (no bcrypt/prisma) — not this file.
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  session: { strategy: "jwt" },
+  // Trust the Vercel host header when building callback URLs (all 3 project
+  // domains). Prevents host-mismatch from silently failing the session.
+  trustHost: true,
+  // Persist the login for 90 days (default is 30) and refresh the cookie's
+  // expiry at most once a day, so returning users aren't asked to log in again.
+  // NOTE: this does NOT help if the browser refuses to store cookies at all
+  // (in-app browsers / Private Browsing / "Block All Cookies") — that's the
+  // usual cause of "logged out every open".
+  session: {
+    strategy: "jwt",
+    maxAge: 60 * 60 * 24 * 90,
+    updateAge: 60 * 60 * 24,
+  },
   pages: { signIn: "/login" },
   providers: [
     Credentials({

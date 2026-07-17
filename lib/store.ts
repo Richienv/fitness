@@ -222,6 +222,30 @@ export function deleteMeal(id: string): void {
   deleteMealRemote(id);
 }
 
+/** Push ALL local meals to the server (idempotent upsert by id). Unlike
+ *  syncMealsToDbOnce this runs every time it's called, so meals that a flaky
+ *  save (offline / expired session) failed to persist become durable on the
+ *  next load with a working session. Cheap for a personal-size history. */
+export async function pushLocalMealsToDb(): Promise<{ pushed: number } | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    const all = getAllMeals();
+    if (all.length === 0) return { pushed: 0 };
+    const res = await fetch("/api/meals/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(all.map(mealPayload)),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { synced: number };
+    // Mark the one-shot legacy push done too, so it doesn't also fire.
+    window.localStorage.setItem(scopedKey(MEALS_SYNCED_KEY), "1");
+    return { pushed: data.synced };
+  } catch {
+    return null;
+  }
+}
+
 export async function syncMealsToDbOnce(): Promise<{ synced: number } | null> {
   if (typeof window === "undefined") return null;
   try {
