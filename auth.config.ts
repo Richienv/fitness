@@ -4,7 +4,14 @@ import type { NextAuthConfig } from "next-auth";
 // `middleware.ts` (edge runtime). The Credentials provider (which needs
 // bcrypt + Prisma) is added on top of this in `auth.ts` for the Node runtime.
 export const authConfig = {
-  session: { strategy: "jwt" },
+  trustHost: true,
+  // Keep in sync with auth.ts so the middleware verifies tokens with the same
+  // 90-day lifetime the issuer stamps.
+  session: {
+    strategy: "jwt",
+    maxAge: 60 * 60 * 24 * 90,
+    updateAge: 60 * 60 * 24,
+  },
   pages: { signIn: "/login" },
   providers: [],
   callbacks: {
