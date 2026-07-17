@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { TARGETS, todayKey } from "@/lib/targets";
+import { getDaily } from "@/lib/store";
 
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
 const MONO = "var(--font-dm-mono), 'JetBrains Mono', monospace";
@@ -15,9 +17,10 @@ const SCRIPT_LINES = [
   "// to your home screen and pick this script. Tap it → jumps to add food.",
   "const TOKEN = '__TOKEN__';",
   "const BASE = '__BASE__';",
+  "const Q = '__TGT__';",
   "",
   "let d = null;",
-  "try { d = await new Request(`${BASE}/api/widget/today?token=${TOKEN}`).loadJSON(); } catch (e) {}",
+  "try { d = await new Request(`${BASE}/api/widget/today?token=${TOKEN}${Q}`).loadJSON(); } catch (e) {}",
   "",
   "const FIRE = new Color('#ff8a4c');",
   "const MUTE = new Color('#8a837d');",
@@ -29,6 +32,8 @@ const SCRIPT_LINES = [
   "bg.locations = [0, 1];",
   "w.backgroundGradient = bg;",
   "w.setPadding(15, 15, 15, 15);",
+  "// Hint iOS to refresh sooner (it still batches on its own schedule).",
+  "w.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000);",
   "",
   "if (!d || !d.ok) {",
   "  const t = w.addText('R2·FIT'); t.font = Font.heavySystemFont(15); t.textColor = FIRE;",
@@ -119,17 +124,33 @@ export default function WidgetSetupPage() {
     }
   }, []);
 
+  const [tgt, setTgt] = useState<{ kt: number; pt: number } | null>(null);
+
   useEffect(() => {
     if (typeof window !== "undefined") setBase(window.location.origin);
     mint();
+    // Capture the user's personal daily target (today's gym/rest goal) so the
+    // widget shows /1700 etc. instead of the server default.
+    try {
+      const t = getDaily(todayKey()).gymDay ? TARGETS.gymDay : TARGETS.restDay;
+      setTgt({ kt: Math.round(t.kcal), pt: Math.round(t.protein) });
+    } catch {
+      /* fall back to server defaults */
+    }
   }, [mint]);
 
+  const tgtQuery = tgt ? `&kt=${tgt.kt}&pt=${tgt.pt}` : "";
   const scriptText =
     token && base
-      ? SCRIPT_LINES.join("\n").replace("__TOKEN__", token).replace("__BASE__", base)
+      ? SCRIPT_LINES.join("\n")
+          .replace("__TOKEN__", token)
+          .replace("__BASE__", base)
+          .replace("__TGT__", tgtQuery)
       : "";
   const widgetUrl =
-    token && base ? `${base}/api/widget/today?token=${token}` : "";
+    token && base
+      ? `${base}/api/widget/today?token=${token}${tgtQuery}`
+      : "";
 
   const copy = useCallback(async (text: string, which: "script" | "url") => {
     try {
