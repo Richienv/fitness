@@ -2091,6 +2091,40 @@ a { color: inherit; text-decoration: none; }
 @keyframes riseIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 @keyframes flamePulse { 0%, 100% { opacity: .6; } 50% { opacity: .95; } }
 
+/* ── Apple-grade modal / dialog motion ─────────────────────────────────────
+   Entrance decelerates with weight (iOS easing) and settles with a whisper of
+   spring; exit is a touch quicker and accelerates away. Backdrop fades its dim
+   so the whole thing reads as having mass, not a flash. Reduced-motion flattens
+   these via the global block. */
+@keyframes dlgBackdropIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dlgBackdropOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes dlgCardIn {
+  0%   { opacity: 0; transform: translateY(18px) scale(.90); }
+  55%  { opacity: 1; }
+  80%  { transform: translateY(0) scale(1.014); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes dlgCardOut {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(10px) scale(.955); }
+}
+/* Bottom sheets — glide up with weight, glide back down on close. */
+@keyframes sheetCardIn {
+  0%   { opacity: .4; transform: translateY(100%); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes sheetCardOut {
+  0%   { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(100%); }
+}
+/* Dialog buttons — depress with a little give, so a tap feels physical. */
+.dlg-btn {
+  transition: transform var(--dur-press) var(--ease-out),
+    filter var(--dur-press) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+.dlg-btn:active { transform: scale(.955); filter: brightness(1.09); }
+
 /* Food-builder "Fire" tray — pop the tray/items in, kick the running total */
 @keyframes trayPop { 0% { transform: scale(.72) translateY(8px); opacity: 0; } 55% { transform: scale(1.05) translateY(0); opacity: 1; } 100% { transform: none; } }
 @keyframes trayPop2 { 0% { transform: scale(.85) translateY(6px); opacity: 0; } 100% { transform: none; opacity: 1; } }
