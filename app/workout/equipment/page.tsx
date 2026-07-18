@@ -85,20 +85,37 @@ export default function EquipmentPage() {
                     <div className="eq-card-name">{e.name}</div>
                     {hasHowTo && (
                       <span
-                        className="mono"
+                        className="mono eq-howto-chip"
+                        aria-label={open ? "Tutup cara pakai" : "Lihat cara pakai"}
                         style={{
                           flex: "none",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 5,
                           fontSize: 9,
                           letterSpacing: ".1em",
-                          color: open ? "#ff8a72" : "#7c736e",
+                          color: open ? "#ff8a72" : "#ffb59c",
+                          background: open
+                            ? "rgba(255,138,114,.14)"
+                            : "rgba(255,138,114,.08)",
                           border: open
-                            ? "1px solid rgba(255,150,120,.5)"
-                            : "1px solid rgba(255,255,255,.14)",
-                          borderRadius: 8,
-                          padding: "3px 7px",
+                            ? "1px solid rgba(255,150,120,.6)"
+                            : "1px solid rgba(255,150,120,.32)",
+                          borderRadius: 999,
+                          padding: "4px 9px 4px 7px",
                           whiteSpace: "nowrap",
                         }}
                       >
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            fontSize: 11,
+                            lineHeight: 1,
+                            fontStyle: "normal",
+                          }}
+                        >
+                          ⓘ
+                        </span>
                         {open ? "TUTUP ▴" : "CARA ▾"}
                       </span>
                     )}
