@@ -18,6 +18,7 @@ import { haptic } from "@/lib/haptics";
 import { INGREDIENTS } from "@/lib/ingredients";
 import { drinkSugarFull, SUGAR_LEVELS } from "@/lib/drinkSugar";
 import { saveMeal, type MealItem, type CustomMealItem } from "@/lib/store";
+import { contributeFood } from "@/lib/foodContribute";
 import {
   getFoodGroups,
   addFoodToGroup,
@@ -591,6 +592,24 @@ export default function FoodBuilder({
     val: number
   ) => setEditing((e) => (e ? { ...e, [key]: Math.max(0, val) } : e));
   const editSave = () => {
+    // Snapshot the sheet before the state update so we can share a newly created
+    // food to the community catalogue without running a side effect inside the
+    // setEditing reducer (which React may invoke twice in dev).
+    const snap = editing;
+    if (snap && snap.mode === "new" && snap.name.trim() && snap.kcal > 0) {
+      const grams = snap.gramsPerUnit || 100;
+      const f = 100 / grams;
+      contributeFood(
+        snap.name.trim(),
+        {
+          kcal: round1(snap.kcal * f),
+          protein: round1(snap.protein * f),
+          fat: round1(snap.fat * f),
+          carbs: round1(snap.carbs * f),
+        },
+        grams
+      );
+    }
     setEditing((e) => {
       if (!e) return null;
       if (e.mode === "edit" && e.id) {
@@ -2044,6 +2063,20 @@ export default function FoodBuilder({
                 berapa pun (mis. 300, 30).
               </div>
             )}
+            {editing.mode === "new" && (
+              <div
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 9,
+                  color: "#6a6660",
+                  marginBottom: 12,
+                  lineHeight: 1.4,
+                }}
+              >
+                Isi berat 1 porsi + gizinya. Makanan ini otomatis masuk ke
+                database bersama — biar semua orang bisa cari juga. 🤝
+              </div>
+            )}
             {editing.sugarFull != null ? (
               <div style={{ marginBottom: 4 }}>
                 <div
@@ -2117,6 +2150,21 @@ export default function FoodBuilder({
                   onSet: editSetKcal,
                 });
               } else {
+                rows.push({
+                  label: "BERAT PORSI (g)",
+                  val: Math.round(e.gramsPerUnit || 100),
+                  step: 10,
+                  onStep: (d) =>
+                    setEditing((x) =>
+                      x
+                        ? { ...x, gramsPerUnit: Math.max(1, (x.gramsPerUnit || 100) + d * 10) }
+                        : x
+                    ),
+                  onSet: (n) =>
+                    setEditing((x) =>
+                      x ? { ...x, gramsPerUnit: Math.max(1, Math.round(n)) } : x
+                    ),
+                });
                 rows.push({
                   label: "KALORI",
                   val: Math.round(e.kcal),
