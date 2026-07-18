@@ -89,22 +89,26 @@ type LoggedRow = {
   at: number;
 };
 
-/** A single row that can be swiped (left or right) to delete. Below a small
- *  drag threshold a tap opens the meal; past the threshold the row flings off
- *  and calls onDelete. Uses pointer events so it works on touch and mouse. */
+/** A single row that can be swiped (left or right) to *request* a delete. Below
+ *  a small drag threshold a tap opens the meal; past the threshold the row snaps
+ *  back and calls onRequestDelete, which opens a confirmation dialog — nothing is
+ *  removed until the user confirms. The row never keeps a "flung-off" state, so
+ *  after a delete the remaining rows can't inherit a stale swipe/gone state.
+ *  Uses pointer events so it works on touch and mouse. */
 function SwipeRow({
   onTap,
-  onDelete,
+  onRequestDelete,
   children,
 }: {
   onTap: () => void;
-  onDelete: () => void;
+  onRequestDelete: () => void;
   children: ReactNode;
 }) {
   const [dx, setDx] = useState(0);
-  const [gone, setGone] = useState(false);
   const st = useRef<{ x: number; y: number; drag: boolean } | null>(null);
-  const THRESH = 96;
+  // Higher threshold than before so a casual swipe doesn't trigger it — the
+  // confirmation dialog is the real safety net, this just avoids stray opens.
+  const THRESH = 120;
 
   const down = (e: ReactPointerEvent<HTMLDivElement>) => {
     st.current = { x: e.clientX, y: e.clientY, drag: false };
@@ -130,13 +134,10 @@ function SwipeRow({
       onTap();
       return;
     }
-    if (Math.abs(dx) > THRESH) {
-      setGone(true);
-      setDx(dx > 0 ? 520 : -520);
-      window.setTimeout(onDelete, 190);
-    } else {
-      setDx(0);
-    }
+    // Always snap back; open the confirmation if dragged far enough.
+    const trigger = Math.abs(dx) > THRESH;
+    setDx(0);
+    if (trigger) onRequestDelete();
   };
 
   const dragging = st.current?.drag ?? false;
@@ -186,7 +187,6 @@ function SwipeRow({
           transition: dragging
             ? "none"
             : "transform .18s cubic-bezier(.16,1,.3,1), opacity .18s",
-          opacity: gone ? 0 : 1,
           background:
             "linear-gradient(180deg,rgba(255,255,255,.045),transparent 40%),#0d0b0c",
           border: "1px solid rgba(255,255,255,.09)",
@@ -502,6 +502,12 @@ export default function MealHome() {
   const [loaded, setLoaded] = useState(false);
   const [quickPickOpen, setQuickPickOpen] = useState(false);
   const [builderMeal, setBuilderMeal] = useState<MealType | null>(null);
+  // Which logged food is pending deletion (drives the confirmation dialog).
+  const [pendingDelete, setPendingDelete] = useState<{
+    mealId: string;
+    itemIndex: number;
+    name: string;
+  } | null>(null);
 
   // Hardware back closes the top-most open sheet instead of leaving the page.
   // (FoodBuilder wires its own step-aware handler internally.)
@@ -886,7 +892,14 @@ export default function MealHome() {
                 haptic("tap");
                 setBuilderMeal(row.mealType);
               }}
-              onDelete={() => deleteLoggedItem(row.mealId, row.itemIndex, row.name)}
+              onRequestDelete={() => {
+                haptic("tap");
+                setPendingDelete({
+                  mealId: row.mealId,
+                  itemIndex: row.itemIndex,
+                  name: row.name,
+                });
+              }}
             >
               <span
                 aria-hidden="true"
@@ -1003,6 +1016,140 @@ export default function MealHome() {
             reloadFromStore();
           }}
         />
+      )}
+
+      {/* delete confirmation — nothing is removed on the swipe itself; the
+          user must confirm here, so an accidental slide can't wipe a food. */}
+      {pendingDelete && (
+        <div
+          onClick={() => setPendingDelete(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 240,
+            background: "rgba(5,4,6,.72)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+          }}
+        >
+          <div
+            onClick={(ev) => ev.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            style={{
+              width: "100%",
+              maxWidth: 360,
+              borderRadius: 22,
+              padding: "24px 22px 20px",
+              background: "linear-gradient(180deg,#161011,#0c0a0b 60%)",
+              border: "1px solid rgba(255,255,255,.12)",
+              boxShadow: "0 24px 60px rgba(0,0,0,.6)",
+              animation: "riseIn .22s cubic-bezier(.16,1,.3,1)",
+            }}
+          >
+            <div
+              aria-hidden="true"
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: 14,
+                display: "grid",
+                placeItems: "center",
+                fontSize: 22,
+                margin: "0 auto 14px",
+                background: "rgba(238,60,48,.1)",
+                border: "1px solid rgba(238,60,48,.3)",
+              }}
+            >
+              🗑
+            </div>
+            <div
+              style={{
+                fontFamily: SANS,
+                fontWeight: 800,
+                fontSize: 17,
+                color: "#f5f2ef",
+                textAlign: "center",
+              }}
+            >
+              Hapus makanan ini?
+            </div>
+            <div
+              style={{
+                fontFamily: SANS,
+                fontWeight: 700,
+                fontSize: 14,
+                color: "#ff9a80",
+                textAlign: "center",
+                marginTop: 6,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {pendingDelete.name}
+            </div>
+            <div
+              style={{
+                fontFamily: MONO,
+                fontSize: 10,
+                letterSpacing: ".04em",
+                color: "#7c736e",
+                textAlign: "center",
+                marginTop: 8,
+                lineHeight: 1.4,
+              }}
+            >
+              Nggak bisa dibatalin setelah dihapus.
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+              <button
+                type="button"
+                onClick={() => setPendingDelete(null)}
+                style={{
+                  flex: 1,
+                  padding: "13px 0",
+                  borderRadius: 13,
+                  fontFamily: MONO,
+                  fontSize: 12,
+                  letterSpacing: ".1em",
+                  color: "#cfc8c2",
+                  cursor: "pointer",
+                  background: "rgba(255,255,255,.05)",
+                  border: "1px solid rgba(255,255,255,.14)",
+                }}
+              >
+                BATAL
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const p = pendingDelete;
+                  setPendingDelete(null);
+                  deleteLoggedItem(p.mealId, p.itemIndex, p.name);
+                }}
+                style={{
+                  flex: 1,
+                  padding: "13px 0",
+                  borderRadius: 13,
+                  fontFamily: MONO,
+                  fontSize: 12,
+                  letterSpacing: ".1em",
+                  fontWeight: 700,
+                  color: "#fff",
+                  cursor: "pointer",
+                  background: "linear-gradient(180deg,#ee5140,#c01f12)",
+                  border: "1px solid rgba(255,150,120,.5)",
+                }}
+              >
+                HAPUS
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* quick-log picker — one-tap presets + add-ons (kept behind ⚡ QUICK
