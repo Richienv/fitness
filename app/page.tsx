@@ -649,10 +649,13 @@ export default function HomePage() {
         </span>
       </Link>
 
-      {/* ghost CTA */}
+      {/* co-primary CTA — logging food is a top daily action, so it gets the
+          same weight as the workout (warm amber, distinct from the red). */}
       <Link
         href="/meal"
         style={{
+          position: "relative",
+          overflow: "hidden",
           display: "block",
           width: "100%",
           marginTop: 10,
@@ -660,22 +663,36 @@ export default function HomePage() {
           borderRadius: 18,
           textAlign: "left",
           cursor: "pointer",
-          background:
-            "linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))",
-          border: "1px solid rgba(255,255,255,.12)",
-          boxShadow: "inset 0 1px 0 rgba(255,255,255,.07)",
+          background: "linear-gradient(180deg,#ffb154,#ff861f 55%,#ef6a12)",
+          border: "1px solid rgba(255,196,130,.6)",
+          boxShadow:
+            "inset 0 1.5px 1px rgba(255,240,215,.7), inset 0 -5px 10px rgba(170,80,5,.35), 0 14px 30px rgba(255,130,40,.4)",
         }}
       >
+        <span
+          style={{
+            position: "absolute",
+            top: 0,
+            left: "-55%",
+            width: "55%",
+            height: "100%",
+            background:
+              "linear-gradient(105deg,transparent,rgba(255,255,255,.35),transparent)",
+            animation: "btnSheen 6s ease-in-out infinite",
+            animationDelay: "3s",
+          }}
+        />
         <span
           style={{
             display: "block",
             fontFamily: SANS,
             fontWeight: 800,
             fontSize: 20,
-            color: "#f1ede9",
+            color: "#fff",
+            textShadow: "0 1px 2px rgba(140,60,5,.5)",
           }}
         >
-          CATAT MAKAN
+          🍽 CATAT MAKAN <span style={{ fontWeight: 500 }}>↗</span>
         </span>
         <span
           style={{
@@ -683,7 +700,7 @@ export default function HomePage() {
             fontFamily: MONO,
             fontSize: 10.5,
             letterSpacing: ".06em",
-            color: "#8a837d",
+            color: "rgba(255,242,232,.92)",
             marginTop: 4,
           }}
         >
@@ -691,45 +708,50 @@ export default function HomePage() {
         </span>
       </Link>
 
-      {/* sleep CTA — moved here from the bottom nav (night-blue accent) */}
+      {/* secondary — sleep is a supporting habit, so it's a quiet row that
+          doesn't compete with the food + workout priorities above. */}
       <Link
         href="/sleep"
         style={{
-          display: "block",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
           width: "100%",
-          marginTop: 10,
-          padding: "18px 20px",
-          borderRadius: 18,
+          marginTop: 14,
+          padding: "12px 16px",
+          borderRadius: 13,
           textAlign: "left",
           cursor: "pointer",
-          background:
-            "linear-gradient(180deg,rgba(91,110,224,.14),rgba(58,63,158,.06))",
-          border: "1px solid rgba(124,140,240,.28)",
-          boxShadow: "inset 0 1px 0 rgba(174,184,255,.12)",
+          background: "rgba(255,255,255,.03)",
+          border: "1px solid rgba(255,255,255,.08)",
         }}
       >
-        <span
-          style={{
-            display: "block",
-            fontFamily: SANS,
-            fontWeight: 800,
-            fontSize: 20,
-            color: "#dfe4ff",
-          }}
-        >
-          😴 CATAT TIDUR
+        <span aria-hidden="true" style={{ fontSize: 15, opacity: 0.75 }}>
+          😴
         </span>
         <span
           style={{
-            display: "block",
+            flex: 1,
+            minWidth: 0,
             fontFamily: MONO,
-            fontSize: 10.5,
-            letterSpacing: ".06em",
-            color: "#8a90b5",
-            marginTop: 4,
+            fontSize: 11,
+            letterSpacing: ".1em",
+            fontWeight: 700,
+            color: "#9a938d",
           }}
         >
-          Target 8 jam · konsistensi &amp; recovery
+          CATAT TIDUR
+        </span>
+        <span
+          style={{
+            fontFamily: MONO,
+            fontSize: 9.5,
+            letterSpacing: ".06em",
+            color: "#6a6660",
+            whiteSpace: "nowrap",
+          }}
+        >
+          target 8 jam ↗
         </span>
       </Link>
     </main>
