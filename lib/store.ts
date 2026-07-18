@@ -3,6 +3,7 @@
 import type { MealType } from "./presets";
 import { macrosFor, type Macros } from "./ingredients";
 import { scopedKey } from "./userScope";
+import { contributeFood } from "./foodContribute";
 
 export type CustomMealItem = {
   custom: true;
@@ -527,6 +528,9 @@ export function saveCustomFood(name: string, per100g: Per100g): CustomFood {
   all.push(entry);
   write(CUSTOM_KEY, all);
   postFoodRemote(entry);
+  // Share into the community catalogue so everyone can find it in search.
+  // per100g is already per-100 g, so no portion conversion is needed.
+  contributeFood(name, per100g);
   return entry;
 }
 
@@ -545,6 +549,7 @@ export function updateCustomFood(id: string, name: string, per100g: Per100g): vo
   all[idx] = { ...all[idx], name, per100g };
   write(CUSTOM_KEY, all);
   postFoodRemote(all[idx]);
+  contributeFood(name, per100g);
 }
 
 export function getIngredientOverrides(): Record<string, IngredientOverride> {
