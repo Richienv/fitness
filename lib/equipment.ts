@@ -84,6 +84,95 @@ export const EQUIPMENT: Equipment[] = [
   { id: "stair-climber",             name: "Stair Climber",             hanzi: "登梯机",       pinyin: "dēngtī jī",               muscleGroup: "CARDIO",                                                       category: "CARDIO" },
 ];
 
+// How-to text for every machine that didn't already carry inline instructions,
+// so each card in the equipment list has a proper "CARA PAKAI" guide. Setup →
+// movement → key form/safety cue, in the same plain, practical voice.
+const HOWTO: Record<string, string> = {
+  "pec-deck":
+    "Set the seat so the handles sit at chest height and your forearms rest flat on the pads. Sit back with your shoulder blades pinned, then squeeze the pads together in front of your chest using your chest — pause, then open slowly to a comfortable stretch. Keep a slight bend in your elbows and don't let the weight yank your arms back.",
+  "cable-chest-fly":
+    "Set both pulleys around chest height and take a handle in each hand, one foot staggered forward for balance. With a slight, fixed elbow bend, sweep your hands together in front of your chest in a wide arc and squeeze. Return slowly to a stretch without letting your shoulders roll forward. Think 'hugging', not pressing.",
+  "incline-chest-press-machine":
+    "Set the seat so the handles line up with your upper chest. Sit back with your shoulder blades pinned and feet flat. Press the handles up and forward until your arms are almost straight, then lower slowly to a light stretch. Keep your back on the pad and don't lock the elbows hard.",
+  "incline-dumbbell-press":
+    "Set the bench to about 30°. Sit back with a dumbbell in each hand at upper-chest level, palms facing forward. Press up and slightly together until your arms are nearly straight, then lower under control to a stretch. Keep your shoulder blades pinched and don't clang the dumbbells at the top.",
+  "cable-lat-pulldown":
+    "Grip the bar a bit wider than your shoulders and lock your thighs under the pad. Lean back slightly, then pull the bar to your upper chest by driving your elbows down and squeezing your lats. Release up under control to a full stretch. Pull with your back, not your arms, and don't swing.",
+  "cable-seated-row":
+    "Sit with your feet braced and knees slightly bent; grab the handle with arms extended and back straight. Row by pulling your elbows back and squeezing your shoulder blades together, then extend slowly forward to a stretch. Keep your torso upright and still — no jerking with the lower back.",
+  "t-bar-row":
+    "Straddle the bar, hinge at the hips with a flat back and knees slightly bent, and grip the handles. Row the weight to your upper belly by driving your elbows back and squeezing your back, then lower under control. Keep your chest up and back flat — don't round or heave with your legs.",
+  "assisted-pullup-machine":
+    "Set the assist weight (more weight = more help), kneel or stand on the pad, and grip the bar wider than your shoulders. Pull up until your chin clears the bar by driving your elbows down, then lower slowly to a full hang. Keep it controlled — no kipping — and reduce the assist over time as you get stronger.",
+  "hyperextension-bench":
+    "Set the pad just below your hips and hook your feet. With arms crossed or hands at your temples, hinge down at the hips with a flat back, then raise your torso until it's in line with your legs, squeezing your glutes and lower back. Don't over-arch past straight, and move smoothly instead of swinging.",
+  "lateral-raise-machine":
+    "Set the seat so the pads rest against your outer arms just above the elbows. Sit tall and raise your arms out to the sides to about shoulder height, leading with your elbows, then lower slowly. Keep the work in your side delts — don't shrug your traps or use momentum.",
+  "rear-delt-fly-machine":
+    "Sit facing the pad with your chest against it and grab the handles with arms extended in front. Pull the handles out and back in a wide arc, squeezing your shoulder blades and rear delts, then return slowly. Keep a slight elbow bend and lead with the elbows — don't yank with your arms.",
+  "cable-lateral-raise":
+    "Set the pulley to its lowest point and stand side-on, holding the handle in your outside hand across your body. Raise your arm out to the side to shoulder height with a slight elbow bend, then lower slowly against the cable's pull. Keep your torso still and lead with the elbow — no swinging.",
+  "cable-face-pull":
+    "Set a rope at about head height. Grab both ends with palms facing in, step back to tension, and pull the rope toward your face, splitting your hands apart and driving your elbows high and back. Squeeze your rear delts, then extend slowly. Keep your upper arms parallel to the floor — 'pull apart', not just back.",
+  "dumbbell-lateral-raise":
+    "Stand with a dumbbell in each hand at your sides, a slight bend in your elbows. Raise your arms out to the sides to about shoulder height, leading with your elbows, then lower slowly. Don't swing or shrug — keep the tension on your side delts and control the way down.",
+  "preacher-curl-machine":
+    "Set the seat so your upper arms rest flat on the angled pad, armpits near the top. Grip the handles and curl up by squeezing your biceps, then lower slowly to a near-full stretch. Keep your upper arms glued to the pad and don't let the weight jerk your elbows at the bottom.",
+  "cable-bicep-curl":
+    "Set the pulley low and attach a bar or handles. Stand tall with your elbows tucked at your sides, and curl up by squeezing your biceps while keeping your upper arms still. Lower slowly against the cable. Don't swing your body or let your elbows drift forward.",
+  "dumbbell-bicep-curl":
+    "Stand or sit with a dumbbell in each hand, arms at your sides, palms facing forward. Curl the weights up by bending at the elbow and squeezing your biceps, keeping your upper arms still, then lower slowly. Avoid swinging — control both up and down.",
+  "barbell-curl":
+    "Stand holding a barbell with an underhand grip about shoulder-width, elbows at your sides. Curl the bar up by squeezing your biceps while keeping your upper arms still, then lower slowly to nearly straight. Don't rock your body or swing the bar up — let the biceps do the work.",
+  "hammer-curl":
+    "Stand with a dumbbell in each hand, palms facing your body (thumbs up). Curl the weights up keeping that neutral grip, squeezing your biceps and forearms, then lower slowly. Keep your elbows tucked and still — no swinging.",
+  "tricep-pushdown":
+    "Attach a bar or rope to the top pulley. Stand tall with your elbows tucked at your sides, and push the handle down until your arms are straight, squeezing your triceps. Return slowly to about 90° without letting your elbows flare. Only your forearms move — keep the upper arms pinned.",
+  "overhead-tricep-extension":
+    "Face away from the pulley with a rope, arms overhead and elbows bent. Extend your arms forward/up by squeezing your triceps, keeping your upper arms beside your head, then lower slowly to a stretch behind your head. Keep your elbows pointing forward, not flaring out.",
+  "tricep-dip-machine":
+    "Set the seat and grip the handles with your arms bent. Press down until your arms are almost straight, squeezing your triceps, then return slowly to a stretch. Keep your torso upright and shoulders down, and don't lock your elbows hard at the bottom.",
+  "skull-crusher":
+    "Lie on a flat bench holding an EZ-bar or barbell with arms extended over your chest. Bend at the elbows to lower the bar toward your forehead, keeping your upper arms still, then extend back up by squeezing your triceps. Keep your elbows pointing up, move slowly, and use a manageable weight.",
+  "hack-squat-machine":
+    "Set your shoulders under the pads, feet shoulder-width on the platform, back flat against the pad. Unlock the safeties, then lower by bending your knees to about 90°, heels down and knees tracking over your toes. Drive back up through your heels without locking the knees hard. Keep your back and hips flat on the pad.",
+  "reverse-hack-squat":
+    "Face the pad with your chest and shoulders against it and feet on the platform. Lower into a squat by pushing your hips back and bending your knees while keeping your chest on the pad, then drive up through your heels. Great for glutes — keep your knees tracking over your toes and don't round your back.",
+  "leg-extension-machine":
+    "Sit with your back against the pad and the roller on your lower shins, knees at the seat's edge. Extend your legs until nearly straight, squeezing your quads at the top, then lower slowly. Don't kick explosively or slam the weight down — control both directions.",
+  "seated-leg-curl":
+    "Sit with your back on the pad, the roller behind your lower calves and the thigh pad locked over your legs. Curl your heels down and back toward your glutes by squeezing your hamstrings, then return slowly. Keep your thighs down and don't arch — smooth and controlled.",
+  "lying-leg-curl":
+    "Lie face-down with the roller on your lower calves and hips flat on the pad. Curl your heels toward your glutes by squeezing your hamstrings, then lower slowly. Keep your hips pressed down — don't let them lift off the pad to cheat the weight up.",
+  "glute-kickback-machine":
+    "Brace your torso against the pad and place one foot on the lever. Push the lever back and up by driving through your heel and squeezing your glute, then return slowly. Keep a slight knee bend and don't over-arch your lower back — the motion comes from the hip.",
+  "calf-raise-machine":
+    "Place the balls of your feet on the platform with your heels hanging off, pads or shoulders bearing the weight. Rise up onto your toes as high as you can, squeezing your calves, then lower slowly to a deep stretch below the platform. Full range with a pause at the top beats bouncing.",
+  "smith-machine-squat":
+    "Set the bar across your upper back and unrack by rotating it off the hooks. With feet shoulder-width and slightly forward of the bar, squat down to about parallel by bending your knees and hips, chest up. Drive back up through your heels. Re-rack by twisting the bar; keep your back neutral throughout.",
+  "cable-crunch":
+    "Kneel below a high pulley holding a rope at the sides of your head. Crunch down by curling your ribs toward your hips with your abs, rounding your upper back, then return slowly. Keep your hips still and your arms fixed — bend at the waist, don't just pull with your arms.",
+  "roman-chair-situp":
+    "Anchor your feet and set your hips on the pad. Lower your torso back until it's roughly in line with your legs, then curl back up by contracting your abs. Arms crossed on your chest is easier; hands behind your head is harder. Move under control — don't drop back or heave up.",
+  "captains-chair-leg-raise":
+    "Support yourself on the forearm pads with your back against the rest and legs hanging. Raise your knees (or straight legs, for more difficulty) toward your chest by curling your pelvis up with your lower abs, then lower slowly. Don't swing — it's a controlled curl, not a kick.",
+  treadmill:
+    "Clip the safety cord to your clothing, start at a slow walk, then set your speed and incline. Stand tall and let your arms swing naturally — avoid gripping the rails once you're steady. Ease back down to a walk to cool off before you stop.",
+  "stationary-bike":
+    "Set the seat so your knee has a slight bend at the bottom of the pedal stroke. Choose your resistance, sit tall with a light grip on the handles, and pedal at a steady cadence. Bump resistance or speed for intervals. Keep your knees tracking straight, not flaring out.",
+  "rowing-machine":
+    "Strap in your feet and grab the handle. Drive with your legs first, then lean back slightly and pull the handle to your lower ribs — legs, hips, then arms. Reverse the order coming back: arms out, hinge forward, then bend the knees. Smooth and powerful, not jerky.",
+  elliptical:
+    "Step onto the pedals and hold the moving handles. Stride in a smooth, natural motion, pushing and pulling with both arms and legs while keeping your posture upright. Adjust resistance or incline for intensity. Keep your heels down and don't slump onto the handles.",
+  "stair-climber":
+    "Step on and start slow, standing tall with a light grip on the rails for balance. Take full steps and let your legs do the work — don't lean heavily on the handrails, which cuts the effort. Adjust the speed to keep a steady, sustainable rhythm.",
+};
+
+// Fill in any machine missing inline instructions, so every card has a how-to.
+for (const e of EQUIPMENT) {
+  if (!e.instructions && HOWTO[e.id]) e.instructions = HOWTO[e.id];
+}
+
 export const EQUIPMENT_CATEGORIES: EquipmentCategory[] = [
   "MACHINE",
   "CABLE",

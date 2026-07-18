@@ -106,9 +106,20 @@ function SwipeRow({
 }) {
   const [dx, setDx] = useState(0);
   const st = useRef<{ x: number; y: number; drag: boolean } | null>(null);
-  // Higher threshold than before so a casual swipe doesn't trigger it — the
-  // confirmation dialog is the real safety net, this just avoids stray opens.
-  const THRESH = 120;
+  // Low trigger point — the confirmation dialog is the safety net, so opening it
+  // should feel easy. Past this point the finger meets gentle resistance
+  // (rubber-band) so the gesture has a tactile "wall", the way iOS drags feel.
+  const THRESH = 64;
+
+  /** Rubber-band: track the finger 1:1 up to THRESH, then let only a fraction of
+   *  further travel through, so the row resists like it has weight. */
+  const damp = (raw: number) => {
+    const a = Math.abs(raw);
+    if (a <= THRESH) return raw;
+    const over = a - THRESH;
+    const eased = THRESH + over * (1 - over / (over + 220));
+    return raw < 0 ? -eased : eased;
+  };
 
   const down = (e: ReactPointerEvent<HTMLDivElement>) => {
     st.current = { x: e.clientX, y: e.clientY, drag: false };
@@ -124,7 +135,7 @@ function SwipeRow({
     const ddx = e.clientX - s.x;
     const ddy = e.clientY - s.y;
     if (!s.drag && Math.abs(ddx) > 8 && Math.abs(ddx) > Math.abs(ddy)) s.drag = true;
-    if (s.drag) setDx(ddx);
+    if (s.drag) setDx(damp(ddx));
   };
   const up = () => {
     const s = st.current;
@@ -134,13 +145,14 @@ function SwipeRow({
       onTap();
       return;
     }
-    // Always snap back; open the confirmation if dragged far enough.
+    // Always settle back with weight; open the confirmation if dragged far enough.
     const trigger = Math.abs(dx) > THRESH;
     setDx(0);
     if (trigger) onRequestDelete();
   };
 
   const dragging = st.current?.drag ?? false;
+  const prog = Math.min(1, Math.abs(dx) / THRESH);
   return (
     <div style={{ position: "relative", borderRadius: 13 }}>
       <div
@@ -151,18 +163,30 @@ function SwipeRow({
           display: "flex",
           alignItems: "center",
           justifyContent: dx < 0 ? "flex-end" : "flex-start",
-          padding: "0 18px",
+          padding: "0 20px",
           borderRadius: 13,
-          background:
-            "linear-gradient(90deg,rgba(238,60,48,.24),rgba(238,60,48,.08))",
+          background: `linear-gradient(90deg,rgba(238,60,48,${0.06 + prog * 0.24}),rgba(238,60,48,${0.02 + prog * 0.08}))`,
           color: "#ff9a80",
           fontFamily: MONO,
           fontSize: 11,
           letterSpacing: ".12em",
-          opacity: Math.min(1, Math.abs(dx) / THRESH),
+          opacity: prog,
         }}
       >
-        🗑 HAPUS
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 7,
+            // The label eases in and nudges toward the swiped edge as you pass
+            // the trigger, so the gesture confirms itself before you let go.
+            transform: `translateX(${(dx < 0 ? 1 : -1) * (1 - prog) * 10}px) scale(${0.86 + prog * 0.14})`,
+            transition: dragging ? "none" : "transform .34s var(--ease-ios)",
+            fontWeight: prog >= 1 ? 700 : 400,
+          }}
+        >
+          🗑 HAPUS
+        </span>
       </div>
       <div
         onPointerDown={down}
@@ -184,9 +208,12 @@ function SwipeRow({
           cursor: "pointer",
           touchAction: "pan-y",
           transform: `translateX(${dx}px)`,
+          // 1:1 finger tracking while dragging (direct manipulation); on release
+          // it settles back with a weighty, slightly springy decelerate.
           transition: dragging
             ? "none"
-            : "transform .18s cubic-bezier(.16,1,.3,1), opacity .18s",
+            : "transform .44s var(--ease-spring)",
+          willChange: "transform",
           background:
             "linear-gradient(180deg,rgba(255,255,255,.045),transparent 40%),#0d0b0c",
           border: "1px solid rgba(255,255,255,.09)",
@@ -508,6 +535,9 @@ export default function MealHome() {
     itemIndex: number;
     name: string;
   } | null>(null);
+  // True while the dialog is playing its exit animation, so it glides out
+  // (backdrop fade + card drop) instead of snapping to nothing.
+  const [deleteClosing, setDeleteClosing] = useState(false);
 
   // Hardware back closes the top-most open sheet instead of leaving the page.
   // (FoodBuilder wires its own step-aware handler internally.)
@@ -643,6 +673,22 @@ export default function MealHome() {
       reloadFromStore();
     },
     [dayMeals, reloadFromStore]
+  );
+
+  // Close the confirmation with its exit animation, then optionally delete once
+  // the card has glided away (so the removal doesn't jump under the dialog).
+  const closeDelete = useCallback(
+    (confirm: boolean) => {
+      if (deleteClosing) return; // ignore re-taps during the exit animation
+      const p = pendingDelete;
+      setDeleteClosing(true);
+      window.setTimeout(() => {
+        setPendingDelete(null);
+        setDeleteClosing(false);
+        if (confirm && p) deleteLoggedItem(p.mealId, p.itemIndex, p.name);
+      }, 230);
+    },
+    [pendingDelete, deleteClosing, deleteLoggedItem]
   );
 
   const target = gymDay ? TARGETS.gymDay : TARGETS.restDay;
@@ -1022,17 +1068,21 @@ export default function MealHome() {
           user must confirm here, so an accidental slide can't wipe a food. */}
       {pendingDelete && (
         <div
-          onClick={() => setPendingDelete(null)}
+          onClick={() => closeDelete(false)}
           style={{
             position: "fixed",
             inset: 0,
             zIndex: 240,
             background: "rgba(5,4,6,.72)",
-            backdropFilter: "blur(4px)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             padding: 24,
+            animation: deleteClosing
+              ? "dlgBackdropOut .23s var(--ease-standard) both"
+              : "dlgBackdropIn .32s var(--ease-out) both",
           }}
         >
           <div
@@ -1042,12 +1092,16 @@ export default function MealHome() {
             style={{
               width: "100%",
               maxWidth: 360,
-              borderRadius: 22,
+              borderRadius: 24,
               padding: "24px 22px 20px",
               background: "linear-gradient(180deg,#161011,#0c0a0b 60%)",
               border: "1px solid rgba(255,255,255,.12)",
-              boxShadow: "0 24px 60px rgba(0,0,0,.6)",
-              animation: "riseIn .22s cubic-bezier(.16,1,.3,1)",
+              boxShadow: "0 30px 70px rgba(0,0,0,.62), 0 2px 0 rgba(255,255,255,.05) inset",
+              transformOrigin: "center bottom",
+              willChange: "transform, opacity",
+              animation: deleteClosing
+                ? "dlgCardOut .23s var(--ease-standard) both"
+                : "dlgCardIn .46s var(--ease-ios) both",
             }}
           >
             <div
@@ -1108,11 +1162,12 @@ export default function MealHome() {
             <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
               <button
                 type="button"
-                onClick={() => setPendingDelete(null)}
+                className="dlg-btn"
+                onClick={() => closeDelete(false)}
                 style={{
                   flex: 1,
                   padding: "13px 0",
-                  borderRadius: 13,
+                  borderRadius: 14,
                   fontFamily: MONO,
                   fontSize: 12,
                   letterSpacing: ".1em",
@@ -1126,15 +1181,12 @@ export default function MealHome() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  const p = pendingDelete;
-                  setPendingDelete(null);
-                  deleteLoggedItem(p.mealId, p.itemIndex, p.name);
-                }}
+                className="dlg-btn"
+                onClick={() => closeDelete(true)}
                 style={{
                   flex: 1,
                   padding: "13px 0",
-                  borderRadius: 13,
+                  borderRadius: 14,
                   fontFamily: MONO,
                   fontSize: 12,
                   letterSpacing: ".1em",
@@ -1178,7 +1230,7 @@ export default function MealHome() {
               background: "linear-gradient(180deg,#161011,#0c0a0b 60%)",
               borderTop: "1px solid rgba(255,255,255,.1)",
               boxShadow: "0 -20px 50px rgba(0,0,0,.6)",
-              animation: "riseIn .28s cubic-bezier(.16,1,.3,1)",
+              animation: "sheetCardIn .44s var(--ease-ios) both",
               maxHeight: "80dvh",
               overflowY: "auto",
             }}
@@ -1416,7 +1468,7 @@ export default function MealHome() {
               background: "linear-gradient(180deg,#161011,#0c0a0b 60%)",
               borderTop: "1px solid rgba(255,255,255,.1)",
               boxShadow: "0 -20px 50px rgba(0,0,0,.6)",
-              animation: "riseIn .28s cubic-bezier(.16,1,.3,1)",
+              animation: "sheetCardIn .44s var(--ease-ios) both",
               maxHeight: "80dvh",
               overflowY: "auto",
             }}
@@ -1568,7 +1620,7 @@ export default function MealHome() {
               background: "linear-gradient(180deg,#161011,#0c0a0b 60%)",
               borderTop: "1px solid rgba(255,255,255,.1)",
               boxShadow: "0 -20px 50px rgba(0,0,0,.6)",
-              animation: "riseIn .28s cubic-bezier(.16,1,.3,1)",
+              animation: "sheetCardIn .44s var(--ease-ios) both",
               maxHeight: "88dvh",
               overflowY: "auto",
             }}
