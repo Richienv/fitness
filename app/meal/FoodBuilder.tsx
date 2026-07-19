@@ -278,6 +278,9 @@ export default function FoodBuilder({
   // row animates (alternating trayPop/trayPop2), matching the reference.
   const [justId, setJustId] = useState<string | null>(null);
   const [addTick, setAddTick] = useState(0);
+  // Ephemeral "✓ ditambah" confirmation shown after adding from search.
+  const [addedFlash, setAddedFlash] = useState<{ name: string; tick: number } | null>(null);
+  const flashTimer = useRef<number | null>(null);
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [query, setQuery] = useState("");
   const [overrides, setOverrides] = useState<Record<string, MacroPatch>>({});
@@ -406,6 +409,19 @@ export default function FoodBuilder({
     }));
     setJustId(id);
     setAddTick((t) => t + 1);
+  };
+  // Adding straight from the search list: drop it in the tray, then clear the
+  // box and re-focus it so the next food is one search away — no manual delete.
+  // Flash a quick "✓ ditambah" so the add is unmistakable.
+  const bAddFromSearch = (id: string) => {
+    const ing = bIng(id);
+    bAdd(id);
+    setQuery("");
+    setAddedFlash((f) => ({ name: ing?.name ?? "Makanan", tick: (f?.tick ?? 0) + 1 }));
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => setAddedFlash(null), 1400);
+    // Keep the keyboard up so typing the next item is instant.
+    setTimeout(() => searchRef.current?.focus(), 0);
   };
   const toggleReveal = (id: string) =>
     setRevealed((r) => ({ ...r, [id]: !r[id] }));
@@ -799,7 +815,7 @@ export default function FoodBuilder({
     return (
       <div
         key={id}
-        onClick={() => bAdd(id)}
+        onClick={() => bAddFromSearch(id)}
         style={{
           position: "relative",
           borderRadius: 12,
@@ -916,7 +932,7 @@ export default function FoodBuilder({
             aria-label={`Tambah ${ing.name}`}
             onClick={(ev) => {
               ev.stopPropagation();
-              bAdd(id);
+              bAddFromSearch(id);
             }}
             style={{
               width: 34,
@@ -1729,6 +1745,62 @@ export default function FoodBuilder({
               }}
             />
           </div>
+
+          {/* "✓ ditambah" flash — pops after adding from search, then fades. */}
+          {addedFlash && (
+            <div
+              key={addedFlash.tick}
+              aria-live="polite"
+              style={{
+                position: "fixed",
+                top: "calc(20px + env(safe-area-inset-top))",
+                left: "50%",
+                zIndex: 150,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "10px 16px",
+                borderRadius: 999,
+                background: "linear-gradient(180deg,#241610,#150e0c)",
+                border: "1px solid rgba(255,150,120,.4)",
+                boxShadow: "0 14px 34px rgba(0,0,0,.5)",
+                pointerEvents: "none",
+                animation: "foodAddedFlash 1.4s cubic-bezier(.16,1,.3,1) both",
+              }}
+            >
+              <span
+                style={{
+                  display: "grid",
+                  placeItems: "center",
+                  width: 20,
+                  height: 20,
+                  flex: "none",
+                  borderRadius: 999,
+                  background: "linear-gradient(180deg,#5fe39a,#2fb872)",
+                  color: "#06120b",
+                  fontSize: 12,
+                  fontWeight: 900,
+                }}
+              >
+                ✓
+              </span>
+              <span
+                style={{
+                  fontFamily: SANS,
+                  fontWeight: 700,
+                  fontSize: 13,
+                  color: "#fff",
+                  maxWidth: 220,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {addedFlash.name}{" "}
+                <span style={{ color: "#9a938d", fontWeight: 500 }}>ditambah</span>
+              </span>
+            </div>
+          )}
 
           {/* ── SEARCH RESULTS — flat ranked rows ── */}
           {q ? (
