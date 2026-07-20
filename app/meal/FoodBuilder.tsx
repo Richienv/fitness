@@ -297,6 +297,9 @@ export default function FoodBuilder({
   // food still resolves after the query clears.
   const [dbResults, setDbResults] = useState<BuilderFood[]>([]);
   const [dbCache, setDbCache] = useState<Record<string, BuilderFood>>({});
+  // True from the moment a query is typed until its DB results land, so the
+  // list can show a loading spinner instead of the previous query's rows.
+  const [searching, setSearching] = useState(false);
   // Shared library size for the empty-state hero count.
   const [libCount, setLibCount] = useState<number | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
@@ -333,8 +336,14 @@ export default function FoodBuilder({
     const term = query.trim();
     if (term.length < 2) {
       setDbResults([]);
+      setSearching(false);
       return;
     }
+    // Flip to "searching" right away so the spinner pops immediately, before the
+    // debounce + network, and drop the previous query's DB rows so they never
+    // linger under the spinner. (Instant local matches stay — they're correct.)
+    setSearching(true);
+    setDbResults([]);
     let cancelled = false;
     const t = setTimeout(() => {
       fetch(`/api/foods/search?q=${encodeURIComponent(term)}`)
@@ -357,13 +366,16 @@ export default function FoodBuilder({
             step: 0.1, // ±10 g nudges (gramsPerUnit 100)
           }));
           setDbResults(mapped);
+          setSearching(false);
           setDbCache((c) => {
             const next = { ...c };
             for (const m of mapped) next[m.id] = m;
             return next;
           });
         })
-        .catch(() => {});
+        .catch(() => {
+          if (!cancelled) setSearching(false);
+        });
     }, 250);
     return () => {
       cancelled = true;
@@ -1807,6 +1819,9 @@ export default function FoodBuilder({
             <>
               <div
                 style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
                   fontFamily: MONO,
                   fontSize: 9.5,
                   letterSpacing: ".16em",
@@ -1814,12 +1829,34 @@ export default function FoodBuilder({
                   margin: "16px 0 10px",
                 }}
               >
-                // {searchResultCount} HASIL
+                {searching ? (
+                  <>
+                    <span className="fb-spinner" aria-hidden="true" />
+                    <span style={{ color: "#ff9a80" }}>MENCARI…</span>
+                  </>
+                ) : (
+                  <span>// {searchResultCount} HASIL</span>
+                )}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                 {searchFlat.map(renderResultRow)}
               </div>
-              {searchResultCount === 0 ? (
+              {searchResultCount === 0 && searching ? (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "34px 10px",
+                  }}
+                >
+                  <span className="fb-spinner fb-spinner-lg" aria-hidden="true" />
+                  <span style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: ".14em", color: "#7c736e" }}>
+                    MENCARI…
+                  </span>
+                </div>
+              ) : searchResultCount === 0 ? (
                 <div style={{ textAlign: "center", padding: "26px 10px" }}>
                   <div
                     style={{ fontFamily: MONO, fontSize: 11, color: "#7c736e" }}
