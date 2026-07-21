@@ -44,6 +44,29 @@ const STAPLES = [
   "sayur",
 ];
 
+/** Offal / obscure cuts most people never log — matched as whole words in the
+ *  normalized name so they sink below common cuts (e.g. a "sapi" search shows
+ *  muscle meat before "sapi, paru"). Down-ranked, not removed. "abon" (floss)
+ *  and "hati" (liver) are intentionally left off — they're commonly eaten. */
+const OFFAL = [
+  "paru",
+  "babat",
+  "usus",
+  "jeroan",
+  "limpa",
+  "otak",
+  "ginjal",
+  "torpedo",
+  "kikil",
+  "tetelan",
+  "lidah",
+  "ampela",
+  "sumsum",
+  "iso",
+  "gajih",
+  "kelenjar",
+];
+
 /** Food groups people browse/log often get a small nudge. */
 const GROUP_BOOST: Record<string, number> = {
   Daging: 6,
@@ -119,6 +142,10 @@ export function computePopularity(row: FoodRow, source: string): number {
   if (STAPLES.some((s) => n.includes(s))) p += 40;
 
   if (row.foodGroup && GROUP_BOOST[row.foodGroup]) p += GROUP_BOOST[row.foodGroup];
+
+  // Sink offal / obscure cuts so everyday foods surface first.
+  const words = n.split(/[^a-z0-9]+/);
+  if (OFFAL.some((o) => words.includes(o))) p -= 50;
 
   return Math.max(0, p);
 }
