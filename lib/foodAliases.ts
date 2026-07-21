@@ -189,6 +189,8 @@ const TYPO_FIX: Record<string, string> = {
   cincag: "cincang",
   cincng: "cincang",
   gilng: "giling",
+  gilling: "giling",
+  giing: "giling",
   sayr: "sayur",
   wortl: "wortel",
   kentag: "kentang",

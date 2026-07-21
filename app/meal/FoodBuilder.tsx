@@ -19,6 +19,13 @@ import { INGREDIENTS } from "@/lib/ingredients";
 import { drinkSugarFull, SUGAR_LEVELS } from "@/lib/drinkSugar";
 import { saveMeal, type MealItem, type CustomMealItem } from "@/lib/store";
 import { contributeFood } from "@/lib/foodContribute";
+import { prettyFoodName } from "@/lib/foodDisplayName";
+import {
+  recordFoodPick,
+  getFoodPicks,
+  getPickRank,
+  type FoodPick,
+} from "@/lib/foodPicks";
 import {
   getFoodGroups,
   addFoodToGroup,
@@ -300,6 +307,9 @@ export default function FoodBuilder({
   // True from the moment a query is typed until its DB results land, so the
   // list can show a loading spinner instead of the previous query's rows.
   const [searching, setSearching] = useState(false);
+  // The user's remembered foods (staples), for the "SERING DIPAKAI" quick row
+  // and for floating their picks to the top of search.
+  const [picks, setPicks] = useState<FoodPick[]>([]);
   // Shared library size for the empty-state hero count.
   const [libCount, setLibCount] = useState<number | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
@@ -353,7 +363,7 @@ export default function FoodBuilder({
           const rows: DbFoodRow[] = data?.data?.foods ?? [];
           const mapped: BuilderFood[] = rows.map((f) => ({
             id: f.sourceCode,
-            name: f.name,
+            name: prettyFoodName(f.name),
             englishName: f.nameEn ?? undefined,
             foodGroup: f.foodGroup ?? undefined,
             unit: "100 g",
@@ -382,6 +392,35 @@ export default function FoodBuilder({
       clearTimeout(t);
     };
   }, [query]);
+
+  // A remembered pick as a builder food (for rendering + adding without a fresh
+  // search — its macros are snapshotted in the pick store).
+  const pickToFood = (p: FoodPick): BuilderFood => ({
+    id: p.id,
+    name: p.name,
+    unit: p.unit ?? "100 g",
+    group: "custom",
+    kcal: p.kcal,
+    protein: p.protein,
+    fat: p.fat,
+    carbs: p.carbs,
+    gramsPerUnit: p.gramsPerUnit ?? 100,
+    step: p.step ?? 0.1,
+  });
+
+  // On mount: load the user's staples and seed the cache so they resolve for
+  // add/display even before any search this session.
+  useEffect(() => {
+    const p = getFoodPicks();
+    if (p.length === 0) return;
+    setPicks(p);
+    setDbCache((c) => {
+      const next = { ...c };
+      for (const it of p) if (!next[it.id]) next[it.id] = pickToFood(it);
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const applyOv = (f: BuilderFood): BuilderFood =>
     overrides[f.id] ? { ...f, ...overrides[f.id] } : f;
@@ -428,6 +467,21 @@ export default function FoodBuilder({
   const bAddFromSearch = (id: string) => {
     const ing = bIng(id);
     bAdd(id);
+    // Remember this pick so it floats to the top next time + fuels "SERING".
+    if (ing) {
+      recordFoodPick({
+        id: ing.id,
+        name: ing.name,
+        kcal: ing.kcal,
+        protein: ing.protein,
+        fat: ing.fat,
+        carbs: ing.carbs,
+        unit: ing.unit,
+        gramsPerUnit: ing.gramsPerUnit,
+        step: ing.step,
+      });
+      setPicks(getFoodPicks());
+    }
     setQuery("");
     setAddedFlash((f) => ({ name: ing?.name ?? "Makanan", tick: (f?.tick ?? 0) + 1 }));
     if (flashTimer.current) clearTimeout(flashTimer.current);
@@ -734,10 +788,28 @@ export default function FoodBuilder({
     (!!i.pinyin && i.pinyin.toLowerCase().includes(q));
 
   // Search results — one flat, ranked list: local library matches lead, DB
-  // hits (already score-ranked by the API) follow.
-  const searchFlat: BuilderFood[] = q
+  // hits (already score-ranked by the API) follow. Then the user's own staples
+  // that match the query are floated to the very top (most-used first), so what
+  // you actually eat is one tap away.
+  const searchFlatRaw: BuilderFood[] = q
     ? merged.filter(match).concat(dbResults)
     : [];
+  const searchFlat: BuilderFood[] = (() => {
+    if (!q) return searchFlatRaw;
+    const rank = getPickRank();
+    // Stable partition: picked matches first (by staple rank), then the rest,
+    // de-duped by id so a food doesn't appear twice.
+    const seen = new Set<string>();
+    const picked: BuilderFood[] = [];
+    const rest: BuilderFood[] = [];
+    for (const f of searchFlatRaw) {
+      if (seen.has(f.id)) continue;
+      seen.add(f.id);
+      (rank.has(f.id) ? picked : rest).push(f);
+    }
+    picked.sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
+    return picked.concat(rest);
+  })();
   const searchResultCount = searchFlat.length;
 
   // Browse-all sections (behind ⋯): favorites, each custom library group and
@@ -1813,6 +1885,29 @@ export default function FoodBuilder({
               </span>
             </div>
           )}
+
+          {/* ── SERING DIPAKAI — the user's staples, one tap to log ── */}
+          {!q && !browseOpen && picks.length > 0 ? (
+            <>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontFamily: MONO,
+                  fontSize: 9.5,
+                  letterSpacing: ".16em",
+                  color: "#6a6660",
+                  margin: "16px 0 10px",
+                }}
+              >
+                ⭐ SERING DIPAKAI
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {picks.slice(0, 6).map((p) => renderResultRow(pickToFood(p)))}
+              </div>
+            </>
+          ) : null}
 
           {/* ── SEARCH RESULTS — flat ranked rows ── */}
           {q ? (
