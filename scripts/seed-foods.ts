@@ -83,10 +83,20 @@ async function main() {
   // least as many rows as our sources define — so adding new foods (e.g. a new
   // desserts CSV) re-seeds automatically on the next deploy. Upserts are
   // idempotent; SEED_FORCE=1 always re-seeds regardless of counts.
+  // Bump RANKING_VERSION whenever scripts/foodRanking scoring changes so a
+  // deploy that adds no new rows still re-seeds once to recompute popularity /
+  // searchText. Tracked via an ActivityLog marker.
+  const RANKING_VERSION = 2;
+  let rankingStale = false;
   let existing: number | null = null;
   let missingIndex = 0;
   try {
     existing = await db.food.count();
+    const lastRanking = await db.activityLog
+      .findFirst({ where: { action: "seed:ranking" }, orderBy: { createdAt: "desc" } })
+      .catch(() => null);
+    const seenVersion = (lastRanking?.payload as { version?: number } | null)?.version;
+    rankingStale = seenVersion !== RANKING_VERSION;
     // Rows with an empty searchText haven't been indexed yet (new column, or a
     // ranking-logic change). Rows whose note carries an English name but whose
     // nameEn is still null need the bilingual backfill. Either forces a re-seed.
@@ -99,7 +109,7 @@ async function main() {
     console.log("ℹ  Food DB not reachable (no DATABASE_URL?) — skipping seed.");
     return;
   }
-  if (existing >= total && missingIndex === 0 && !process.env.SEED_FORCE) {
+  if (existing >= total && missingIndex === 0 && !rankingStale && !process.env.SEED_FORCE) {
     console.log(
       `ℹ  Food table already has ${existing} rows (≥ ${total} defined) and is fully indexed — skipping seed (set SEED_FORCE=1 to re-seed).`
     );
@@ -109,7 +119,9 @@ async function main() {
     const why =
       missingIndex > 0
         ? `${missingIndex} rows need (re)indexing`
-        : `sources define ${total}`;
+        : rankingStale
+          ? `ranking logic v${RANKING_VERSION}`
+          : `sources define ${total}`;
     console.log(
       `ℹ  Food table has ${existing} rows, ${why} — re-seeding (idempotent upserts).`
     );
@@ -214,6 +226,12 @@ async function main() {
     console.log("  Atwater flagged rows:");
     for (const r of atwaterRows) console.log(`    - ${r}`);
   }
+
+  // Record the ranking version we just seeded, so the next deploy only re-seeds
+  // for ranking changes when RANKING_VERSION is bumped again.
+  await db.activityLog
+    .create({ data: { actor: "seed", action: "seed:ranking", payload: { version: RANKING_VERSION } } })
+    .catch(() => {});
 }
 
 /**
