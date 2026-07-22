@@ -1468,7 +1468,10 @@ export default function FoodBuilder({
                   padding: "6px 18px 118px 18px",
                   display: "flex",
                   flexDirection: "column",
-                  justifyContent: "center",
+                  // Center the hero+search only when the screen is truly empty;
+                  // once "SERING DIPAKAI" adds a list, top-align so it scrolls
+                  // normally instead of overflowing a centered column.
+                  justifyContent: picks.length > 0 ? "flex-start" : "center",
                 }
               : {
                   position: "relative",
@@ -1769,6 +1772,11 @@ export default function FoodBuilder({
           <div
             style={{
               position: "relative",
+              // flexShrink:0 is critical: this wrapper is a flex-column item and
+              // has overflow:hidden, which makes its min-height resolve to 0 —
+              // without this the flex layout squashes it to a thin line and
+              // clips the input (the "search field is gone" bug).
+              flex: "0 0 auto",
               marginTop: emptyState ? 22 : 14,
               borderRadius: 20,
               overflow: "hidden",
