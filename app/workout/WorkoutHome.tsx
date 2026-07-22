@@ -15,6 +15,7 @@ import {
   deleteCustomTemplate,
   startCustomWorkout,
   startWorkout,
+  startQuickExercise,
   weekNumber,
   type CustomTemplate,
   type ExerciseDef,
@@ -28,7 +29,7 @@ import {
   type MuscleColorGroup,
   type MuscleKey,
 } from "@/lib/muscles";
-import { EQUIPMENT } from "@/lib/equipment";
+import { EQUIPMENT, searchEquipment, type Equipment } from "@/lib/equipment";
 import { useActiveDate } from "@/lib/activeDate";
 import { useSheetBack } from "@/lib/backSheet";
 import { useVTNavigate } from "@/lib/navigate";
@@ -128,6 +129,17 @@ export default function WorkoutHome() {
     () => templates.filter((t) => templateMatches(query, t)),
     [templates, query]
   );
+  // Machines matching the query — so you can search a specific machine (e.g.
+  // "inner thigh") and log it directly, without picking a session.
+  const matchedMachines = useMemo(
+    () => (query.trim() ? searchEquipment(query, EQUIPMENT).slice(0, 8) : []),
+    [query]
+  );
+
+  function logMachine(e: Equipment) {
+    const { id } = startQuickExercise(e, today);
+    vtNavigate(`/workout/session/${id}`);
+  }
 
   function pickPreset(sessionType: SessionType) {
     if (activeInProgress && activeInProgress.sessionType === sessionType) {
@@ -185,7 +197,7 @@ export default function WorkoutHome() {
             <input
               type="search"
               inputMode="search"
-              placeholder="Cari sesi atau gerakan"
+              placeholder="Cari sesi, gerakan, atau mesin"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="wo-search-input mono"
@@ -235,11 +247,96 @@ export default function WorkoutHome() {
       </div>
 
       <div className="workout-home-bottom">
+        {query.trim() && matchedMachines.length > 0 && (
+          <>
+            <div className="wo-pick-label">MESIN · CATAT LANGSUNG</div>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                marginBottom: 22,
+              }}
+            >
+              {matchedMachines.map((e) => (
+                <button
+                  key={e.id}
+                  type="button"
+                  onClick={() => logMachine(e)}
+                  aria-label={`Catat ${e.name}`}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    width: "100%",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    padding: "12px 14px",
+                    borderRadius: 13,
+                    background:
+                      "linear-gradient(180deg,rgba(255,255,255,.045),transparent 55%),#0e0c0d",
+                    border: "1px solid rgba(255,255,255,.1)",
+                  }}
+                >
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span
+                      style={{
+                        display: "block",
+                        fontWeight: 700,
+                        fontSize: 14,
+                        color: "#f1ede9",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {e.name}
+                    </span>
+                    <span
+                      className="mono"
+                      style={{
+                        display: "block",
+                        fontSize: 9.5,
+                        letterSpacing: ".06em",
+                        color: "#8a837d",
+                        marginTop: 3,
+                      }}
+                    >
+                      {e.muscleGroup} · {e.category}
+                    </span>
+                  </span>
+                  <span
+                    className="mono"
+                    style={{
+                      flex: "none",
+                      fontSize: 9.5,
+                      fontWeight: 700,
+                      letterSpacing: ".1em",
+                      color: "#fff",
+                      borderRadius: 999,
+                      padding: "6px 12px",
+                      whiteSpace: "nowrap",
+                      background:
+                        "linear-gradient(180deg,#ff8a52,#ee3c30 60%,#c01f12)",
+                      border: "1px solid rgba(255,150,120,.5)",
+                    }}
+                  >
+                    ＋ CATAT
+                  </span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
         <div className="wo-pick-label">PILIH SESI</div>
 
-        {filteredSessions.length === 0 && filteredTemplates.length === 0 && (
-          <div className="wo-empty mono">Nggak ada sesi cocok &ldquo;{query}&rdquo;.</div>
-        )}
+        {filteredSessions.length === 0 &&
+          filteredTemplates.length === 0 &&
+          matchedMachines.length === 0 && (
+            <div className="wo-empty mono">Nggak ada yang cocok &ldquo;{query}&rdquo;.</div>
+          )}
 
         <div className="wo-session-grid">
           {filteredSessions.map((s, idx) => {
