@@ -1769,7 +1769,7 @@ export default function FoodBuilder({
           <div
             style={{
               position: "relative",
-              marginTop: 48,
+              marginTop: emptyState ? 22 : 14,
               borderRadius: 20,
               overflow: "hidden",
               animation: "searchGlow 2.8s ease-in-out infinite",
@@ -1808,6 +1808,9 @@ export default function FoodBuilder({
             <input
               ref={searchRef}
               type="text"
+              className="fb-search-input"
+              inputMode="search"
+              enterKeyHint="search"
               value={query}
               onChange={(ev) => setQuery(ev.target.value)}
               placeholder="Cari makanan — ayam, nasi, kopi…"
@@ -1816,16 +1819,21 @@ export default function FoodBuilder({
                 zIndex: 1,
                 width: "100%",
                 boxSizing: "border-box",
-                padding: "21px 18px 21px 52px",
+                minHeight: 58,
+                padding: "19px 18px 19px 52px",
                 borderRadius: 20,
                 fontFamily: SANS,
                 fontWeight: 600,
                 fontSize: 17,
                 color: "#fff",
+                // Clearly a field: a lit fill + visible ember border so it never
+                // reads as empty background on an all-black screen.
                 background:
-                  "linear-gradient(180deg,rgba(255,138,60,.07),transparent 45%),rgba(20,14,13,.9)",
-                border: "none",
+                  "linear-gradient(180deg,rgba(255,138,60,.14),rgba(34,23,20,.96))",
+                border: "1px solid rgba(255,150,120,.45)",
                 outline: "none",
+                WebkitAppearance: "none",
+                appearance: "none",
               }}
             />
           </div>
