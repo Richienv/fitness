@@ -1458,7 +1458,12 @@ export default function FoodBuilder({
             matching the reference's bScrollStyle toggle. */}
         <div
           style={
-            emptyState
+            // Flex-column centering ONLY for the truly-empty screen (hero+search
+            // with nothing else). The moment there's a list — "SERING DIPAKAI"
+            // or search results — use a plain block scroll instead, because a
+            // flex column lets the search wrapper (overflow:hidden → min-height 0)
+            // get squashed to a line. Block layout can never shrink it.
+            emptyState && picks.length === 0
               ? {
                   position: "relative",
                   zIndex: 1,
@@ -1468,10 +1473,7 @@ export default function FoodBuilder({
                   padding: "6px 18px 118px 18px",
                   display: "flex",
                   flexDirection: "column",
-                  // Center the hero+search only when the screen is truly empty;
-                  // once "SERING DIPAKAI" adds a list, top-align so it scrolls
-                  // normally instead of overflowing a centered column.
-                  justifyContent: picks.length > 0 ? "flex-start" : "center",
+                  justifyContent: "center",
                 }
               : {
                   position: "relative",
