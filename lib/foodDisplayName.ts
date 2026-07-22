@@ -18,8 +18,15 @@ const DROP_TRAILING = new Set(["mentah", "masakan", "segar", "olahan"]);
  */
 export function prettyFoodName(raw: string): string {
   if (!raw) return raw;
-  // Drop any "(english gloss)" — it's redundant next to the Indonesian name.
-  let s = raw.replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
+  // Drop noise: "(english gloss)", TKPI variety tags ("var. siwalik",
+  // "var pelita"), and quality grades ("kw 2", "kw. 3") — none of it helps a
+  // logging user.
+  let s = raw
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/\bvar\.?\s+[^\s,]+/gi, " ")
+    .replace(/\bkw\.?\s*\d+/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
   // No comma → not an inverted TKPI name. Leave its capitalisation alone so
   // brand names (Teazzi, Starbucks, Shilin…) survive intact.
