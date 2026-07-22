@@ -3,6 +3,7 @@
 import type { MuscleKey, MuscleColorGroup } from "./muscles";
 import { MUSCLE_TO_GROUP } from "./muscles";
 import { scopedKey } from "./userScope";
+import type { Equipment } from "./equipment";
 
 export type SessionType =
   | "PUSH_A"
@@ -461,6 +462,81 @@ export function startCustomWorkout(template: CustomTemplate, date: string): Work
   saveWorkout(w);
   setActiveWorkoutId(w.id);
   return w;
+}
+
+// ─── Quick log: one machine → one exercise, no session picking ──────────────
+
+/** Map an equipment `muscleGroup` string to a MuscleKey (for coloring/volume). */
+function muscleFromGroup(group: string): MuscleKey {
+  const g = group.toUpperCase();
+  if (g.includes("UPPER CHEST") || g.includes("CHEST")) return "chest";
+  if (g.includes("LATS")) return "lats";
+  if (g.includes("MIDDLE BACK") || g.includes("LOWER BACK")) return "midBack";
+  if (g.includes("FRONT DELT")) return "frontDelt";
+  if (g.includes("SIDE DELT")) return "sideDelt";
+  if (g.includes("REAR DELT")) return "rearDelt";
+  if (g.includes("BICEPS")) return "bicep";
+  if (g.includes("TRICEPS")) return "tricep";
+  if (g.includes("QUADS") || g.includes("INNER THIGH")) return "quad";
+  if (g.includes("HAMSTRINGS")) return "hamstring";
+  if (g.includes("GLUTES")) return "glute";
+  if (g.includes("CALVES")) return "calf";
+  if (g.includes("ABS")) return "abs";
+  return "chest";
+}
+
+/** Build a loggable exercise from an equipment item, with sensible defaults. */
+export function exerciseDefFromEquipment(e: Equipment): ExerciseDef {
+  return {
+    name: e.name,
+    sets: 3,
+    repsLabel: "10",
+    targetReps: 10,
+    increment: 2.5,
+    restSec: 60,
+    primary: [muscleFromGroup(e.muscleGroup)],
+    secondary: [],
+  };
+}
+
+/** Start (or resume-append to) a quick single-exercise session for a machine —
+ *  the flexible "just tap the machine and log it" path. If there's already an
+ *  in-progress session today, append this exercise to it instead of spawning a
+ *  new one, so a quick freestyle workout collects in one place. Returns the
+ *  session id to open in the logger. */
+export function startQuickExercise(e: Equipment, date: string): { id: string } {
+  const def = exerciseDefFromEquipment(e);
+  const activeId = getActiveWorkoutId();
+  const active = activeId ? getWorkout(activeId) : null;
+  // Only fold into an in-progress *quick* (CUSTOM) session — appending to a
+  // preset session wouldn't render (its logger uses the preset's fixed list).
+  if (active && active.date === date && !active.completed && active.sessionType === "CUSTOM") {
+    // Don't duplicate the same machine; just reopen it.
+    const already = active.exercises.some((x) => x.exerciseName === def.name);
+    if (!already) {
+      const next: WorkoutSession = {
+        ...active,
+        customExercises: [...(active.customExercises ?? []), def],
+        exercises: [...active.exercises, { exerciseName: def.name, sets: [] }],
+      };
+      saveWorkout(next);
+    }
+    return { id: active.id };
+  }
+  const w: WorkoutSession = {
+    id: crypto.randomUUID(),
+    date,
+    sessionType: "CUSTOM",
+    customName: "Catat cepat",
+    customFocus: "Latihan bebas",
+    customExercises: [def],
+    startedAt: Date.now(),
+    completed: false,
+    exercises: [{ exerciseName: def.name, sets: [] }],
+  };
+  saveWorkout(w);
+  setActiveWorkoutId(w.id);
+  return { id: w.id };
 }
 
 export function getDefForWorkout(w: WorkoutSession): SessionDef {

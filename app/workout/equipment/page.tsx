@@ -1,20 +1,32 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
   EQUIPMENT,
   EQUIPMENT_CATEGORIES,
   searchEquipment,
+  type Equipment,
   type EquipmentCategory,
 } from "@/lib/equipment";
+import { startQuickExercise } from "@/lib/workouts";
+import { todayKey } from "@/lib/targets";
 
 type Filter = "ALL" | EquipmentCategory;
 
 export default function EquipmentPage() {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("ALL");
   const [openId, setOpenId] = useState<string | null>(null);
+
+  // Tap a machine → start (or append to) a quick single-exercise session and
+  // jump straight into logging sets. No session picking.
+  const logMachine = (e: Equipment) => {
+    const { id } = startQuickExercise(e, todayKey());
+    router.push(`/workout/session/${id}`);
+  };
 
   const results = useMemo(() => {
     const base = filter === "ALL" ? EQUIPMENT : EQUIPMENT.filter((e) => e.category === filter);
@@ -27,11 +39,22 @@ export default function EquipmentPage() {
         <Link href="/workout" className="back-link">← LATIHAN</Link>
         <h1 className="section-title">EQUIPMENT</h1>
         <div className="eq-count mono">{results.length} / {EQUIPMENT.length}</div>
+        <div
+          className="mono"
+          style={{
+            fontSize: 10,
+            letterSpacing: ".06em",
+            color: "#8a837d",
+            marginTop: 2,
+          }}
+        >
+          Cari mesin · tap ＋CATAT buat langsung latihan
+        </div>
 
         <input
           type="search"
           className="eq-search"
-          placeholder="Search English, 中文, or pinyin…"
+          placeholder="Cari mesin — inner thigh, chest, 内弯…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           autoComplete="off"
@@ -77,12 +100,51 @@ export default function EquipmentPage() {
                   <div
                     style={{
                       display: "flex",
-                      alignItems: "baseline",
+                      alignItems: "center",
                       justifyContent: "space-between",
                       gap: 10,
                     }}
                   >
-                    <div className="eq-card-name">{e.name}</div>
+                    <div className="eq-card-name" style={{ flex: 1, minWidth: 0 }}>
+                      {e.name}
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        flex: "none",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className="mono eq-log-btn"
+                        aria-label={`Catat latihan ${e.name}`}
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          logMachine(e);
+                        }}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                          fontSize: 9.5,
+                          fontWeight: 700,
+                          letterSpacing: ".1em",
+                          color: "#fff",
+                          cursor: "pointer",
+                          borderRadius: 999,
+                          padding: "5px 11px",
+                          whiteSpace: "nowrap",
+                          background:
+                            "linear-gradient(180deg,#ff8a52,#ee3c30 60%,#c01f12)",
+                          border: "1px solid rgba(255,150,120,.5)",
+                          boxShadow:
+                            "inset 0 1px 1px rgba(255,225,205,.4),0 4px 10px rgba(238,60,48,.35)",
+                        }}
+                      >
+                        ＋ CATAT
+                      </button>
                     {hasHowTo && (
                       <span
                         className="mono eq-howto-chip"
@@ -119,6 +181,7 @@ export default function EquipmentPage() {
                         {open ? "TUTUP ▴" : "CARA ▾"}
                       </span>
                     )}
+                    </div>
                   </div>
                   <div className="eq-card-cn">
                     {e.hanzi} · {e.pinyin}
