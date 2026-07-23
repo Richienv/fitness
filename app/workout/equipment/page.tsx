@@ -12,6 +12,8 @@ import {
 } from "@/lib/equipment";
 import { startQuickExercise } from "@/lib/workouts";
 import { recordMachinePick, getPickRank } from "@/lib/machinePicks";
+import { inferLevel } from "@/lib/difficulty";
+import { inferFromLog, dimHint } from "@/lib/gymInventory";
 import { todayKey } from "@/lib/targets";
 
 type Filter = "ALL" | EquipmentCategory;
@@ -21,11 +23,13 @@ export default function EquipmentPage() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("ALL");
   const [openId, setOpenId] = useState<string | null>(null);
+  const beginner = inferLevel() === "beginner";
 
   // Tap a machine → remember it, start (or append to) a quick single-exercise
   // session, and jump straight into logging sets. No session picking.
   const logMachine = (e: Equipment) => {
     recordMachinePick(e);
+    inferFromLog(e.id); // learn what's in your gym, silently
     const { id } = startQuickExercise(e, todayKey());
     router.push(`/workout/session/${id}`);
   };
@@ -91,12 +95,17 @@ export default function EquipmentPage() {
           results.map((e) => {
             const hasHowTo = !!e.instructions;
             const open = openId === e.id;
+            const dim = dimHint(e.id); // owned-gym evidence exists and this isn't in it
+            const coach = beginner && e.category === "BARBELL"; // free-weight, needs a coach
             return (
               <div
                 key={e.id}
                 className="eq-card"
                 onClick={hasHowTo ? () => setOpenId(open ? null : e.id) : undefined}
-                style={hasHowTo ? { cursor: "pointer" } : undefined}
+                style={{
+                  ...(hasHowTo ? { cursor: "pointer" } : {}),
+                  ...(dim ? { opacity: 0.5 } : {}),
+                }}
               >
                 <div className="eq-card-body">
                   <div
@@ -199,6 +208,35 @@ export default function EquipmentPage() {
                       </>
                     )}
                   </div>
+                  {(coach || dim) && (
+                    <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                      {coach && (
+                        <span
+                          className="mono"
+                          style={{
+                            fontSize: 8,
+                            letterSpacing: ".08em",
+                            fontWeight: 700,
+                            color: "#ffcf8a",
+                            background: "rgba(240,180,60,.14)",
+                            border: "1px solid rgba(240,180,60,.4)",
+                            borderRadius: 999,
+                            padding: "2px 7px",
+                          }}
+                        >
+                          ⚠ PERLU COACH
+                        </span>
+                      )}
+                      {dim && (
+                        <span
+                          className="mono"
+                          style={{ fontSize: 8, letterSpacing: ".06em", color: "#8a837d" }}
+                        >
+                          mungkin nggak ada di gym-mu
+                        </span>
+                      )}
+                    </div>
+                  )}
                   {open && e.instructions && (
                     <div
                       style={{
