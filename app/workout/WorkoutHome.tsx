@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   SESSIONS,
   femaleSessions,
@@ -42,6 +42,8 @@ import {
   type MachinePick,
 } from "@/lib/machinePicks";
 import { suggestToday } from "@/lib/todayVolume";
+import { needsCoach, inferLevel } from "@/lib/difficulty";
+import { inferFromLog, isDoable, shouldNudge, dismissNudge } from "@/lib/gymInventory";
 import { useActiveDate } from "@/lib/activeDate";
 import { useSheetBack } from "@/lib/backSheet";
 import { useVTNavigate } from "@/lib/navigate";
@@ -156,9 +158,22 @@ export default function WorkoutHome() {
     () => suggestToday(today, machinePicks),
     [today, machinePicks]
   );
+  // Once the user has explicitly set their gym, only suggest gear they have.
+  const doableSuggestions = useMemo(
+    () => todaySuggestion.machines.filter((m) => isDoable(m.id)),
+    [todaySuggestion]
+  );
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
+  const completedCount = useMemo(
+    () => workouts.filter((w) => w.completed).length,
+    [workouts]
+  );
+  const showGymNudge =
+    !nudgeDismissed && !query.trim() && shouldNudge(completedCount);
 
   function logMachine(e: Equipment) {
     recordMachinePick(e);
+    inferFromLog(e.id); // learn what's in your gym, silently
     const { id } = startQuickExercise(e, today);
     vtNavigate(`/workout/session/${id}`);
   }
@@ -338,6 +353,60 @@ export default function WorkoutHome() {
       </div>
 
       <div className="workout-home-bottom">
+        {showGymNudge && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "11px 14px",
+              borderRadius: 13,
+              marginBottom: 16,
+              background:
+                "linear-gradient(180deg,rgba(255,138,60,.1),rgba(255,138,60,.03))",
+              border: "1px solid rgba(255,150,120,.28)",
+            }}
+          >
+            <Link
+              href="/workout/equipment/setup"
+              style={{ flex: 1, minWidth: 0, textDecoration: "none" }}
+            >
+              <span
+                style={{ display: "block", fontWeight: 700, fontSize: 13, color: "#ffd7c2" }}
+              >
+                🏋️ Atur alat gym-mu
+              </span>
+              <span
+                className="mono"
+                style={{ display: "block", fontSize: 9.5, color: "#b79a8c", marginTop: 2 }}
+              >
+                Biar rekomendasi cuma alat yang ada di gym-mu →
+              </span>
+            </Link>
+            <button
+              type="button"
+              aria-label="Tutup"
+              onClick={() => {
+                dismissNudge();
+                setNudgeDismissed(true);
+              }}
+              style={{
+                flex: "none",
+                width: 28,
+                height: 28,
+                borderRadius: 8,
+                color: "#8a837d",
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                fontSize: 15,
+              }}
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         {query.trim() && matchedMachines.length > 0 && (
           <>
             <div className="wo-pick-label">MESIN · CATAT LANGSUNG</div>
@@ -348,7 +417,7 @@ export default function WorkoutHome() {
         )}
 
         {/* ── HARI INI — recovery-aware "just follow it" (empty query only) ── */}
-        {!query.trim() && todaySuggestion.machines.length > 0 && (
+        {!query.trim() && doableSuggestions.length > 0 && (
           <>
             <div className="wo-pick-label">⚡ HARI INI</div>
             <div
@@ -363,7 +432,7 @@ export default function WorkoutHome() {
               {todaySuggestion.note}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 22 }}>
-              {todaySuggestion.machines.map(machineRow)}
+              {doableSuggestions.map(machineRow)}
             </div>
           </>
         )}
@@ -486,6 +555,29 @@ type DraftExercise = {
 
 type CatalogEntry = { name: string; primary: MuscleKey };
 
+/** Small amber warning shown on coach-required lifts for beginners. */
+function CoachChip() {
+  return (
+    <span
+      className="mono"
+      style={{
+        fontSize: 8,
+        letterSpacing: ".08em",
+        fontWeight: 700,
+        color: "#ffcf8a",
+        background: "rgba(240,180,60,.14)",
+        border: "1px solid rgba(240,180,60,.4)",
+        borderRadius: 999,
+        padding: "2px 6px",
+        marginTop: 4,
+        whiteSpace: "nowrap",
+      }}
+    >
+      ⚠ PERLU COACH
+    </span>
+  );
+}
+
 function newDraft(name: string, primary: MuscleKey): DraftExercise {
   return {
     name,
@@ -554,6 +646,18 @@ function CustomSessionModal({
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
 
   const catalog = useMemo(buildCatalog, []);
+  // Beginners shouldn't be pushed coach-required free lifts (Squat/RDL/Deadlift/
+  // Bench). We demote (never hide) them and badge them "PERLU COACH".
+  const beginner = useMemo(() => inferLevel() === "beginner", []);
+  const demote = useCallback(
+    (list: CatalogEntry[]) =>
+      beginner
+        ? [...list].sort(
+            (a, b) => Number(needsCoach(a.name)) - Number(needsCoach(b.name))
+          )
+        : list,
+    [beginner]
+  );
 
   function toggleGroup(g: MuscleColorGroup) {
     setSelectedGroups((list) =>
@@ -566,19 +670,22 @@ function CustomSessionModal({
   const recommendations = useMemo<CatalogEntry[]>(() => {
     if (selectedGroups.length === 0) return [];
     const set = new Set<MuscleColorGroup>(selectedGroups);
-    return catalog
-      .filter((c) => set.has(MUSCLE_TO_GROUP[c.primary]))
-      .filter((c) => !added.has(c.name.toLowerCase()));
-  }, [catalog, selectedGroups, added]);
+    return demote(
+      catalog
+        .filter((c) => set.has(MUSCLE_TO_GROUP[c.primary]))
+        .filter((c) => !added.has(c.name.toLowerCase()))
+    );
+  }, [catalog, selectedGroups, added, demote]);
 
   const searchMatches = useMemo<CatalogEntry[]>(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
-    return catalog
-      .filter((c) => c.name.toLowerCase().includes(q))
-      .filter((c) => !added.has(c.name.toLowerCase()))
-      .slice(0, 12);
-  }, [catalog, query, added]);
+    return demote(
+      catalog
+        .filter((c) => c.name.toLowerCase().includes(q))
+        .filter((c) => !added.has(c.name.toLowerCase()))
+    ).slice(0, 12);
+  }, [catalog, query, added, demote]);
 
   function addEntry(entry: CatalogEntry) {
     setDrafts((list) => [...list, newDraft(entry.name, entry.primary)]);
@@ -665,6 +772,7 @@ function CustomSessionModal({
                     <span className="wo-reco-plus">+</span>
                     <span className="wo-reco-name">{r.name}</span>
                     <span className="wo-reco-muscle mono">{MUSCLE_LABEL[r.primary]}</span>
+                    {beginner && needsCoach(r.name) && <CoachChip />}
                   </button>
                 ))}
               </div>
@@ -711,6 +819,7 @@ function CustomSessionModal({
                   <span className="wo-reco-plus">+</span>
                   <span className="wo-reco-name">{m.name}</span>
                   <span className="wo-reco-muscle mono">{MUSCLE_LABEL[m.primary]}</span>
+                  {beginner && needsCoach(m.name) && <CoachChip />}
                 </button>
               ))}
             </div>
