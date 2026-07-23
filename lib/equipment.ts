@@ -1,3 +1,5 @@
+import { expandEquipmentQuery } from "./equipmentAliases.ts";
+
 export type EquipmentCategory =
   | "MACHINE"
   | "CABLE"
@@ -190,16 +192,63 @@ function normalize(s: string): string {
   return stripTones(s).toLowerCase().trim();
 }
 
-export function searchEquipment(query: string, list: Equipment[] = EQUIPMENT): Equipment[] {
+/**
+ * Ranked, forgiving machine search — the workout twin of /api/foods/search.
+ * Expands the query with EN↔ID synonyms + typo fixes (lib/equipmentAliases), then
+ * scores each row and returns ALL matches sorted best-first (the equipment page's
+ * "N / total" count depends on returning every match, never an internal slice).
+ * Empty query returns the full list. `pickRank` (optional) floats the user's most-
+ * used machines up — wired in a later slice.
+ */
+export function searchEquipment(
+  query: string,
+  list: Equipment[] = EQUIPMENT,
+  pickRank?: Map<string, number>
+): Equipment[] {
+  const raw = query.trim();
   const q = normalize(query);
   if (!q) return list;
-  return list.filter((e) => {
-    if (normalize(e.name).includes(q)) return true;
-    if (e.hanzi.includes(query.trim())) return true;
-    if (normalize(e.pinyin).replace(/\s+/g, "").includes(q.replace(/\s+/g, ""))) return true;
-    if (normalize(e.muscleGroup).includes(q)) return true;
-    return false;
-  });
+
+  const { terms, wordGroups, allTerms } = expandEquipmentQuery(q);
+  const scored: { e: Equipment; score: number }[] = [];
+
+  // Word-boundary match so short tokens (lat, row, dip, arm) don't match inside
+  // unrelated words ("flat", "grow", "adipose", "warm").
+  const wordHit = (hay: string, t: string) =>
+    new RegExp(`\\b${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(hay);
+
+  for (const e of list) {
+    const name = normalize(e.name);
+    // Recall blob: name + pinyin + muscle group + secondary muscles. Instructions
+    // are deliberately excluded (they flood e.g. "triceps" into every press).
+    const searchText = normalize(
+      `${e.name} ${e.pinyin} ${e.muscleGroup} ${(e.secondary ?? []).join(" ")}`
+    );
+
+    let s = 0;
+    if (name === q) s += 1000;
+    if (raw && e.hanzi.includes(raw)) s += 400; // Chinese query
+    if (terms.some((t) => name.startsWith(t))) s += 500;
+    if (terms.some((t) => wordHit(name, t))) s += 250;
+    if (allTerms.some((t) => wordHit(name, t))) s += 120;
+    if (allTerms.some((t) => wordHit(searchText, t))) s += 60;
+    // Concept coverage: +45 per query word-group that matches anywhere, so a
+    // multi-word/translated query beats a one-word incidental hit.
+    for (const grp of wordGroups) {
+      if (grp.some((g) => wordHit(searchText, g))) s += 45;
+    }
+    if (pickRank?.has(e.id)) {
+      s += Math.max(0, 300 - (pickRank.get(e.id) as number) * 20);
+    }
+
+    if (s > 0) {
+      s -= name.length * 0.4; // gentle "shorter name wins" tiebreak
+      scored.push({ e, score: s });
+    }
+  }
+
+  scored.sort((a, b) => b.score - a.score || a.e.name.length - b.e.name.length);
+  return scored.map((x) => x.e);
 }
 
 export function getEquipment(id: string): Equipment | undefined {
