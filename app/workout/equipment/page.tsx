@@ -11,6 +11,7 @@ import {
   type EquipmentCategory,
 } from "@/lib/equipment";
 import { startQuickExercise } from "@/lib/workouts";
+import { recordMachinePick, getPickRank } from "@/lib/machinePicks";
 import { todayKey } from "@/lib/targets";
 
 type Filter = "ALL" | EquipmentCategory;
@@ -21,16 +22,17 @@ export default function EquipmentPage() {
   const [filter, setFilter] = useState<Filter>("ALL");
   const [openId, setOpenId] = useState<string | null>(null);
 
-  // Tap a machine → start (or append to) a quick single-exercise session and
-  // jump straight into logging sets. No session picking.
+  // Tap a machine → remember it, start (or append to) a quick single-exercise
+  // session, and jump straight into logging sets. No session picking.
   const logMachine = (e: Equipment) => {
+    recordMachinePick(e);
     const { id } = startQuickExercise(e, todayKey());
     router.push(`/workout/session/${id}`);
   };
 
   const results = useMemo(() => {
     const base = filter === "ALL" ? EQUIPMENT : EQUIPMENT.filter((e) => e.category === filter);
-    return searchEquipment(query, base);
+    return searchEquipment(query, base, getPickRank());
   }, [query, filter]);
 
   return (
