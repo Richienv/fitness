@@ -44,6 +44,8 @@ import {
 import { suggestToday } from "@/lib/todayVolume";
 import { needsCoach, inferLevel } from "@/lib/difficulty";
 import { inferFromLog, isDoable, shouldNudge, dismissNudge } from "@/lib/gymInventory";
+import { lastPerformance } from "@/lib/workoutHistory";
+import WorkoutCalendar from "./WorkoutCalendar";
 import { useActiveDate } from "@/lib/activeDate";
 import { useSheetBack } from "@/lib/backSheet";
 import { useVTNavigate } from "@/lib/navigate";
@@ -224,7 +226,12 @@ export default function WorkoutHome() {
             marginTop: 3,
           }}
         >
-          {e.muscleGroup} · {e.category}
+          {(() => {
+            const lp = lastPerformance(e.name);
+            return lp
+              ? `↺ terakhir ${lp.weight}kg × ${lp.reps} · ${e.muscleGroup}`
+              : `${e.muscleGroup} · ${e.category}`;
+          })()}
         </span>
       </span>
       <span
@@ -353,6 +360,9 @@ export default function WorkoutHome() {
       </div>
 
       <div className="workout-home-bottom">
+        {/* Practice calendar — trained days at a glance (empty query only). */}
+        {!query.trim() && <WorkoutCalendar today={today} />}
+
         {showGymNudge && (
           <div
             style={{
