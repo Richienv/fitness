@@ -717,23 +717,34 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
             ＋ TAMBAH MESIN BARU
           </button>
 
-          {allDone && (
-            <div
-              style={{
-                animation: "wo-donein .4s ease",
-                marginTop: 14,
-                borderRadius: 20,
-                padding: 24,
-                textAlign: "center",
-                background: "linear-gradient(180deg,rgba(34,197,94,.12),transparent)",
-                border: "1px solid rgba(34,197,94,.35)",
-              }}
-            >
-              <div style={{ fontSize: 32 }}>🎉</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: "#f1ede9", marginTop: 8 }}>Sesi selesai!</div>
-              <div className="mono" style={{ fontSize: 11, letterSpacing: "1px", color: "#8a837d", marginTop: 6 }}>
-                {totals.volume.toLocaleString("id-ID")} KG · {totals.done} / {totals.total} SET
-              </div>
+          {allDone && (() => {
+            const freestyle = workout.sessionType === "CUSTOM";
+            const addBtn = (
+              <button
+                type="button"
+                className="tap-press"
+                onClick={() => setAddOpen(true)}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  marginTop: 10,
+                  borderRadius: 14,
+                  padding: 14,
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: 800,
+                  letterSpacing: "1px",
+                  background: FIRE,
+                  border: "1px solid rgba(255,150,120,.6)",
+                  textShadow: "0 1px 2px rgba(120,15,5,.5)",
+                  boxShadow: "inset 0 1.5px 1px rgba(255,225,205,.6),0 10px 24px rgba(238,60,48,.4)",
+                  cursor: "pointer",
+                }}
+              >
+                ＋ TAMBAH MESIN LAGI
+              </button>
+            );
+            const finishBtn = (
               <button
                 type="button"
                 className="tap-press"
@@ -741,22 +752,62 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                 style={{
                   display: "block",
                   width: "100%",
-                  marginTop: 16,
+                  marginTop: 10,
                   borderRadius: 14,
                   padding: 14,
-                  color: "#062611",
+                  color: freestyle ? "#cfc8c2" : "#062611",
                   fontSize: 14,
                   fontWeight: 800,
                   letterSpacing: "1px",
-                  background: "linear-gradient(180deg,#4ade80,#22c55e 60%,#16a34a)",
-                  border: "none",
+                  background: freestyle
+                    ? "#0e0c0d"
+                    : "linear-gradient(180deg,#4ade80,#22c55e 60%,#16a34a)",
+                  border: freestyle ? "1px solid rgba(255,255,255,.14)" : "none",
                   cursor: "pointer",
                 }}
               >
-                LIHAT RINGKASAN →
+                {freestyle ? "SELESAI · LIHAT RINGKASAN →" : "LIHAT RINGKASAN →"}
               </button>
-            </div>
-          )}
+            );
+            return (
+              <div
+                style={{
+                  animation: "wo-donein .4s ease",
+                  marginTop: 14,
+                  borderRadius: 20,
+                  padding: 24,
+                  textAlign: "center",
+                  background: "linear-gradient(180deg,rgba(34,197,94,.12),transparent)",
+                  border: "1px solid rgba(34,197,94,.35)",
+                }}
+              >
+                <div style={{ fontSize: 32 }}>{freestyle ? "💪" : "🎉"}</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: "#f1ede9", marginTop: 8 }}>
+                  {freestyle ? "Mesin ini kelar!" : "Sesi selesai!"}
+                </div>
+                <div className="mono" style={{ fontSize: 11, letterSpacing: "1px", color: "#8a837d", marginTop: 6 }}>
+                  {totals.volume.toLocaleString("id-ID")} KG · {totals.done} / {totals.total} SET
+                </div>
+                {freestyle && (
+                  <div style={{ fontSize: 12.5, color: "#cfc8c2", marginTop: 8, lineHeight: 1.5 }}>
+                    Mau lanjut ke mesin lain? Tambah aja — sesi belum ditutup sampai kamu pilih selesai.
+                  </div>
+                )}
+                {/* Freestyle → adding another is the primary action; preset → finishing is. */}
+                {freestyle ? (
+                  <>
+                    {addBtn}
+                    {finishBtn}
+                  </>
+                ) : (
+                  <>
+                    {finishBtn}
+                    {addBtn}
+                  </>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </main>
 
