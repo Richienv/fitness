@@ -3,21 +3,30 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { CSSProperties } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSheetBack } from "@/lib/backSheet";
 import {
+  appendExerciseToWorkout,
+  exerciseDefFromEquipment,
   getDefForWorkout,
   getWorkout,
   saveWorkout,
   workoutVolume,
   setActiveWorkoutId,
-  getLastSetForExercise,
   getAllWorkouts,
   type ExerciseDef,
   type SetLog,
   type WorkoutSession,
 } from "@/lib/workouts";
-import { muscleColor, type MuscleKey } from "@/lib/muscles";
+import {
+  MUSCLE_TO_GROUP,
+  type MuscleColorGroup,
+  type MuscleKey,
+} from "@/lib/muscles";
+import { lastPerformance } from "@/lib/workoutHistory";
+import { EQUIPMENT, searchEquipment, type Equipment } from "@/lib/equipment";
+import { getPickRank, recordMachinePick } from "@/lib/machinePicks";
+import { inferFromLog } from "@/lib/gymInventory";
 import {
   getAlternatives,
   getExerciseDemo,
@@ -31,9 +40,6 @@ import BodyDiagram from "./BodyDiagram";
 import { haptic } from "@/lib/haptics";
 import { toast } from "../../../Toast";
 
-// ============================================================
-// Style system — copied from app/page.tsx for pixel fidelity
-// ============================================================
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
 const MONO = "var(--font-dm-mono), 'JetBrains Mono', monospace";
 const FIRE = "linear-gradient(180deg,#ff8a52,#ee3c30 55%,#c01f12)";
@@ -44,7 +50,6 @@ const FIRE_TEXT: CSSProperties = {
   WebkitTextFillColor: "transparent",
 };
 
-// Bahasa Indonesia muscle labels (reference MLABEL, extended to all keys).
 const MUSCLE_LABEL_ID: Record<MuscleKey, string> = {
   chest: "DADA",
   frontDelt: "DELT DEPAN",
@@ -62,15 +67,6 @@ const MUSCLE_LABEL_ID: Record<MuscleKey, string> = {
   abs: "PERUT",
 };
 
-type PendingInput = {
-  exerciseIdx: number;
-  setNumber: number;
-  weight: number;
-  reps: number;
-};
-
-type Celebration = { main: string; sub: string; big: boolean; key: number };
-
 function fmtTime(s: number): string {
   const m = Math.floor(s / 60);
   const ss = Math.max(0, s % 60);
@@ -79,7 +75,9 @@ function fmtTime(s: number): string {
 
 function beep() {
   try {
-    const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const AC =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const ctx = new AC();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -105,27 +103,22 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
   const router = useRouter();
   const [workout, setWorkout] = useState<WorkoutSession | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const [pending, setPending] = useState<PendingInput | null>(null);
-  // Key of the set tile to highlight briefly right after logging — e.g.
-  // "2:3" = exercise idx 2, set 3. Clears itself after the celebration anim.
-  const [justLogged, setJustLogged] = useState<string | null>(null);
+  const [staged, setStaged] = useState<{ w: number; reps: number }>({ w: 0, reps: 0 });
   const [swapFor, setSwapFor] = useState<number | null>(null);
   const [detailFor, setDetailFor] = useState<number | null>(null);
-  // Hardware back closes the swap / detail sheets instead of leaving the
-  // in-progress session.
+  const [addOpen, setAddOpen] = useState(false);
+
+  const [restTotal, setRestTotal] = useState(0);
+  const [restLeft, setRestLeft] = useState(0);
+  const restBeepedRef = useRef(false);
+  const holdTimer = useRef<number | undefined>(undefined);
+
   useSheetBack(swapFor !== null, () => setSwapFor(null));
   useSheetBack(detailFor !== null, () => setDetailFor(null));
-  const [celeb, setCeleb] = useState<Celebration | null>(null);
-  const celebTimer = useRef<number | undefined>(undefined);
-
-  // Rest timer
-  const [restTotal, setRestTotal] = useState<number>(0);
-  const [restLeft, setRestLeft] = useState<number>(0);
-  const restBeepedRef = useRef(false);
+  useSheetBack(addOpen, () => setAddOpen(false));
 
   useEffect(() => {
-    const w = getWorkout(workoutId);
-    setWorkout(w);
+    setWorkout(getWorkout(workoutId));
     setLoaded(true);
   }, [workoutId]);
 
@@ -146,167 +139,96 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
     return () => clearInterval(t);
   }, [restLeft]);
 
-  useEffect(() => () => window.clearTimeout(celebTimer.current), []);
+  useEffect(() => () => window.clearTimeout(holdTimer.current), []);
 
   const def = workout ? getDefForWorkout(workout) : null;
+  const allDefs = useMemo(() => def?.exercises ?? [], [def]);
 
   const totals = useMemo(() => {
     if (!workout) return { done: 0, total: 0, volume: 0 };
     let done = 0;
     let total = 0;
-    for (let i = 0; i < workout.exercises.length; i++) {
-      const ex = workout.exercises[i];
-      const d = def?.exercises[i];
-      const dTotal = d?.sets ?? 0;
+    for (let i = 0; i < allDefs.length; i++) {
+      const dTotal = allDefs[i].sets;
       total += dTotal;
-      done += Math.min(ex.sets.length, dTotal);
+      done += Math.min(workout.exercises[i]?.sets.length ?? 0, dTotal);
     }
     return { done, total, volume: workoutVolume(workout) };
-  }, [workout, def]);
+  }, [workout, allDefs]);
 
-  const firstIncompleteIdx = useMemo(() => {
-    if (!workout || !def) return 0;
-    for (let i = 0; i < workout.exercises.length; i++) {
-      const needed = def.exercises[i].sets;
-      if (workout.exercises[i].sets.length < needed) return i;
+  const allDone = totals.total > 0 && totals.done >= totals.total;
+
+  const focusIdx = useMemo(() => {
+    if (!workout) return 0;
+    for (let i = 0; i < allDefs.length; i++) {
+      if ((workout.exercises[i]?.sets.length ?? 0) < allDefs[i].sets) return i;
     }
-    return workout.exercises.length - 1;
-  }, [workout, def]);
+    return allDefs.length - 1;
+  }, [workout, allDefs]);
 
-  const sessionProgressPct =
+  const focusDoneCount = workout?.exercises[focusIdx]?.sets.length ?? 0;
+
+  // Seed the staged weight/reps: carry over the last set of this exercise, else
+  // its most recent logged performance, else the target.
+  useEffect(() => {
+    if (!workout || allDefs.length === 0) return;
+    const d = allDefs[focusIdx];
+    if (!d) return;
+    const log = workout.exercises[focusIdx];
+    const last = log?.sets[log.sets.length - 1];
+    if (last) {
+      setStaged({ w: last.weight, reps: last.reps });
+      return;
+    }
+    const lp = lastPerformance(log?.swappedTo ?? d.name) ?? lastPerformance(d.name);
+    setStaged({ w: lp?.weight ?? 0, reps: lp?.reps ?? d.targetReps });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusIdx, focusDoneCount, workout?.id]);
+
+  const progressPct =
     totals.total > 0 ? Math.round((totals.done / totals.total) * 100) : 0;
+  const restPct = restTotal > 0 ? (restLeft / restTotal) * 100 : 0;
 
-  const exercisesDone = useMemo(() => {
-    if (!workout || !def) return 0;
-    let n = 0;
-    for (let i = 0; i < workout.exercises.length; i++) {
-      if (workout.exercises[i].sets.length >= def.exercises[i].sets) n++;
-    }
-    return n;
-  }, [workout, def]);
-
-  const muscleVolume = useMemo(() => {
-    const map = new Map<MuscleKey, number>();
-    if (!workout || !def) return map;
-    for (let i = 0; i < workout.exercises.length; i++) {
-      const log = workout.exercises[i];
-      const d = def.exercises[i];
-      let vol = 0;
-      for (const s of log.sets) vol += s.weight * s.reps;
-      if (vol <= 0) continue;
-      for (const m of d.primary) map.set(m, (map.get(m) ?? 0) + vol);
-      for (const m of d.secondary) map.set(m, (map.get(m) ?? 0) + vol * 0.5);
-    }
-    return map;
-  }, [workout, def]);
-
-  const muscleVolumeList = useMemo(() => {
-    const arr = Array.from(muscleVolume.entries()).sort((a, b) => b[1] - a[1]);
-    const max = arr[0]?.[1] ?? 1;
-    return arr.map(([m, v]) => ({ m, v, pct: Math.round((v / max) * 100) }));
-  }, [muscleVolume]);
-
-  const estRemainingMin = useMemo(() => {
-    if (!workout || !def) return 0;
-    let sec = 0;
-    for (let i = 0; i < workout.exercises.length; i++) {
-      const d = def.exercises[i];
-      const remaining = Math.max(0, d.sets - workout.exercises[i].sets.length);
-      sec += remaining * (d.restSec + 30);
-    }
-    return Math.round(sec / 60);
-  }, [workout, def]);
-
-  const openPending = useCallback(
-    (exerciseIdx: number, setNumber: number) => {
-      if (!workout || !def) return;
-      const d = def.exercises[exerciseIdx];
-      const existingSets = workout.exercises[exerciseIdx].sets;
-      const last = existingSets[existingSets.length - 1];
-      let seedWeight = last?.weight ?? 0;
-      let seedReps = last?.reps ?? d.targetReps;
-      if (!last) {
-        const prev = getLastSetForExercise(workout.sessionType, d.name, workout.id);
-        if (prev) {
-          seedWeight = prev.weight;
-          seedReps = prev.reps;
-        }
-      }
-      setPending({ exerciseIdx, setNumber, weight: seedWeight, reps: seedReps });
-    },
-    [workout, def]
-  );
-
-  function adjustWeight(delta: number) {
-    if (!pending || !def) return;
-    const d = def.exercises[pending.exerciseIdx];
-    const step = d.increment * (delta > 0 ? 1 : -1);
-    const next = Math.max(0, Math.round((pending.weight + step) * 10) / 10);
-    setPending({ ...pending, weight: next });
+  function adjW(delta: number) {
+    const d = allDefs[focusIdx];
+    const step = (d?.increment || 1) * (delta > 0 ? 1 : -1);
+    setStaged((s) => ({ ...s, w: Math.max(0, Math.round((s.w + step) * 10) / 10) }));
   }
-  function adjustReps(delta: number) {
-    if (!pending) return;
-    setPending({ ...pending, reps: Math.max(0, pending.reps + delta) });
+  function adjReps(delta: number) {
+    setStaged((s) => ({ ...s, reps: Math.max(0, s.reps + delta) }));
   }
 
-  function celebrate(main: string, sub: string, big: boolean) {
-    setCeleb({ main, sub, big, key: Date.now() });
-    window.clearTimeout(celebTimer.current);
-    celebTimer.current = window.setTimeout(() => setCeleb(null), 1150);
+  function startRest(sec: number) {
+    restBeepedRef.current = false;
+    setRestTotal(sec);
+    setRestLeft(sec);
   }
 
-  function saveSet() {
-    if (!pending || !workout || !def) return;
+  function logSet() {
+    if (!workout || allDefs.length === 0) return;
+    const i = focusIdx;
+    const d = allDefs[i];
+    const setNumber = (workout.exercises[i]?.sets.length ?? 0) + 1;
+    const newSet: SetLog = {
+      setNumber,
+      weight: staged.w,
+      reps: staged.reps,
+      loggedAt: Date.now(),
+    };
     const next: WorkoutSession = {
       ...workout,
-      exercises: workout.exercises.map((ex, i) => {
-        if (i !== pending.exerciseIdx) return ex;
-        const existing = ex.sets.filter((s) => s.setNumber !== pending.setNumber);
-        const newSet: SetLog = {
-          setNumber: pending.setNumber,
-          weight: pending.weight,
-          reps: pending.reps,
-          loggedAt: Date.now(),
-        };
-        return { ...ex, sets: [...existing, newSet].sort((a, b) => a.setNumber - b.setNumber) };
-      }),
+      exercises: workout.exercises.map((ex, k) =>
+        k === i ? { ...ex, sets: [...ex.sets, newSet] } : ex
+      ),
     };
     saveWorkout(next);
     setWorkout(next);
-    const justKey = `${pending.exerciseIdx}:${pending.setNumber}`;
-    setJustLogged(justKey);
     haptic("tap");
-    // Clear the highlight after the celebration anim completes (~900ms).
-    window.setTimeout(() => {
-      setJustLogged((cur) => (cur === justKey ? null : cur));
-    }, 950);
 
-    // Celebration burst — composes with the real save, purely visual feedback.
-    const combo = next.exercises.reduce((a, ex) => a + ex.sets.length, 0);
-    const allDone = next.exercises.every(
-      (ex, i) => ex.sets.length >= def.exercises[i].sets
-    );
-    if (allDone) {
-      celebrate("SESI SELESAI 🎉", `${combo} SET · SESI TERKUNCI`, true);
-    } else if (combo % 5 === 0) {
-      celebrate("🔥 LEVEL UP", `COMBO ×${combo} · NGEGAS`, true);
-    } else {
-      celebrate(
-        "SET MASUK ✓",
-        `${pending.weight}KG × ${pending.reps} · COMBO ×${combo}`,
-        false
-      );
-    }
-
-    const d = def.exercises[pending.exerciseIdx];
-    setPending(null);
-
-    // Start rest timer (skip once everything is done).
-    if (d.restSec > 0 && !allDone) {
-      restBeepedRef.current = false;
-      setRestTotal(d.restSec);
-      setRestLeft(d.restSec);
-    }
+    const nowDone =
+      next.exercises.reduce((a, ex, k) => a + Math.min(ex.sets.length, allDefs[k].sets), 0) >=
+      totals.total;
+    if (!nowDone && d.restSec > 0) startRest(d.restSec);
   }
 
   function skipRest() {
@@ -315,6 +237,14 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
   function addRest(sec: number) {
     setRestLeft((x) => x + sec);
     setRestTotal((x) => x + sec);
+  }
+
+  function holdStart(idx: number) {
+    window.clearTimeout(holdTimer.current);
+    holdTimer.current = window.setTimeout(() => setSwapFor(idx), 420);
+  }
+  function holdEnd() {
+    window.clearTimeout(holdTimer.current);
   }
 
   function swapExercise(idx: number, altName: string) {
@@ -345,6 +275,16 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
     setWorkout(next);
   }
 
+  function addMachine(e: Equipment) {
+    if (!workout) return;
+    recordMachinePick(e);
+    inferFromLog(e.id);
+    const next = appendExerciseToWorkout(workout, exerciseDefFromEquipment(e));
+    setWorkout(next);
+    setAddOpen(false);
+    setSwapFor(null);
+  }
+
   function finishSession() {
     if (!workout) return;
     const end = Date.now();
@@ -364,1163 +304,481 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
   }
 
   const pageStyle: CSSProperties = {
-    maxWidth: 480,
+    maxWidth: 460,
     margin: "0 auto",
     minHeight: "100dvh",
-    padding: "calc(20px + env(safe-area-inset-top)) 18px 22px",
-    background:
-      "radial-gradient(1100px 700px at 50% -8%, #17100f 0%, #0a0809 42%, #050406 100%)",
+    background: "#050406",
     fontFamily: SANS,
+    position: "relative",
   };
 
   if (!loaded) return <main style={pageStyle} />;
   if (!workout || !def) {
     return (
-      <main style={pageStyle}>
-        <Link
-          href="/workout"
-          style={{
-            fontFamily: MONO,
-            fontSize: 11,
-            letterSpacing: ".1em",
-            color: "#8a837d",
-            textDecoration: "none",
-          }}
-        >
-          ← KEMBALI
+      <main style={{ ...pageStyle, padding: 20 }}>
+        <Link href="/workout" style={{ fontFamily: MONO, fontSize: 11, letterSpacing: ".1em", color: "#8a837d", textDecoration: "none" }}>
+          ← LATIHAN
         </Link>
-        <div
-          style={{
-            fontFamily: SANS,
-            fontWeight: 700,
-            fontSize: 26,
-            color: "#f1ede9",
-            marginTop: 20,
-          }}
-        >
+        <div style={{ fontWeight: 700, fontSize: 26, color: "#f1ede9", marginTop: 20 }}>
           SESI TIDAK DITEMUKAN
         </div>
       </main>
     );
   }
 
-  const pendingDef: ExerciseDef | null = pending ? def.exercises[pending.exerciseIdx] : null;
-  const restPct = restTotal > 0 ? (restLeft / restTotal) * 100 : 0;
-  const readyToFinish = totals.done >= totals.total;
-  const combo = totals.done;
-
-  const finBase: CSSProperties = {
-    fontFamily: MONO,
-    fontSize: 9.5,
-    letterSpacing: ".08em",
-    lineHeight: 1.25,
-    textAlign: "center",
-    padding: "8px 14px",
-    borderRadius: 12,
-    cursor: "pointer",
-    position: "relative",
-    overflow: "hidden",
-  };
-  const finishStyle: CSSProperties = readyToFinish
-    ? {
-        ...finBase,
-        color: "#fff",
-        background: FIRE,
-        border: "1px solid rgba(255,150,120,.65)",
-        boxShadow:
-          "inset 0 1.5px 1px rgba(255,225,205,.7), inset 0 -4px 8px rgba(150,20,5,.4), 0 8px 18px rgba(238,60,48,.45)",
-        textShadow: "0 1px 2px rgba(120,15,5,.5)",
-      }
-    : {
-        ...finBase,
-        color: "#ff9a82",
-        background: "linear-gradient(180deg,#3a1614,#1b0d0c)",
-        border: "1px solid rgba(238,60,48,.42)",
-        boxShadow:
-          "inset 0 1.5px 0 rgba(255,150,120,.3), inset 0 -4px 8px rgba(0,0,0,.45), 0 6px 14px rgba(0,0,0,.42)",
-      };
-
   return (
     <>
-    <main style={pageStyle} className="page-rise">
-      <Link
-        href="/workout"
-        style={{
-          fontFamily: MONO,
-          fontSize: 11,
-          letterSpacing: ".1em",
-          color: "#8a837d",
-          textDecoration: "none",
-          display: "inline-block",
-          marginBottom: 12,
-        }}
-      >
-        ← KEMBALI
-      </Link>
-
-      {/* Title */}
-      <div
-        style={{
-          fontFamily: SANS,
-          fontWeight: 700,
-          fontSize: 26,
-          color: "#f1ede9",
-          letterSpacing: "-.01em",
-        }}
-      >
-        LOG <span style={FIRE_TEXT}>LATIHAN</span>
-      </div>
-
-      {/* Session summary card */}
-      <div
-        style={{
-          position: "relative",
-          overflow: "hidden",
-          marginTop: 16,
-          borderRadius: 18,
-          padding: 16,
-          background:
-            "linear-gradient(180deg,rgba(255,255,255,.03),transparent 24%),#0c0a0b",
-          border: "1px solid rgba(255,255,255,.08)",
-          boxShadow:
-            "inset 0 1px 0 rgba(255,255,255,.06),0 18px 40px rgba(0,0,0,.5)",
-        }}
-      >
+      <main style={pageStyle} className="page-rise">
+        {/* Sticky header */}
         <div
           style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: 12,
+            position: "sticky",
+            top: 0,
+            zIndex: 20,
+            background: "rgba(7,6,8,.94)",
+            backdropFilter: "blur(14px)",
+            WebkitBackdropFilter: "blur(14px)",
+            borderBottom: "1px solid rgba(255,255,255,.08)",
+            padding: "calc(14px + env(safe-area-inset-top)) 18px 12px",
           }}
         >
-          <div style={{ minWidth: 0 }}>
-            <div
-              style={{
-                fontFamily: SANS,
-                fontWeight: 800,
-                fontSize: 22,
-                color: "#f5f2ef",
-              }}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
+            <Link href="/workout" className="mono" style={{ fontSize: 11, letterSpacing: "2px", color: "#7c736e", textDecoration: "none" }}>
+              ← LATIHAN
+            </Link>
+            <button
+              type="button"
+              className="mono tap-press"
+              onClick={finishSession}
+              style={
+                allDone
+                  ? {
+                      padding: "7px 15px",
+                      borderRadius: 999,
+                      background: "#22c55e",
+                      border: "1px solid #22c55e",
+                      color: "#062611",
+                      fontSize: 10,
+                      letterSpacing: "1.5px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      boxShadow: "0 0 24px rgba(34,197,94,.45)",
+                    }
+                  : {
+                      padding: "7px 13px",
+                      borderRadius: 999,
+                      background: "rgba(255,71,71,.1)",
+                      border: "1px solid rgba(255,71,71,.45)",
+                      color: "#ff8a8a",
+                      fontSize: 10,
+                      letterSpacing: "1.5px",
+                      cursor: "pointer",
+                    }
+              }
             >
+              {allDone ? "SELESAI ✓" : "SELESAI"}
+            </button>
+          </div>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
+            <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "1px", ...FIRE_TEXT }}>
               {def.name}
             </div>
-            <div
-              style={{
-                fontFamily: MONO,
-                fontSize: 10,
-                letterSpacing: ".14em",
-                color: "#ff8a72",
-                marginTop: 3,
-              }}
-            >
-              {def.focus}
+            <div className="mono" style={{ fontSize: 10, letterSpacing: "1px", color: "#7c736e" }}>
+              {totals.volume.toLocaleString("id-ID")} KG
             </div>
           </div>
-          <button type="button" onClick={finishSession} style={finishStyle}>
-            <span
-              style={{
-                position: "absolute",
-                top: 0,
-                left: "-55%",
-                width: "55%",
-                height: "100%",
-                background:
-                  "linear-gradient(105deg,transparent,rgba(255,255,255,.35),transparent)",
-                animation: "btnSheen 5.5s ease-in-out infinite",
-                pointerEvents: "none",
-              }}
-            />
-            <span style={{ position: "relative" }}>
-              {readyToFinish
-                ? "SELESAI ✓"
-                : `SELESAI · ${totals.done}/${totals.total}`}
-            </span>
-          </button>
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            fontFamily: MONO,
-            fontSize: 10,
-            letterSpacing: ".1em",
-            color: "#7c736e",
-            marginTop: 14,
-          }}
-        >
-          <span>
-            {exercisesDone} / {def.exercises.length} GERAKAN
-          </span>
-          <span>~{estRemainingMin} MIN LAGI</span>
-        </div>
-
-        {/* Session progress bar */}
-        <div
-          style={{
-            position: "relative",
-            height: 8,
-            borderRadius: 999,
-            background: "rgba(255,255,255,.06)",
-            overflow: "hidden",
-            boxShadow: "inset 0 1px 2px rgba(0,0,0,.6)",
-            marginTop: 7,
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              bottom: 0,
-              width: `${sessionProgressPct}%`,
-              borderRadius: 999,
-              overflow: "hidden",
-              background: "linear-gradient(90deg,#ff8a3d,#ee2f1f)",
-              transition: "width .6s cubic-bezier(.16,1,.3,1)",
-              boxShadow: "0 0 10px rgba(238,60,48,.6)",
-            }}
-          >
+          <div className="mono" style={{ display: "flex", justifyContent: "space-between", fontSize: 9.5, letterSpacing: "1.5px", color: "#8a837d", marginBottom: 6 }}>
+            <span>{totals.done} / {totals.total} SET</span>
+            <span>{progressPct}%</span>
+          </div>
+          <div style={{ height: 5, background: "#161011", borderRadius: 3, overflow: "hidden" }}>
             <div
               style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "45%",
                 height: "100%",
-                background:
-                  "linear-gradient(100deg,transparent,rgba(255,255,255,.6),transparent)",
-                animation: "barSheen 4.2s ease-in-out infinite",
+                borderRadius: 3,
+                background: "linear-gradient(90deg,#ff8a3d,#ee2f1f)",
+                transition: "width .45s cubic-bezier(.22,.61,.36,1)",
+                width: `${progressPct}%`,
               }}
             />
           </div>
         </div>
 
-        <div
-          style={{
-            marginTop: 16,
-            fontFamily: MONO,
-            fontSize: 9.5,
-            letterSpacing: ".16em",
-            color: "#6a6660",
-          }}
-        >
-          HARI INI KAMU LATIH
-        </div>
+        {/* Body */}
+        <div style={{ padding: "16px 18px 130px" }}>
+          {allDefs.map((d, i) => {
+            const log = workout.exercises[i];
+            const doneCount = log?.sets.length ?? 0;
+            const isComplete = doneCount >= d.sets;
+            const isFocus = i === focusIdx && !allDone;
+            const isFuture = i > focusIdx;
+            const displayName = log?.swappedTo ?? d.name;
+            const group = MUSCLE_TO_GROUP[d.primary[0]] ?? "chest";
+            const muscleLabel = MUSCLE_LABEL_ID[d.primary[0]] ?? "OTOT";
+            const lp = lastPerformance(displayName) ?? lastPerformance(d.name);
+            const target = lp ? `${lp.weight}kg × ${lp.reps}` : "BELUM ADA";
+            const vol = (log?.sets ?? []).reduce((a, s) => a + s.weight * s.reps, 0);
 
-        {/* Muscle-volume bars */}
-        <div style={{ marginTop: 9 }}>
-          {muscleVolumeList.length === 0 ? (
-            <div style={{ fontFamily: MONO, fontSize: 10, color: "#6a6660" }}>
-              Belum ada set — mulai ngangkat.
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-              {muscleVolumeList.slice(0, 4).map(({ m, pct }) => {
-                const col = muscleColor(m);
-                return (
-                  <div
-                    key={m}
-                    style={{ display: "flex", alignItems: "center", gap: 9 }}
-                  >
-                    <span
-                      style={{
-                        fontFamily: MONO,
-                        fontSize: 9,
-                        letterSpacing: ".06em",
-                        color: "#8a837d",
-                        width: 82,
-                        flex: "none",
-                      }}
-                    >
-                      {MUSCLE_LABEL_ID[m]}
-                    </span>
+            const wrapStyle: CSSProperties = {
+              marginBottom: 14,
+              transition: "opacity .3s ease",
+              opacity: isComplete && !isFocus ? 0.5 : isFuture ? 0.72 : 1,
+            };
+            const cardStyle: CSSProperties = isFocus
+              ? {
+                  position: "relative",
+                  borderRadius: 18,
+                  padding: "20px 16px 16px",
+                  background: "linear-gradient(180deg,#1e1412,#0c0a0b 72%)",
+                  border: "1px solid rgba(255,150,120,.5)",
+                  animation: "wo-cardglow 2.6s ease-in-out infinite",
+                  cursor: "pointer",
+                  WebkitTouchCallout: "none",
+                  userSelect: "none",
+                }
+              : {
+                  position: "relative",
+                  borderRadius: 16,
+                  padding: "16px 16px 14px",
+                  background: "#0c0a0b",
+                  border: "1px solid rgba(255,255,255,.08)",
+                  cursor: "pointer",
+                  WebkitTouchCallout: "none",
+                  userSelect: "none",
+                };
+
+            return (
+              <div key={`${d.name}-${i}`} style={wrapStyle}>
+                <div
+                  onPointerDown={() => holdStart(i)}
+                  onPointerUp={holdEnd}
+                  onPointerLeave={holdEnd}
+                  onPointerCancel={holdEnd}
+                  style={cardStyle}
+                >
+                  {isFocus && (
                     <div
                       style={{
-                        flex: 1,
-                        height: 6,
+                        position: "absolute",
+                        top: -14,
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        whiteSpace: "nowrap",
+                        padding: "7px 18px",
+                        background: FIRE,
+                        color: "#fff",
+                        fontSize: 16,
+                        fontWeight: 800,
+                        letterSpacing: ".4px",
                         borderRadius: 999,
-                        background: "rgba(255,255,255,.05)",
-                        overflow: "hidden",
+                        border: "1px solid rgba(255,150,120,.6)",
+                        textShadow: "0 1px 2px rgba(120,15,5,.5)",
+                        animation: "wo-flamepulse 1.8s ease-in-out infinite",
                       }}
                     >
+                      {displayName}
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                    <div style={{ minWidth: 0 }}>
+                      {!isFocus && (
+                        <div style={{ fontSize: 18, fontWeight: 800, color: isComplete ? "#cfc8c2" : "#f1ede9", letterSpacing: ".3px" }}>
+                          {isComplete ? "✓ " : ""}{displayName}
+                        </div>
+                      )}
+                      {/* Gold PR medal */}
                       <div
                         style={{
-                          height: "100%",
-                          width: `${pct}%`,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 7,
+                          marginTop: isFocus ? 0 : 8,
+                          padding: "5px 12px 5px 6px",
                           borderRadius: 999,
-                          background: col,
-                          transition: "width .6s cubic-bezier(.16,1,.3,1)",
-                          boxShadow: `0 0 8px ${col}88`,
+                          background: "linear-gradient(180deg,#ffe19a,#f0a53c 48%,#c9721a)",
+                          border: "1px solid rgba(255,228,175,.75)",
+                          boxShadow: "inset 0 1px 1px rgba(255,247,225,.85),0 5px 14px rgba(200,110,20,.4)",
                         }}
-                      />
+                      >
+                        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: "50%", background: "rgba(90,45,5,.22)", fontSize: 12 }}>
+                          🏆
+                        </span>
+                        <span style={{ display: "flex", flexDirection: "column", lineHeight: 1 }}>
+                          <span className="mono" style={{ fontSize: 7, letterSpacing: "1.5px", fontWeight: 700, color: "#7a4a12" }}>
+                            {lp ? "REKOR · LAMPAUI!" : "REKOR"}
+                          </span>
+                          <span style={{ fontSize: 12.5, fontWeight: 800, color: "#3d2408", letterSpacing: ".2px", marginTop: 2 }}>
+                            {target}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Muscle body-map */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 9,
+                        flex: "none",
+                        padding: "6px 12px 6px 7px",
+                        borderRadius: 14,
+                        background: "linear-gradient(90deg,rgba(255,138,60,.12),rgba(255,138,60,.02))",
+                        border: "1px solid rgba(255,150,120,.24)",
+                      }}
+                    >
+                      <MiniBodyMap group={group} />
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: "#f1ede9", letterSpacing: ".3px", lineHeight: 1.1 }}>
+                          {muscleLabel}
+                        </div>
+                        <div className="mono" style={{ fontSize: 8, letterSpacing: "1.5px", color: "#a8938a", marginTop: 3 }}>
+                          OTOT UTAMA
+                        </div>
+                      </div>
                     </div>
                   </div>
-                );
-              })}
+
+                  {log?.swappedTo && (
+                    <button
+                      type="button"
+                      onClick={() => clearSwap(i)}
+                      className="mono"
+                      style={{
+                        display: "block",
+                        marginTop: 6,
+                        fontSize: 9,
+                        letterSpacing: "1px",
+                        color: "#ffb99e",
+                        background: "rgba(238,60,48,.08)",
+                        border: "1px solid rgba(238,60,48,.28)",
+                        borderRadius: 8,
+                        padding: "5px 9px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      ↺ DIGANTI DARI {d.name} · ketuk untuk urungkan
+                    </button>
+                  )}
+
+                  {/* Set dots */}
+                  <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+                    {Array.from({ length: d.sets }).map((_, k) => {
+                      let bg = "#201a1b";
+                      let shadow = "none";
+                      if (k < doneCount) {
+                        bg = "linear-gradient(90deg,#ff8a3d,#ee2f1f)";
+                      } else if (isFocus && k === doneCount && restLeft <= 0) {
+                        bg = "#ff8a3d";
+                        shadow = "0 0 10px rgba(255,138,60,.75)";
+                      }
+                      return (
+                        <div
+                          key={k}
+                          style={{ width: 30, height: 6, borderRadius: 3, background: bg, boxShadow: shadow }}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  {/* Focused: rest or logging controls */}
+                  {isFocus && restLeft > 0 && (
+                    <div
+                      style={{
+                        marginTop: 12,
+                        borderRadius: 14,
+                        background: "#0c0a0b",
+                        border: "1px solid rgba(255,255,255,.08)",
+                        padding: 16,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 14,
+                      }}
+                    >
+                      <div className="mono" style={{ fontSize: 34, fontWeight: 800, color: "#ff8a72", letterSpacing: "1px", fontVariantNumeric: "tabular-nums" }}>
+                        {fmtTime(restLeft)}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div className="mono" style={{ fontSize: 9, letterSpacing: "2px", color: "#7c736e" }}>ISTIRAHAT</div>
+                        <div style={{ height: 5, marginTop: 7, background: "#161011", borderRadius: 3, overflow: "hidden" }}>
+                          <div style={{ height: "100%", background: "linear-gradient(90deg,#ff8a3d,#ee2f1f)", borderRadius: 3, transition: "width 1s linear", width: `${restPct}%` }} />
+                        </div>
+                      </div>
+                      <button type="button" className="mono tap-press" onClick={() => addRest(15)} style={restBtn}>+15s</button>
+                      <button type="button" className="mono tap-press" onClick={skipRest} style={restBtn}>LEWATI</button>
+                    </div>
+                  )}
+
+                  {isFocus && restLeft <= 0 && (
+                    <>
+                      <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+                        <StepperPanel label="BEBAN (KG)" value={staged.w} onDown={() => adjW(-1)} onUp={() => adjW(1)} onInput={(v) => setStaged((s) => ({ ...s, w: v }))} decimal />
+                        <StepperPanel label="REPS" value={staged.reps} onDown={() => adjReps(-1)} onUp={() => adjReps(1)} onInput={(v) => setStaged((s) => ({ ...s, reps: v }))} />
+                      </div>
+                      <button
+                        type="button"
+                        className="tap-press"
+                        onClick={logSet}
+                        style={{
+                          marginTop: 12,
+                          width: "100%",
+                          border: "1px solid rgba(255,150,120,.6)",
+                          borderRadius: 16,
+                          padding: 17,
+                          color: "#fff",
+                          fontSize: 16,
+                          fontWeight: 800,
+                          letterSpacing: "1.5px",
+                          background: FIRE,
+                          textShadow: "0 1px 2px rgba(120,15,5,.5)",
+                          boxShadow: "inset 0 1.5px 1px rgba(255,225,205,.6),0 12px 30px rgba(238,60,48,.45)",
+                          cursor: "pointer",
+                        }}
+                      >
+                        CATAT SET {doneCount + 1} ✓
+                      </button>
+                      <div style={{ display: "flex", gap: 8, marginTop: 11 }}>
+                        <button
+                          type="button"
+                          className="mono tap-press"
+                          onClick={() => setSwapFor(i)}
+                          style={{
+                            flex: 1,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 6,
+                            fontSize: 9,
+                            fontWeight: 700,
+                            letterSpacing: "1px",
+                            color: "#ffb99e",
+                            background: "rgba(255,138,60,.1)",
+                            border: "1px solid rgba(255,150,120,.3)",
+                            borderRadius: 999,
+                            padding: "8px 12px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          👆 TAHAN / GANTI MESIN
+                        </button>
+                        <button
+                          type="button"
+                          className="mono tap-press"
+                          onClick={() => setDetailFor(i)}
+                          style={{
+                            flex: "none",
+                            fontSize: 9,
+                            fontWeight: 700,
+                            letterSpacing: "1px",
+                            color: "#8a837d",
+                            background: "rgba(255,255,255,.04)",
+                            border: "1px solid rgba(255,255,255,.1)",
+                            borderRadius: 999,
+                            padding: "8px 12px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          ⓘ CARA
+                        </button>
+                      </div>
+                    </>
+                  )}
+
+                  {isComplete && !isFocus && (
+                    <div className="mono" style={{ fontSize: 10, letterSpacing: "1px", color: "#22c55e", marginTop: 10 }}>
+                      ✓ {d.sets} SET{vol > 0 ? ` · ${Math.round(vol).toLocaleString("id-ID")} KG` : ""}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          <button
+            type="button"
+            className="mono tap-press"
+            onClick={() => setAddOpen(true)}
+            style={{
+              width: "100%",
+              marginTop: 4,
+              padding: 15,
+              borderRadius: 16,
+              background: "rgba(238,60,48,.05)",
+              border: "1.5px dashed rgba(238,60,48,.4)",
+              color: "#ff8a72",
+              fontSize: 11,
+              letterSpacing: "1.5px",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            ＋ TAMBAH MESIN BARU
+          </button>
+
+          {allDone && (
+            <div
+              style={{
+                animation: "wo-donein .4s ease",
+                marginTop: 14,
+                borderRadius: 20,
+                padding: 24,
+                textAlign: "center",
+                background: "linear-gradient(180deg,rgba(34,197,94,.12),transparent)",
+                border: "1px solid rgba(34,197,94,.35)",
+              }}
+            >
+              <div style={{ fontSize: 32 }}>🎉</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "#f1ede9", marginTop: 8 }}>Sesi selesai!</div>
+              <div className="mono" style={{ fontSize: 11, letterSpacing: "1px", color: "#8a837d", marginTop: 6 }}>
+                {totals.volume.toLocaleString("id-ID")} KG · {totals.done} / {totals.total} SET
+              </div>
+              <button
+                type="button"
+                className="tap-press"
+                onClick={finishSession}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  marginTop: 16,
+                  borderRadius: 14,
+                  padding: 14,
+                  color: "#062611",
+                  fontSize: 14,
+                  fontWeight: 800,
+                  letterSpacing: "1px",
+                  background: "linear-gradient(180deg,#4ade80,#22c55e 60%,#16a34a)",
+                  border: "none",
+                  cursor: "pointer",
+                }}
+              >
+                LIHAT RINGKASAN →
+              </button>
             </div>
           )}
         </div>
-      </div>
-
-      {/* Combo pill */}
-      {combo > 0 && (
-        <div
-          style={{
-            marginTop: 12,
-            textAlign: "center",
-            fontFamily: MONO,
-            fontSize: 11,
-            letterSpacing: ".12em",
-            color: "#ff8a72",
-            padding: "9px",
-            borderRadius: 12,
-            background: "rgba(238,60,48,.08)",
-            border: "1px solid rgba(238,60,48,.28)",
-          }}
-        >
-          🔥 COMBO ×{combo} · TETAP PANAS
-        </div>
-      )}
-
-      {/* Exercise cards */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 10,
-          marginTop: 14,
-        }}
-      >
-        {def.exercises.map((ex, i) => {
-          const log = workout.exercises[i];
-          const displayName = log.swappedTo ?? ex.name;
-          const last = getLastSetForExercise(workout.sessionType, ex.name, workout.id);
-          const isFocus = i === firstIncompleteIdx && !pending;
-          const allDone = log.sets.length >= ex.sets;
-          const col = muscleColor(ex.primary[0]);
-
-          // Completed exercise → compact collapsed row.
-          if (allDone) {
-            const totalVol = log.sets.reduce((a, s) => a + s.weight * s.reps, 0);
-            const meta = `${log.sets.length}×${ex.repsLabel}${
-              totalVol > 0 ? ` · ${Math.round(totalVol)}kg` : ""
-            }`;
-            return (
-              <div
-                key={ex.name}
-                style={{
-                  borderRadius: 16,
-                  padding: "13px 15px",
-                  background: "#0a0809",
-                  border: "1px solid rgba(255,255,255,.06)",
-                  opacity: 0.72,
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setDetailFor(i)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 11,
-                    width: "100%",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: 0,
-                    textAlign: "left",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 26,
-                      height: 26,
-                      flex: "none",
-                      borderRadius: 8,
-                      display: "grid",
-                      placeItems: "center",
-                      fontSize: 13,
-                      color: "#fff",
-                      background:
-                        "linear-gradient(180deg,#6ff0a4,#22c55e 58%,#15803d)",
-                      boxShadow:
-                        "inset 0 1px 1px rgba(255,255,255,.5),0 4px 10px rgba(34,197,94,.4)",
-                    }}
-                  >
-                    ✓
-                  </span>
-                  <span
-                    style={{
-                      fontFamily: SANS,
-                      fontWeight: 700,
-                      fontSize: 15,
-                      color: "#cfc8c2",
-                      flex: 1,
-                    }}
-                  >
-                    {displayName}
-                  </span>
-                  <span
-                    style={{
-                      fontFamily: MONO,
-                      fontSize: 10.5,
-                      color: "#7c736e",
-                    }}
-                  >
-                    {meta}
-                  </span>
-                </button>
-              </div>
-            );
-          }
-
-          // Incomplete exercise → full card.
-          const cardStyle: CSSProperties = {
-            position: "relative",
-            overflow: "hidden",
-            borderRadius: 18,
-            padding: 15,
-            background: isFocus
-              ? `linear-gradient(180deg, ${col}16, transparent 30%), #0c0a0b`
-              : "linear-gradient(180deg,rgba(255,255,255,.03),transparent 26%),#0c0a0b",
-            border: isFocus
-              ? `1px solid ${col}66`
-              : "1px solid rgba(255,255,255,.08)",
-            boxShadow: isFocus
-              ? `0 0 26px ${col}22, inset 0 1px 0 rgba(255,255,255,.06), 0 14px 34px rgba(0,0,0,.5)`
-              : "inset 0 1px 0 rgba(255,255,255,.05), 0 12px 30px rgba(0,0,0,.4)",
-          };
-          const lastHint = last
-            ? `Terakhir ${last.weight}kg×${last.reps}`
-            : "Belum ada data";
-
-          return (
-            <div key={ex.name} style={cardStyle}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <button
-                  type="button"
-                  onClick={() => setDetailFor(i)}
-                  aria-label={`Panduan ${displayName}`}
-                  style={{
-                    width: 42,
-                    height: 42,
-                    flex: "none",
-                    borderRadius: 13,
-                    display: "grid",
-                    placeItems: "center",
-                    fontFamily: SANS,
-                    fontWeight: 800,
-                    fontSize: 18,
-                    color: "#fff",
-                    cursor: "pointer",
-                    padding: 0,
-                    background: col,
-                    border: "1px solid rgba(255,255,255,.28)",
-                    boxShadow: `inset 0 1.5px 1.5px rgba(255,255,255,.55), inset 0 -5px 9px rgba(0,0,0,.32), 0 6px 15px ${col}55`,
-                    textShadow: "0 1px 2px rgba(0,0,0,.4)",
-                  }}
-                >
-                  {displayName.charAt(0)}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDetailFor(i)}
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    textAlign: "left",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: 0,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontFamily: SANS,
-                      fontWeight: 700,
-                      fontSize: 16,
-                      color: "#f1ede9",
-                      lineHeight: 1.15,
-                    }}
-                  >
-                    {displayName}
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: MONO,
-                      fontSize: 9.5,
-                      letterSpacing: ".1em",
-                      color: col,
-                      marginTop: 3,
-                    }}
-                  >
-                    {MUSCLE_LABEL_ID[ex.primary[0]]}
-                  </div>
-                </button>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "flex-end",
-                    gap: 5,
-                  }}
-                >
-                  {isFocus && (
-                    <span
-                      style={{
-                        fontFamily: MONO,
-                        fontSize: 8.5,
-                        letterSpacing: ".1em",
-                        color: "#fff",
-                        padding: "3px 9px",
-                        borderRadius: 999,
-                        background: "linear-gradient(180deg,#ff8a52,#ee3c30)",
-                        boxShadow: "0 0 10px rgba(238,60,48,.5)",
-                        animation: "flamePulse 1.8s ease-in-out infinite",
-                      }}
-                    >
-                      ▶ GAS
-                    </span>
-                  )}
-                  <span
-                    style={{
-                      fontFamily: MONO,
-                      fontSize: 10.5,
-                      color: "#8a837d",
-                    }}
-                  >
-                    {ex.sets} × {ex.repsLabel}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setSwapFor(i)}
-                    style={{
-                      fontFamily: MONO,
-                      fontSize: 8.5,
-                      letterSpacing: ".1em",
-                      color: "#7c736e",
-                      background: "rgba(255,255,255,.04)",
-                      border: "1px solid rgba(255,255,255,.1)",
-                      borderRadius: 8,
-                      padding: "3px 8px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    ↔ TUKAR
-                  </button>
-                </div>
-              </div>
-
-              {log.swappedTo && (
-                <button
-                  type="button"
-                  onClick={() => clearSwap(i)}
-                  style={{
-                    display: "block",
-                    marginTop: 10,
-                    fontFamily: MONO,
-                    fontSize: 9,
-                    letterSpacing: ".06em",
-                    color: "#ff9a82",
-                    background: "rgba(238,60,48,.08)",
-                    border: "1px solid rgba(238,60,48,.28)",
-                    borderRadius: 8,
-                    padding: "6px 9px",
-                    cursor: "pointer",
-                    width: "100%",
-                    textAlign: "left",
-                  }}
-                >
-                  ↔ dari {ex.name} · ketuk untuk urungkan
-                </button>
-              )}
-
-              {/* Pips + last hint */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  marginTop: 13,
-                }}
-              >
-                <div style={{ flex: 1, display: "flex", gap: 4 }}>
-                  {Array.from({ length: ex.sets }).map((_, si) => {
-                    const filled = si < log.sets.length;
-                    return (
-                      <span
-                        key={si}
-                        style={{
-                          flex: 1,
-                          height: 5,
-                          borderRadius: 999,
-                          background: filled ? col : "rgba(255,255,255,.08)",
-                          boxShadow: filled ? `0 0 6px ${col}88` : "none",
-                          transition: "all .35s",
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-                <span
-                  style={{
-                    fontFamily: MONO,
-                    fontSize: 9.5,
-                    color: "#6a6660",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {lastHint}
-                </span>
-              </div>
-
-              {/* Set buttons */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill,minmax(74px,1fr))",
-                  gap: 7,
-                  marginTop: 12,
-                }}
-              >
-                {Array.from({ length: ex.sets }).map((_, si) => {
-                  const setNum = si + 1;
-                  const done = log.sets.find((s) => s.setNumber === setNum);
-                  const isNext = !done && si === log.sets.length;
-                  const isJust = justLogged === `${i}:${setNum}`;
-
-                  let btnStyle: CSSProperties;
-                  if (done) {
-                    btnStyle = {
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 3,
-                      padding: "11px 6px",
-                      borderRadius: 12,
-                      cursor: "pointer",
-                      alignItems: "center",
-                      background: isJust
-                        ? "linear-gradient(180deg,#ff8a52,#ee3c30)"
-                        : "rgba(238,60,48,.1)",
-                      border: isJust
-                        ? "1px solid rgba(255,180,150,.8)"
-                        : `1px solid ${col}55`,
-                      boxShadow: isJust ? "0 0 18px rgba(238,60,48,.7)" : "none",
-                      transition: "all .3s",
-                    };
-                  } else if (isNext) {
-                    btnStyle = {
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 3,
-                      padding: "11px 6px",
-                      borderRadius: 12,
-                      cursor: "pointer",
-                      alignItems: "center",
-                      background: "rgba(255,138,60,.1)",
-                      border: "1px dashed rgba(255,138,60,.6)",
-                      boxShadow: "0 0 14px rgba(255,138,60,.15)",
-                    };
-                  } else {
-                    btnStyle = {
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 3,
-                      padding: "11px 6px",
-                      borderRadius: 12,
-                      cursor: "pointer",
-                      alignItems: "center",
-                      background: "rgba(255,255,255,.03)",
-                      border: "1px solid rgba(255,255,255,.08)",
-                    };
-                  }
-
-                  const valText = done
-                    ? `${done.weight}×${done.reps}`
-                    : isNext
-                    ? "TAP"
-                    : last
-                    ? `${last.weight}×${last.reps}`
-                    : `${ex.targetReps}`;
-
-                  const valColor = done
-                    ? isJust
-                      ? "#fff"
-                      : "#ffb39e"
-                    : isNext
-                    ? "#ff8a52"
-                    : "#6a6660";
-
-                  return (
-                    <button
-                      key={si}
-                      type="button"
-                      onClick={() => openPending(i, setNum)}
-                      style={btnStyle}
-                    >
-                      <span
-                        style={{
-                          fontFamily: MONO,
-                          fontSize: 8.5,
-                          letterSpacing: ".1em",
-                          color: "#7c736e",
-                        }}
-                      >
-                        SET {setNum}
-                      </span>
-                      <span
-                        style={{
-                          fontFamily: SANS,
-                          fontWeight: 700,
-                          fontSize: 15,
-                          color: valColor,
-                        }}
-                      >
-                        {valText}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </main>
-
-      {/* Rest overlay */}
-      {restLeft > 0 && (
-        <div
-          role="alertdialog"
-          aria-label="Rest timer"
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 190,
-            background: "rgba(5,4,6,.82)",
-            backdropFilter: "blur(6px)",
-            display: "grid",
-            placeItems: "center",
-            padding: 18,
-          }}
-        >
-          <div
-            style={{
-              width: "76%",
-              maxWidth: 340,
-              textAlign: "center",
-              padding: "28px 22px",
-              borderRadius: 24,
-              background: "linear-gradient(180deg,#1b1513,#0f0c0b 60%)",
-              border: "1px solid rgba(255,150,120,.25)",
-              boxShadow:
-                "0 30px 70px rgba(0,0,0,.6),0 0 40px rgba(238,60,48,.14)",
-            }}
-          >
-            <div
-              style={{
-                fontFamily: MONO,
-                fontSize: 10.5,
-                letterSpacing: ".2em",
-                color: "#ff8a72",
-              }}
-            >
-              ⏱ ISTIRAHAT
-            </div>
-            <div
-              style={{
-                fontFamily: SANS,
-                fontWeight: 800,
-                fontSize: 56,
-                color: "#fff",
-                letterSpacing: "-.02em",
-                margin: "6px 0 14px",
-              }}
-            >
-              {fmtTime(restLeft)}
-            </div>
-            <div
-              style={{
-                height: 8,
-                borderRadius: 999,
-                background: "rgba(255,255,255,.07)",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  height: "100%",
-                  width: `${restPct}%`,
-                  borderRadius: 999,
-                  background: "linear-gradient(90deg,#ff8a3d,#ee2f1f)",
-                  transition: "width 1s linear",
-                  boxShadow: "0 0 10px rgba(238,60,48,.6)",
-                }}
-              />
-            </div>
-            <div
-              style={{
-                fontFamily: MONO,
-                fontSize: 10,
-                letterSpacing: ".06em",
-                color: "#8a837d",
-                marginTop: 14,
-              }}
-            >
-              Tarik napas. Re-rack. Tetap fokus.
-            </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
-              <button
-                type="button"
-                onClick={skipRest}
-                style={{
-                  flex: 1,
-                  padding: 13,
-                  borderRadius: 12,
-                  fontFamily: MONO,
-                  fontSize: 11,
-                  letterSpacing: ".08em",
-                  color: "#f1ede9",
-                  cursor: "pointer",
-                  background: "rgba(255,255,255,.05)",
-                  border: "1px solid rgba(255,255,255,.12)",
-                }}
-              >
-                SKIP
-              </button>
-              <button
-                type="button"
-                onClick={() => addRest(30)}
-                style={{
-                  flex: 1,
-                  padding: 13,
-                  borderRadius: 12,
-                  fontFamily: MONO,
-                  fontSize: 11,
-                  letterSpacing: ".08em",
-                  color: "#ff8a72",
-                  cursor: "pointer",
-                  background: "rgba(238,60,48,.1)",
-                  border: "1px solid rgba(238,60,48,.35)",
-                }}
-              >
-                +30s
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Set-entry modal */}
-      {pending && pendingDef && (() => {
-        const exLog = workout.exercises[pending.exerciseIdx];
-        const lastLogged = exLog.sets[exLog.sets.length - 1];
-        const hint = lastLogged
-          ? `Terakhir set ${exLog.sets.length}: ${lastLogged.weight}kg × ${lastLogged.reps}`
-          : "Set pertama — cari beban yang nyisain 1-2 rep";
-        return (
-          <div
-            onClick={() => setPending(null)}
-            style={{
-              position: "fixed",
-              inset: 0,
-              zIndex: 200,
-              background: "rgba(5,4,6,.72)",
-              backdropFilter: "blur(4px)",
-              display: "flex",
-              alignItems: "flex-end",
-            }}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                width: "100%",
-                maxWidth: 480,
-                margin: "0 auto",
-                borderRadius: "26px 26px 0 0",
-                padding:
-                  "22px 20px calc(30px + env(safe-area-inset-bottom)) 20px",
-                background: "linear-gradient(180deg,#161011,#0c0a0b 60%)",
-                borderTop: "1px solid rgba(255,255,255,.1)",
-                boxShadow: "0 -20px 50px rgba(0,0,0,.6)",
-                animation: "riseIn .28s cubic-bezier(.16,1,.3,1)",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "baseline",
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: SANS,
-                    fontWeight: 800,
-                    fontSize: 19,
-                    color: "#f5f2ef",
-                  }}
-                >
-                  {pendingDef.name}
-                </div>
-                <div
-                  style={{
-                    fontFamily: MONO,
-                    fontSize: 10.5,
-                    letterSpacing: ".14em",
-                    color: "#ff8a72",
-                  }}
-                >
-                  SET {pending.setNumber}
-                </div>
-              </div>
-
-              {/* KG stepper */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginTop: 20,
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: MONO,
-                    fontSize: 11,
-                    letterSpacing: ".14em",
-                    color: "#7c736e",
-                  }}
-                >
-                  KG
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                  <button
-                    type="button"
-                    onClick={() => adjustWeight(-1)}
-                    style={stepperMinus}
-                  >
-                    −
-                  </button>
-                  <span style={stepperValue}>{pending.weight}</span>
-                  <button
-                    type="button"
-                    onClick={() => adjustWeight(1)}
-                    style={stepperPlus}
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              {/* REPS stepper */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginTop: 16,
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: MONO,
-                    fontSize: 11,
-                    letterSpacing: ".14em",
-                    color: "#7c736e",
-                  }}
-                >
-                  REPS
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                  <button
-                    type="button"
-                    onClick={() => adjustReps(-1)}
-                    style={stepperMinus}
-                  >
-                    −
-                  </button>
-                  <span style={stepperValue}>{pending.reps}</span>
-                  <button
-                    type="button"
-                    onClick={() => adjustReps(1)}
-                    style={stepperPlus}
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  fontFamily: MONO,
-                  fontSize: 10,
-                  letterSpacing: ".08em",
-                  color: "#6a6660",
-                  marginTop: 16,
-                  textAlign: "center",
-                }}
-              >
-                {hint}
-              </div>
-
-              <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
-                <button
-                  type="button"
-                  onClick={() => setPending(null)}
-                  style={{
-                    flex: 1,
-                    padding: 15,
-                    borderRadius: 14,
-                    fontFamily: SANS,
-                    fontWeight: 700,
-                    fontSize: 14,
-                    color: "#9a938d",
-                    cursor: "pointer",
-                    background: "rgba(255,255,255,.04)",
-                    border: "1px solid rgba(255,255,255,.1)",
-                  }}
-                >
-                  BATAL
-                </button>
-                <button
-                  type="button"
-                  onClick={saveSet}
-                  style={{
-                    flex: 2,
-                    position: "relative",
-                    overflow: "hidden",
-                    padding: 15,
-                    borderRadius: 14,
-                    fontFamily: SANS,
-                    fontWeight: 800,
-                    fontSize: 14,
-                    color: "#fff",
-                    cursor: "pointer",
-                    background: FIRE,
-                    border: "1px solid rgba(255,150,120,.6)",
-                    boxShadow:
-                      "inset 0 1.5px 1px rgba(255,225,205,.7),0 10px 22px rgba(238,60,48,.42)",
-                    textShadow: "0 1px 2px rgba(120,15,5,.5)",
-                  }}
-                >
-                  <span
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: "-55%",
-                      width: "55%",
-                      height: "100%",
-                      background:
-                        "linear-gradient(105deg,transparent,rgba(255,255,255,.4),transparent)",
-                      animation: "btnSheen 5s ease-in-out infinite",
-                    }}
-                  />
-                  SIMPAN ✓
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Celebration burst */}
-      {celeb && (
-        <div
-          key={celeb.key}
-          style={{
-            position: "fixed",
-            inset: 0,
-            display: "grid",
-            placeItems: "center",
-            pointerEvents: "none",
-            zIndex: 210,
-          }}
-        >
-          <div style={{ position: "relative", display: "grid", placeItems: "center" }}>
-            {Array.from({ length: 12 }).map((_, i) => {
-              const ang = (i / 12) * Math.PI * 2;
-              const dist = 68 + ((i * 37) % 40);
-              return (
-                <span
-                  key={i}
-                  style={
-                    {
-                      position: "absolute",
-                      left: "50%",
-                      top: "50%",
-                      width: 7,
-                      height: 7,
-                      marginLeft: -3,
-                      marginTop: -3,
-                      borderRadius: "50%",
-                      background: i % 2 ? "#ffd25a" : "#ff5a3c",
-                      boxShadow: "0 0 8px #ff5a3c",
-                      ["--tx" as string]: `${Math.cos(ang) * dist}px`,
-                      ["--ty" as string]: `${Math.sin(ang) * dist}px`,
-                      animation: "sparkOut .85s cubic-bezier(.16,1,.3,1) forwards",
-                    } as CSSProperties
-                  }
-                />
-              );
-            })}
-            <div
-              style={{
-                position: "relative",
-                padding: celeb.big ? "16px 26px" : "12px 20px",
-                borderRadius: 16,
-                background: FIRE,
-                border: "1px solid rgba(255,150,120,.6)",
-                boxShadow:
-                  "inset 0 1.5px 1px rgba(255,225,205,.7),0 12px 30px rgba(238,60,48,.5)",
-                textAlign: "center",
-                animation: "celebPop .45s cubic-bezier(.16,1,.3,1)",
-              }}
-            >
-              <div
-                style={{
-                  fontFamily: SANS,
-                  fontWeight: 800,
-                  fontSize: celeb.big ? 22 : 16,
-                  color: "#fff",
-                  textShadow: "0 1px 2px rgba(120,15,5,.6)",
-                }}
-              >
-                {celeb.main}
-              </div>
-              {celeb.sub && (
-                <div
-                  style={{
-                    fontFamily: MONO,
-                    fontSize: 10,
-                    color: "rgba(255,240,235,.92)",
-                    letterSpacing: ".08em",
-                    marginTop: 4,
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {celeb.sub}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      </main>
 
       {swapFor !== null && def && (
-        <SwapSheet
-          originalName={def.exercises[swapFor].name}
+        <SwapModal
+          originalName={workout.exercises[swapFor]?.swappedTo ?? def.exercises[swapFor].name}
+          canonicalName={def.exercises[swapFor].name}
           onPick={(altName) => swapExercise(swapFor, altName)}
+          onAdd={() => {
+            setSwapFor(null);
+            setAddOpen(true);
+          }}
           onClose={() => setSwapFor(null)}
         />
       )}
 
-      {detailFor !== null && def && workout && (
+      {addOpen && (
+        <AddMachineModal onAdd={addMachine} onClose={() => setAddOpen(false)} />
+      )}
+
+      {detailFor !== null && def && (
         <DetailSheet
-          exerciseName={workout.exercises[detailFor].swappedTo ?? def.exercises[detailFor].name}
+          exerciseName={workout.exercises[detailFor]?.swappedTo ?? def.exercises[detailFor].name}
           canonicalName={def.exercises[detailFor].name}
           sessionType={workout.sessionType}
           targetReps={def.exercises[detailFor].targetReps}
@@ -1532,106 +790,418 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
   );
 }
 
-// Shared set-modal stepper button styles.
-const stepperMinus: CSSProperties = {
-  width: 46,
-  height: 46,
-  borderRadius: 14,
-  fontSize: 18,
-  color: "#f1ede9",
+const restBtn: CSSProperties = {
+  flex: "none",
+  padding: "9px 11px",
+  borderRadius: 10,
+  background: "#141011",
+  border: "1px solid rgba(255,255,255,.1)",
+  color: "#cfc8c2",
+  fontSize: 10,
+  letterSpacing: "1px",
   cursor: "pointer",
-  background: "rgba(255,255,255,.05)",
-  border: "1px solid rgba(255,255,255,.12)",
-};
-const stepperPlus: CSSProperties = {
-  width: 46,
-  height: 46,
-  borderRadius: 14,
-  fontSize: 18,
-  color: "#fff",
-  cursor: "pointer",
-  background: FIRE,
-  border: "1px solid rgba(255,150,120,.6)",
-  boxShadow: "inset 0 1px 1px rgba(255,225,205,.6),0 6px 14px rgba(238,60,48,.4)",
-};
-const stepperValue: CSSProperties = {
-  fontFamily: SANS,
-  fontWeight: 800,
-  fontSize: 30,
-  color: "#fff",
-  minWidth: 74,
-  textAlign: "center",
 };
 
+// ── Typeable weight/reps panel ──
+function StepperPanel({
+  label,
+  value,
+  onDown,
+  onUp,
+  onInput,
+  decimal,
+}: {
+  label: string;
+  value: number;
+  onDown: () => void;
+  onUp: () => void;
+  onInput: (v: number) => void;
+  decimal?: boolean;
+}) {
+  return (
+    <div style={{ flex: 1, background: "#0c0a0b", border: "1px solid rgba(255,255,255,.08)", borderRadius: 14, padding: "10px 10px 12px" }}>
+      <div className="mono" style={{ fontSize: 8.5, letterSpacing: "2px", color: "#7c736e", textAlign: "center", marginBottom: 8 }}>
+        {label}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+        <button type="button" className="tap-press" onClick={onDown} style={roundBtn}>−</button>
+        <input
+          inputMode={decimal ? "decimal" : "numeric"}
+          value={value}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === "") return onInput(0);
+            const n = decimal ? parseFloat(v) : parseInt(v, 10);
+            if (!isNaN(n)) onInput(Math.max(0, n));
+          }}
+          onFocus={(e) => e.currentTarget.select()}
+          style={{
+            width: 64,
+            minWidth: 0,
+            textAlign: "center",
+            background: "transparent",
+            border: "none",
+            outline: "none",
+            fontFamily: "inherit",
+            fontSize: 26,
+            fontWeight: 800,
+            color: "#f1ede9",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        />
+        <button type="button" className="tap-press" onClick={onUp} style={roundBtn}>+</button>
+      </div>
+    </div>
+  );
+}
+
+const roundBtn: CSSProperties = {
+  width: 38,
+  height: 38,
+  borderRadius: "50%",
+  background: "#141011",
+  border: "1px solid rgba(255,255,255,.1)",
+  color: "#ff8a72",
+  fontSize: 20,
+  cursor: "pointer",
+  flex: "none",
+};
+
+// ── Compact front-body muscle map (fire-highlighted region) ──
+function MiniBodyMap({ group }: { group: MuscleColorGroup }) {
+  const on = (g: MuscleColorGroup) => (group === g ? "url(#miniFire)" : "transparent");
+  return (
+    <svg viewBox="0 0 100 140" width="29" height="41" aria-hidden="true" style={{ flex: "none" }}>
+      <defs>
+        <linearGradient id="miniFire" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ffb454" />
+          <stop offset="1" stopColor="#ee2f1f" />
+        </linearGradient>
+        <filter id="miniGlow" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="2.1" result="b" />
+          <feMerge>
+            <feMergeNode in="b" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+      <g fill="#241b1c" stroke="#3d2e2f" strokeWidth="1" strokeLinejoin="round">
+        <ellipse cx="50" cy="14" rx="8" ry="10" />
+        <path d="M30 30 Q24 31 22 36 L23 50 L26 64 L30 76 L36 80 L64 80 L70 76 L74 64 L77 50 L78 36 Q76 31 70 30 L62 28 L38 28 Z" />
+        <path d="M22 36 Q17 38 16 44 L18 60 L24 64 L26 44 Q26 38 22 36 Z" />
+        <path d="M78 36 Q83 38 84 44 L82 60 L76 64 L74 44 Q74 38 78 36 Z" />
+        <path d="M36 80 L32 108 L40 120 L48 108 L48 82 Z" />
+        <path d="M64 80 L68 108 L60 120 L52 108 L52 82 Z" />
+        <path d="M34 118 L32 134 L40 138 L46 134 L46 120 Z" />
+        <path d="M66 118 L68 134 L60 138 L54 134 L54 120 Z" />
+      </g>
+      <g filter="url(#miniGlow)" stroke="none" style={{ animation: "wo-mpulse 1.9s ease-in-out infinite" }}>
+        {/* shoulders */}
+        <path d="M22 33 L33 32 L31 40 Q25 39 22 37 Z M78 33 L67 32 L69 40 Q75 39 78 37 Z" fill={on("shoulders")} />
+        {/* chest */}
+        <path d="M32 33 Q41 36 50 36 Q59 36 68 33 L70 44 Q60 50 50 50 Q40 50 30 44 Z" fill={on("chest")} />
+        {/* abs */}
+        <path d="M44 51 L56 51 L55 77 Q50 79 45 77 Z" fill={on("abs")} />
+        {/* back (subtle side aura) */}
+        <path d="M23 40 L27 66 L33 78 L37 76 Q31 72 29 62 L26 44 Z M77 40 L73 66 L67 78 L63 76 Q69 72 71 62 L74 44 Z" fill={on("back")} />
+        {/* arms */}
+        <path d="M18 42 L16 60 L23 63 L25 44 Q22 42 18 42 Z M82 42 L84 60 L77 63 L75 44 Q78 42 82 42 Z" fill={on("arms")} />
+        {/* legs */}
+        <path d="M36 82 L33 108 L41 120 L48 108 L48 82 Z M64 82 L67 108 L59 120 L52 108 L52 82 Z" fill={on("legs")} />
+      </g>
+    </svg>
+  );
+}
+
 // ============================================================
-// Swap bottom sheet
+// Swap modal — frosted glass, horizontal alternatives gallery
 // ============================================================
-function SwapSheet({
+function SwapModal({
   originalName,
+  canonicalName,
   onPick,
+  onAdd,
   onClose,
 }: {
   originalName: string;
+  canonicalName: string;
   onPick: (altName: string) => void;
+  onAdd: () => void;
   onClose: () => void;
 }) {
-  const alts: ExerciseAlternative[] = getAlternatives(originalName);
-  const [previewFor, setPreviewFor] = useState<string | null>(null);
+  const alts: ExerciseAlternative[] = getAlternatives(canonicalName);
   return (
-    <div className="sheet-overlay" onClick={onClose}>
-      <div className="sheet swap-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="sheet-handle" />
-        <div className="sheet-head">
-          <div className="sheet-title">{originalName.toUpperCase()}</div>
-          <button type="button" className="sheet-close" onClick={onClose}>✕</button>
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 200,
+        background: "rgba(4,3,5,.74)",
+        backdropFilter: "blur(9px)",
+        WebkitBackdropFilter: "blur(9px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 22,
+        animation: "wo-fadein .2s ease",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          animation: "wo-popin .36s cubic-bezier(.34,1.56,.64,1)",
+          width: "100%",
+          maxWidth: 400,
+          background: "linear-gradient(180deg,rgba(46,34,31,.5),rgba(14,12,13,.38))",
+          backdropFilter: "blur(30px) saturate(1.5)",
+          WebkitBackdropFilter: "blur(30px) saturate(1.5)",
+          border: "1px solid rgba(255,255,255,.18)",
+          borderRadius: 26,
+          padding: "22px 18px",
+          maxHeight: "84%",
+          overflowY: "auto",
+          boxShadow: "0 30px 80px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.22),0 0 60px rgba(238,60,48,.1)",
+        }}
+      >
+        <div style={{ position: "relative", textAlign: "center", marginBottom: 18 }}>
+          <div style={{ fontSize: 19, fontWeight: 800, color: "#f1ede9" }}>Ganti {originalName}</div>
+          <div className="mono" style={{ fontSize: 10, letterSpacing: ".5px", color: "#8a837d", marginTop: 5 }}>
+            Mesin penuh? Geser &amp; kenali alternatifnya.
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Tutup"
+            style={{ position: "absolute", top: -2, right: 0, width: 30, height: 30, borderRadius: "50%", background: "#141011", color: "#8a837d", fontSize: 17, cursor: "pointer", border: "none" }}
+          >
+            ×
+          </button>
         </div>
-        <div className="sheet-subtitle mono">ALTERNATIVES · TAP HOW TO PREVIEW · USE TO SWAP</div>
-        <div className="swap-list">
-          {alts.length === 0 && (
-            <div className="swap-empty mono">No alternatives listed for this one yet.</div>
-          )}
-          {alts.map((a) => {
-            const isOpen = previewFor === a.name;
-            return (
-              <div key={a.name} className={`swap-card-wrap${isOpen ? " open" : ""}`}>
-                <div className="swap-card">
+
+        {alts.length === 0 ? (
+          <div className="mono" style={{ textAlign: "center", fontSize: 11, color: "#8a837d", padding: "12px 0 4px" }}>
+            Belum ada alternatif buat gerakan ini.
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "flex", gap: 12, overflowX: "auto", scrollSnapType: "x mandatory", margin: "0 -18px", padding: "2px 18px 10px" }}>
+              {alts.map((a) => (
+                <div
+                  key={a.name}
+                  style={{
+                    flex: "none",
+                    width: 206,
+                    scrollSnapAlign: "center",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    textAlign: "center",
+                    gap: 11,
+                    padding: 14,
+                    borderRadius: 18,
+                    background: "linear-gradient(180deg,rgba(255,255,255,.045),transparent)",
+                    border: "1px solid rgba(255,255,255,.1)",
+                  }}
+                >
+                  <SwapDemo name={a.name} />
+                  <div style={{ fontWeight: 800, fontSize: 15, color: "#f1ede9", lineHeight: 1.15 }}>{a.name}</div>
+                  <div className="mono" style={{ fontSize: 9, letterSpacing: ".3px", color: "#8a837d", lineHeight: 1.55 }}>
+                    {a.reason}
+                    <br />
+                    {a.equipment}
+                  </div>
                   <button
                     type="button"
-                    className="swap-card-main swap-card-main-btn"
+                    className="mono tap-press"
                     onClick={() => onPick(a.name)}
+                    style={{
+                      marginTop: "auto",
+                      width: "100%",
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: "1px",
+                      color: "#fff",
+                      background: FIRE,
+                      border: "1px solid rgba(255,150,120,.5)",
+                      borderRadius: 999,
+                      padding: 11,
+                      cursor: "pointer",
+                    }}
                   >
-                    <div className="swap-card-name">{a.name}</div>
-                    <div className="swap-card-reason">{a.reason}</div>
-                    <div className="swap-card-eq mono">{a.equipment}</div>
+                    GANTI KE INI
                   </button>
-                  <div className="swap-card-actions">
-                    <button
-                      type="button"
-                      className="swap-card-how mono"
-                      onClick={() =>
-                        setPreviewFor((cur) => (cur === a.name ? null : a.name))
-                      }
-                      aria-expanded={isOpen}
-                    >
-                      {isOpen ? "HIDE" : "▶ HOW"}
-                    </button>
-                    <button
-                      type="button"
-                      className="swap-card-use-btn mono"
-                      onClick={() => onPick(a.name)}
-                    >
-                      USE →
-                    </button>
-                  </div>
                 </div>
-                {isOpen && (
-                  <div className="swap-card-preview">
-                    <DemoBlock exerciseName={a.name} canonicalName={a.name} />
-                  </div>
-                )}
-              </div>
-            );
-          })}
+              ))}
+            </div>
+            <div className="mono" style={{ textAlign: "center", fontSize: 8, letterSpacing: "1.5px", color: "#5a524e", marginTop: 6 }}>
+              ← GESER LIHAT PILIHAN LAIN →
+            </div>
+          </>
+        )}
+
+        <button
+          type="button"
+          className="mono tap-press"
+          onClick={onAdd}
+          style={{
+            width: "100%",
+            marginTop: 14,
+            padding: 14,
+            borderRadius: 14,
+            background: "rgba(238,60,48,.06)",
+            border: "1.5px dashed rgba(238,60,48,.4)",
+            color: "#ff8a72",
+            fontSize: 11,
+            letterSpacing: "1.5px",
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          ＋ TAMBAH MESIN LAIN (JANGAN GANTI)
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// A real machine demo image (from free-exercise-db) or a labelled placeholder.
+function SwapDemo({ name }: { name: string }) {
+  const demo = getExerciseDemo(name);
+  const [errored, setErrored] = useState(false);
+  if (demo && !errored) {
+    return (
+      <div style={{ width: "100%", height: 128, borderRadius: 13, overflow: "hidden", background: "radial-gradient(circle at 50% 38%,#1c1517,#0b090a)", border: "1px solid rgba(255,150,120,.35)" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={demo.frames[0]}
+          alt={name}
+          loading="lazy"
+          onError={() => setErrored(true)}
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        />
+      </div>
+    );
+  }
+  return (
+    <div style={{ width: "100%", height: 128, borderRadius: 13, background: "radial-gradient(circle at 50% 38%,#1c1517,#0b090a)", border: "1px dashed rgba(255,150,120,.35)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 7, color: "#8a837d" }}>
+      <span style={{ fontSize: 38 }}>🏋️</span>
+      <span className="mono" style={{ fontSize: 8, letterSpacing: "1.5px" }}>FOTO / ANIMASI MESIN</span>
+    </div>
+  );
+}
+
+// ============================================================
+// Add-machine modal — frosted search that appends to the session
+// ============================================================
+function AddMachineModal({
+  onAdd,
+  onClose,
+}: {
+  onAdd: (e: Equipment) => void;
+  onClose: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const pickRank = useMemo(() => getPickRank(), []);
+  const results = useMemo(
+    () => (q ? searchEquipment(query, EQUIPMENT, pickRank).slice(0, 10) : []),
+    [query, q, pickRank]
+  );
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 210,
+        background: "rgba(4,3,5,.74)",
+        backdropFilter: "blur(9px)",
+        WebkitBackdropFilter: "blur(9px)",
+        display: "flex",
+        alignItems: "flex-start",
+        justifyContent: "center",
+        padding: "calc(60px + env(safe-area-inset-top)) 18px 18px",
+        animation: "wo-fadein .2s ease",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          animation: "wo-popin .34s cubic-bezier(.34,1.56,.64,1)",
+          width: "100%",
+          maxWidth: 400,
+          maxHeight: "80%",
+          overflowY: "auto",
+          background: "linear-gradient(180deg,rgba(46,34,31,.5),rgba(14,12,13,.42))",
+          backdropFilter: "blur(30px) saturate(1.5)",
+          WebkitBackdropFilter: "blur(30px) saturate(1.5)",
+          border: "1px solid rgba(255,255,255,.18)",
+          borderRadius: 26,
+          padding: "18px 16px 20px",
+          boxShadow: "0 30px 80px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.22),0 0 60px rgba(238,60,48,.1)",
+        }}
+      >
+        <div style={{ fontSize: 16, fontWeight: 800, color: "#f1ede9", textAlign: "center", marginBottom: 12 }}>
+          Tambah mesin
+        </div>
+        <input
+          autoFocus
+          type="search"
+          inputMode="search"
+          placeholder="Cari mesin — chest, inner thigh…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="mono"
+          style={{
+            width: "100%",
+            background: "rgba(0,0,0,.3)",
+            border: "1px solid rgba(255,150,120,.3)",
+            borderRadius: 13,
+            padding: "13px 14px",
+            color: "#f1ede9",
+            fontSize: 14,
+            outline: "none",
+          }}
+        />
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+          {results.map((e) => (
+            <button
+              key={e.id}
+              type="button"
+              className="tap-press"
+              onClick={() => onAdd(e)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 10,
+                width: "100%",
+                cursor: "pointer",
+                padding: "12px 14px",
+                borderRadius: 13,
+                background: "linear-gradient(180deg,rgba(255,255,255,.045),transparent 55%),#0e0c0d",
+                border: "1px solid rgba(255,255,255,.1)",
+              }}
+            >
+              <span style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+                <span style={{ display: "block", fontWeight: 700, fontSize: 14, color: "#f1ede9", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {e.name}
+                </span>
+                <span className="mono" style={{ display: "block", fontSize: 9.5, color: "#8a837d", marginTop: 3 }}>
+                  {e.muscleGroup} · {e.category}
+                </span>
+              </span>
+              <span className="mono" style={{ flex: "none", fontSize: 9.5, fontWeight: 700, letterSpacing: ".1em", color: "#fff", borderRadius: 999, padding: "6px 12px", background: FIRE, border: "1px solid rgba(255,150,120,.5)" }}>
+                ＋ TAMBAH
+              </span>
+            </button>
+          ))}
+          {q && results.length === 0 && (
+            <div className="mono" style={{ textAlign: "center", fontSize: 11, color: "#8a837d", marginTop: 14 }}>
+              Nggak ada yang cocok.
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1639,7 +1209,7 @@ function SwapSheet({
 }
 
 // ============================================================
-// Detail bottom sheet
+// Detail bottom sheet (how-to / history) — reused from prior build
 // ============================================================
 function DetailSheet({
   exerciseName,
@@ -1656,12 +1226,9 @@ function DetailSheet({
   increment: number;
   onClose: () => void;
 }) {
-  // Prefer detail for the displayed (possibly swapped) exercise,
-  // fall back to the canonical one from the program.
   const detail: ExerciseDetail | null =
     getExerciseDetail(exerciseName) ?? getExerciseDetail(canonicalName);
 
-  // History: walk completed sessions of this type, find this canonical exercise
   const history = useMemo(() => {
     const all = getAllWorkouts()
       .filter((w) => w.sessionType === sessionType && w.completed)
@@ -1670,22 +1237,12 @@ function DetailSheet({
     for (const w of all) {
       const ex = w.exercises.find((e) => e.exerciseName === canonicalName);
       if (!ex || ex.sets.length === 0) continue;
-      const best = ex.sets.reduce((a, b) =>
-        b.weight * b.reps > a.weight * a.reps ? b : a
-      );
+      const best = ex.sets.reduce((a, b) => (b.weight * b.reps > a.weight * a.reps ? b : a));
       bestPerSession.push({ weight: best.weight, reps: best.reps, date: w.startedAt });
     }
     if (bestPerSession.length === 0) return null;
     const latest = bestPerSession[bestPerSession.length - 1];
-    const first = bestPerSession[0];
-    const delta = latest.weight - first.weight;
-    const last3 = bestPerSession.slice(-3).reverse();
-    return {
-      sessions: bestPerSession.length,
-      latest,
-      trendKg: delta,
-      last3,
-    };
+    return { latest, last3: bestPerSession.slice(-3).reverse() };
   }, [sessionType, canonicalName]);
 
   const overloadTip = useMemo(() => {
@@ -1756,10 +1313,7 @@ function DetailSheet({
                   <ul className="history-list">
                     {history.last3.map((h, i) => {
                       const d = new Date(h.date);
-                      const label = d.toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                      });
+                      const label = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
                       return (
                         <li key={i}>
                           <span className="d">{label}</span>
@@ -1774,12 +1328,8 @@ function DetailSheet({
                 </>
               ) : (
                 <>
-                  <div className="detail-row">
-                    <span className="dl">Terbaik:</span> — (pertama kali)
-                  </div>
-                  <div className="detail-row">
-                    <span className="dl">Target hari ini:</span> {targetReps} rep
-                  </div>
+                  <div className="detail-row"><span className="dl">Terbaik:</span> — (pertama kali)</div>
+                  <div className="detail-row"><span className="dl">Target hari ini:</span> {targetReps} rep</div>
                 </>
               )}
             </section>
@@ -1802,10 +1352,6 @@ function DetailSheet({
   );
 }
 
-
-// ============================================================
-// Two-frame "before / after" exercise demo loop
-// ============================================================
 function DemoBlock({
   exerciseName,
   canonicalName,
@@ -1830,38 +1376,21 @@ function DemoBlock({
       <div className="detail-section-head">▶ HOW IT LOOKS</div>
       {demo && !errored ? (
         <div className="demo-frame">
-          <img
-            src={demo.frames[0]}
-            alt={`${exerciseName} starting position`}
-            className={`demo-img${frame === 0 ? " on" : ""}`}
-            loading="lazy"
-            onError={() => setErrored(true)}
-          />
-          <img
-            src={demo.frames[1]}
-            alt={`${exerciseName} ending position`}
-            className={`demo-img${frame === 1 ? " on" : ""}`}
-            loading="lazy"
-            onError={() => setErrored(true)}
-          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={demo.frames[0]} alt={`${exerciseName} start`} className={`demo-img${frame === 0 ? " on" : ""}`} loading="lazy" onError={() => setErrored(true)} />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={demo.frames[1]} alt={`${exerciseName} end`} className={`demo-img${frame === 1 ? " on" : ""}`} loading="lazy" onError={() => setErrored(true)} />
         </div>
       ) : (
         <div className="demo-fallback mono">
           No demo image for this exercise yet — tap WATCH ON YOUTUBE for a video.
         </div>
       )}
-      <a
-        href={ytHref}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="demo-yt-btn mono"
-      >
+      <a href={ytHref} target="_blank" rel="noopener noreferrer" className="demo-yt-btn mono">
         ▶ WATCH ON YOUTUBE →
       </a>
       {demo && !errored && (
-        <div className="demo-credit mono">
-          Animation: free-exercise-db (MIT, two-frame loop)
-        </div>
+        <div className="demo-credit mono">Animation: free-exercise-db (MIT, two-frame loop)</div>
       )}
     </section>
   );
