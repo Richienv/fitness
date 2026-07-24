@@ -449,13 +449,7 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
 
             return (
               <div key={`${d.name}-${i}`} style={wrapStyle}>
-                <div
-                  onPointerDown={() => holdStart(i)}
-                  onPointerUp={holdEnd}
-                  onPointerLeave={holdEnd}
-                  onPointerCancel={holdEnd}
-                  style={cardStyle}
-                >
+                <div style={cardStyle}>
                   {isFocus && (
                     <div
                       style={{
@@ -480,8 +474,14 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                     </div>
                   )}
 
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                    <div style={{ minWidth: 0 }}>
+                  <div
+                    onPointerDown={() => holdStart(i)}
+                    onPointerUp={holdEnd}
+                    onPointerLeave={holdEnd}
+                    onPointerCancel={holdEnd}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, rowGap: 10, flexWrap: "wrap", touchAction: "manipulation" }}
+                  >
+                    <div style={{ minWidth: 0, flex: "1 1 auto" }}>
                       {!isFocus && (
                         <div style={{ fontSize: 18, fontWeight: 800, color: isComplete ? "#cfc8c2" : "#f1ede9", letterSpacing: ".3px" }}>
                           {isComplete ? "✓ " : ""}{displayName}
@@ -590,23 +590,24 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                         borderRadius: 14,
                         background: "#0c0a0b",
                         border: "1px solid rgba(255,255,255,.08)",
-                        padding: 16,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 14,
+                        padding: 14,
                       }}
                     >
-                      <div className="mono" style={{ fontSize: 34, fontWeight: 800, color: "#ff8a72", letterSpacing: "1px", fontVariantNumeric: "tabular-nums" }}>
-                        {fmtTime(restLeft)}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div className="mono" style={{ fontSize: 9, letterSpacing: "2px", color: "#7c736e" }}>ISTIRAHAT</div>
-                        <div style={{ height: 5, marginTop: 7, background: "#161011", borderRadius: 3, overflow: "hidden" }}>
-                          <div style={{ height: "100%", background: "linear-gradient(90deg,#ff8a3d,#ee2f1f)", borderRadius: 3, transition: "width 1s linear", width: `${restPct}%` }} />
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div className="mono" style={{ fontSize: 30, fontWeight: 800, color: "#ff8a72", letterSpacing: "1px", fontVariantNumeric: "tabular-nums", flex: "none" }}>
+                          {fmtTime(restLeft)}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="mono" style={{ fontSize: 9, letterSpacing: "2px", color: "#7c736e" }}>ISTIRAHAT</div>
+                          <div style={{ height: 5, marginTop: 7, background: "#161011", borderRadius: 3, overflow: "hidden" }}>
+                            <div style={{ height: "100%", background: "linear-gradient(90deg,#ff8a3d,#ee2f1f)", borderRadius: 3, transition: "width 1s linear", width: `${restPct}%` }} />
+                          </div>
                         </div>
                       </div>
-                      <button type="button" className="mono tap-press" onClick={() => addRest(15)} style={restBtn}>+15s</button>
-                      <button type="button" className="mono tap-press" onClick={skipRest} style={restBtn}>LEWATI</button>
+                      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                        <button type="button" className="mono tap-press" onClick={() => addRest(15)} style={restBtn}>+15 DETIK</button>
+                        <button type="button" className="mono tap-press" onClick={skipRest} style={restBtn}>LEWATI ISTIRAHAT</button>
+                      </div>
                     </div>
                   )}
 
@@ -791,8 +792,8 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
 }
 
 const restBtn: CSSProperties = {
-  flex: "none",
-  padding: "9px 11px",
+  flex: 1,
+  padding: "11px 10px",
   borderRadius: 10,
   background: "#141011",
   border: "1px solid rgba(255,255,255,.1)",
@@ -800,6 +801,7 @@ const restBtn: CSSProperties = {
   fontSize: 10,
   letterSpacing: "1px",
   cursor: "pointer",
+  whiteSpace: "nowrap",
 };
 
 // ── Typeable weight/reps panel ──
