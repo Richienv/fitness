@@ -354,6 +354,9 @@ export type WorkoutSession = {
   customName?: string;
   customFocus?: string;
   customExercises?: ExerciseDef[];
+  /** Machines appended mid-session (via ＋ TAMBAH MESIN in the logger). These
+   * render after the template's exercises for both preset and custom sessions. */
+  extraExercises?: ExerciseDef[];
   startedAt: number;
   endedAt?: number;
   durationMin?: number;
@@ -540,7 +543,9 @@ export function startQuickExercise(e: Equipment, date: string): { id: string } {
 }
 
 export function getDefForWorkout(w: WorkoutSession): SessionDef {
+  const extra = w.extraExercises ?? [];
   if (w.sessionType === "CUSTOM" && w.customExercises) {
+    const exercises = [...w.customExercises, ...extra];
     return {
       id: "CUSTOM",
       name: w.customName || "CUSTOM",
@@ -549,13 +554,29 @@ export function getDefForWorkout(w: WorkoutSession): SessionDef {
       recommendedDays: [],
       recommendedLabel: "",
       dayLabel: "CUSTOM",
-      primaryMuscles: Array.from(
-        new Set(w.customExercises.flatMap((e) => e.primary))
-      ),
-      exercises: w.customExercises,
+      primaryMuscles: Array.from(new Set(exercises.flatMap((e) => e.primary))),
+      exercises,
     };
   }
-  return getSession(w.sessionType)!;
+  const base = getSession(w.sessionType)!;
+  if (extra.length === 0) return base;
+  return { ...base, exercises: [...base.exercises, ...extra] };
+}
+
+/** Append a freestyle machine/exercise to an in-progress session (both preset
+ * and custom). Returns the updated session; the logger renders it after the
+ * template's exercises. */
+export function appendExerciseToWorkout(
+  w: WorkoutSession,
+  def: ExerciseDef
+): WorkoutSession {
+  const next: WorkoutSession = {
+    ...w,
+    extraExercises: [...(w.extraExercises ?? []), def],
+    exercises: [...w.exercises, { exerciseName: def.name, sets: [] }],
+  };
+  saveWorkout(next);
+  return next;
 }
 
 export function getCustomTemplates(): CustomTemplate[] {

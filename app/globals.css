@@ -8198,3 +8198,39 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+
+/* ============================================================
+ * LATIHAN redesign — home week-strip, focused logger, complete
+ * ============================================================ */
+@keyframes wo-cardin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes wo-firepulse {
+  0%, 100% { box-shadow: inset 0 1.5px 1px rgba(255,225,205,.7), inset 0 -4px 9px rgba(150,20,5,.4), 0 10px 26px rgba(238,60,48,.42); }
+  50% { box-shadow: inset 0 1.5px 1px rgba(255,225,205,.7), inset 0 -4px 9px rgba(150,20,5,.4), 0 14px 40px rgba(238,60,48,.7); }
+}
+@keyframes wo-cardglow {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(255,150,120,.5), 0 0 24px rgba(238,60,48,.16); }
+  50% { box-shadow: 0 0 0 1px rgba(255,150,120,.6), 0 0 40px rgba(238,60,48,.34); }
+}
+@keyframes wo-flamepulse {
+  0%, 100% { box-shadow: inset 0 1px 1px rgba(255,225,205,.6), 0 8px 22px rgba(238,60,48,.5), 0 0 10px rgba(238,60,48,.45); }
+  50% { box-shadow: inset 0 1px 1px rgba(255,225,205,.6), 0 8px 22px rgba(238,60,48,.5), 0 0 20px rgba(238,60,48,.85); }
+}
+@keyframes wo-launchpop { 0% { opacity: 0; transform: scale(.8); } 40% { opacity: 1; transform: scale(1.05); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes wo-popin { 0% { opacity: 0; transform: scale(.9) translateY(10px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+@keyframes wo-fadein { from { opacity: 0; } to { opacity: 1; } }
+@keyframes wo-mpulse { 0%, 100% { opacity: .82; } 50% { opacity: 1; } }
+@keyframes wo-badgepop { 0% { opacity: 0; transform: scale(.6); } 55% { opacity: 1; transform: scale(1.12); } 100% { transform: scale(1); } }
+@keyframes wo-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes wo-grow { from { width: 0; } }
+@keyframes wo-conf { 0% { transform: translateY(-10px) rotate(0); opacity: 0; } 12% { opacity: 1; } 100% { transform: translateY(560px) rotate(340deg); opacity: 0; } }
+@keyframes wo-donein { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: scale(1); } }
+
+/* LATIHAN redesign — shared interaction + stagger helpers */
+.tap-press { transition: transform .12s cubic-bezier(.34,1.56,.64,1); }
+.tap-press:active { transform: scale(.96); }
+.rise-1, .rise-2, .rise-3, .rise-4, .rise-5 { animation: wo-rise .5s cubic-bezier(.22,.61,.36,1) both; }
+.rise-1 { animation-delay: .05s; }
+.rise-2 { animation-delay: .13s; }
+.rise-3 { animation-delay: .21s; }
+.rise-4 { animation-delay: .29s; }
+.rise-5 { animation-delay: .37s; }
