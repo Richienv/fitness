@@ -33,6 +33,7 @@ import {
   type FoodGroup,
   type CustomFoodDef,
 } from "@/lib/foodGroups";
+import { CUISINES, cuisineOf, type CuisineKey } from "@/lib/cuisine";
 
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
 const MONO = "var(--font-dm-mono), 'JetBrains Mono', monospace";
@@ -56,6 +57,16 @@ type MealT = "breakfast" | "lunch" | "snack" | "dinner";
 const MEAL_KEYS: MealT[] = ["breakfast", "lunch", "snack", "dinner"];
 
 const EMOJI_OPTS = ["🍜", "🍽️", "🥡", "☕", "🍔", "🥗", "🔥", "🏪"];
+
+// Search-result sort modes. "relevan" keeps the ranked order from the API +
+// pick-boosting; the others re-order the whole result set.
+type SortMode = "relevan" | "kcalDesc" | "kcalAsc" | "name";
+const SORT_OPTS: { key: SortMode; label: string }[] = [
+  { key: "relevan", label: "RELEVAN" },
+  { key: "kcalDesc", label: "KALORI ↓" },
+  { key: "kcalAsc", label: "KALORI ↑" },
+  { key: "name", label: "A–Z" },
+];
 
 // Common shape shared by library ingredients, session custom foods and
 // custom-group foods. All optional fields default to absent.
@@ -290,6 +301,9 @@ export default function FoodBuilder({
   const flashTimer = useRef<number | null>(null);
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [query, setQuery] = useState("");
+  // Search-result ordering + optional cuisine grouping (Padang / Chinese / …).
+  const [sortMode, setSortMode] = useState<SortMode>("relevan");
+  const [groupCuisine, setGroupCuisine] = useState(false);
   const [overrides, setOverrides] = useState<Record<string, MacroPatch>>({});
   const [customFoods, setCustomFoods] = useState<CustomFoodDef[]>([]);
   const [groups, setGroups] = useState<FoodGroup[]>([]);
@@ -810,7 +824,35 @@ export default function FoodBuilder({
     picked.sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
     return picked.concat(rest);
   })();
-  const searchResultCount = searchFlat.length;
+  // Apply the chosen sort. "relevan" keeps the ranked order as-is.
+  const sortedSearch: BuilderFood[] = (() => {
+    if (sortMode === "relevan") return searchFlat;
+    const arr = [...searchFlat];
+    if (sortMode === "kcalDesc") arr.sort((a, b) => b.kcal - a.kcal);
+    else if (sortMode === "kcalAsc") arr.sort((a, b) => a.kcal - b.kcal);
+    else if (sortMode === "name")
+      arr.sort((a, b) => a.name.localeCompare(b.name, "id"));
+    return arr;
+  })();
+  const searchResultCount = sortedSearch.length;
+
+  // Cuisine buckets (Padang / Chinese / Jepang / …) in display order, non-empty
+  // only, preserving the current sort within each bucket.
+  const cuisineGroups: { key: CuisineKey; label: string; emoji: string; items: BuilderFood[] }[] =
+    (() => {
+      if (!groupCuisine) return [];
+      const by = new Map<CuisineKey, BuilderFood[]>();
+      for (const f of sortedSearch) {
+        const k = cuisineOf(f.name);
+        (by.get(k) ?? by.set(k, []).get(k)!).push(f);
+      }
+      return CUISINES.map((c) => ({
+        key: c.key,
+        label: c.label,
+        emoji: c.emoji,
+        items: by.get(c.key) ?? [],
+      })).filter((g) => g.items.length > 0);
+    })();
 
   // Browse-all sections (behind ⋯): favorites, each custom library group and
   // the whole local catalogue — no step scoping anymore.
@@ -1951,9 +1993,98 @@ export default function FoodBuilder({
                   <span>// {searchResultCount} HASIL</span>
                 )}
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                {searchFlat.map(renderResultRow)}
-              </div>
+
+              {/* Sort + group-by-cuisine toolbar */}
+              {searchResultCount > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    flexWrap: "wrap",
+                    marginBottom: 12,
+                  }}
+                >
+                  {SORT_OPTS.map((o) => {
+                    const on = sortMode === o.key;
+                    return (
+                      <button
+                        key={o.key}
+                        type="button"
+                        onClick={() => setSortMode(o.key)}
+                        style={{
+                          fontFamily: MONO,
+                          fontSize: 9,
+                          letterSpacing: ".08em",
+                          padding: "6px 10px",
+                          borderRadius: 999,
+                          cursor: "pointer",
+                          color: on ? "#fff" : "#9a938d",
+                          background: on ? FIRE : "rgba(255,255,255,.04)",
+                          border: on
+                            ? "1px solid rgba(255,150,120,.5)"
+                            : "1px solid rgba(255,255,255,.1)",
+                        }}
+                      >
+                        {o.label}
+                      </button>
+                    );
+                  })}
+                  <span style={{ flex: 1 }} />
+                  <button
+                    type="button"
+                    onClick={() => setGroupCuisine((v) => !v)}
+                    aria-pressed={groupCuisine}
+                    style={{
+                      fontFamily: MONO,
+                      fontSize: 9,
+                      letterSpacing: ".08em",
+                      padding: "6px 10px",
+                      borderRadius: 999,
+                      cursor: "pointer",
+                      color: groupCuisine ? "#fff" : "#9a938d",
+                      background: groupCuisine ? FIRE : "rgba(255,255,255,.04)",
+                      border: groupCuisine
+                        ? "1px solid rgba(255,150,120,.5)"
+                        : "1px solid rgba(255,255,255,.1)",
+                    }}
+                  >
+                    {groupCuisine ? "◱ MASAKAN ✓" : "◱ MASAKAN"}
+                  </button>
+                </div>
+              )}
+
+              {groupCuisine ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  {cuisineGroups.map((g) => (
+                    <div key={g.key}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 7,
+                          fontFamily: MONO,
+                          fontSize: 9.5,
+                          letterSpacing: ".14em",
+                          color: "#cfc8c2",
+                          margin: "0 0 8px 2px",
+                        }}
+                      >
+                        <span style={{ fontSize: 13 }}>{g.emoji}</span>
+                        <span>{g.label}</span>
+                        <span style={{ color: "#6a6660" }}>· {g.items.length}</span>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                        {g.items.map(renderResultRow)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                  {sortedSearch.map(renderResultRow)}
+                </div>
+              )}
               {searchResultCount === 0 && searching ? (
                 <div
                   style={{
