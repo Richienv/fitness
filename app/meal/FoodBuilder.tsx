@@ -824,35 +824,98 @@ export default function FoodBuilder({
     picked.sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
     return picked.concat(rest);
   })();
-  // Apply the chosen sort. "relevan" keeps the ranked order as-is.
-  const sortedSearch: BuilderFood[] = (() => {
-    if (sortMode === "relevan") return searchFlat;
-    const arr = [...searchFlat];
+  // Apply the chosen sort. "relevan" keeps the incoming (ranked / most-used)
+  // order as-is.
+  const applySort = (list: BuilderFood[]): BuilderFood[] => {
+    if (sortMode === "relevan") return list;
+    const arr = [...list];
     if (sortMode === "kcalDesc") arr.sort((a, b) => b.kcal - a.kcal);
     else if (sortMode === "kcalAsc") arr.sort((a, b) => a.kcal - b.kcal);
-    else if (sortMode === "name")
-      arr.sort((a, b) => a.name.localeCompare(b.name, "id"));
+    else if (sortMode === "name") arr.sort((a, b) => a.name.localeCompare(b.name, "id"));
     return arr;
-  })();
-  const searchResultCount = sortedSearch.length;
+  };
 
   // Cuisine buckets (Padang / Chinese / Jepang / …) in display order, non-empty
-  // only, preserving the current sort within each bucket.
-  const cuisineGroups: { key: CuisineKey; label: string; emoji: string; items: BuilderFood[] }[] =
-    (() => {
-      if (!groupCuisine) return [];
-      const by = new Map<CuisineKey, BuilderFood[]>();
-      for (const f of sortedSearch) {
-        const k = cuisineOf(f.name);
-        (by.get(k) ?? by.set(k, []).get(k)!).push(f);
-      }
-      return CUISINES.map((c) => ({
-        key: c.key,
-        label: c.label,
-        emoji: c.emoji,
-        items: by.get(c.key) ?? [],
-      })).filter((g) => g.items.length > 0);
-    })();
+  // only, preserving the incoming order within each bucket.
+  const bucketByCuisine = (list: BuilderFood[]) => {
+    const by = new Map<CuisineKey, BuilderFood[]>();
+    for (const f of list) {
+      const k = cuisineOf(f.name);
+      (by.get(k) ?? by.set(k, []).get(k)!).push(f);
+    }
+    return CUISINES.map((c) => ({
+      key: c.key,
+      label: c.label,
+      emoji: c.emoji,
+      items: by.get(c.key) ?? [],
+    })).filter((g) => g.items.length > 0);
+  };
+
+  const sortedSearch = applySort(searchFlat);
+  const searchResultCount = sortedSearch.length;
+  const cuisineGroups = groupCuisine ? bucketByCuisine(sortedSearch) : [];
+
+  // Shared sort + group-by-cuisine toolbar (used above search results AND the
+  // "SERING DIPAKAI" staples list so it's always discoverable).
+  const sortGroupToolbar = (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        flexWrap: "wrap",
+        marginBottom: 12,
+      }}
+    >
+      {SORT_OPTS.map((o) => {
+        const on = sortMode === o.key;
+        return (
+          <button
+            key={o.key}
+            type="button"
+            onClick={() => setSortMode(o.key)}
+            style={{
+              fontFamily: MONO,
+              fontSize: 9,
+              letterSpacing: ".08em",
+              padding: "6px 10px",
+              borderRadius: 999,
+              cursor: "pointer",
+              color: on ? "#fff" : "#9a938d",
+              background: on ? FIRE : "rgba(255,255,255,.04)",
+              border: on ? "1px solid rgba(255,150,120,.5)" : "1px solid rgba(255,255,255,.1)",
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+      <span style={{ flex: 1 }} />
+      <button
+        type="button"
+        onClick={() => setGroupCuisine((v) => !v)}
+        aria-pressed={groupCuisine}
+        style={{
+          fontFamily: MONO,
+          fontSize: 9,
+          letterSpacing: ".08em",
+          padding: "6px 10px",
+          borderRadius: 999,
+          cursor: "pointer",
+          color: groupCuisine ? "#fff" : "#9a938d",
+          background: groupCuisine ? FIRE : "rgba(255,255,255,.04)",
+          border: groupCuisine ? "1px solid rgba(255,150,120,.5)" : "1px solid rgba(255,255,255,.1)",
+        }}
+      >
+        {groupCuisine ? "◱ MASAKAN ✓" : "◱ MASAKAN"}
+      </button>
+    </div>
+  );
+
+  // Staples for "SERING DIPAKAI", with the same sort/grouping applied.
+  const pickFoods = picks.map(pickToFood);
+  const sortedPicks = applySort(pickFoods);
+  const pickCuisineGroups = groupCuisine ? bucketByCuisine(sortedPicks) : [];
 
   // Browse-all sections (behind ⋯): favorites, each custom library group and
   // the whole local catalogue — no step scoping anymore.
@@ -1963,9 +2026,40 @@ export default function FoodBuilder({
               >
                 ⭐ SERING DIPAKAI
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                {picks.slice(0, 6).map((p) => renderResultRow(pickToFood(p)))}
-              </div>
+              {sortGroupToolbar}
+              {groupCuisine ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  {pickCuisineGroups.map((g) => (
+                    <div key={g.key}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 7,
+                          fontFamily: MONO,
+                          fontSize: 9.5,
+                          letterSpacing: ".14em",
+                          color: "#cfc8c2",
+                          margin: "0 0 8px 2px",
+                        }}
+                      >
+                        <span style={{ fontSize: 13 }}>{g.emoji}</span>
+                        <span>{g.label}</span>
+                        <span style={{ color: "#6a6660" }}>· {g.items.length}</span>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                        {g.items.map(renderResultRow)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                  {(sortMode === "relevan" ? sortedPicks.slice(0, 6) : sortedPicks).map(
+                    renderResultRow
+                  )}
+                </div>
+              )}
             </>
           ) : null}
 
@@ -1995,64 +2089,7 @@ export default function FoodBuilder({
               </div>
 
               {/* Sort + group-by-cuisine toolbar */}
-              {searchResultCount > 0 && (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    flexWrap: "wrap",
-                    marginBottom: 12,
-                  }}
-                >
-                  {SORT_OPTS.map((o) => {
-                    const on = sortMode === o.key;
-                    return (
-                      <button
-                        key={o.key}
-                        type="button"
-                        onClick={() => setSortMode(o.key)}
-                        style={{
-                          fontFamily: MONO,
-                          fontSize: 9,
-                          letterSpacing: ".08em",
-                          padding: "6px 10px",
-                          borderRadius: 999,
-                          cursor: "pointer",
-                          color: on ? "#fff" : "#9a938d",
-                          background: on ? FIRE : "rgba(255,255,255,.04)",
-                          border: on
-                            ? "1px solid rgba(255,150,120,.5)"
-                            : "1px solid rgba(255,255,255,.1)",
-                        }}
-                      >
-                        {o.label}
-                      </button>
-                    );
-                  })}
-                  <span style={{ flex: 1 }} />
-                  <button
-                    type="button"
-                    onClick={() => setGroupCuisine((v) => !v)}
-                    aria-pressed={groupCuisine}
-                    style={{
-                      fontFamily: MONO,
-                      fontSize: 9,
-                      letterSpacing: ".08em",
-                      padding: "6px 10px",
-                      borderRadius: 999,
-                      cursor: "pointer",
-                      color: groupCuisine ? "#fff" : "#9a938d",
-                      background: groupCuisine ? FIRE : "rgba(255,255,255,.04)",
-                      border: groupCuisine
-                        ? "1px solid rgba(255,150,120,.5)"
-                        : "1px solid rgba(255,255,255,.1)",
-                    }}
-                  >
-                    {groupCuisine ? "◱ MASAKAN ✓" : "◱ MASAKAN"}
-                  </button>
-                </div>
-              )}
+              {searchResultCount > 0 && sortGroupToolbar}
 
               {groupCuisine ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
