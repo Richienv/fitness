@@ -2245,32 +2245,6 @@ export default function FoodBuilder({
           >
             <button
               type="button"
-              aria-label="Jelajahi semua makanan"
-              onClick={() => {
-                haptic("tap");
-                setBrowseOpen((v) => !v);
-              }}
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: "50%",
-                fontSize: 20,
-                lineHeight: 1,
-                cursor: "pointer",
-                color: browseOpen ? "#ff8a72" : "#cfc8c2",
-                background: browseOpen
-                  ? "linear-gradient(180deg,rgba(255,138,60,.16),rgba(255,138,60,.03))"
-                  : "linear-gradient(180deg,rgba(255,255,255,.09),rgba(255,255,255,.02))",
-                border: browseOpen
-                  ? "1px solid rgba(255,138,60,.45)"
-                  : "1px solid rgba(255,255,255,.16)",
-                boxShadow: "inset 0 1px 0 rgba(255,255,255,.1),0 8px 18px rgba(0,0,0,.4)",
-              }}
-            >
-              ⋯
-            </button>
-            <button
-              type="button"
               aria-label="Tambah makanan manual"
               onClick={() => {
                 haptic("tap");
