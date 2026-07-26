@@ -158,6 +158,10 @@ model Food {
   nameNormalized String
   state          String?
   foodGroup      String?
+  // Optional cuisine / "genre" tag (padang, chinese, japanese, …) for grouping
+  // the food search. Mostly set by JSON import; null falls back to a name-based
+  // classifier client-side.
+  cuisine        String?
 
   // 21 nutrient columns, per 100 g edible portion. Decimal (not float) to
   // preserve the source precision; NULL means "not measured / unknown".

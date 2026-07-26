@@ -33,7 +33,7 @@ import {
   type FoodGroup,
   type CustomFoodDef,
 } from "@/lib/foodGroups";
-import { CUISINES, cuisineOf, type CuisineKey } from "@/lib/cuisine";
+import { CUISINES, CUISINE_BY_KEY, cuisineOf, type CuisineKey } from "@/lib/cuisine";
 
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
 const MONO = "var(--font-dm-mono), 'JetBrains Mono', monospace";
@@ -84,6 +84,7 @@ type BuilderFood = {
   pinyin?: string;
   englishName?: string;
   foodGroup?: string;
+  cuisine?: CuisineKey;
   step?: number;
   gramsPerUnit?: number;
   favorite?: boolean;
@@ -95,11 +96,17 @@ type DbFoodRow = {
   name: string;
   nameEn?: string | null;
   foodGroup?: string | null;
+  cuisine?: string | null;
   energy_kcal: number | null;
   protein_g: number | null;
   fat_g: number | null;
   carb_g: number | null;
 };
+
+/** A DB row's cuisine tag if valid, else null (grouping falls back to name). */
+function rowCuisine(c: string | null | undefined): CuisineKey | undefined {
+  return c && c in CUISINE_BY_KEY ? (c as CuisineKey) : undefined;
+}
 
 type MacroPatch = {
   name: string;
@@ -326,6 +333,10 @@ export default function FoodBuilder({
   const [picks, setPicks] = useState<FoodPick[]>([]);
   // Shared library size for the empty-state hero count.
   const [libCount, setLibCount] = useState<number | null>(null);
+  // Whole catalogue (lazy) — powers sort/group across the FULL library, not
+  // just the relevant search hits.
+  const [allFoods, setAllFoods] = useState<BuilderFood[] | null>(null);
+  const [loadingAll, setLoadingAll] = useState(false);
   const searchRef = useRef<HTMLInputElement | null>(null);
 
   // Persisted custom "libraries" load client-side (localStorage).
@@ -380,6 +391,7 @@ export default function FoodBuilder({
             name: prettyFoodName(f.name),
             englishName: f.nameEn ?? undefined,
             foodGroup: f.foodGroup ?? undefined,
+            cuisine: rowCuisine(f.cuisine),
             unit: "100 g",
             group: "custom",
             kcal: f.energy_kcal ?? 0,
@@ -406,6 +418,50 @@ export default function FoodBuilder({
       clearTimeout(t);
     };
   }, [query]);
+
+  // Lazily load the WHOLE catalogue the first time the user browses it — i.e.
+  // sorts or groups with no active query — so sort/grouping spans the full
+  // library, not just the relevant search hits.
+  useEffect(() => {
+    const browsing = !query.trim() && (groupCuisine || sortMode !== "relevan");
+    if (!browsing || allFoods || loadingAll) return;
+    setLoadingAll(true);
+    let cancelled = false;
+    fetch("/api/foods/all")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        const rows: DbFoodRow[] = data?.data?.foods ?? [];
+        const mapped: BuilderFood[] = rows.map((f) => ({
+          id: f.sourceCode,
+          name: prettyFoodName(f.name),
+          englishName: f.nameEn ?? undefined,
+          foodGroup: f.foodGroup ?? undefined,
+          cuisine: rowCuisine(f.cuisine),
+          unit: "100 g",
+          group: "custom",
+          kcal: f.energy_kcal ?? 0,
+          protein: f.protein_g ?? 0,
+          fat: f.fat_g ?? 0,
+          carbs: f.carb_g ?? 0,
+          gramsPerUnit: 100,
+          step: 0.1,
+        }));
+        setAllFoods(mapped);
+        setDbCache((c) => {
+          const next = { ...c };
+          for (const m of mapped) if (!next[m.id]) next[m.id] = m;
+          return next;
+        });
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoadingAll(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [query, groupCuisine, sortMode, allFoods, loadingAll]);
 
   // A remembered pick as a builder food (for rendering + adding without a fresh
   // search — its macros are snapshotted in the pick store).
@@ -840,7 +896,7 @@ export default function FoodBuilder({
   const bucketByCuisine = (list: BuilderFood[]) => {
     const by = new Map<CuisineKey, BuilderFood[]>();
     for (const f of list) {
-      const k = cuisineOf(f.name);
+      const k = f.cuisine ?? cuisineOf(f.name);
       (by.get(k) ?? by.set(k, []).get(k)!).push(f);
     }
     return CUISINES.map((c) => ({
@@ -916,6 +972,14 @@ export default function FoodBuilder({
   const pickFoods = picks.map(pickToFood);
   const sortedPicks = applySort(pickFoods);
   const pickCuisineGroups = groupCuisine ? bucketByCuisine(sortedPicks) : [];
+
+  // Browse mode: sort/group with no query → the WHOLE library (capped for perf).
+  const browsing = !q && (groupCuisine || sortMode !== "relevan");
+  const BROWSE_CAP = 500;
+  const browseSorted = browsing ? applySort(allFoods ?? []) : [];
+  const browseTruncated = browseSorted.length > BROWSE_CAP;
+  const browseList = browseSorted.slice(0, BROWSE_CAP);
+  const browseCuisineGroups = groupCuisine ? bucketByCuisine(browseList) : [];
 
   // Browse-all sections (behind ⋯): favorites, each custom library group and
   // the whole local catalogue — no step scoping anymore.
@@ -1144,6 +1208,37 @@ export default function FoodBuilder({
       </div>
     );
   };
+
+  // Render cuisine-bucketed result rows (shared by search / staples / browse).
+  const renderCuisineGroups = (
+    groups: { key: CuisineKey; label: string; emoji: string; items: BuilderFood[] }[]
+  ) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {groups.map((g) => (
+        <div key={g.key}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              fontFamily: MONO,
+              fontSize: 9.5,
+              letterSpacing: ".14em",
+              color: "#cfc8c2",
+              margin: "0 0 8px 2px",
+            }}
+          >
+            <span style={{ fontSize: 13 }}>{g.emoji}</span>
+            <span>{g.label}</span>
+            <span style={{ color: "#6a6660" }}>· {g.items.length}</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {g.items.map(renderResultRow)}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 
   // ---------- browse row (reference: detailed card with hanzi reveal + edit,
   // used only inside the collapsed "browse-all" library, not search results) --
@@ -1568,7 +1663,7 @@ export default function FoodBuilder({
             // or search results — use a plain block scroll instead, because a
             // flex column lets the search wrapper (overflow:hidden → min-height 0)
             // get squashed to a line. Block layout can never shrink it.
-            emptyState && picks.length === 0
+            emptyState && picks.length === 0 && !browsing
               ? {
                   position: "relative",
                   zIndex: 1,
@@ -1872,6 +1967,24 @@ export default function FoodBuilder({
               >
                 TINGGAL KETIK
               </div>
+              <a
+                href="/meal/import"
+                className="mono"
+                style={{
+                  display: "inline-block",
+                  marginTop: 16,
+                  fontSize: 10,
+                  letterSpacing: ".1em",
+                  color: "#ff8a72",
+                  textDecoration: "none",
+                  padding: "8px 14px",
+                  borderRadius: 999,
+                  background: "rgba(238,60,48,.08)",
+                  border: "1px solid rgba(238,60,48,.3)",
+                }}
+              >
+                ⬇ IMPOR JSON
+              </a>
             </div>
           ) : null}
 
@@ -2009,8 +2122,8 @@ export default function FoodBuilder({
             </div>
           )}
 
-          {/* ── SERING DIPAKAI — the user's staples, one tap to log ── */}
-          {!q && !browseOpen && picks.length > 0 ? (
+          {/* ── SERING DIPAKAI (default) / SEMUA MAKANAN (when sorting/grouping) ── */}
+          {!q && !browseOpen && (picks.length > 0 || browsing) ? (
             <>
               <div
                 style={{
@@ -2024,35 +2137,52 @@ export default function FoodBuilder({
                   margin: "16px 0 10px",
                 }}
               >
-                ⭐ SERING DIPAKAI
+                {browsing ? `🍽️ SEMUA MAKANAN · ${fmtCount(browseSorted.length)}` : "⭐ SERING DIPAKAI"}
               </div>
               {sortGroupToolbar}
-              {groupCuisine ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                  {pickCuisineGroups.map((g) => (
-                    <div key={g.key}>
+              {browsing ? (
+                loadingAll && !allFoods ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "34px 10px",
+                    }}
+                  >
+                    <span className="fb-spinner fb-spinner-lg" aria-hidden="true" />
+                    <span style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: ".14em", color: "#7c736e" }}>
+                      MEMUAT LIBRARY…
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    {groupCuisine ? (
+                      renderCuisineGroups(browseCuisineGroups)
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                        {browseList.map(renderResultRow)}
+                      </div>
+                    )}
+                    {browseTruncated ? (
                       <div
                         style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 7,
                           fontFamily: MONO,
-                          fontSize: 9.5,
-                          letterSpacing: ".14em",
-                          color: "#cfc8c2",
-                          margin: "0 0 8px 2px",
+                          fontSize: 9,
+                          letterSpacing: ".08em",
+                          color: "#6a6660",
+                          textAlign: "center",
+                          marginTop: 14,
                         }}
                       >
-                        <span style={{ fontSize: 13 }}>{g.emoji}</span>
-                        <span>{g.label}</span>
-                        <span style={{ color: "#6a6660" }}>· {g.items.length}</span>
+                        menampilkan {BROWSE_CAP} teratas dari {fmtCount(browseSorted.length)} · ketik buat cari sisanya
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                        {g.items.map(renderResultRow)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ) : null}
+                  </>
+                )
+              ) : groupCuisine ? (
+                renderCuisineGroups(pickCuisineGroups)
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                   {(sortMode === "relevan" ? sortedPicks.slice(0, 6) : sortedPicks).map(
@@ -2092,31 +2222,7 @@ export default function FoodBuilder({
               {searchResultCount > 0 && sortGroupToolbar}
 
               {groupCuisine ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                  {cuisineGroups.map((g) => (
-                    <div key={g.key}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 7,
-                          fontFamily: MONO,
-                          fontSize: 9.5,
-                          letterSpacing: ".14em",
-                          color: "#cfc8c2",
-                          margin: "0 0 8px 2px",
-                        }}
-                      >
-                        <span style={{ fontSize: 13 }}>{g.emoji}</span>
-                        <span>{g.label}</span>
-                        <span style={{ color: "#6a6660" }}>· {g.items.length}</span>
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                        {g.items.map(renderResultRow)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                renderCuisineGroups(cuisineGroups)
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                   {sortedSearch.map(renderResultRow)}

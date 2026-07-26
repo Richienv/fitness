@@ -51,6 +51,7 @@ interface SearchRow {
   nameEn: string | null;
   state: string | null;
   foodGroup: string | null;
+  cuisine: string | null;
   energy_kcal: Prisma.Decimal | null;
   protein_g: Prisma.Decimal | null;
   fat_g: Prisma.Decimal | null;
@@ -65,6 +66,7 @@ interface SearchFood {
   nameEn: string | null;
   state: string | null;
   foodGroup: string | null;
+  cuisine: string | null;
   energy_kcal: number | null;
   protein_g: number | null;
   fat_g: number | null;
@@ -289,7 +291,7 @@ export async function GET(req: Request) {
 
     const rows = await db.$queryRaw<SearchRow[]>(Prisma.sql`
       SELECT
-        f.id, f."sourceCode", f.name, f."nameEn", f.state, f."foodGroup",
+        f.id, f."sourceCode", f.name, f."nameEn", f.state, f."foodGroup", f.cuisine,
         f.energy_kcal, f.protein_g, f.fat_g, f.carb_g,
         ${scoreExpr} AS score
       FROM "Food" f
@@ -305,6 +307,7 @@ export async function GET(req: Request) {
       nameEn: r.nameEn,
       state: r.state,
       foodGroup: r.foodGroup,
+      cuisine: r.cuisine,
       energy_kcal: num(r.energy_kcal),
       protein_g: num(r.protein_g),
       fat_g: num(r.fat_g),
