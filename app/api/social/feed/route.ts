@@ -11,6 +11,7 @@
 import { NextResponse } from "next/server";
 import { getUserId } from "@/lib/session";
 import { acceptedFollowingIds, daySummaries } from "@/lib/social";
+import { todayKey } from "@/lib/targets";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,9 @@ export async function GET(req: Request) {
 
     const url = new URL(req.url);
     const raw = url.searchParams.get("date") ?? "";
-    const date = DATE_RE.test(raw) ? raw : new Date().toISOString().slice(0, 10);
+    // Fall back to the app's CST date key, not UTC — date rows are written in
+    // Asia/Shanghai, so toISOString() would have queried a different day.
+    const date = DATE_RE.test(raw) ? raw : todayKey();
 
     const ids = await acceptedFollowingIds(userId);
     if (ids.length === 0) {

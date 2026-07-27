@@ -2935,7 +2935,8 @@ a { color: inherit; text-decoration: none; }
   bottom: 0;
   z-index: 100;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  /* 6 slots: BERANDA · MAKAN · [OS] · LATIHAN · TEMAN · STATS */
+  grid-template-columns: repeat(6, 1fr);
   background: rgba(10, 10, 10, 0.95);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -2964,7 +2965,13 @@ a { color: inherit; text-decoration: none; }
 .bn-label {
   font-family: var(--font-dm-mono), monospace;
   font-size: 9px;
-  letter-spacing: 1.5px;
+  /* Tightened from 1.5px: at 6 slots a 7-char label ("BERANDA", "LATIHAN")
+     has ~62px on a 375px phone, and the old spacing wrapped it. */
+  letter-spacing: 0.8px;
+  white-space: nowrap;
+}
+@media (max-width: 360px) {
+  .bn-label { font-size: 8px; letter-spacing: 0.4px; }
 }
 .bn-item.active { color: var(--accent); }
 .bn-item.active .bn-icon { filter: none; }

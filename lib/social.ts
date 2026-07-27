@@ -6,6 +6,12 @@
 // rather than being re-derived (and eventually mis-derived) per route.
 
 import { db } from "./db";
+import { INGREDIENTS } from "./ingredients";
+
+// Library meal items persist as { id, qty } with no name (see
+// IngredientMealItem in lib/store.ts) — only custom items carry one. Without
+// this lookup every normally-logged food rendered as an em-dash in the feed.
+const INGREDIENT_NAME = new Map(INGREDIENTS.map((i) => [i.id, i.name]));
 
 export type PublicUser = { id: string; name: string | null; username: string | null };
 
@@ -125,10 +131,14 @@ export async function daySummaries(
     s.meals.push({
       mealType: m.mealType,
       kcal: Math.round(num(t.kcal)),
-      // Custom items carry their name; library items only carry an id, which
-      // resolves client-side — surface what we have without leaking raw ids.
+      // Custom items carry their name inline; library items only carry an id,
+      // resolved here against the shared ingredient list. Unknown ids are
+      // dropped rather than shown raw.
       items: rawItems
-        .map((i) => (typeof i?.name === "string" ? i.name : ""))
+        .map((i) => {
+          if (typeof i?.name === "string" && i.name) return i.name;
+          return (typeof i?.id === "string" && INGREDIENT_NAME.get(i.id)) || "";
+        })
         .filter((n): n is string => n.length > 0),
     });
   }
