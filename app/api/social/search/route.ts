@@ -25,7 +25,14 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401, headers: noStore });
     }
 
-    const q = normalizeUsername(new URL(req.url).searchParams.get("q") ?? "");
+    // Strip anything outside the username charset BEFORE it reaches the query.
+    // normalizeUsername only lowercases and drops a leading @, so characters
+    // like `%` would otherwise survive into Prisma's startsWith (a LIKE
+    // pattern) and match every row — turning search into a full user dump.
+    const q = normalizeUsername(new URL(req.url).searchParams.get("q") ?? "").replace(
+      /[^a-z0-9_]/g,
+      ""
+    );
     if (q.length < 2) {
       return NextResponse.json({ ok: true, data: { results: [] } }, { headers: noStore });
     }

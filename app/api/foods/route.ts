@@ -75,13 +75,29 @@ export async function POST(req: Request) {
       per100g: body.per100g as never,
       source: body.source ?? actor,
     };
-    const saved = body.id
-      ? await db.foodItem.upsert({
-          where: { id: body.id },
-          create: { id: body.id, userId, ...data },
-          update: data,
-        })
-      : await db.foodItem.create({ data: { userId, ...data } });
+    // OWNERSHIP: a plain upsert keyed on the client-supplied id would let any
+    // logged-in user overwrite a row they don't own — including the shared
+    // catalogue (userId = null), whose ids GET /api/foods hands out. Prisma's
+    // upsert `where` only takes a unique selector, so it cannot carry userId;
+    // check explicitly instead.
+    let saved;
+    if (body.id) {
+      const existing = await db.foodItem.findUnique({
+        where: { id: body.id },
+        select: { userId: true },
+      });
+      if (existing && existing.userId !== userId) {
+        return NextResponse.json(
+          { ok: false, error: "forbidden", message: "Not your food." },
+          { status: 403, headers: corsHeaders }
+        );
+      }
+      saved = existing
+        ? await db.foodItem.update({ where: { id: body.id }, data })
+        : await db.foodItem.create({ data: { id: body.id, userId, ...data } });
+    } else {
+      saved = await db.foodItem.create({ data: { userId, ...data } });
+    }
 
     await logActivity({
       actor,
