@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getHermesOwnerId } from "@/lib/session";
+import { hasApiKey } from "@/lib/apiKeyGuard";
 import {
   DAILY_PROTEIN_TARGET,
   microTotalsFor,
@@ -29,6 +30,16 @@ export async function OPTIONS() {
  */
 export async function GET(req: Request) {
   try {
+    // This route resolves a FIXED user (the Hermes owner) rather than the
+    // caller, so it has no session to gate on — and middleware lets GETs past
+    // without the api-key. Without this check the owner's nutrition gaps
+    // (and therefore their intake, via target - gap) were world-readable.
+    if (!hasApiKey(req)) {
+      return NextResponse.json(
+        { ok: false, error: "unauthorized" },
+        { status: 401, headers: corsHeaders }
+      );
+    }
     const userId = await getHermesOwnerId();
     if (!userId)
       return NextResponse.json(

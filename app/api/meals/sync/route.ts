@@ -32,27 +32,41 @@ export async function POST(req: Request) {
     }
     const valid = body.filter(isMealPayload);
     let synced = 0;
+    let forbidden = 0;
+    // OWNERSHIP: rows already owned by someone else are skipped, never
+    // overwritten — an unscoped upsert here would let a caller rewrite another
+    // user's meals in bulk. (Same reasoning as POST /api/meals.)
+    const ids = valid.map((m) => m.id);
+    const owners = new Map(
+      (
+        await db.mealEntry.findMany({
+          where: { id: { in: ids } },
+          select: { id: true, userId: true },
+        })
+      ).map((r) => [r.id, r.userId])
+    );
     for (const m of valid) {
-      await db.mealEntry.upsert({
-        where: { id: m.id },
-        create: {
-          id: m.id,
-          userId,
-          date: m.date,
-          mealType: m.mealType,
-          items: m.items as never,
-          totals: m.totals as never,
-        },
-        update: {
-          date: m.date,
-          mealType: m.mealType,
-          items: m.items as never,
-          totals: m.totals as never,
-        },
-      });
+      const owner = owners.get(m.id);
+      if (owner && owner !== userId) {
+        forbidden++;
+        continue;
+      }
+      const fields = {
+        date: m.date,
+        mealType: m.mealType,
+        items: m.items as never,
+        totals: m.totals as never,
+      };
+      if (owner) await db.mealEntry.update({ where: { id: m.id }, data: fields });
+      else await db.mealEntry.create({ data: { id: m.id, userId, ...fields } });
       synced++;
     }
-    return NextResponse.json({ ok: true, synced, skipped: body.length - valid.length });
+    return NextResponse.json({
+      ok: true,
+      synced,
+      skipped: body.length - valid.length,
+      forbidden,
+    });
   } catch (e) {
     return NextResponse.json(
       { error: "sync failed", detail: (e as Error).message },

@@ -88,28 +88,45 @@ export async function POST(req: Request) {
       );
     }
     const exercises = Array.isArray(body.exercises) ? body.exercises : [];
-    const saved = await db.workoutSession.upsert({
+    // OWNERSHIP: upsert's `where` can't carry userId, so an unscoped update
+    // would let a caller overwrite another user's session by id — including
+    // what renders on their social feed card. Check the owner explicitly.
+    const existing = await db.workoutSession.findUnique({
       where: { id: body.id },
-      create: {
-        id: body.id,
-        userId,
-        date: body.date,
-        sessionType: body.sessionType,
-        totalVolume: body.totalVolume ?? 0,
-        exercises: {
-          create: exercises.map((e) => ({ name: e.name, sets: e.sets as never })),
-        },
-      },
-      update: {
-        date: body.date,
-        sessionType: body.sessionType,
-        totalVolume: body.totalVolume ?? 0,
-        exercises: {
-          deleteMany: {},
-          create: exercises.map((e) => ({ name: e.name, sets: e.sets as never })),
-        },
-      },
+      select: { userId: true },
     });
+    if (existing && existing.userId !== userId) {
+      return NextResponse.json(
+        { ok: false, error: "forbidden" },
+        { status: 403, headers: corsHeaders }
+      );
+    }
+    const shared = {
+      date: body.date,
+      sessionType: body.sessionType,
+      totalVolume: body.totalVolume ?? 0,
+    };
+    const saved = existing
+      ? await db.workoutSession.update({
+          where: { id: body.id },
+          data: {
+            ...shared,
+            exercises: {
+              deleteMany: {},
+              create: exercises.map((e) => ({ name: e.name, sets: e.sets as never })),
+            },
+          },
+        })
+      : await db.workoutSession.create({
+          data: {
+            id: body.id,
+            userId,
+            ...shared,
+            exercises: {
+              create: exercises.map((e) => ({ name: e.name, sets: e.sets as never })),
+            },
+          },
+        });
     return NextResponse.json({ ok: true, data: { id: saved.id } }, { headers: corsHeaders });
   } catch (e) {
     return NextResponse.json(

@@ -31,23 +31,26 @@ export async function POST(req: Request) {
     if (!isMealPayload(body)) {
       return NextResponse.json({ error: "invalid payload" }, { status: 400 });
     }
-    const saved = await db.mealEntry.upsert({
+    const fields = {
+      date: body.date,
+      mealType: body.mealType,
+      items: body.items as never,
+      totals: body.totals as never,
+    };
+    // OWNERSHIP: upsert's `where` takes only a unique selector, so it can't
+    // carry userId — an unscoped update would let a caller overwrite another
+    // user's meal by id (and, since the social feed renders meals, plant
+    // content on someone else's day). Check the owner explicitly.
+    const existing = await db.mealEntry.findUnique({
       where: { id: body.id },
-      create: {
-        id: body.id,
-        userId,
-        date: body.date,
-        mealType: body.mealType,
-        items: body.items as never,
-        totals: body.totals as never,
-      },
-      update: {
-        date: body.date,
-        mealType: body.mealType,
-        items: body.items as never,
-        totals: body.totals as never,
-      },
+      select: { userId: true },
     });
+    if (existing && existing.userId !== userId) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    const saved = existing
+      ? await db.mealEntry.update({ where: { id: body.id }, data: fields })
+      : await db.mealEntry.create({ data: { id: body.id, userId, ...fields } });
     return NextResponse.json({ ok: true, id: saved.id });
   } catch (e) {
     return NextResponse.json(

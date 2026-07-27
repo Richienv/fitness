@@ -2,13 +2,17 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getHermesOwnerId } from "@/lib/session";
 
-// Public GET diagnostics — never returns the key itself, only enough shape
-// (length + first/last 4 chars) to spot paste errors in the Vercel env var.
-// Send your candidate key in x-api-key to get a definitive match yes/no.
-export async function GET(req: Request) {
-  const raw = process.env.R2_FIT_API_KEY ?? "";
-  const expected = raw.trim();
-  const candidate = (req.headers.get("x-api-key") ?? "").trim();
+// Public GET diagnostics: deployment + DB liveness only.
+//
+// SECURITY: this route is unauthenticated (middleware only enforces the
+// api-key on mutations, and a GET is not a mutation), so it must never
+// describe R2_FIT_API_KEY beyond "is it set". It previously returned the
+// key's exact length and its first/last 4 characters, plus a `keyMatch`
+// yes/no for any candidate supplied in x-api-key — together an unlimited
+// offline-free guessing oracle against a drastically reduced search space.
+// Both the shape fields and the oracle are gone; do not reintroduce them.
+export async function GET() {
+  const expected = (process.env.R2_FIT_API_KEY ?? "").trim();
 
   let dbOk = false;
   let dbError: string | null = null;
@@ -38,13 +42,8 @@ export async function GET(req: Request) {
     {
       ok: true,
       data: {
+        // Presence only — never length, never a preview, never a match oracle.
         keyConfigured: expected.length > 0,
-        keyLength: expected.length,
-        keyHadWhitespace: raw !== expected,
-        keyPreview: expected
-          ? `${expected.slice(0, 4)}…${expected.slice(-4)}`
-          : null,
-        keyMatch: candidate ? candidate === expected : null,
         ownerConfigured,
         db: { connected: dbOk, error: dbError },
         foodCount,
