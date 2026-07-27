@@ -421,6 +421,10 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
 
             const wrapStyle: CSSProperties = {
               marginBottom: 14,
+              // The focused card's name badge hangs above its top edge, so
+              // reserve room for it — otherwise it lands on the card above
+              // (the 14px gap alone was exactly the overhang).
+              marginTop: isFocus ? 20 : 0,
               transition: "opacity .3s ease",
               opacity: isComplete && !isFocus ? 0.5 : isFuture ? 0.72 : 1,
             };
@@ -454,16 +458,25 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                     <div
                       style={{
                         position: "absolute",
-                        top: -14,
+                        // Sits just over the card's own edge. The wrapper adds
+                        // top margin (see wrapStyle) so this can never reach
+                        // the card above it.
+                        top: -11,
                         left: "50%",
                         transform: "translateX(-50%)",
+                        // Long machine names ("Ab Crunch Machine") must not
+                        // run past the card on a narrower phone — clamp and
+                        // ellipsise instead of overflowing.
+                        maxWidth: "calc(100% - 28px)",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
-                        padding: "7px 18px",
+                        padding: "5px 14px",
                         background: FIRE,
                         color: "#fff",
-                        fontSize: 16,
+                        fontSize: 13,
                         fontWeight: 800,
-                        letterSpacing: ".4px",
+                        letterSpacing: ".2px",
                         borderRadius: 999,
                         border: "1px solid rgba(255,150,120,.6)",
                         textShadow: "0 1px 2px rgba(120,15,5,.5)",
