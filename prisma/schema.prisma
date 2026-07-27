@@ -13,6 +13,10 @@ datasource db {
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
+  // Public handle used to find and follow people (@richie). Always stored
+  // lowercase so the unique index is effectively case-insensitive. Nullable
+  // until the user claims one, so existing accounts keep working.
+  username     String?  @unique
   name         String?
   passwordHash String
   // Physiology profile (women's mode). Nullable so existing accounts are
@@ -31,6 +35,35 @@ model User {
   sleep        SleepLog[]
   foods        FoodItem[]
   target       UserTarget?
+  // Social graph. `following` = rows where this user asked to follow someone;
+  // `followers` = rows where someone asked to follow this user.
+  following    Follow[]         @relation("FollowRequester")
+  followers    Follow[]         @relation("FollowTarget")
+}
+
+enum FollowStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+// A follow request / relationship. Nothing is visible until the target
+// ACCEPTS — every feed query filters on status = ACCEPTED, so a PENDING or
+// DECLINED row grants no access to meals or workouts.
+model Follow {
+  id          String       @id @default(cuid())
+  followerId  String
+  followingId String
+  status      FollowStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  respondedAt DateTime?
+
+  follower  User @relation("FollowRequester", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("FollowTarget", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followingId, status])
+  @@index([followerId, status])
 }
 
 // The user's current resolved daily target (today's gym/rest goal). Pushed by

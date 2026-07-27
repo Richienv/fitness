@@ -44,6 +44,12 @@ function normalize(q: string): string {
     .trim();
 }
 
+/** Household measure ("1 porsi", "1 potong") from the FoodServing table. */
+interface Serving {
+  label: string;
+  grams: number;
+}
+
 interface SearchRow {
   id: string;
   sourceCode: string;
@@ -52,6 +58,7 @@ interface SearchRow {
   state: string | null;
   foodGroup: string | null;
   cuisine: string | null;
+  portionGCooked: Prisma.Decimal | null;
   energy_kcal: Prisma.Decimal | null;
   protein_g: Prisma.Decimal | null;
   fat_g: Prisma.Decimal | null;
@@ -67,6 +74,10 @@ interface SearchFood {
   state: string | null;
   foodGroup: string | null;
   cuisine: string | null;
+  /** Default household portion in grams (null when unknown). */
+  portionG: number | null;
+  /** Household measures to pick from ("1 porsi", "1 potong"). */
+  servings: Serving[];
   energy_kcal: number | null;
   protein_g: number | null;
   fat_g: number | null;
@@ -292,6 +303,7 @@ export async function GET(req: Request) {
     const rows = await db.$queryRaw<SearchRow[]>(Prisma.sql`
       SELECT
         f.id, f."sourceCode", f.name, f."nameEn", f.state, f."foodGroup", f.cuisine,
+        f."portionGCooked",
         f.energy_kcal, f.protein_g, f.fat_g, f.carb_g,
         ${scoreExpr} AS score
       FROM "Food" f
@@ -299,6 +311,20 @@ export async function GET(req: Request) {
       ORDER BY score DESC, length(f.name) ASC, f.name ASC
       LIMIT ${limit};
     `);
+
+    // Household measures for this result page, in one round trip.
+    const servingsByFood = new Map<string, Serving[]>();
+    if (rows.length > 0) {
+      const sv = await db.foodServing.findMany({
+        where: { foodId: { in: rows.map((r) => r.id) } },
+        select: { foodId: true, label: true, grams: true },
+      });
+      for (const s of sv) {
+        const list = servingsByFood.get(s.foodId) ?? [];
+        list.push({ label: s.label, grams: Number(s.grams.toString()) });
+        servingsByFood.set(s.foodId, list);
+      }
+    }
 
     const foods: SearchFood[] = rows.map((r) => ({
       id: r.id,
@@ -308,6 +334,8 @@ export async function GET(req: Request) {
       state: r.state,
       foodGroup: r.foodGroup,
       cuisine: r.cuisine,
+      portionG: num(r.portionGCooked),
+      servings: servingsByFood.get(r.id) ?? [],
       energy_kcal: num(r.energy_kcal),
       protein_g: num(r.protein_g),
       fat_g: num(r.fat_g),

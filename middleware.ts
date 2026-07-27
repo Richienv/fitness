@@ -18,6 +18,9 @@ const PUBLIC_API_PATHS = [
   "/api/measurements",
   "/api/targets",
   "/api/widget",
+  // Follow graph + feed. Session-gated inside each route (getUserId), and the
+  // feed only ever returns data for ACCEPTED follows.
+  "/api/social",
   "/api/og",
   "/api/register",
   "/api/auth",
