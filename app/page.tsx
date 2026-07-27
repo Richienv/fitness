@@ -754,6 +754,52 @@ export default function HomePage() {
           target 8 jam ↗
         </span>
       </Link>
+
+      {/* Follow friends — see their food + workouts once they accept. */}
+      <Link
+        href="/social"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          width: "100%",
+          marginTop: 10,
+          padding: "12px 16px",
+          borderRadius: 13,
+          textAlign: "left",
+          cursor: "pointer",
+          background: "rgba(255,255,255,.03)",
+          border: "1px solid rgba(255,255,255,.08)",
+        }}
+      >
+        <span aria-hidden="true" style={{ fontSize: 15, opacity: 0.75 }}>
+          👥
+        </span>
+        <span
+          style={{
+            flex: 1,
+            minWidth: 0,
+            fontFamily: MONO,
+            fontSize: 11,
+            letterSpacing: ".1em",
+            fontWeight: 700,
+            color: "#9a938d",
+          }}
+        >
+          TEMAN
+        </span>
+        <span
+          style={{
+            fontFamily: MONO,
+            fontSize: 9.5,
+            letterSpacing: ".06em",
+            color: "#6a6660",
+            whiteSpace: "nowrap",
+          }}
+        >
+          lihat makan &amp; latihan ↗
+        </span>
+      </Link>
     </main>
   );
 }
