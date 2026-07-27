@@ -34,6 +34,15 @@ import {
   type CustomFoodDef,
 } from "@/lib/foodGroups";
 import { CUISINES, CUISINE_BY_KEY, cuisineOf, type CuisineKey } from "@/lib/cuisine";
+import {
+  getMealTemplates,
+  saveMealTemplate,
+  deleteMealTemplate,
+  markTemplateUsed,
+  templateKcal,
+  type MealTemplate,
+  type TemplateItem,
+} from "@/lib/mealTemplates";
 
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
 const MONO = "var(--font-dm-mono), 'JetBrains Mono', monospace";
@@ -339,15 +348,19 @@ export default function FoodBuilder({
   const [picks, setPicks] = useState<FoodPick[]>([]);
   // Shared library size for the empty-state hero count.
   const [libCount, setLibCount] = useState<number | null>(null);
+  // Saved meal templates ("Sarapan biasa") + the name-it sheet.
+  const [templates, setTemplates] = useState<MealTemplate[]>([]);
+  const [namingTemplate, setNamingTemplate] = useState<{ name: string; emoji: string } | null>(null);
   // Whole catalogue (lazy) — powers sort/group across the FULL library, not
   // just the relevant search hits.
   const [allFoods, setAllFoods] = useState<BuilderFood[] | null>(null);
   const [loadingAll, setLoadingAll] = useState(false);
   const searchRef = useRef<HTMLInputElement | null>(null);
 
-  // Persisted custom "libraries" load client-side (localStorage).
+  // Persisted custom "libraries" + saved meal templates (localStorage).
   useEffect(() => {
     setGroups(getFoodGroups());
+    setTemplates(getMealTemplates());
   }, []);
 
   // Library size — the public health endpoint reports the shared Food count.
@@ -604,9 +617,96 @@ export default function FoodBuilder({
   const toggleSection = (key: string) =>
     setCollapsed((c) => ({ ...c, [key]: !c[key] }));
 
+  // ---------- meal templates ----------
+
+  /** Snapshot the current tray so the template replays without a search. */
+  function currentTrayAsItems(): TemplateItem[] {
+    const out: TemplateItem[] = [];
+    for (const [id, qty] of Object.entries(selection)) {
+      if (qty <= 0) continue;
+      const ing = bIng(id);
+      if (!ing) continue;
+      out.push({
+        id,
+        name: ing.name,
+        qty,
+        unit: ing.unit,
+        gramsPerUnit: ing.gramsPerUnit,
+        step: ing.step,
+        kcal: ing.kcal,
+        protein: ing.protein,
+        fat: ing.fat,
+        carbs: ing.carbs,
+      });
+    }
+    return out;
+  }
+
+  function confirmSaveTemplate() {
+    if (!namingTemplate) return;
+    const items = currentTrayAsItems();
+    if (items.length === 0) {
+      setNamingTemplate(null);
+      return;
+    }
+    saveMealTemplate(namingTemplate.name, namingTemplate.emoji, items);
+    setTemplates(getMealTemplates());
+    setNamingTemplate(null);
+    haptic("success");
+  }
+
+  /** One tap = the whole meal back in the tray. Items are seeded into the
+   *  session cache first so they resolve for display/edit without a search. */
+  function applyTemplate(t: MealTemplate) {
+    haptic("tap");
+    setDbCache((c) => {
+      const next = { ...c };
+      for (const it of t.items) {
+        if (!next[it.id]) {
+          next[it.id] = {
+            id: it.id,
+            name: it.name,
+            unit: it.unit,
+            group: "custom",
+            kcal: it.kcal,
+            protein: it.protein,
+            fat: it.fat,
+            carbs: it.carbs,
+            gramsPerUnit: it.gramsPerUnit,
+            step: it.step,
+          };
+        }
+      }
+      return next;
+    });
+    setSelection((sel) => {
+      const next = { ...sel };
+      for (const it of t.items) {
+        next[it.id] = Math.round(((next[it.id] || 0) + it.qty) * 1000) / 1000;
+      }
+      return next;
+    });
+    markTemplateUsed(t.id);
+    setTemplates(getMealTemplates());
+    setJustId(t.items[t.items.length - 1]?.id ?? null);
+    setAddTick((x) => x + 1);
+    setAddedFlash((f) => ({ name: t.name, tick: (f?.tick ?? 0) + 1 }));
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => setAddedFlash(null), 1400);
+  }
+
+  function removeTemplate(id: string) {
+    deleteMealTemplate(id);
+    setTemplates(getMealTemplates());
+  }
+
   // Hardware/browser back mirrors the UI: close an inner sheet first, then
   // the browse layer, and only then leave the builder.
   useSheetBack(true, () => {
+    if (namingTemplate) {
+      setNamingTemplate(null);
+      return true;
+    }
     if (editing) {
       setEditing(null);
       return true;
@@ -1723,7 +1823,31 @@ export default function FoodBuilder({
                 animation: "trayPop .34s cubic-bezier(.16,1,.3,1)",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                {/* Save this exact tray so tomorrow it's one tap. */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setNamingTemplate({
+                      name: BLABEL[activeMeal].toLowerCase(),
+                      emoji: "🍽️",
+                    })
+                  }
+                  className="mono"
+                  style={{
+                    fontSize: 8.5,
+                    letterSpacing: ".1em",
+                    fontWeight: 700,
+                    color: "#ffb99e",
+                    background: "rgba(255,138,60,.1)",
+                    border: "1px solid rgba(255,150,120,.3)",
+                    borderRadius: 999,
+                    padding: "5px 10px",
+                    cursor: "pointer",
+                  }}
+                >
+                  ☆ SIMPAN MENU
+                </button>
                 <span
                   style={{
                     fontFamily: MONO,
@@ -2144,6 +2268,137 @@ export default function FoodBuilder({
               </span>
             </div>
           )}
+
+          {/* ── MENU SIMPANAN — one tap replays a whole meal ── */}
+          {!q && !browseOpen && !browsing && templates.length > 0 ? (
+            <>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontFamily: MONO,
+                  fontSize: 9.5,
+                  letterSpacing: ".16em",
+                  color: "#6a6660",
+                  margin: "16px 0 10px",
+                }}
+              >
+                ☆ MENU SIMPANAN
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {templates.map((t) => (
+                  <div
+                    key={t.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 11,
+                      padding: "12px 13px",
+                      borderRadius: 13,
+                      background:
+                        "linear-gradient(180deg,rgba(255,138,60,.06),transparent 55%),#0c0a0b",
+                      border: "1px solid rgba(255,150,120,.28)",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => applyTemplate(t)}
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 11,
+                        background: "none",
+                        border: "none",
+                        padding: 0,
+                        cursor: "pointer",
+                        textAlign: "left",
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 38,
+                          height: 38,
+                          flex: "none",
+                          borderRadius: 11,
+                          display: "grid",
+                          placeItems: "center",
+                          fontSize: 19,
+                          background: "rgba(255,138,60,.12)",
+                          border: "1px solid rgba(255,150,120,.32)",
+                        }}
+                      >
+                        {t.emoji}
+                      </span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span
+                          style={{
+                            display: "block",
+                            fontFamily: SANS,
+                            fontWeight: 700,
+                            fontSize: 14.5,
+                            color: "#f8ede8",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {t.name}
+                        </span>
+                        <span
+                          className="mono"
+                          style={{ display: "block", fontSize: 9.5, color: "#8a837d", marginTop: 4 }}
+                        >
+                          {t.items.length} item ·{" "}
+                          <span style={{ color: "#ff9a80" }}>{templateKcal(t)} kkal</span>
+                        </span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyTemplate(t)}
+                      aria-label={`Catat ${t.name}`}
+                      className="mono"
+                      style={{
+                        flex: "none",
+                        fontSize: 9.5,
+                        fontWeight: 700,
+                        letterSpacing: ".08em",
+                        color: "#fff",
+                        borderRadius: 999,
+                        padding: "8px 13px",
+                        cursor: "pointer",
+                        background: FIRE,
+                        border: "1px solid rgba(255,150,120,.5)",
+                      }}
+                    >
+                      ＋ CATAT
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeTemplate(t.id)}
+                      aria-label={`Hapus ${t.name}`}
+                      style={{
+                        flex: "none",
+                        width: 26,
+                        height: 26,
+                        borderRadius: 8,
+                        color: "#6a6660",
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        fontSize: 15,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : null}
 
           {/* ── SERING DIPAKAI (default) / SEMUA MAKANAN (when sorting/grouping) ── */}
           {!q && !browseOpen && (picks.length > 0 || browsing) ? (
@@ -3011,6 +3266,140 @@ export default function FoodBuilder({
                 }}
               >
                 BUAT + ISI ✓
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* ── Name this menu (save tray as a template) ── */}
+      {namingTemplate ? (
+        <div
+          onClick={() => setNamingTemplate(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 320,
+            background: "rgba(4,3,5,.74)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 22,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: 380,
+              borderRadius: 22,
+              padding: 20,
+              background: "linear-gradient(180deg,#161011,#0c0a0b 60%)",
+              border: "1px solid rgba(255,255,255,.12)",
+              boxShadow: "0 24px 60px rgba(0,0,0,.6)",
+              animation: "riseIn .28s cubic-bezier(.16,1,.3,1)",
+            }}
+          >
+            <div style={{ fontFamily: SANS, fontWeight: 800, fontSize: 18, color: "#f5f2ef" }}>
+              Simpan jadi menu
+            </div>
+            <div
+              className="mono"
+              style={{ fontSize: 10.5, color: "#8a837d", marginTop: 6, lineHeight: 1.5 }}
+            >
+              {count} item · {Math.round(tk)} kkal. Besok tinggal satu tap.
+            </div>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 16 }}>
+              {EMOJI_OPTS.map((em) => {
+                const on = namingTemplate.emoji === em;
+                return (
+                  <button
+                    key={em}
+                    type="button"
+                    onClick={() => setNamingTemplate((n) => (n ? { ...n, emoji: em } : n))}
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 11,
+                      fontSize: 19,
+                      cursor: "pointer",
+                      background: on ? "rgba(255,138,60,.16)" : "rgba(255,255,255,.04)",
+                      border: on
+                        ? "1px solid rgba(255,150,120,.6)"
+                        : "1px solid rgba(255,255,255,.1)",
+                    }}
+                  >
+                    {em}
+                  </button>
+                );
+              })}
+            </div>
+
+            <input
+              autoFocus
+              type="text"
+              value={namingTemplate.name}
+              placeholder="Sarapan biasa"
+              onChange={(e) =>
+                setNamingTemplate((n) => (n ? { ...n, name: e.target.value } : n))
+              }
+              onFocus={(e) => e.currentTarget.select()}
+              onKeyDown={(e) => e.key === "Enter" && confirmSaveTemplate()}
+              style={{
+                width: "100%",
+                marginTop: 14,
+                padding: "13px 14px",
+                borderRadius: 13,
+                background: "#0c0a0b",
+                border: "1px solid rgba(255,255,255,.14)",
+                color: "#f1ede9",
+                fontFamily: SANS,
+                fontSize: 15,
+                fontWeight: 600,
+                outline: "none",
+              }}
+            />
+
+            <div style={{ display: "flex", gap: 9, marginTop: 16 }}>
+              <button
+                type="button"
+                onClick={() => setNamingTemplate(null)}
+                style={{
+                  flex: 1,
+                  padding: 14,
+                  borderRadius: 13,
+                  fontFamily: SANS,
+                  fontWeight: 700,
+                  fontSize: 14,
+                  color: "#9a938d",
+                  cursor: "pointer",
+                  background: "rgba(255,255,255,.04)",
+                  border: "1px solid rgba(255,255,255,.1)",
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={confirmSaveTemplate}
+                style={{
+                  flex: 2,
+                  padding: 14,
+                  borderRadius: 13,
+                  fontFamily: SANS,
+                  fontWeight: 800,
+                  fontSize: 14,
+                  color: "#fff",
+                  cursor: "pointer",
+                  background: FIRE,
+                  border: "1px solid rgba(255,150,120,.6)",
+                  textShadow: "0 1px 2px rgba(120,15,5,.5)",
+                }}
+              >
+                SIMPAN ☆
               </button>
             </div>
           </div>
