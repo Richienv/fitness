@@ -41,6 +41,9 @@ export interface FoodRow {
   nameNormalized: string;
   state: string | null;
   foodGroup: string | null;
+  /** Optional cuisine / "genre" tag (padang, chinese, japanese, …) used to
+   *  group the food search. Absent in older CSVs → null. */
+  cuisine: string | null;
   bddPct: number;
   portionGCooked: number | null;
   note: string | null;
@@ -163,6 +166,7 @@ export function parseFoodCsv(text: string): FoodRow[] {
   const nameI = idx("name");
   const stateI = idx("state");
   const groupI = idx("group");
+  const cuisineI = idx("cuisine");
   const bddI = idx("bdd_pct");
   const portionI = idx("portion_g_cooked");
   const noteI = idx("note");
@@ -186,6 +190,7 @@ export function parseFoodCsv(text: string): FoodRow[] {
       nameNormalized: normalizeName(name),
       state: (cells[stateI] ?? "").trim() || null,
       foodGroup: (cells[groupI] ?? "").trim() || null,
+      cuisine: cuisineI >= 0 ? (cells[cuisineI] ?? "").trim().toLowerCase() || null : null,
       bddPct: bddRaw == null ? 100 : Math.round(bddRaw),
       portionGCooked: portionI >= 0 ? numOrNull(cells[portionI]) : null,
       note: noteI >= 0 ? (cells[noteI] ?? "").trim() || null : null,
