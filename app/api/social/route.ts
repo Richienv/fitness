@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 const noStore = { "Cache-Control": "no-store" };
 
-const SELECT_USER = { id: true, name: true, email: true } as const;
+const SELECT_USER = { id: true, name: true, username: true, email: true } as const;
 
 export async function GET() {
   try {
@@ -37,7 +37,7 @@ export async function GET() {
       }),
     ]);
 
-    const shape = (id: string, u: { id: string; name: string | null; email: string }) => ({
+    const shape = (id: string, u: { id: string; name: string | null; username: string | null; email: string }) => ({
       followId: id,
       user: publicUser(u),
       name: displayName(u),

@@ -1,13 +1,16 @@
-// POST /api/social/request  { email }  — ask to follow someone.
+// POST /api/social/request  { username }  or  { email }  — ask to follow.
 //
 // Creates a PENDING row. Nothing becomes visible until the target accepts.
-// Lookup is by EXACT email on purpose: you can only request someone whose
-// address you already know, so the endpoint can't be used to enumerate users.
+// Accepts a public @username (the normal path, discoverable via /search) or an
+// exact email (legacy / when you know the address but not the handle). Neither
+// form can enumerate users: username needs a full handle, email needs an exact
+// match.
 
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserId } from "@/lib/session";
 import { displayName, publicUser } from "@/lib/social";
+import { normalizeUsername } from "@/lib/username";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,22 +24,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401, headers: noStore });
     }
 
-    const body = (await req.json().catch(() => null)) as { email?: unknown } | null;
+    const body = (await req.json().catch(() => null)) as
+      | { username?: unknown; email?: unknown }
+      | null;
+    const username =
+      typeof body?.username === "string" ? normalizeUsername(body.username) : "";
     const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
-    if (!email) {
+    if (!username && !email) {
       return NextResponse.json(
-        { ok: false, error: "bad-request", message: "Masukkan email temanmu." },
+        { ok: false, error: "bad-request", message: "Masukkan @username temanmu." },
         { status: 400, headers: noStore }
       );
     }
 
-    const target = await db.user.findUnique({
-      where: { email },
-      select: { id: true, name: true, email: true },
+    const target = await db.user.findFirst({
+      where: username ? { username } : { email },
+      select: { id: true, name: true, email: true, username: true },
     });
     if (!target) {
       return NextResponse.json(
-        { ok: false, error: "not-found", message: "Nggak ada akun dengan email itu." },
+        {
+          ok: false,
+          error: "not-found",
+          message: username
+            ? `Nggak ada akun @${username}.`
+            : "Nggak ada akun dengan email itu.",
+        },
         { status: 404, headers: noStore }
       );
     }

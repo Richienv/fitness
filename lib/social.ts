@@ -7,16 +7,25 @@
 
 import { db } from "./db";
 
-export type PublicUser = { id: string; name: string | null; email: string };
+export type PublicUser = { id: string; name: string | null; username: string | null };
 
-/** Strip a user row down to what's safe to expose to another user. */
-export function publicUser(u: { id: string; name: string | null; email: string }): PublicUser {
-  return { id: u.id, name: u.name, email: u.email };
+/** Strip a user row down to what's safe to expose to another user. The email
+ *  is deliberately NOT included — the public identifier is the @username. */
+export function publicUser(u: {
+  id: string;
+  name: string | null;
+  username?: string | null;
+}): PublicUser {
+  return { id: u.id, name: u.name, username: u.username ?? null };
 }
 
-/** Display label — name when set, else the local part of the email. */
-export function displayName(u: { name: string | null; email: string }): string {
-  return u.name?.trim() || u.email.split("@")[0];
+/** Display label — name, else the @handle, else the email's local part. */
+export function displayName(u: {
+  name: string | null;
+  username?: string | null;
+  email?: string;
+}): string {
+  return u.name?.trim() || u.username || u.email?.split("@")[0] || "Teman";
 }
 
 /** IDs of users who have ACCEPTED `viewerId`'s follow request — i.e. exactly
@@ -70,7 +79,7 @@ export async function daySummaries(
   const [users, meals, workouts] = await Promise.all([
     db.user.findMany({
       where: { id: { in: userIds } },
-      select: { id: true, name: true, email: true },
+      select: { id: true, name: true, username: true, email: true },
     }),
     db.mealEntry.findMany({
       where: { userId: { in: userIds }, date },

@@ -13,6 +13,10 @@ datasource db {
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
+  // Public handle used to find and follow people (@richie). Always stored
+  // lowercase so the unique index is effectively case-insensitive. Nullable
+  // until the user claims one, so existing accounts keep working.
+  username     String?  @unique
   name         String?
   passwordHash String
   // Physiology profile (women's mode). Nullable so existing accounts are
