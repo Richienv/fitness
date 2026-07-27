@@ -1,0 +1,198 @@
+code,name,energy_kcal,protein_g,fat_g,carb_g,bdd_pct,state,group,cuisine,portion_g_cooked,note
+pd-rendang-sapi,Rendang Sapi,220,15.0,16.0,4.0,100,Olahan,Masakan Nusantara,padang,100,Beef Rendang · rendang kering warung · per 100g · conf:med · Estimasi
+pd-kalio-sapi,Kalio Sapi (rendang basah),202,14.0,14.0,5.0,100,Olahan,Masakan Nusantara,padang,100,Wet rendang · kuah lebih banyak · per 100g · conf:med · Estimasi
+pd-gulai-ayam,Gulai Ayam,174,13.5,11.5,4.0,100,Olahan,Masakan Nusantara,padang,150,Chicken Gulai · kuah santan kuning · per 100g · conf:med · Estimasi
+pd-gulai-tunjang,Gulai Tunjang,165,9.0,13.0,3.0,100,Olahan,Masakan Nusantara,padang,120,Beef tendon curry · per 100g · conf:med · Estimasi
+pd-gulai-nangka,Gulai Nangka,117,2.0,8.5,8.0,100,Olahan,Masakan Nusantara,padang,100,Jackfruit curry · lauk pendamping · per 100g · conf:med · Estimasi
+pd-gulai-otak,Gulai Otak,182,11.0,14.0,3.0,100,Olahan,Masakan Nusantara,padang,100,Beef brain curry · per 100g · conf:med · Estimasi
+pd-dendeng-balado,Dendeng Balado,314,23.0,22.0,6.0,100,Olahan,Masakan Nusantara,padang,100,Crispy beef with chilli · per 100g · conf:med · Estimasi
+pd-dendeng-batokok,Dendeng Batokok,278,25.0,18.0,4.0,100,Olahan,Masakan Nusantara,padang,100,Pounded grilled beef · per 100g · conf:med · Estimasi
+pd-ayam-pop,Ayam Pop,241,25.0,15.0,1.5,100,Olahan,Masakan Nusantara,padang,150,Padang boiled-then-fried chicken · per 100g · conf:med · Estimasi
+pd-ayam-balado,Ayam Balado,265,23.0,17.0,5.0,100,Olahan,Masakan Nusantara,padang,150,Chicken in red chilli · per 100g · conf:med · Estimasi
+pd-ayam-bakar-padang,Ayam Bakar Padang,228,26.0,12.0,4.0,100,Olahan,Masakan Nusantara,padang,150,Grilled chicken padang style · per 100g · conf:med · Estimasi
+pd-telur-balado,Telur Balado,181,11.0,13.0,5.0,100,Olahan,Masakan Nusantara,padang,120,Egg in chilli sauce · 2 butir · per 100g · conf:med · Estimasi
+pd-ikan-bakar-padang,Ikan Bakar Padang,189,24.0,9.0,3.0,100,Olahan,Masakan Nusantara,padang,150,Grilled fish padang · per 100g · conf:med · Estimasi
+pd-gulai-kepala-ikan,Gulai Kepala Ikan,188,16.0,12.0,4.0,100,Olahan,Masakan Nusantara,padang,200,Fish head curry · per 100g · conf:med · Estimasi
+pd-perkedel-kentang,Perkedel Kentang,185,4.5,11.0,17.0,100,Olahan,Masakan Nusantara,padang,50,Potato fritter · per 100g · conf:med · Estimasi
+pd-sambal-ijo,Sambal Ijo,117,2.0,9.0,7.0,100,Olahan,Bumbu,padang,30,Green chilli sambal · per 100g · conf:med · Estimasi
+pd-daun-singkong,Daun Singkong Santan,107,4.0,7.0,7.0,100,Olahan,Sayur,padang,80,Cassava leaves in coconut milk · per 100g · conf:med · Estimasi
+pd-sate-padang,Sate Padang,236,18.0,12.0,14.0,100,Olahan,Masakan Nusantara,padang,150,Beef satay with thick yellow sauce · per 100g · conf:med · Estimasi
+pd-asam-padeh,Asam Padeh Ikan,159,20.0,7.0,4.0,100,Olahan,Masakan Nusantara,padang,180,Sour spicy fish stew · tanpa santan · per 100g · conf:med · Estimasi
+pd-nasi-padang-komplit,Nasi Padang Komplit,317,12.0,13.0,38.0,100,Olahan,Masakan Nusantara,padang,400,Rice + rendang + sayur + sambal · per 100g · conf:med · Estimasi
+id-nasi-goreng,Nasi Goreng,176,5.5,6.0,25.0,100,Olahan,Masakan Nusantara,indonesian,300,Fried rice · warung standard · per 100g · conf:med · Estimasi
+id-nasi-goreng-seafood,Nasi Goreng Seafood,187,8.0,6.5,24.0,100,Olahan,Masakan Nusantara,indonesian,300,Seafood fried rice · per 100g · conf:med · Estimasi
+id-mie-goreng,Mie Goreng,183,5.0,7.0,25.0,100,Olahan,Masakan Nusantara,indonesian,300,Fried noodles · per 100g · conf:med · Estimasi
+id-mie-ayam,Mie Ayam,168,7.5,5.5,22.0,100,Olahan,Masakan Nusantara,chinese,250,Chicken noodles · warung · per 100g · conf:med · Estimasi
+id-bakso-kuah,Bakso Kuah,98,5.5,4.0,10.0,100,Olahan,Masakan Nusantara,indonesian,400,Meatball soup with noodles · per 100g · conf:med · Estimasi
+id-soto-ayam,Soto Ayam,80,6.0,3.5,6.0,100,Olahan,Masakan Nusantara,indonesian,400,Yellow chicken soup · per 100g · conf:med · Estimasi
+id-soto-betawi,Soto Betawi,129,7.0,9.0,5.0,100,Olahan,Masakan Nusantara,indonesian,400,Beef soup with coconut milk · per 100g · conf:med · Estimasi
+id-coto-makassar,Coto Makassar,122,8.5,8.0,4.0,100,Olahan,Masakan Nusantara,indonesian,350,Makassar beef offal soup · per 100g · conf:med · Estimasi
+id-rawon,Rawon,113,7.5,7.0,5.0,100,Olahan,Masakan Nusantara,indonesian,400,Black beef soup · kluwek · per 100g · conf:med · Estimasi
+id-gado-gado,Gado-gado,159,6.5,9.0,13.0,100,Olahan,Masakan Nusantara,indonesian,300,Vegetables with peanut sauce · per 100g · conf:med · Estimasi
+id-ketoprak,Ketoprak,160,6.0,7.5,17.0,100,Olahan,Masakan Nusantara,indonesian,300,"Tofu, lontong, bihun, peanut sauce · per 100g · conf:med · Estimasi"
+id-pecel-sayur,Pecel Sayur,121,4.5,6.5,11.0,100,Olahan,Masakan Nusantara,indonesian,250,Blanched veg with peanut sauce · per 100g · conf:med · Estimasi
+id-karedok,Karedok,110,4.0,6.0,10.0,100,Olahan,Masakan Nusantara,indonesian,250,"Raw veg salad, peanut sauce · per 100g · conf:med · Estimasi"
+id-ayam-geprek,Ayam Geprek,249,21.0,13.0,12.0,100,Olahan,Masakan Nusantara,indonesian,200,Smashed fried chicken with sambal · per 100g · conf:med · Estimasi
+id-ayam-goreng-lengkuas,Ayam Goreng Lengkuas,238,24.0,14.0,4.0,100,Olahan,Masakan Nusantara,indonesian,150,Fried chicken with galangal · per 100g · conf:med · Estimasi
+id-ayam-bakar-kecap,Ayam Bakar Kecap,214,23.0,10.0,8.0,100,Olahan,Masakan Nusantara,indonesian,150,Grilled chicken sweet soy · per 100g · conf:med · Estimasi
+id-ayam-penyet,Ayam Penyet,238,22.0,14.0,6.0,100,Olahan,Masakan Nusantara,indonesian,180,Smashed chicken with sambal · per 100g · conf:med · Estimasi
+id-ayam-taliwang,Ayam Taliwang,237,24.0,13.0,6.0,100,Olahan,Masakan Nusantara,indonesian,180,Lombok spicy grilled chicken · per 100g · conf:med · Estimasi
+id-bebek-goreng,Bebek Goreng,298,21.0,22.0,4.0,100,Olahan,Masakan Nusantara,indonesian,180,Fried duck · per 100g · conf:med · Estimasi
+id-pecel-lele,Pecel Lele,218,19.0,14.0,4.0,100,Olahan,Masakan Nusantara,indonesian,150,Fried catfish with sambal · per 100g · conf:med · Estimasi
+id-ikan-bakar,Ikan Bakar,167,24.0,7.0,2.0,100,Olahan,Ikan dsb,indonesian,180,"Grilled fish, sweet soy · per 100g · conf:med · Estimasi"
+id-sate-ayam,Sate Ayam,211,18.0,11.0,10.0,100,Olahan,Masakan Nusantara,indonesian,200,Chicken satay with peanut sauce · per 100g · conf:med · Estimasi
+id-sate-kambing,Sate Kambing,243,19.0,15.0,8.0,100,Olahan,Masakan Nusantara,indonesian,200,Goat satay · per 100g · conf:med · Estimasi
+id-sate-maranggi,Sate Maranggi,220,21.0,12.0,7.0,100,Olahan,Masakan Nusantara,indonesian,180,Purwakarta beef satay · per 100g · conf:med · Estimasi
+id-gudeg,Gudeg,145,4.5,7.0,16.0,100,Olahan,Masakan Nusantara,indonesian,250,Jogja sweet jackfruit stew · per 100g · conf:med · Estimasi
+id-opor-ayam,Opor Ayam,197,15.0,13.0,5.0,100,Olahan,Masakan Nusantara,indonesian,200,Chicken in white coconut curry · per 100g · conf:med · Estimasi
+id-semur-daging,Semur Daging,186,16.0,10.0,8.0,100,Olahan,Masakan Nusantara,indonesian,150,Beef in sweet soy stew · per 100g · conf:med · Estimasi
+id-empal-gepuk,Empal Gepuk,259,22.0,15.0,9.0,100,Olahan,Masakan Nusantara,indonesian,100,Sweet fried beef · per 100g · conf:med · Estimasi
+id-sayur-lodeh,Sayur Lodeh,92,2.5,6.0,7.0,100,Olahan,Sayur,indonesian,200,Vegetables in coconut milk · per 100g · conf:med · Estimasi
+id-sayur-asem,Sayur Asem,39,1.5,1.0,6.0,100,Olahan,Sayur,indonesian,200,Tamarind vegetable soup · per 100g · conf:med · Estimasi
+id-tumis-kangkung,Tumis Kangkung,85,2.5,6.5,4.0,100,Olahan,Sayur,indonesian,120,Stir-fried water spinach · per 100g · conf:med · Estimasi
+id-oseng-tempe,Oseng Tempe,185,14.0,9.0,12.0,100,Olahan,Kacang,indonesian,100,Stir-fried tempeh sweet soy · per 100g · conf:med · Estimasi
+id-tempe-goreng,Tempe Goreng,221,16.0,13.0,10.0,100,Olahan,Kacang,indonesian,100,Fried tempeh · per 100g · conf:med · Estimasi
+id-tempe-mendoan,Tempe Mendoan,238,11.0,14.0,17.0,100,Olahan,Kacang,indonesian,80,Battered fried tempeh · per 100g · conf:med · Estimasi
+id-tahu-goreng,Tahu Goreng,189,12.0,13.0,6.0,100,Olahan,Kacang,indonesian,100,Fried tofu · per 100g · conf:med · Estimasi
+id-telur-dadar,Telur Dadar,195,13.0,15.0,2.0,100,Olahan,Telur,indonesian,70,Indonesian omelette · per 100g · conf:med · Estimasi
+id-telur-balado-warung,Telur Balado Warung,172,11.0,12.0,5.0,100,Olahan,Telur,indonesian,110,Egg in chilli · 2 butir · per 100g · conf:med · Estimasi
+id-nasi-uduk,Nasi Uduk,172,3.5,6.0,26.0,100,Olahan,Serealia,indonesian,250,Coconut rice · per 100g · conf:med · Estimasi
+id-nasi-kuning,Nasi Kuning,172,3.5,5.5,27.0,100,Olahan,Serealia,indonesian,250,Turmeric coconut rice · per 100g · conf:med · Estimasi
+id-lontong-sayur,Lontong Sayur,142,4.0,6.0,18.0,100,Olahan,Masakan Nusantara,indonesian,300,Rice cake in vegetable curry · per 100g · conf:med · Estimasi
+id-ketupat-sayur,Ketupat Sayur,142,4.0,5.5,19.0,100,Olahan,Masakan Nusantara,indonesian,300,Ketupat in coconut curry · per 100g · conf:med · Estimasi
+id-bubur-ayam,Bubur Ayam,101,4.5,3.0,14.0,100,Olahan,Masakan Nusantara,indonesian,350,Chicken rice porridge · per 100g · conf:med · Estimasi
+id-nasi-liwet,Nasi Liwet,181,4.5,6.5,26.0,100,Olahan,Serealia,indonesian,250,Solo-style savoury rice · per 100g · conf:med · Estimasi
+id-nasi-campur-bali,Nasi Campur Bali,255,11.0,11.0,28.0,100,Olahan,Masakan Nusantara,indonesian,350,Balinese mixed rice · per 100g · conf:med · Estimasi
+id-babi-guling,Babi Guling,313,20.0,25.0,2.0,100,Olahan,Daging,indonesian,150,Balinese roast pork · per 100g · conf:med · Estimasi
+id-pempek-kapal-selam,Pempek Kapal Selam,220,11.0,8.0,26.0,100,Olahan,Masakan Nusantara,indonesian,200,Fish cake with egg + cuko · per 100g · conf:med · Estimasi
+id-batagor,Batagor,227,10.0,11.0,22.0,100,Olahan,Masakan Nusantara,chinese,150,"Fried fish dumpling, peanut sauce · per 100g · conf:med · Estimasi"
+id-siomay-bandung,Siomay Bandung,184,10.0,8.0,18.0,100,Olahan,Masakan Nusantara,chinese,150,"Steamed fish dumpling, peanut sauce · per 100g · conf:med · Estimasi"
+id-martabak-telur,Martabak Telur,264,10.0,16.0,20.0,100,Olahan,Masakan Nusantara,indonesian,150,Savoury stuffed pancake · per 100g · conf:med · Estimasi
+id-bakwan-sayur,Bakwan Sayur,237,4.0,13.0,26.0,100,Olahan,Masakan Nusantara,indonesian,50,Vegetable fritter · per 100g · conf:med · Estimasi
+id-risoles,Risoles,239,6.5,13.0,24.0,100,Olahan,Masakan Nusantara,indonesian,70,"Stuffed crepe roll, fried · per 100g · conf:med · Estimasi"
+id-lumpia-basah,Lumpia Basah,163,5.0,7.0,20.0,100,Olahan,Masakan Nusantara,chinese,120,Wet spring roll · per 100g · conf:med · Estimasi
+id-nasi-tim-ayam,Nasi Tim Ayam,160,7.0,4.0,24.0,100,Olahan,Masakan Nusantara,chinese,300,Steamed rice with chicken · per 100g · conf:med · Estimasi
+id-ayam-rica,Ayam Rica-rica,216,22.0,12.0,5.0,100,Olahan,Masakan Nusantara,indonesian,180,Manado spicy chicken · per 100g · conf:med · Estimasi
+id-ikan-woku,Ikan Woku,181,21.0,9.0,4.0,100,Olahan,Ikan dsb,indonesian,180,Manado spiced fish · per 100g · conf:med · Estimasi
+id-mie-aceh,Mie Aceh,217,8.0,9.0,26.0,100,Olahan,Masakan Nusantara,indonesian,300,Acehnese spiced noodles · per 100g · conf:med · Estimasi
+id-nasi-goreng-kambing,Nasi Goreng Kambing,215,8.5,9.0,25.0,100,Olahan,Masakan Nusantara,indonesian,300,Goat fried rice · per 100g · conf:med · Estimasi
+cn-capcay-goreng,Capcay Goreng,94,4.5,5.5,6.5,100,Olahan,Sayur,chinese,200,Stir-fried mixed vegetables · per 100g · conf:med · Estimasi
+cn-capcay-kuah,Capcay Kuah,67,4.0,3.0,6.0,100,Olahan,Sayur,chinese,250,Soupy mixed vegetables · per 100g · conf:med · Estimasi
+cn-fuyunghai,Fuyunghai,188,9.5,13.5,7.0,100,Olahan,Masakan Nusantara,chinese,150,Egg foo young with sauce · per 100g · conf:med · Estimasi
+cn-kwetiau-goreng,Kwetiau Goreng,189,6.5,7.0,25.0,100,Olahan,Masakan Nusantara,chinese,250,Fried flat rice noodles · per 100g · conf:med · Estimasi
+cn-kwetiau-siram,Kwetiau Siram,161,6.0,5.0,23.0,100,Olahan,Masakan Nusantara,chinese,300,Flat noodles in gravy · per 100g · conf:med · Estimasi
+cn-bihun-goreng,Bihun Goreng,178,5.0,6.0,26.0,100,Olahan,Masakan Nusantara,chinese,250,Fried rice vermicelli · per 100g · conf:med · Estimasi
+cn-nasi-hainan,Nasi Ayam Hainan,161,8.0,5.0,21.0,100,Olahan,Masakan Nusantara,chinese,350,Hainanese chicken rice · per 100g · conf:med · Estimasi
+cn-ayam-kungpao,Ayam Kung Pao,172,12.5,9.5,9.0,100,Olahan,Masakan Nusantara,chinese,200,Kung Pao chicken · per 100g · conf:med · Estimasi
+cn-ayam-asam-manis,Ayam Asam Manis,185,12.0,9.0,14.0,100,Olahan,Masakan Nusantara,chinese,200,Sweet and sour chicken · per 100g · conf:med · Estimasi
+cn-sapi-lada-hitam,Sapi Lada Hitam,174,14.0,10.0,7.0,100,Olahan,Masakan Nusantara,chinese,180,Black pepper beef · per 100g · conf:med · Estimasi
+cn-sapo-tahu,Sapo Tahu,104,5.5,6.0,7.0,100,Olahan,Masakan Nusantara,chinese,250,Tofu claypot · per 100g · conf:med · Estimasi
+cn-mapo-tahu,Mapo Tahu,135,7.5,9.0,6.0,100,Olahan,Masakan Nusantara,chinese,200,Mapo tofu · per 100g · conf:med · Estimasi
+cn-dimsum-hakau,Dimsum Hakau,153,7.0,5.0,20.0,100,Olahan,Masakan Nusantara,chinese,100,Shrimp har gow · 4 pcs · per 100g · conf:med · Estimasi
+cn-dimsum-siomay-ayam,Dimsum Siomay Ayam,181,11.0,9.0,14.0,100,Olahan,Masakan Nusantara,chinese,100,Chicken siumai · 4 pcs · per 100g · conf:med · Estimasi
+cn-bakpao-ayam,Bakpao Ayam,239,9.0,6.5,36.0,100,Olahan,Serealia,chinese,90,Steamed chicken bun · per 100g · conf:med · Estimasi
+cn-bakpao-cokelat,Bakpao Cokelat,259,7.0,7.0,42.0,100,Olahan,Kue/Dessert,chinese,90,Chocolate steamed bun · per 100g · conf:med · Estimasi
+cn-lumpia-semarang,Lumpia Semarang,237,8.5,11.0,26.0,100,Olahan,Masakan Nusantara,chinese,80,Semarang spring roll · per 100g · conf:med · Estimasi
+cn-pangsit-goreng,Pangsit Goreng,296,8.0,16.0,30.0,100,Olahan,Masakan Nusantara,chinese,60,Fried wonton · per 100g · conf:med · Estimasi
+cn-tekwan,Tekwan,95,7.0,3.0,10.0,100,Olahan,Masakan Nusantara,chinese,300,Palembang fish dumpling soup · per 100g · conf:med · Estimasi
+cn-nasi-tim-hainan,Bubur Polos,59,1.5,0.5,12.0,100,Olahan,Serealia,chinese,300,Plain congee · per 100g · conf:med · Estimasi
+cn-sapi-brokoli,Sapi Cah Brokoli,148,13.0,8.0,6.0,100,Olahan,Masakan Nusantara,chinese,200,Beef with broccoli · per 100g · conf:med · Estimasi
+cn-udang-mentega,Udang Mentega,200,15.0,12.0,8.0,100,Olahan,Ikan dsb,chinese,150,Butter prawns · per 100g · conf:med · Estimasi
+cn-cumi-saus-padang,Cumi Saus Padang,164,14.0,8.0,9.0,100,Olahan,Ikan dsb,chinese,150,Squid in padang sauce · per 100g · conf:med · Estimasi
+cn-ayam-kuluyuk,Ayam Koloke,211,12.0,11.0,16.0,100,Olahan,Masakan Nusantara,chinese,200,Sweet-sour battered chicken · per 100g · conf:med · Estimasi
+cn-mie-pangsit,Mie Pangsit,183,8.0,6.5,23.0,100,Olahan,Masakan Nusantara,chinese,250,Wonton noodles · per 100g · conf:med · Estimasi
+jp-chicken-katsu,Chicken Katsu,209,15.0,11.0,12.5,100,Olahan,Masakan Nusantara,japanese,200,Breaded fried chicken cutlet · per 100g · conf:med · Estimasi
+jp-katsudon,Katsudon,176,8.0,6.0,22.5,100,Olahan,Masakan Nusantara,japanese,400,Pork/chicken cutlet rice bowl · per 100g · conf:med · Estimasi
+jp-gyudon,Gyudon,168,7.5,5.5,22.0,100,Olahan,Masakan Nusantara,japanese,400,Beef rice bowl · per 100g · conf:med · Estimasi
+jp-chicken-teriyaki,Chicken Teriyaki,175,17.0,7.0,11.0,100,Olahan,Masakan Nusantara,japanese,200,Teriyaki glazed chicken · per 100g · conf:med · Estimasi
+jp-salmon-mentai,Salmon Mentai Rice,188,9.0,8.0,20.0,100,Olahan,Masakan Nusantara,japanese,250,Salmon with mentai sauce on rice · per 100g · conf:med · Estimasi
+jp-sushi-salmon,Sushi Salmon (nigiri),168,8.0,3.5,26.0,100,Olahan,Masakan Nusantara,japanese,120,Salmon nigiri · 4 pcs · per 100g · conf:med · Estimasi
+jp-sushi-roll-california,California Roll,181,6.0,5.0,28.0,100,Olahan,Masakan Nusantara,japanese,180,Crab stick + avocado roll · per 100g · conf:med · Estimasi
+jp-sashimi-salmon,Sashimi Salmon,179,20.0,11.0,0.0,100,Olahan,Ikan dsb,japanese,90,Raw salmon slices · per 100g · conf:med · Estimasi
+jp-ramen-shoyu,Ramen Shoyu,102,5.5,3.5,12.0,100,Olahan,Masakan Nusantara,japanese,500,Soy-based ramen · per 100g · conf:med · Estimasi
+jp-ramen-tonkotsu,Ramen Tonkotsu,128,6.5,6.0,12.0,100,Olahan,Masakan Nusantara,japanese,500,Pork bone broth ramen · per 100g · conf:med · Estimasi
+jp-udon-kuah,Udon Kuah,88,3.5,1.5,15.0,100,Olahan,Masakan Nusantara,japanese,450,Udon in broth · per 100g · conf:med · Estimasi
+jp-yakisoba,Yakisoba,169,5.5,6.5,22.0,100,Olahan,Masakan Nusantara,japanese,300,Stir-fried noodles · per 100g · conf:med · Estimasi
+jp-gyoza,Gyoza,207,9.0,11.0,18.0,100,Olahan,Masakan Nusantara,japanese,125,Pan-fried dumplings · 5 pcs · per 100g · conf:med · Estimasi
+jp-ebi-tempura,Ebi Tempura,249,13.0,13.0,20.0,100,Olahan,Ikan dsb,japanese,90,Shrimp tempura · 3 pcs · per 100g · conf:med · Estimasi
+jp-tempura-sayur,Tempura Sayur,246,4.0,14.0,26.0,100,Olahan,Sayur,japanese,90,Vegetable tempura · per 100g · conf:med · Estimasi
+jp-onigiri-tuna,Onigiri Tuna Mayo,191,5.5,4.5,32.0,100,Olahan,Serealia,japanese,110,Rice ball with tuna mayo · per 100g · conf:med · Estimasi
+jp-karaage,Chicken Karaage,251,18.0,15.0,11.0,100,Olahan,Masakan Nusantara,japanese,150,Japanese fried chicken · per 100g · conf:med · Estimasi
+jp-chawanmushi,Chawanmushi,76,7.0,4.0,3.0,100,Olahan,Telur,japanese,120,Savoury egg custard · per 100g · conf:med · Estimasi
+jp-miso-soup,Miso Soup,38,3.0,1.5,3.0,100,Olahan,Sayur,japanese,200,Miso and tofu soup · per 100g · conf:med · Estimasi
+jp-katsu-curry,Katsu Curry,184,9.0,7.5,20.0,100,Olahan,Masakan Nusantara,japanese,350,Katsu with Japanese curry rice · per 100g · conf:med · Estimasi
+jp-okonomiyaki,Okonomiyaki,173,7.0,9.0,16.0,100,Olahan,Masakan Nusantara,japanese,200,Savoury cabbage pancake · per 100g · conf:med · Estimasi
+jp-takoyaki,Takoyaki,194,7.0,9.5,20.0,100,Olahan,Masakan Nusantara,japanese,120,Octopus balls · 6 pcs · per 100g · conf:med · Estimasi
+jp-unagi-don,Unagi Don,217,11.0,9.0,23.0,100,Olahan,Masakan Nusantara,japanese,300,Grilled eel rice bowl · per 100g · conf:med · Estimasi
+jp-chicken-nanban,Chicken Nanban,242,16.0,14.0,13.0,100,Olahan,Masakan Nusantara,japanese,200,"Fried chicken, tartar sauce · per 100g · conf:med · Estimasi"
+jp-matcha-latte,Matcha Latte,73,2.5,2.5,10.0,100,Olahan,Minuman,japanese,250,Matcha with milk · regular sweetness · per 100g · conf:med · Estimasi
+kr-kimchi,Kimchi,23,1.5,0.3,3.5,100,Olahan,Sayur,korean,50,Fermented cabbage · per 100g · conf:med · Estimasi
+kr-bibimbap,Bibimbap,145,6.0,4.5,20.0,100,Olahan,Masakan Nusantara,korean,400,Mixed rice bowl · per 100g · conf:med · Estimasi
+kr-bulgogi,Bulgogi,169,13.0,9.0,9.0,100,Olahan,Daging,korean,200,Marinated grilled beef · per 100g · conf:med · Estimasi
+kr-tteokbokki,Tteokbokki,151,3.0,3.0,28.0,100,Olahan,Masakan Nusantara,korean,250,Spicy rice cakes · per 100g · conf:med · Estimasi
+kr-japchae,Japchae,162,4.0,6.0,23.0,100,Olahan,Masakan Nusantara,korean,200,Sweet potato glass noodles · per 100g · conf:med · Estimasi
+kr-kimbap,Kimbap,158,4.5,4.0,26.0,100,Olahan,Masakan Nusantara,korean,200,Seaweed rice roll · per 100g · conf:med · Estimasi
+kr-korean-fried-chicken,Ayam Goreng Korea,259,15.0,15.0,16.0,100,Olahan,Masakan Nusantara,korean,150,"Korean fried chicken, sweet-spicy · per 100g · conf:med · Estimasi"
+kr-samgyeopsal,Samgyeopsal,316,15.0,28.0,1.0,100,Olahan,Daging,korean,150,Grilled pork belly · per 100g · conf:med · Estimasi
+kr-sundubu,Sundubu Jjigae,64,4.5,3.5,3.5,100,Olahan,Masakan Nusantara,korean,400,Soft tofu stew · per 100g · conf:med · Estimasi
+kr-kimchi-jjigae,Kimchi Jjigae,79,5.5,4.5,4.0,100,Olahan,Masakan Nusantara,korean,400,Kimchi stew · per 100g · conf:med · Estimasi
+kr-budae-jjigae,Budae Jjigae,113,6.5,6.5,7.0,100,Olahan,Masakan Nusantara,korean,400,Army stew · per 100g · conf:med · Estimasi
+kr-jjajangmyeon,Jjajangmyeon,179,6.0,6.5,24.0,100,Olahan,Masakan Nusantara,korean,400,Black bean sauce noodles · per 100g · conf:med · Estimasi
+kr-ramyeon,Ramyeon,171,5.0,7.0,22.0,100,Olahan,Masakan Nusantara,korean,400,Korean instant ramen · per 100g · conf:med · Estimasi
+kr-dakgalbi,Dakgalbi,173,14.0,8.5,10.0,100,Olahan,Masakan Nusantara,korean,250,Spicy stir-fried chicken · per 100g · conf:med · Estimasi
+kr-corndog,Corndog Korea,277,8.0,13.0,32.0,100,Olahan,Masakan Nusantara,korean,120,Korean corn dog · per 100g · conf:med · Estimasi
+kr-gyeranmari,Gyeranmari,159,12.0,11.0,3.0,100,Olahan,Telur,korean,120,Rolled omelette · per 100g · conf:med · Estimasi
+kr-bossam,Bossam,260,18.0,20.0,2.0,100,Olahan,Daging,korean,180,Boiled pork with wraps · per 100g · conf:med · Estimasi
+kr-galbi,Galbi,249,16.0,17.0,8.0,100,Olahan,Daging,korean,200,Marinated short ribs · per 100g · conf:med · Estimasi
+kr-hotteok,Hotteok,279,4.5,9.0,45.0,100,Olahan,Kue/Dessert,korean,90,Sweet filled pancake · per 100g · conf:med · Estimasi
+kr-bingsu,Bingsu Susu,144,3.0,4.0,24.0,100,Olahan,Kue/Dessert,korean,300,Milk shaved ice · per 100g · conf:med · Estimasi
+wt-beef-burger,Beef Burger,220,11.0,12.0,17.0,100,Olahan,Masakan Nusantara,western,250,Beef patty burger with cheese · per 100g · conf:med · Estimasi
+wt-chicken-burger,Chicken Burger,214,12.0,10.0,19.0,100,Olahan,Masakan Nusantara,western,230,Fried chicken burger · per 100g · conf:med · Estimasi
+wt-spaghetti-bolognese,Spaghetti Bolognese,147,6.5,5.0,19.0,100,Olahan,Serealia,western,350,Pasta with meat sauce · per 100g · conf:med · Estimasi
+wt-carbonara,Carbonara,185,7.0,9.0,19.0,100,Olahan,Serealia,western,350,Cream and bacon pasta · per 100g · conf:med · Estimasi
+wt-aglio-olio,Aglio e Olio,175,6.0,7.0,22.0,100,Olahan,Serealia,western,300,Garlic oil pasta · per 100g · conf:med · Estimasi
+wt-lasagna,Lasagna,168,8.0,8.0,16.0,100,Olahan,Serealia,western,300,Baked layered pasta · per 100g · conf:med · Estimasi
+wt-pizza-margherita,Pizza Margherita,245,10.0,9.0,31.0,100,Olahan,Serealia,western,120,Cheese and tomato · 1 slice · per 100g · conf:med · Estimasi
+wt-pizza-pepperoni,Pizza Pepperoni,272,11.0,12.0,30.0,100,Olahan,Serealia,western,120,Pepperoni · 1 slice · per 100g · conf:med · Estimasi
+wt-grilled-chicken-steak,Grilled Chicken Steak,160,20.0,8.0,2.0,100,Olahan,Daging,western,200,"Grilled chicken breast, sauce · per 100g · conf:med · Estimasi"
+wt-beef-steak-sirloin,Beef Steak Sirloin,218,22.0,14.0,1.0,100,Olahan,Daging,western,200,Sirloin steak · per 100g · conf:med · Estimasi
+wt-fish-and-chips,Fish and Chips,204,9.5,10.0,19.0,100,Olahan,Ikan dsb,western,300,Battered fish with fries · per 100g · conf:med · Estimasi
+wt-french-fries,French Fries,301,3.5,15.0,38.0,100,Olahan,Umbi,western,120,Deep fried potato · per 100g · conf:med · Estimasi
+wt-chicken-nugget,Chicken Nugget,294,15.0,18.0,18.0,100,Olahan,Masakan Nusantara,western,100,Fried chicken nuggets · per 100g · conf:med · Estimasi
+wt-caesar-salad,Caesar Salad,138,6.0,10.0,6.0,100,Olahan,Sayur,western,200,"Romaine, dressing, croutons · per 100g · conf:med · Estimasi"
+wt-chicken-caesar-wrap,Chicken Caesar Wrap,213,11.0,9.0,22.0,100,Olahan,Masakan Nusantara,western,220,Wrap with chicken and dressing · per 100g · conf:med · Estimasi
+wt-club-sandwich,Club Sandwich,222,11.0,10.0,22.0,100,Olahan,Serealia,western,250,Triple decker sandwich · per 100g · conf:med · Estimasi
+wt-tuna-sandwich,Tuna Sandwich,203,11.0,7.0,24.0,100,Olahan,Serealia,western,180,Tuna mayo sandwich · per 100g · conf:med · Estimasi
+wt-scrambled-egg-toast,Scrambled Egg + Toast,219,10.0,11.0,20.0,100,Olahan,Telur,western,180,Eggs with buttered toast · per 100g · conf:med · Estimasi
+wt-pancake-syrup,Pancake + Sirup,238,6.0,6.0,40.0,100,Olahan,Kue/Dessert,western,150,Pancakes with syrup · per 100g · conf:med · Estimasi
+wt-french-toast,French Toast,247,7.5,9.0,34.0,100,Olahan,Kue/Dessert,western,150,Egg-dipped fried bread · per 100g · conf:med · Estimasi
+wt-croissant-butter,Croissant Butter,401,8.0,21.0,45.0,100,Olahan,Kue/Dessert,western,60,Plain butter croissant · per 100g · conf:med · Estimasi
+wt-croissant-almond,Croissant Almond,426,8.5,24.0,44.0,100,Olahan,Kue/Dessert,western,90,Almond croissant · per 100g · conf:med · Estimasi
+wt-cinnamon-roll,Cinnamon Roll,358,6.0,14.0,52.0,100,Olahan,Kue/Dessert,western,110,Iced cinnamon roll · per 100g · conf:med · Estimasi
+wt-brownies,Brownies,410,5.5,20.0,52.0,100,Olahan,Kue/Dessert,western,60,Fudge brownie · per 100g · conf:med · Estimasi
+wt-cheesecake,Cheesecake,326,6.0,22.0,26.0,100,Olahan,Kue/Dessert,western,100,Baked cheesecake slice · per 100g · conf:med · Estimasi
+wt-tiramisu,Tiramisu,277,5.0,17.0,26.0,100,Olahan,Kue/Dessert,western,120,Coffee mascarpone dessert · per 100g · conf:med · Estimasi
+wt-chocolate-chip-cookie,Chocolate Chip Cookie,470,5.5,24.0,58.0,100,Olahan,Kue/Dessert,western,40,Soft baked cookie · per 100g · conf:med · Estimasi
+wt-mashed-potato,Mashed Potato,115,2.5,5.0,15.0,100,Olahan,Umbi,western,150,Creamy mashed potato · per 100g · conf:med · Estimasi
+wt-mushroom-soup,Cream of Mushroom Soup,87,2.5,5.0,8.0,100,Olahan,Sayur,western,250,Creamy mushroom soup · per 100g · conf:med · Estimasi
+wt-garlic-bread,Garlic Bread,338,8.0,14.0,45.0,100,Olahan,Serealia,western,60,Buttered garlic bread · per 100g · conf:med · Estimasi
+sn-pisang-goreng,Pisang Goreng,270,2.5,12.0,38.0,100,Olahan,Kue/Dessert,indonesian,60,Fried banana fritter · per 100g · conf:med · Estimasi
+sn-tahu-isi,Tahu Isi,216,7.0,12.0,20.0,100,Olahan,Masakan Nusantara,indonesian,60,Stuffed fried tofu · per 100g · conf:med · Estimasi
+sn-cireng,Cireng,284,2.0,12.0,42.0,100,Olahan,Kue/Dessert,indonesian,50,Fried tapioca snack · per 100g · conf:med · Estimasi
+sn-cilok,Cilok,234,3.0,6.0,42.0,100,Olahan,Kue/Dessert,indonesian,80,Tapioca balls with peanut sauce · per 100g · conf:med · Estimasi
+sn-klepon,Klepon,215,1.5,4.5,42.0,100,Olahan,Kue/Dessert,indonesian,60,Palm sugar rice balls · per 100g · conf:med · Estimasi
+sn-dadar-gulung,Dadar Gulung,227,3.0,7.0,38.0,100,Olahan,Kue/Dessert,indonesian,60,Pandan crepe with coconut · per 100g · conf:med · Estimasi
+sn-lemper,Lemper,198,4.5,4.0,36.0,100,Olahan,Kue/Dessert,indonesian,70,Sticky rice with chicken floss · per 100g · conf:med · Estimasi
+sn-nagasari,Nagasari,173,1.5,2.5,36.0,100,Olahan,Kue/Dessert,indonesian,60,Banana rice flour cake · per 100g · conf:med · Estimasi
+sn-onde-onde,Onde-onde,293,4.5,11.0,44.0,100,Olahan,Kue/Dessert,indonesian,50,Sesame ball with mung bean · per 100g · conf:med · Estimasi
+sn-kue-cubit,Kue Cubit,281,5.0,9.0,45.0,100,Olahan,Kue/Dessert,indonesian,40,Mini pancake snack · per 100g · conf:med · Estimasi
+sn-martabak-manis,Martabak Manis Cokelat,373,7.0,17.0,48.0,100,Olahan,Kue/Dessert,indonesian,100,"Sweet thick pancake, chocolate · per 100g · conf:med · Estimasi"
+sn-roti-bakar-cokelat,Roti Bakar Cokelat Keju,332,7.5,14.0,44.0,100,Olahan,Kue/Dessert,indonesian,120,Toast with chocolate and cheese · per 100g · conf:med · Estimasi
+sn-donat-gula,Donat Gula,358,5.5,16.0,48.0,100,Olahan,Kue/Dessert,western,60,Sugar-coated donut · per 100g · conf:med · Estimasi
+sn-keripik-singkong,Keripik Singkong,474,2.0,26.0,58.0,100,Olahan,Umbi,indonesian,30,Cassava chips · per 100g · conf:med · Estimasi
+sn-kacang-goreng,Kacang Goreng,568,25.0,44.0,18.0,100,Olahan,Kacang,indonesian,30,Fried peanuts · per 100g · conf:med · Estimasi
+sn-popcorn-caramel,Popcorn Caramel,412,4.0,12.0,72.0,100,Olahan,Serealia,western,50,Caramel popcorn · per 100g · conf:med · Estimasi
+sn-es-campur,Es Campur,137,1.5,3.0,26.0,100,Olahan,Kue/Dessert,indonesian,300,Mixed shaved ice dessert · per 100g · conf:med · Estimasi
+sn-es-cendol,Es Cendol,163,1.5,5.0,28.0,100,Olahan,Kue/Dessert,indonesian,300,Cendol with coconut milk · per 100g · conf:med · Estimasi
+sn-kolak-pisang,Kolak Pisang,151,1.5,4.5,26.0,100,Olahan,Kue/Dessert,indonesian,250,Banana in palm sugar coconut · per 100g · conf:med · Estimasi
+sn-bubur-kacang-hijau,Bubur Kacang Hijau,142,4.5,4.0,22.0,100,Olahan,Kacang,indonesian,250,Mung bean porridge · per 100g · conf:med · Estimasi

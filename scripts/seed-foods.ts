@@ -53,6 +53,8 @@ const TASKS: SeedTask[] = [
   { file: "drinks.csv", source: "CUSTOM", prefix: "DRINK:" },
   { file: "cafe_foods.csv", source: "CUSTOM", prefix: "CAFE:" },
   { file: "fruits.csv", source: "CUSTOM", prefix: "FRUIT:" },
+  // Curated prepared-dish pack, cuisine-tagged (padang / chinese / japanese …).
+  { file: "masakan_pack.csv", source: "CUSTOM", prefix: "MASAK:" },
   // Optional — skipped silently if the file is absent.
   { file: "usda_foods.csv", source: "USDA", prefix: "USDA:" },
 ];
@@ -86,7 +88,7 @@ async function main() {
   // Bump RANKING_VERSION whenever scripts/foodRanking scoring changes so a
   // deploy that adds no new rows still re-seeds once to recompute popularity /
   // searchText. Tracked via an ActivityLog marker.
-  const RANKING_VERSION = 2;
+  const RANKING_VERSION = 3;
   let rankingStale = false;
   let existing: number | null = null;
   let missingIndex = 0;
@@ -179,6 +181,7 @@ async function main() {
         nameNormalized: row.nameNormalized,
         state: row.state,
         foodGroup: row.foodGroup,
+        cuisine: row.cuisine,
         bddPct: row.bddPct,
         portionGCooked: toDecimal(row.portionGCooked),
         note: row.note,
