@@ -600,13 +600,21 @@ export default function WorkoutHome() {
               {curIsToday ? "MULAI · HARI INI ▶" : "MULAI LEBIH AWAL ▶"}
             </button>
             <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+              {/* CACEP = "Catat cepat" — the freestyle path. Named so it reads
+                  as a thing you can do (log any machine right now), not as a
+                  search box, which is what "CARI / TUKAR" implied. */}
               <button
                 type="button"
                 className="mono tap-press"
                 onClick={() => setSearchOpen(true)}
-                style={ghostBtn}
+                style={{
+                  ...ghostBtn,
+                  color: "#ffb99e",
+                  background: "rgba(255,138,60,.1)",
+                  border: "1px solid rgba(255,150,120,.3)",
+                }}
               >
-                🔍 CARI / TUKAR
+                ⚡ CACEP · BEBAS
               </button>
               <button
                 type="button"
@@ -966,9 +974,9 @@ function SearchModal({
             className="mono"
             style={{ textAlign: "center", fontSize: 10, color: "#8a837d", marginTop: 18, lineHeight: 1.6 }}
           >
-            Ketik nama mesin (mis. &ldquo;chest&rdquo;, &ldquo;inner thigh&rdquo;)
+            ⚡ CATAT CEPAT — latihan bebas, nggak usah ikut program.
             <br />
-            atau sesi buat langsung mulai.
+            Ketik mesin apa aja (mis. &ldquo;chest&rdquo;, &ldquo;inner thigh&rdquo;), langsung catat.
           </div>
         )}
 

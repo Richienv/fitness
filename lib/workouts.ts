@@ -68,7 +68,7 @@ export const SESSIONS: SessionDef[] = [
     dayLabel: "MON",
     primaryMuscles: ["chest", "frontDelt", "tricep"],
     exercises: [
-      { name: "Bench Press",         sets: 4, repsLabel: "8-10", targetReps: 9,  increment: 2.5, restSec: 120, primary: ["chest"],     secondary: ["frontDelt", "tricep"] },
+      { name: "Bench Press",         sets: 4, repsLabel: "8-10", targetReps: 9,  increment: 2.5, restSec: 60, primary: ["chest"],     secondary: ["frontDelt", "tricep"] },
       { name: "Incline DB Press",    sets: 3, repsLabel: "10",   targetReps: 10, increment: 2.5, restSec: 90,  primary: ["chest"],     secondary: ["frontDelt", "tricep"] },
       { name: "Cable Lateral Raise", sets: 3, repsLabel: "15",   targetReps: 15, increment: 1,   restSec: 60,  primary: ["sideDelt"],  secondary: [] },
       { name: "OHP",                 sets: 3, repsLabel: "10",   targetReps: 10, increment: 2.5, restSec: 90,  primary: ["frontDelt"], secondary: ["sideDelt", "tricep"] },
@@ -106,8 +106,8 @@ export const SESSIONS: SessionDef[] = [
     dayLabel: "THU",
     primaryMuscles: ["quad", "hamstring", "glute", "abs"],
     exercises: [
-      { name: "Squat",             sets: 4, repsLabel: "8-10", targetReps: 9,  increment: 5,   restSec: 120, primary: ["quad"],      secondary: ["glute", "hamstring"] },
-      { name: "Romanian Deadlift", sets: 3, repsLabel: "10",   targetReps: 10, increment: 5,   restSec: 120, primary: ["hamstring"], secondary: ["glute", "midBack"] },
+      { name: "Squat",             sets: 4, repsLabel: "8-10", targetReps: 9,  increment: 5,   restSec: 60, primary: ["quad"],      secondary: ["glute", "hamstring"] },
+      { name: "Romanian Deadlift", sets: 3, repsLabel: "10",   targetReps: 10, increment: 5,   restSec: 60, primary: ["hamstring"], secondary: ["glute", "midBack"] },
       { name: "Leg Press",         sets: 3, repsLabel: "12",   targetReps: 12, increment: 5,   restSec: 90,  primary: ["quad"],      secondary: ["glute"] },
       { name: "Leg Curl",          sets: 3, repsLabel: "12",   targetReps: 12, increment: 2.5, restSec: 60,  primary: ["hamstring"], secondary: [] },
       { name: "Calf Raise",        sets: 4, repsLabel: "15",   targetReps: 15, increment: 2.5, restSec: 45,  primary: ["calf"],      secondary: [] },
@@ -145,7 +145,7 @@ export const SESSIONS: SessionDef[] = [
     dayLabel: "WEEKEND",
     primaryMuscles: ["midBack", "lats", "traps", "bicep"],
     exercises: [
-      { name: "Deadlift",           sets: 3, repsLabel: "8",       targetReps: 8,  increment: 5,   restSec: 120, primary: ["midBack"],  secondary: ["hamstring", "glute", "traps"] },
+      { name: "Deadlift",           sets: 3, repsLabel: "8",       targetReps: 8,  increment: 5,   restSec: 60, primary: ["midBack"],  secondary: ["hamstring", "glute", "traps"] },
       { name: "Wide Grip Pulldown", sets: 4, repsLabel: "10",      targetReps: 10, increment: 2.5, restSec: 90,  primary: ["lats"],     secondary: ["bicep", "rearDelt"] },
       { name: "Cable Row Wide",     sets: 3, repsLabel: "12",      targetReps: 12, increment: 2.5, restSec: 90,  primary: ["midBack"],  secondary: ["lats", "rearDelt"] },
       { name: "DB Row",             sets: 3, repsLabel: "10/side", targetReps: 10, increment: 2.5, restSec: 90,  primary: ["midBack"],  secondary: ["lats", "bicep"] },
@@ -167,8 +167,8 @@ export const SESSIONS: SessionDef[] = [
     dayLabel: "MON",
     primaryMuscles: ["glute", "hamstring", "quad"],
     exercises: [
-      { name: "Hip Thrust",           sets: 4, repsLabel: "8-10",   targetReps: 9,  increment: 5,   restSec: 120, primary: ["glute"],     secondary: ["hamstring"] },
-      { name: "Romanian Deadlift",    sets: 3, repsLabel: "10",     targetReps: 10, increment: 2.5, restSec: 120, primary: ["hamstring"], secondary: ["glute"] },
+      { name: "Hip Thrust",           sets: 4, repsLabel: "8-10",   targetReps: 9,  increment: 5,   restSec: 60, primary: ["glute"],     secondary: ["hamstring"] },
+      { name: "Romanian Deadlift",    sets: 3, repsLabel: "10",     targetReps: 10, increment: 2.5, restSec: 60, primary: ["hamstring"], secondary: ["glute"] },
       { name: "Bulgarian Split Squat", sets: 3, repsLabel: "10/leg", targetReps: 10, increment: 2.5, restSec: 90,  primary: ["glute"],     secondary: ["quad"] },
       { name: "Cable Kickback",       sets: 3, repsLabel: "12",     targetReps: 12, increment: 2.5, restSec: 60,  primary: ["glute"],     secondary: [] },
       { name: "Hip Abduction",        sets: 3, repsLabel: "15",     targetReps: 15, increment: 2.5, restSec: 45,  primary: ["glute"],     secondary: [] },
@@ -221,7 +221,7 @@ export const SESSIONS: SessionDef[] = [
     dayLabel: "THU",
     primaryMuscles: ["quad", "glute", "hamstring", "calf"],
     exercises: [
-      { name: "Squat",         sets: 4, repsLabel: "8",      targetReps: 8,  increment: 5,   restSec: 120, primary: ["quad"],      secondary: ["glute", "hamstring"] },
+      { name: "Squat",         sets: 4, repsLabel: "8",      targetReps: 8,  increment: 5,   restSec: 60, primary: ["quad"],      secondary: ["glute", "hamstring"] },
       { name: "Walking Lunge", sets: 3, repsLabel: "12/leg", targetReps: 12, increment: 2.5, restSec: 90,  primary: ["quad"],      secondary: ["glute"] },
       { name: "Leg Press",     sets: 3, repsLabel: "12",     targetReps: 12, increment: 5,   restSec: 90,  primary: ["glute"],     secondary: ["quad"] },
       { name: "Leg Curl",      sets: 3, repsLabel: "12",     targetReps: 12, increment: 2.5, restSec: 60,  primary: ["hamstring"], secondary: [] },

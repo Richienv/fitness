@@ -158,13 +158,24 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
 
   const allDone = totals.total > 0 && totals.done >= totals.total;
 
-  const focusIdx = useMemo(() => {
+  // The next unfinished exercise — the default suggestion, not a rule.
+  const nextIdx = useMemo(() => {
     if (!workout) return 0;
     for (let i = 0; i < allDefs.length; i++) {
       if ((workout.exercises[i]?.sets.length ?? 0) < allDefs[i].sets) return i;
     }
     return allDefs.length - 1;
   }, [workout, allDefs]);
+
+  // Gyms don't cooperate: the bench you "should" do next is often taken. Any
+  // exercise can be picked to work on now — `pickedIdx` overrides the
+  // suggestion until its sets are done, then we fall back to the next one.
+  const [pickedIdx, setPickedIdx] = useState<number | null>(null);
+  const pickedStillOpen =
+    pickedIdx !== null &&
+    pickedIdx < allDefs.length &&
+    (workout?.exercises[pickedIdx]?.sets.length ?? 0) < (allDefs[pickedIdx]?.sets ?? 0);
+  const focusIdx = pickedStillOpen ? (pickedIdx as number) : nextIdx;
 
   const focusDoneCount = workout?.exercises[focusIdx]?.sets.length ?? 0;
 
@@ -453,7 +464,20 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
 
             return (
               <div key={`${d.name}-${i}`} style={wrapStyle}>
-                <div style={cardStyle}>
+                <div
+                  style={cardStyle}
+                  // Tap any card to work on it now — the machine you're
+                  // "supposed" to do next is often occupied. Completed ones
+                  // stay tappable too, so you can add a set back onto them.
+                  onClick={
+                    isFocus || isComplete
+                      ? undefined
+                      : () => {
+                          haptic("tap");
+                          setPickedIdx(i);
+                        }
+                  }
+                >
                   {isFocus && (
                     <div
                       style={{
@@ -496,8 +520,31 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                   >
                     <div style={{ minWidth: 0, flex: "1 1 auto" }}>
                       {!isFocus && (
-                        <div style={{ fontSize: 18, fontWeight: 800, color: isComplete ? "#cfc8c2" : "#f1ede9", letterSpacing: ".3px" }}>
-                          {isComplete ? "✓ " : ""}{displayName}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 18, fontWeight: 800, color: isComplete ? "#cfc8c2" : "#f1ede9", letterSpacing: ".3px" }}>
+                            {isComplete ? "✓ " : ""}{displayName}
+                          </span>
+                          {/* Makes "you can jump to this one" visible — the
+                              order is a suggestion, not a queue. */}
+                          {!isComplete && (
+                            <span
+                              className="mono"
+                              style={{
+                                flex: "none",
+                                fontSize: 8,
+                                letterSpacing: ".1em",
+                                fontWeight: 700,
+                                color: "#ffb99e",
+                                background: "rgba(255,138,60,.1)",
+                                border: "1px solid rgba(255,150,120,.3)",
+                                borderRadius: 999,
+                                padding: "3px 8px",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              TAP ▸ MULAI INI
+                            </span>
+                          )}
                         </div>
                       )}
                       {/* Gold PR medal */}
