@@ -88,6 +88,10 @@ type BuilderFood = {
   step?: number;
   gramsPerUnit?: number;
   favorite?: boolean;
+  /** Default household portion in grams (e.g. 300 for Nasi Goreng). */
+  portionG?: number;
+  /** Household measures to pick from ("1 porsi", "1 potong"). */
+  servings?: { label: string; grams: number }[];
 };
 
 // One row from /api/foods/search (per-100g values, numbers or null).
@@ -97,6 +101,8 @@ type DbFoodRow = {
   nameEn?: string | null;
   foodGroup?: string | null;
   cuisine?: string | null;
+  portionG?: number | null;
+  servings?: { label: string; grams: number }[];
   energy_kcal: number | null;
   protein_g: number | null;
   fat_g: number | null;
@@ -400,6 +406,8 @@ export default function FoodBuilder({
             carbs: f.carb_g ?? 0,
             gramsPerUnit: 100,
             step: 0.1, // ±10 g nudges (gramsPerUnit 100)
+            portionG: f.portionG ?? undefined,
+            servings: f.servings ?? [],
           }));
           setDbResults(mapped);
           setSearching(false);
@@ -520,14 +528,29 @@ export default function FoodBuilder({
   };
 
   // ---------- selection ----------
+  /** Quantity for the FIRST tap on a food. Prefer its real household portion
+   *  (e.g. Nasi Goreng → 300 g = qty 3.0) so one tap logs a believable plate;
+   *  the old behaviour added `step`, which for DB foods meant 10 g and took
+   *  ~30 taps to reach a portion. Nudges after that still use `step`. */
+  const firstQty = (ing: BuilderFood | null): number => {
+    const st = (ing && ing.step) || 1;
+    if (!ing) return st;
+    const gpu = ing.gramsPerUnit;
+    const portion = ing.portionG;
+    if (gpu && portion && portion > 0) {
+      return Math.round((portion / gpu) * 1000) / 1000;
+    }
+    return st;
+  };
+
   const bAdd = (id: string) => {
     haptic("tap");
     const ing = bIng(id);
-    const st = (ing && ing.step) || 1;
-    setSelection((sel) => ({
-      ...sel,
-      [id]: Math.round(((sel[id] || 0) + st) * 1000) / 1000,
-    }));
+    setSelection((sel) => {
+      const cur = sel[id] || 0;
+      const inc = cur > 0 ? (ing && ing.step) || 1 : firstQty(ing);
+      return { ...sel, [id]: Math.round((cur + inc) * 1000) / 1000 };
+    });
     setJustId(id);
     setAddTick((t) => t + 1);
   };
@@ -2591,6 +2614,58 @@ export default function FoodBuilder({
                 </div>
               </div>
             ) : null}
+            {/* Household measures — tap "1 porsi" instead of doing gram math. */}
+            {(() => {
+              if (editing.mode !== "edit" || !editing.id) return null;
+              const f = bIng(editing.id);
+              const sv = f?.servings ?? [];
+              if (sv.length === 0) return null;
+              return (
+                <div style={{ marginTop: 14 }}>
+                  <div
+                    style={{
+                      fontFamily: MONO,
+                      fontSize: 9,
+                      letterSpacing: ".14em",
+                      color: "#7c736e",
+                      marginBottom: 8,
+                    }}
+                  >
+                    UKURAN RUMAHAN
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                    {sv.map((s) => {
+                      const active = Math.abs(editing.grams - s.grams) < 0.5;
+                      return (
+                        <button
+                          key={s.label}
+                          type="button"
+                          onClick={() => editSetGrams(s.grams)}
+                          style={{
+                            padding: "8px 12px",
+                            borderRadius: 999,
+                            fontFamily: MONO,
+                            fontSize: 10.5,
+                            fontWeight: active ? 700 : 400,
+                            cursor: "pointer",
+                            color: active ? "#fff" : "#cfc8c2",
+                            background: active ? FIRE : "rgba(255,255,255,.04)",
+                            border: active
+                              ? "1px solid rgba(255,150,120,.6)"
+                              : "1px solid rgba(255,255,255,.12)",
+                          }}
+                        >
+                          {s.label}{" "}
+                          <span style={{ color: active ? "rgba(255,235,225,.8)" : "#7c736e" }}>
+                            {Math.round(s.grams)}g
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
             {(() => {
               const e = editing;
               type Row = {
