@@ -597,6 +597,69 @@ export function saveCustomTemplate(
   return entry;
 }
 
+export function renameCustomTemplate(id: string, name: string): void {
+  const all = getCustomTemplates();
+  const t = all.find((x) => x.id === id);
+  if (!t) return;
+  t.name = name.trim().slice(0, 60) || t.name;
+  write(CUSTOM_TEMPLATES_KEY, all);
+}
+
+/** Turn a FINISHED session into a reusable template draft.
+ *
+ *  A freestyle ("Catat cepat") session is otherwise a one-off: you pick
+ *  machines, log them, and the shape of that workout is gone. This captures
+ *  what you ACTUALLY did — the machines, how many sets you logged, and the
+ *  reps you finished on — so it can be repeated later. Weight isn't stored on
+ *  the template; the logger already seeds it from your last performance, which
+ *  stays truer over time than a frozen number.
+ *
+ *  Exercises with no logged sets are dropped: they weren't part of the workout.
+ */
+export function templateDraftFromWorkout(
+  w: WorkoutSession
+): Omit<CustomTemplate, "id" | "createdAt"> {
+  const def = getDefForWorkout(w);
+  const exercises: ExerciseDef[] = [];
+  for (let i = 0; i < w.exercises.length; i++) {
+    const log = w.exercises[i];
+    if (!log || log.sets.length === 0) continue;
+    const d = def.exercises[i];
+    const name = log.swappedTo ?? d?.name ?? log.exerciseName;
+    const lastReps = log.sets[log.sets.length - 1]?.reps ?? d?.targetReps ?? 10;
+    exercises.push({
+      name,
+      sets: log.sets.length,
+      repsLabel: String(lastReps),
+      targetReps: lastReps,
+      increment: d?.increment ?? 2.5,
+      restSec: d?.restSec ?? 60,
+      primary: d?.primary ?? ["chest"],
+      secondary: d?.secondary ?? [],
+    });
+  }
+  // Default name: the machines themselves, since that's how you'd recognise
+  // the session. Renameable straight away.
+  const names = exercises.map((e) => e.name);
+  const head = names.slice(0, 2).join(" + ");
+  const name =
+    names.length === 0
+      ? "Sesi saya"
+      : names.length > 2
+      ? `${head} +${names.length - 2}`
+      : head;
+  const dateLabel = (() => {
+    const [y, m, dd] = w.date.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, (m || 1) - 1, dd || 1, 12));
+    return dt.toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short" });
+  })();
+  return {
+    name: name.slice(0, 60),
+    focus: `${exercises.length} gerakan · ${dateLabel}`,
+    exercises,
+  };
+}
+
 export function deleteCustomTemplate(id: string): void {
   write(
     CUSTOM_TEMPLATES_KEY,

@@ -11,6 +11,7 @@ import {
   getWorkout,
   saveCustomTemplate,
   deleteCustomTemplate,
+  renameCustomTemplate,
   startCustomWorkout,
   startWorkout,
   startQuickExercise,
@@ -765,6 +766,31 @@ export default function WorkoutHome() {
                     <div className="mono" style={{ fontSize: 9.5, color: "#8a837d", marginTop: 3 }}>
                       {t.focus || "CUSTOM"} · {t.exercises.length} gerakan
                     </div>
+                  </button>
+                  {/* Rename — a saved freestyle session gets an auto name from
+                      its machines, which you'll usually want to replace. */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = window.prompt("Ganti nama sesi", t.name);
+                      if (next === null) return;
+                      renameCustomTemplate(t.id, next);
+                      setTemplates(getCustomTemplates());
+                    }}
+                    aria-label={`Ganti nama ${t.name}`}
+                    style={{
+                      flex: "none",
+                      width: 30,
+                      height: 30,
+                      borderRadius: 9,
+                      color: "#8a837d",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: 13,
+                    }}
+                  >
+                    ✎
                   </button>
                   <button
                     type="button"

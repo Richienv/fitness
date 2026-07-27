@@ -7,6 +7,8 @@ import {
   getDefForWorkout,
   getWorkout,
   getLastSessionOfType,
+  saveCustomTemplate,
+  templateDraftFromWorkout,
   weekNumber,
   workoutVolume,
   type WorkoutSession,
@@ -54,11 +56,18 @@ export default function SessionComplete({ workoutId }: { workoutId: string }) {
   const [prev, setPrev] = useState<WorkoutSession | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [sharing, setSharing] = useState(false);
+  // Save-as-session: a freestyle workout is otherwise a one-off. Prefilled
+  // with the machines you actually did; renameable before saving.
+  const [saveName, setSaveName] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     const w = getWorkout(workoutId);
     setWorkout(w);
-    if (w) setPrev(getLastSessionOfType(w.sessionType, w.id));
+    if (w) {
+      setPrev(getLastSessionOfType(w.sessionType, w.id));
+      setSaveName(templateDraftFromWorkout(w).name);
+    }
     setLoaded(true);
   }, [workoutId]);
 
@@ -292,6 +301,94 @@ export default function SessionComplete({ workoutId }: { workoutId: string }) {
               ))}
             </div>
           </>
+        )}
+
+        {/* Save this workout as a reusable session ("SESI SAYA" on LATIHAN).
+            Shown for every finished session — a freestyle CACEP workout would
+            otherwise vanish, and repeating a good one is the whole point. */}
+        {setsLogged > 0 && (
+          <div
+            className="rise-5"
+            style={{
+              marginTop: 26,
+              padding: 16,
+              borderRadius: 16,
+              background: saved
+                ? "linear-gradient(180deg,rgba(34,197,94,.12),transparent)"
+                : "linear-gradient(180deg,rgba(255,138,60,.08),transparent)",
+              border: saved
+                ? "1px solid rgba(34,197,94,.35)"
+                : "1px solid rgba(255,150,120,.3)",
+            }}
+          >
+            {saved ? (
+              <>
+                <div style={{ fontSize: 15, fontWeight: 800, color: "#f1ede9" }}>
+                  ✓ Tersimpan jadi sesi
+                </div>
+                <div className="mono" style={{ fontSize: 10.5, color: "#8a837d", marginTop: 6, lineHeight: 1.5 }}>
+                  Ada di <b style={{ color: "#cfc8c2" }}>SESI SAYA</b> di halaman LATIHAN — tinggal tap buat ngulang.
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mono" style={{ fontSize: 9.5, letterSpacing: ".14em", color: "#ffb99e" }}>
+                  ☆ SIMPAN JADI SESI
+                </div>
+                <div className="mono" style={{ fontSize: 10, color: "#8a837d", marginTop: 6, lineHeight: 1.5 }}>
+                  Simpan mesin + set + reps yang barusan, biar bisa diulang kapan aja.
+                </div>
+                <input
+                  type="text"
+                  value={saveName ?? ""}
+                  onChange={(e) => setSaveName(e.target.value)}
+                  onFocus={(e) => e.currentTarget.select()}
+                  placeholder="Kasih nama sesi ini"
+                  style={{
+                    width: "100%",
+                    marginTop: 11,
+                    padding: "12px 13px",
+                    borderRadius: 12,
+                    background: "#0c0a0b",
+                    border: "1px solid rgba(255,255,255,.14)",
+                    color: "#f1ede9",
+                    fontFamily: SANS,
+                    fontSize: 14.5,
+                    fontWeight: 600,
+                    outline: "none",
+                  }}
+                />
+                <button
+                  type="button"
+                  className="tap-press"
+                  onClick={() => {
+                    if (!workout) return;
+                    const draft = templateDraftFromWorkout(workout);
+                    saveCustomTemplate({
+                      ...draft,
+                      name: (saveName ?? "").trim() || draft.name,
+                    });
+                    setSaved(true);
+                  }}
+                  style={{
+                    width: "100%",
+                    marginTop: 10,
+                    padding: 13,
+                    borderRadius: 13,
+                    color: "#fff",
+                    fontSize: 13.5,
+                    fontWeight: 800,
+                    letterSpacing: "1px",
+                    background: FIRE,
+                    border: "1px solid rgba(255,150,120,.6)",
+                    cursor: "pointer",
+                  }}
+                >
+                  SIMPAN ☆
+                </button>
+              </>
+            )}
+          </div>
         )}
 
         {/* Actions */}
