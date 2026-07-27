@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { haptic } from "@/lib/haptics";
 import { normalizeUsername, usernameError } from "@/lib/username";
+import { todayKey } from "@/lib/targets";
 
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
 const MONO = "var(--font-dm-mono), 'JetBrains Mono', monospace";
@@ -39,10 +40,10 @@ const MEAL_LABEL: Record<string, string> = {
   dinner: "MALAM",
 };
 
-function todayKey(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+// NOTE: use the app's shared todayKey (Asia/Shanghai), NOT browser-local time.
+// Every meal/workout row is written with the CST date key, so a locally-derived
+// key silently queries the wrong day for anyone outside UTC+8 — the feed then
+// renders "belum catat apa-apa" even though the data is there.
 
 function initials(name: string): string {
   return name.slice(0, 2).toUpperCase();
@@ -51,6 +52,7 @@ function initials(name: string): string {
 export default function SocialHome() {
   const [social, setSocial] = useState<Social | null>(null);
   const [feed, setFeed] = useState<Day[] | null>(null);
+  const [feedError, setFeedError] = useState(false);
   const [myUsername, setMyUsername] = useState<string | null>(null);
   const [loadedMe, setLoadedMe] = useState(false);
 
@@ -74,8 +76,18 @@ export default function SocialHome() {
       fetch("/api/social/username").then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ]);
     if (s?.ok) setSocial(s.data);
-    if (f?.ok) setFeed(f.data.feed);
     if (u?.ok) setMyUsername(u.data?.username ?? null);
+    // Distinguish "loaded, empty" from "failed": leaving feed at null on an
+    // error left the page stuck on "Memuat…" forever with nothing explaining
+    // why. An empty array renders the real empty state; the flag surfaces
+    // failures instead of hiding them.
+    if (f?.ok) {
+      setFeed(f.data.feed);
+      setFeedError(false);
+    } else {
+      setFeed([]);
+      setFeedError(true);
+    }
     setLoadedMe(true);
   }, [date]);
 
@@ -146,7 +158,12 @@ export default function SocialHome() {
     if (r.ok) {
       haptic("success");
       setHits((hs) => hs.map((h) => (h.username === username ? { ...h, status: "PENDING" } : h)));
+      setHandleMsg(null);
       load();
+    } else {
+      // The API returns a Bahasa reason (not found / already following /
+      // yourself); dropping it made a failed tap look like a dead button.
+      setHandleMsg({ kind: "err", text: r.message ?? "Gagal mengirim permintaan." });
     }
   }
 
@@ -356,6 +373,21 @@ export default function SocialHome() {
         <div className="mono" style={label}>🔥 HARI INI</div>
         {feed === null ? (
           <div className="mono" style={{ fontSize: 11, color: "#7c736e" }}>Memuat…</div>
+        ) : feedError ? (
+          <div
+            className="mono"
+            style={{
+              padding: "18px",
+              borderRadius: 14,
+              fontSize: 11,
+              lineHeight: 1.6,
+              color: "#ff9a80",
+              background: "rgba(238,60,48,.08)",
+              border: "1px solid rgba(238,60,48,.35)",
+            }}
+          >
+            Gagal memuat feed. Cek koneksi, lalu tarik buat refresh.
+          </div>
         ) : feed.length === 0 ? (
           <div
             style={{

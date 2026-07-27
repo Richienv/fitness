@@ -18,6 +18,9 @@ const LEFT: Tab[] = [
 
 const RIGHT: Tab[] = [
   { href: "/workout",   label: "LATIHAN", icon: "🏋️", match: (p) => p.startsWith("/workout") },
+  // TEMAN was only reachable from a grey row at the very bottom of Beranda —
+  // below the fold and styled like a footnote, so it was effectively hidden.
+  { href: "/social",    label: "TEMAN",   icon: "👥", match: (p) => p.startsWith("/social") },
   { href: "/dashboard", label: "STATS",   icon: "📊", match: (p) => p.startsWith("/dashboard") },
 ];
 

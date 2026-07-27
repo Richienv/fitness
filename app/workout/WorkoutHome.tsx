@@ -11,6 +11,7 @@ import {
   getWorkout,
   saveCustomTemplate,
   deleteCustomTemplate,
+  renameCustomTemplate,
   startCustomWorkout,
   startWorkout,
   startQuickExercise,
@@ -600,13 +601,21 @@ export default function WorkoutHome() {
               {curIsToday ? "MULAI · HARI INI ▶" : "MULAI LEBIH AWAL ▶"}
             </button>
             <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+              {/* CACEP = "Catat cepat" — the freestyle path. Named so it reads
+                  as a thing you can do (log any machine right now), not as a
+                  search box, which is what "CARI / TUKAR" implied. */}
               <button
                 type="button"
                 className="mono tap-press"
                 onClick={() => setSearchOpen(true)}
-                style={ghostBtn}
+                style={{
+                  ...ghostBtn,
+                  color: "#ffb99e",
+                  background: "rgba(255,138,60,.1)",
+                  border: "1px solid rgba(255,150,120,.3)",
+                }}
               >
-                🔍 CARI / TUKAR
+                ⚡ CACEP · BEBAS
               </button>
               <button
                 type="button"
@@ -757,6 +766,31 @@ export default function WorkoutHome() {
                     <div className="mono" style={{ fontSize: 9.5, color: "#8a837d", marginTop: 3 }}>
                       {t.focus || "CUSTOM"} · {t.exercises.length} gerakan
                     </div>
+                  </button>
+                  {/* Rename — a saved freestyle session gets an auto name from
+                      its machines, which you'll usually want to replace. */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = window.prompt("Ganti nama sesi", t.name);
+                      if (next === null) return;
+                      renameCustomTemplate(t.id, next);
+                      setTemplates(getCustomTemplates());
+                    }}
+                    aria-label={`Ganti nama ${t.name}`}
+                    style={{
+                      flex: "none",
+                      width: 30,
+                      height: 30,
+                      borderRadius: 9,
+                      color: "#8a837d",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: 13,
+                    }}
+                  >
+                    ✎
                   </button>
                   <button
                     type="button"
@@ -966,9 +1000,9 @@ function SearchModal({
             className="mono"
             style={{ textAlign: "center", fontSize: 10, color: "#8a837d", marginTop: 18, lineHeight: 1.6 }}
           >
-            Ketik nama mesin (mis. &ldquo;chest&rdquo;, &ldquo;inner thigh&rdquo;)
+            ⚡ CATAT CEPAT — latihan bebas, nggak usah ikut program.
             <br />
-            atau sesi buat langsung mulai.
+            Ketik mesin apa aja (mis. &ldquo;chest&rdquo;, &ldquo;inner thigh&rdquo;), langsung catat.
           </div>
         )}
 
