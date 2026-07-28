@@ -15,9 +15,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useSheetBack } from "@/lib/backSheet";
 import { haptic } from "@/lib/haptics";
-import { INGREDIENTS } from "@/lib/ingredients";
+import { INGREDIENTS, macrosFor } from "@/lib/ingredients";
 import { drinkSugarFull, SUGAR_LEVELS } from "@/lib/drinkSugar";
-import { saveMeal, type MealItem, type CustomMealItem } from "@/lib/store";
+import { saveMeal, getAllMeals, isCustomItem, type MealItem, type CustomMealItem } from "@/lib/store";
 import { contributeFood } from "@/lib/foodContribute";
 import { prettyFoodName } from "@/lib/foodDisplayName";
 import {
@@ -34,6 +34,8 @@ import {
   type CustomFoodDef,
 } from "@/lib/foodGroups";
 import { CUISINES, CUISINE_BY_KEY, cuisineOf, type CuisineKey } from "@/lib/cuisine";
+import { getDaily } from "@/lib/store";
+import { TARGETS, todayKey } from "@/lib/targets";
 import {
   satuanFor,
   satuanLine,
@@ -43,7 +45,10 @@ import {
   PORTION_STEPS,
 } from "@/lib/satuan";
 import { modsFor, modDelta, modSummary, type FoodMod } from "@/lib/foodMods";
-import { suggestions as computeSuggestions } from "@/lib/suggestions";
+import { suggest, emptyHistory } from "@/lib/suggest";
+import { reasonText } from "@/lib/suggest/copy";
+import { getHistoryStats, invalidateHistoryStats, categoryForGroup } from "@/lib/suggest/adapter";
+import { logSuggestionOutcome, dismissalCounts } from "@/lib/suggest/outcomes";
 import {
   getMealTemplates,
   saveMealTemplate,
@@ -525,6 +530,16 @@ export default function FoodBuilder({
   const [entryMods, setEntryMods] = useState<Record<string, string[]>>({});
   // Suggestions waved away this session (not persisted — a new meal starts fresh).
   const [dismissed, setDismissed] = useState<string[]>([]);
+  // Habit stats + persisted dismissal counts. Both are read once on mount:
+  // suggest() has a 16ms budget and must never touch storage itself.
+  const [historyStats, setHistoryStats] = useState(() => emptyHistory());
+  const [dismissals, setDismissals] = useState<Map<string, number>>(() => new Map());
+  // Everything already saved today, and the day's targets — the inputs the
+  // engine needs to know whether the day is short on protein or has room left.
+  const [consumedToday, setConsumedToday] = useState({ kcal: 0, protein: 0, carbs: 0, fat: 0 });
+  const [suggestTargets, setSuggestTargets] = useState({ kcal: 2200, protein: 175 });
+  // `now` is captured once so the engine's output can't change mid-render.
+  const [now] = useState(() => new Date());
   // Meal photo attached to this entry, as a blob/object URL for preview.
   const [photo, setPhoto] = useState<string | null>(null);
   const [photoViewer, setPhotoViewer] = useState(false);
@@ -557,6 +572,30 @@ export default function FoodBuilder({
     setGroups(getFoodGroups());
     setTemplates(getMealTemplates());
   }, []);
+
+  // Everything the suggestion engine needs, read once. It's all storage work,
+  // which is exactly what suggest() is forbidden from doing on the hot path.
+  useEffect(() => {
+    setHistoryStats(getHistoryStats());
+    setDismissals(dismissalCounts());
+    const today = todayKey();
+    const t = getDaily(today).gymDay ? TARGETS.gymDay : TARGETS.restDay;
+    setSuggestTargets({ kcal: t.kcal, protein: t.protein });
+    // What's already saved today, so the engine doesn't count the tray twice.
+    const saved = getAllMeals().filter((m) => m.date === dateKey);
+    let kcal = 0, protein = 0, carbs = 0, fat = 0;
+    for (const m of saved) {
+      for (const it of m.items) {
+        if (isCustomItem(it)) {
+          kcal += it.kcal; protein += it.protein; carbs += it.carbs; fat += it.fat;
+        } else {
+          const mm = macrosFor(it.id, it.qty);
+          kcal += mm.kcal; protein += mm.protein; carbs += mm.carbs; fat += mm.fat;
+        }
+      }
+    }
+    setConsumedToday({ kcal, protein, carbs, fat });
+  }, [dateKey]);
 
   // Library size — the public health endpoint reports the shared Food count.
   useEffect(() => {
@@ -800,9 +839,12 @@ export default function FoodBuilder({
     const { portionG } = satuanFor(ing);
     const cur = selection[id] || 0;
     const perUnit = baseGrams(ing);
+    // Open at what THIS person usually eats, not the generic portion — after a
+    // few logs the slider starts in the right place on its own.
+    const usual = historyStats.medianPortion.get(id);
     setSheet({
       id,
-      grams: Math.round(cur > 0 ? cur * perUnit : portionG),
+      grams: Math.round(cur > 0 ? cur * perUnit : usual && usual > 0 ? usual : portionG),
       mods: (entryMods[id] ?? []).slice(),
     });
   };
@@ -1013,6 +1055,7 @@ export default function FoodBuilder({
       return;
     }
     haptic("success");
+    invalidateHistoryStats();
     saveMeal({ date: dateKey, mealType: activeMeal, items });
     onSaved?.();
     onClose();
@@ -1419,43 +1462,6 @@ export default function FoodBuilder({
   }
   const count = Object.values(selection).filter((x) => x > 0).length;
 
-  // MUNGKIN KELUPAAN. The ranking lives in lib/suggestions so a real model can
-  // replace it without touching any of this; here we only resolve each id back
-  // to a food and drop the ones this build has no entry for.
-  const trayHints = computeSuggestions({
-    tray: Object.keys(selection)
-      .filter((id) => (selection[id] || 0) > 0)
-      .map((id) => ({ id, cat: catKeyFor(bIng(id) ?? ({ group: "extra" } as BuilderFood)) })),
-    protein: tp,
-    dismissed,
-  })
-    .map((s) => {
-      // Resolve the suggestion to a food this build actually has: preferred
-      // ids first, then a name match over the loaded catalogue. Without the
-      // fallback a renamed row would make the whole hint disappear silently.
-      let f: BuilderFood | null = null;
-      for (const c of s.candidates) {
-        f = bIng(c);
-        if (f) break;
-      }
-      if (!f) {
-        const pool = allFoods ?? (INGREDIENTS as BuilderFood[]);
-        f = pool.find((x) => s.match.test(x.name)) ?? null;
-      }
-      if (!f) return null;
-      const { portionG } = satuanFor(f);
-      return {
-        key: s.key,
-        id: f.id,
-        name: f.name,
-        why: s.why,
-        conf: s.conf,
-        kcal: Math.round((f.kcal * portionG) / baseGrams(f)),
-      };
-    })
-    .filter(
-      (x): x is { key: string; id: string; name: string; why: string; conf: number; kcal: number } => !!x
-    );
 
   // The running tray — every selected item, resolved with overrides.
   const traySelected = Object.keys(selection)
@@ -1465,6 +1471,45 @@ export default function FoodBuilder({
       return ing ? { id, ing, qty: selection[id] } : null;
     })
     .filter((x): x is { id: string; ing: BuilderFood; qty: number } => !!x);
+
+  // MUNGKIN KELUPAAN. Everything about WHICH foods and HOW confident lives in
+  // lib/suggest; this only turns ids back into foods and reason codes into
+  // Bahasa. Swapping the engine for a learned model touches nothing here.
+  const trayHints = suggest({
+    tray: traySelected.map(({ id, ing, qty }) => ({
+      foodId: id,
+      category: categoryForGroup(ing.foodGroup ?? ing.group),
+      macros: {
+        kcal: ing.kcal * qty,
+        protein: ing.protein * qty,
+        carbs: ing.carbs * qty,
+        fat: ing.fat * qty,
+      },
+    })),
+    mealType: activeMeal,
+    at: now,
+    targets: suggestTargets,
+    consumedToday: consumedToday,
+    history: historyStats,
+    declined: dismissed,
+    dismissals,
+  })
+    .map((s) => {
+      const f = bIng(s.foodId);
+      if (!f) return null;
+      const { portionG } = satuanFor(f);
+      return {
+        key: s.foodId,
+        id: s.foodId,
+        name: f.name,
+        why: reasonText(s.reason, s.reasonParams, (fid) => bIng(fid)?.name ?? fid),
+        conf: s.confidence,
+        reason: s.reason,
+        signals: s.signals,
+        kcal: Math.round((f.kcal * portionG) / baseGrams(f)),
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => !!x);
 
   const shownLibCount = useCountUp(libCount ?? 0);
   const emptyState = !q && count === 0 && !browseOpen;
@@ -2359,6 +2404,21 @@ export default function FoodBuilder({
                           {h.kcal} kkal
                         </span>
                       </div>
+                      {h.why ? (
+                        <div
+                          style={{
+                            fontFamily: MONO,
+                            fontSize: 8.5,
+                            color: "#6a6660",
+                            marginTop: 3,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {h.why}
+                        </div>
+                      ) : null}
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
                         <span
                           style={{
@@ -2397,6 +2457,19 @@ export default function FoodBuilder({
                       onClick={() => {
                         haptic("tap");
                         setDismissed((d) => d.concat(h.key));
+                        // Every ✕ is a label. It also feeds the dismissal
+                        // penalty, so a food waved away three times for this
+                        // meal stops asking.
+                        logSuggestionOutcome({
+                          foodId: h.id,
+                          mealType: activeMeal,
+                          confidence: h.conf,
+                          reason: h.reason,
+                          signals: h.signals,
+                          action: "decline",
+                          at: Date.now(),
+                        });
+                        setDismissals(dismissalCounts());
                       }}
                       style={{ ...dockBtn, width: 30, height: 30, fontSize: 12, color: "#6a6660" }}
                     >
@@ -2405,7 +2478,18 @@ export default function FoodBuilder({
                     <button
                       type="button"
                       aria-label={`Tambah ${h.name}`}
-                      onClick={() => openPortionSheet(h.id)}
+                      onClick={() => {
+                        logSuggestionOutcome({
+                          foodId: h.id,
+                          mealType: activeMeal,
+                          confidence: h.conf,
+                          reason: h.reason,
+                          signals: h.signals,
+                          action: "accept",
+                          at: Date.now(),
+                        });
+                        openPortionSheet(h.id);
+                      }}
                       style={{ ...dockBtn, width: 30, height: 30, fontSize: 12 }}
                     >
                       ✓
