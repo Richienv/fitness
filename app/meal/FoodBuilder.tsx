@@ -12,7 +12,7 @@
 //   · floating ＋ adds a manual food
 // Saving writes one meal via the existing store (same shape as before).
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useSheetBack } from "@/lib/backSheet";
 import { haptic } from "@/lib/haptics";
 import { INGREDIENTS, macrosFor } from "@/lib/ingredients";
@@ -20,6 +20,8 @@ import { drinkSugarFull, SUGAR_LEVELS } from "@/lib/drinkSugar";
 import { saveMeal, getAllMeals, isCustomItem, type MealItem, type CustomMealItem } from "@/lib/store";
 import { contributeFood } from "@/lib/foodContribute";
 import { prettyFoodName } from "@/lib/foodDisplayName";
+import { loadCatalogue, clearCatalogueCache } from "@/lib/foodCatalogue";
+import { prepare as prepareSearch, searchPrepared } from "@/lib/foodSearch";
 import {
   recordFoodPick,
   getFoodPicks,
@@ -565,6 +567,7 @@ export default function FoodBuilder({
   // just the relevant search hits.
   const [allFoods, setAllFoods] = useState<BuilderFood[] | null>(null);
   const [loadingAll, setLoadingAll] = useState(false);
+  const [catalogueError, setCatalogueError] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
 
   // Persisted custom "libraries" + saved meal templates (localStorage).
@@ -674,50 +677,52 @@ export default function FoodBuilder({
     };
   }, [query]);
 
-  // Lazily load the WHOLE catalogue the first time the user browses it — i.e.
-  // sorts or groups with no active query — so sort/grouping spans the full
-  // library, not just the relevant search hits.
-  useEffect(() => {
-    // SEMUA lists the whole library with no query, so the catalogue is needed
-    // the moment the field is empty — not only when a sort is picked.
-    if (query.trim() || allFoods || loadingAll) return;
+  // Load the shared catalogue once, via lib/foodCatalogue (cached on device).
+  //
+  // The previous version listed `loadingAll` in its own dependency array AND
+  // set it, so React ran the cleanup — cancelling the in-flight request —
+  // before it could resolve. loadingAll stayed true, allFoods stayed null, and
+  // the spinner ran forever. A ref guard can't be re-entered that way.
+  const catalogueTried = useRef(false);
+  const runCatalogueLoad = useCallback((force: boolean) => {
+    catalogueTried.current = true;
     setLoadingAll(true);
-    let cancelled = false;
-    fetch("/api/foods/all")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (cancelled) return;
-        const rows: DbFoodRow[] = data?.data?.foods ?? [];
-        const mapped: BuilderFood[] = rows.map((f) => ({
-          id: f.sourceCode,
-          name: prettyFoodName(f.name),
-          englishName: f.nameEn ?? undefined,
-          foodGroup: f.foodGroup ?? undefined,
-          cuisine: rowCuisine(f.cuisine),
-          unit: "100 g",
-          group: "custom",
-          kcal: f.energy_kcal ?? 0,
-          protein: f.protein_g ?? 0,
-          fat: f.fat_g ?? 0,
-          carbs: f.carb_g ?? 0,
-          gramsPerUnit: 100,
-          step: 0.1,
-        }));
-        setAllFoods(mapped);
-        setDbCache((c) => {
-          const next = { ...c };
-          for (const m of mapped) if (!next[m.id]) next[m.id] = m;
-          return next;
-        });
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoadingAll(false);
+    setCatalogueError(null);
+    loadCatalogue(force).then((res) => {
+      setLoadingAll(false);
+      if (!res.ok) {
+        setCatalogueError(res.message);
+        return;
+      }
+      const mapped: BuilderFood[] = res.foods.map((f) => ({
+        id: f.sourceCode,
+        name: prettyFoodName(f.name),
+        englishName: f.nameEn ?? undefined,
+        foodGroup: f.foodGroup ?? undefined,
+        cuisine: rowCuisine(f.cuisine),
+        unit: "100 g",
+        group: "custom",
+        kcal: f.energy_kcal ?? 0,
+        protein: f.protein_g ?? 0,
+        fat: f.fat_g ?? 0,
+        carbs: f.carb_g ?? 0,
+        gramsPerUnit: 100,
+        step: 0.1,
+      }));
+      setAllFoods(mapped);
+      setDbCache((c) => {
+        const next = { ...c };
+        for (const m of mapped) if (!next[m.id]) next[m.id] = m;
+        return next;
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [query, allFoods, loadingAll]);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (catalogueTried.current) return;
+    runCatalogueLoad(false);
+  }, [runCatalogueLoad]);
+
 
   // A remembered pick as a builder food (for rendering + adding without a fresh
   // search — its macros are snapshotted in the pick store).
@@ -1275,18 +1280,29 @@ export default function FoodBuilder({
     .concat(groupFoods)
     .map(applyOv);
   const q = query.trim().toLowerCase();
-  const match = (i: BuilderFood) =>
-    !q ||
-    i.name.toLowerCase().includes(q) ||
-    (!!i.zh && i.zh.includes(q)) ||
-    (!!i.pinyin && i.pinyin.toLowerCase().includes(q));
-
   // Search results — one flat, ranked list: local library matches lead, DB
   // hits (already score-ranked by the API) follow. Then the user's own staples
   // that match the query are floated to the very top (most-used first), so what
   // you actually eat is one tap away.
+  // Rank the loaded catalogue on-device. This is what makes typing feel
+  // instant: the network round-trip per keystroke is now a bonus that fills in
+  // late, not the thing the list waits on. It also means search still works
+  // with no signal, and the ranking rules live in lib/foodSearch where they're
+  // readable and tested rather than inside a SQL score expression.
+  const searchPool = useMemo(
+    () => prepareSearch(merged.concat(allFoods ?? [])),
+    // Re-prepared only when the underlying lists change, never per keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [customFoods, groups, allFoods, overrides]
+  );
+  // Server hits cover rows the device hasn't cached yet, but they come back
+  // with the API's own OR-ish matching. Concatenating them raw made "ayam
+  // bakar" return MORE results than "ayam" — typing more must never widen the
+  // list — so they go through the same ranker before joining.
   const searchFlatRaw: BuilderFood[] = q
-    ? merged.filter(match).concat(dbResults)
+    ? searchPrepared(searchPool, q, { limit: 60 })
+        .map((r) => r.food)
+        .concat(searchPrepared(prepareSearch(dbResults), q, { limit: 30 }).map((r) => r.food))
     : [];
   const searchFlat: BuilderFood[] = (() => {
     if (!q) return searchFlatRaw;
@@ -2746,6 +2762,48 @@ export default function FoodBuilder({
                     <span style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: ".14em", color: "#7c736e" }}>
                       MEMUAT LIBRARY…
                     </span>
+                  </div>
+                ) : catalogueError ? (
+                  // Never leave the user staring at a spinner that will never
+                  // stop. Say what went wrong and give them a way out.
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "30px 16px",
+                      textAlign: "center",
+                    }}
+                  >
+                    <span style={{ fontFamily: SANS, fontWeight: 700, fontSize: 13.5, color: "#e8e4e0" }}>
+                      {catalogueError}
+                    </span>
+                    <span style={{ fontFamily: MONO, fontSize: 9, color: "#6a6660", lineHeight: 1.6 }}>
+                      Kamu masih bisa cari lewat kolom di bawah.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        haptic("tap");
+                        clearCatalogueCache();
+                        runCatalogueLoad(true);
+                      }}
+                      style={{
+                        marginTop: 2,
+                        padding: "11px 20px",
+                        borderRadius: 999,
+                        border: "none",
+                        cursor: "pointer",
+                        fontFamily: MONO,
+                        fontSize: 10.5,
+                        letterSpacing: ".12em",
+                        color: "#e8e4e0",
+                        background: "rgba(255,255,255,.06)",
+                      }}
+                    >
+                      COBA LAGI
+                    </button>
                   </div>
                 ) : (
                   <>
