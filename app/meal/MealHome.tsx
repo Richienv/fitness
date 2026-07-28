@@ -11,7 +11,7 @@ import {
   type ReactNode,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { getIngredient, macrosFor, sumMacros, type Macros } from "@/lib/ingredients";
+import { getIngredient, macrosFor, type Macros } from "@/lib/ingredients";
 import { useSoftRefresh } from "@/lib/useSoftRefresh";
 import { useVTNavigate } from "@/lib/navigate";
 import { PRESETS, type MealType } from "@/lib/presets";
@@ -23,8 +23,10 @@ import {
   saveMeal,
   setDaily,
   updateMealItems,
+  type MealItem,
   type MealLog,
 } from "@/lib/store";
+import { uploadMealPhoto } from "@/lib/mealPhoto";
 import {
   addQuickLogEntry,
   deleteQuickLogEntry,
@@ -33,7 +35,7 @@ import {
   updateQuickLogEntry,
   type QuickLogEntry,
 } from "@/lib/quicklog";
-import { TARGETS, weekNumber } from "@/lib/targets";
+import { TARGETS } from "@/lib/targets";
 import { useActiveDate, parseDate } from "@/lib/activeDate";
 import { haptic } from "@/lib/haptics";
 import { toast } from "../Toast";
@@ -59,16 +61,21 @@ const EMPTY_MACROS: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
 const round1 = (x: number) => Math.round(x * 10) / 10;
 const DAILY_SUGAR_TARGET_G = 50;
 
-const ID_DAYS = ["MIN", "SEN", "SEL", "RAB", "KAM", "JUM", "SAB"];
+/** The right-hand numbers column. The slot total and every item's kcal share
+ *  this width so the card's right edge is as straight as its left one. */
+const KCAL_COL = 58;
+
+const ID_DAYS = ["MINGGU", "SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU"];
 const ID_MON = [
-  "JAN", "FEB", "MAR", "APR", "MEI", "JUN",
-  "JUL", "AGU", "SEP", "OKT", "NOV", "DES",
+  "JANUARI", "FEBRUARI", "MARET", "APRIL", "MEI", "JUNI",
+  "JULI", "AGUSTUS", "SEPTEMBER", "OKTOBER", "NOVEMBER", "DESEMBER",
 ];
 
+/** "KAMIS · 24 JULI 2026" — the header line under the wordmark. */
 function bahasaDate(dateStr: string): string {
   if (!dateStr) return "";
   const dt = parseDate(dateStr); // UTC
-  return `${ID_DAYS[dt.getUTCDay()]} · ${dt.getUTCDate()} ${ID_MON[dt.getUTCMonth()]}`;
+  return `${ID_DAYS[dt.getUTCDay()]} · ${dt.getUTCDate()} ${ID_MON[dt.getUTCMonth()]} ${dt.getUTCFullYear()}`;
 }
 
 /** Local clock time (HH:MM) of an epoch-ms stamp — when a food was logged. */
@@ -76,18 +83,6 @@ function fmtTime(ms: number): string {
   const d = new Date(ms);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
-
-/** One flattened food entry from today's meals, for the home food-log timeline. */
-type LoggedRow = {
-  key: string;
-  mealId: string;
-  itemIndex: number;
-  mealType: MealType;
-  name: string;
-  detail: string;
-  kcal: number;
-  at: number;
-};
 
 /** A single row that can be swiped (left or right) to *request* a delete. Below
  *  a small drag threshold a tap opens the meal; past the threshold the row snaps
@@ -154,7 +149,7 @@ function SwipeRow({
   const dragging = st.current?.drag ?? false;
   const prog = Math.min(1, Math.abs(dx) / THRESH);
   return (
-    <div style={{ position: "relative", borderRadius: 13 }}>
+    <div style={{ position: "relative", borderRadius: 12 }}>
       <div
         aria-hidden="true"
         style={{
@@ -163,12 +158,12 @@ function SwipeRow({
           display: "flex",
           alignItems: "center",
           justifyContent: dx < 0 ? "flex-end" : "flex-start",
-          padding: "0 20px",
-          borderRadius: 13,
+          padding: "0 14px",
+          borderRadius: 12,
           background: `linear-gradient(90deg,rgba(238,60,48,${0.06 + prog * 0.24}),rgba(238,60,48,${0.02 + prog * 0.08}))`,
           color: "#ff9a80",
           fontFamily: MONO,
-          fontSize: 11,
+          fontSize: 10.5,
           letterSpacing: ".12em",
           opacity: prog,
         }}
@@ -199,25 +194,20 @@ function SwipeRow({
         style={{
           position: "relative",
           display: "flex",
-          flexDirection: "row",
           alignItems: "center",
           gap: 10,
-          padding: "9px 12px",
-          borderRadius: 13,
+          borderRadius: 12,
           textAlign: "left",
           cursor: "pointer",
           touchAction: "pan-y",
           transform: `translateX(${dx}px)`,
           // 1:1 finger tracking while dragging (direct manipulation); on release
           // it settles back with a weighty, slightly springy decelerate.
-          transition: dragging
-            ? "none"
-            : "transform .44s var(--ease-spring)",
+          transition: dragging ? "none" : "transform .44s var(--ease-spring)",
           willChange: "transform",
-          background:
-            "linear-gradient(180deg,rgba(255,255,255,.045),transparent 40%),#0d0b0c",
-          border: "1px solid rgba(255,255,255,.09)",
-          boxShadow: "inset 0 1px 0 rgba(255,255,255,.06)",
+          // Rows sit *inside* a slot card, so they carry no card chrome of their
+          // own — only the swipe background behind them reads as a surface.
+          background: dragging || dx !== 0 ? "#0d0b0c" : "transparent",
         }}
       >
         {children}
@@ -226,20 +216,20 @@ function SwipeRow({
   );
 }
 
-// Emoji tile on Quick Log rows, by meal time (reference: 🍳/🍛/🥜/🥩).
-const QUICK_EMOJI: Record<MealType, string> = {
-  breakfast: "🍳",
-  lunch: "🍛",
-  snack: "🥜",
-  dinner: "🥩",
-};
-
 const MEAL_ID_LABEL: Record<MealType, string> = {
   breakfast: "SARAPAN",
   lunch: "SIANG",
   snack: "SNACK",
   dinner: "MALAM",
 };
+
+/** The four cards, in the order they happen. Windows match inferMealType(). */
+const SLOT_DEFS: { key: MealType; label: string; window: string }[] = [
+  { key: "breakfast", label: "SARAPAN", window: "04:00 – 11:00" },
+  { key: "lunch", label: "SIANG", window: "11:00 – 15:00" },
+  { key: "snack", label: "SNACK", window: "15:00 – 18:00" },
+  { key: "dinner", label: "MALAM", window: "18:00 – 23:00" },
+];
 
 /** Pick the meal slot from the current clock time, so logging is one tap — no
  *  breakfast/lunch/dinner prompt. You can still change it inside the builder. */
@@ -251,10 +241,10 @@ function inferMealType(): MealType {
   return "dinner";
 }
 
-// One-tap add-ons surfaced under Quick Log (preset ids from lib/presets).
-const ADDONS: { id: string; emoji: string; label: string }[] = [
-  { id: "protein-scoop", emoji: "🥄", label: "Protein Powder" },
-  { id: "matcha-milk",   emoji: "🍵", label: "Matcha + Milk" },
+// One-tap add-ons, shown at the end of the quick rail (preset ids from lib/presets).
+const ADDONS: { id: string; label: string }[] = [
+  { id: "protein-scoop", label: "Protein Powder" },
+  { id: "matcha-milk", label: "Matcha + Milk" },
 ];
 
 function sumMealMacros(meal: MealLog): Macros {
@@ -340,6 +330,24 @@ function toggleStyle(active: boolean): CSSProperties {
   };
 }
 
+/** The compact GYM / REST segment in the header — same job as the old
+ *  full-width toggle row, a fraction of the space. */
+function segStyle(active: boolean): CSSProperties {
+  return {
+    padding: "8px 13px",
+    borderRadius: 9,
+    fontFamily: MONO,
+    fontSize: 9.5,
+    fontWeight: active ? 700 : 400,
+    letterSpacing: ".1em",
+    cursor: "pointer",
+    color: active ? "#fff" : "#7c736e",
+    background: active ? FIRE : "transparent",
+    border: active ? "1px solid rgba(255,150,120,.5)" : "1px solid transparent",
+    textShadow: active ? "0 1px 2px rgba(120,15,5,.5)" : "none",
+  };
+}
+
 /** Small round icon button used in the manage-sheet rows. */
 function manageIconStyle(disabled: boolean): CSSProperties {
   return {
@@ -409,114 +417,182 @@ function NumField({
   );
 }
 
-type BarSpec = {
-  label: string;
-  value: number;
-  target: number;
-  unit: string;
-  grad: string;
-  glow: string;
-  cap: boolean;
-  delay: number;
-};
-
-function Bar({
+/** One macro line beside the ring: label, value / target, and a 6px bar.
+ *  `cap` marks a ceiling (gula) — past it the bar and the number go red. */
+function MiniBar({
   label,
   value,
   target,
-  unit,
   grad,
-  glow,
   cap,
-  delay,
   animate,
-}: BarSpec & { animate: boolean }) {
+}: {
+  label: string;
+  value: number;
+  target: number;
+  grad: string;
+  cap: boolean;
+  animate: boolean;
+}) {
   const shown = useCountUp(value, animate);
   const pct = Math.max(0, Math.min(100, target ? (shown / target) * 100 : 0));
   const over = cap && value > target;
-  const hot = pct >= 88 || over;
   return (
-    <div style={{ marginBottom: 13 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "baseline",
-          marginBottom: 6,
-        }}
-      >
-        <span
-          style={{
-            fontFamily: MONO,
-            fontSize: 9.5,
-            letterSpacing: ".14em",
-            color: "#7c736e",
-          }}
-        >
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: ".14em", color: "#7c736e" }}>
           {label}
         </span>
-        <span
-          style={{
-            fontFamily: MONO,
-            fontSize: 11,
-            color: over ? "#ee3c30" : "#f1ede9",
-          }}
-        >
-          {`${Math.round(shown)}${unit} `}
-          <span style={{ color: "#6a6660" }}>{`/ ${target}${unit}`}</span>
+        <span style={{ fontFamily: MONO, fontSize: 10, color: over ? "#ee3c30" : "#f1ede9" }}>
+          {`${Math.round(shown)}g`}
+          <span style={{ color: "#5a524e" }}>{` / ${Math.round(target)}g`}</span>
         </span>
       </div>
       <div
         style={{
-          position: "relative",
-          height: 9,
-          borderRadius: 999,
-          background: "rgba(255,255,255,.05)",
+          height: 6,
+          marginTop: 5,
+          background: "#161011",
+          borderRadius: 4,
           overflow: "hidden",
-          boxShadow: "inset 0 1px 2px rgba(0,0,0,.6)",
         }}
       >
         <div
           style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            bottom: 0,
+            height: "100%",
             width: `${pct}%`,
-            borderRadius: 999,
-            overflow: "hidden",
+            borderRadius: 4,
             background: over ? "linear-gradient(90deg,#ff5a3c,#ee2f1f)" : grad,
-            transition: "width .6s cubic-bezier(.16,1,.3,1)",
-            boxShadow: hot ? `0 0 10px ${glow}` : "none",
+            transition: "width .6s cubic-bezier(.22,.61,.36,1)",
           }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: "45%",
-              height: "100%",
-              background:
-                "linear-gradient(100deg,transparent,rgba(255,255,255,.6),transparent)",
-              animation: `barSheen 4.2s ${delay}s ease-in-out infinite`,
-            }}
-          />
-        </div>
+        />
       </div>
     </div>
   );
 }
 
-type MealBucket = { macros: Macros; items: number };
+/** The hero ring — what's LEFT to eat, because that's the number that decides
+ *  the next meal. Consumed / target sits underneath as context. */
+function CalorieRing({ kcal, target, animate }: { kcal: number; target: number; animate: boolean }) {
+  const pct = target > 0 ? Math.min(1, kcal / target) : 0;
+  const offset = Math.round(452 * (1 - pct));
+  const sisa = Math.max(0, target - Math.round(kcal));
+  return (
+    <div style={{ position: "relative", width: 132, height: 132, flex: "none" }}>
+      <svg viewBox="0 0 160 160" style={{ width: 132, height: 132, transform: "rotate(-90deg)" }}>
+        <circle cx="80" cy="80" r="72" fill="none" stroke="#1c1614" strokeWidth="13" />
+        <circle
+          cx="80"
+          cy="80"
+          r="72"
+          fill="none"
+          stroke="url(#mk-ring)"
+          strokeWidth="13"
+          strokeLinecap="round"
+          strokeDasharray="452"
+          strokeDashoffset={offset}
+          style={{
+            transition: "stroke-dashoffset .7s cubic-bezier(.22,.61,.36,1)",
+            animation: animate ? "mk-ringdraw 1.1s cubic-bezier(.22,.61,.36,1)" : "none",
+          }}
+        />
+        <defs>
+          <linearGradient id="mk-ring" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#ffb454" />
+            <stop offset="1" stopColor="#ee2f1f" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <span style={{ fontSize: 30, fontWeight: 800, color: "#ffe9d6", lineHeight: 1 }}>
+          {sisa.toLocaleString("id-ID")}
+        </span>
+        <span
+          style={{
+            fontFamily: MONO,
+            fontSize: 7.5,
+            letterSpacing: ".1em",
+            color: "#5a524e",
+            marginTop: 3,
+          }}
+        >
+          {Math.round(kcal).toLocaleString("id-ID")} / {Math.round(target).toLocaleString("id-ID")}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** One food inside a slot card. */
+type SlotItem = {
+  key: string;
+  mealId: string;
+  itemIndex: number;
+  name: string;
+  detail: string;
+  kcal: number;
+  at: number;
+};
+
+type Slot = {
+  key: MealType;
+  label: string;
+  window: string;
+  /** The meal row a photo attaches to; null while the slot is empty. */
+  meal: MealLog | null;
+  items: SlotItem[];
+  kcal: number;
+  lastAt: number | null;
+};
+
+/** "150 g · 4g protein · 41g karbo · 2g lemak · 0g gula" — the macro line in
+ *  words, so it reads without a legend.
+ *
+ *  On a 393 px iPhone the line lands within a few pixels of the available
+ *  width, so it sometimes wraps. Each amount is glued to its label with a
+ *  non-breaking space: a wrap can then only happen at a "·", which moves
+ *  "0g gula" down as one piece instead of stranding the word on its own. */
+function macroLine(protein: number, carbs: number, fat: number, sugar: number): string {
+  return (
+    `${Math.round(protein)}g protein · ${Math.round(carbs)}g karbo` +
+    ` · ${Math.round(fat)}g lemak · ${Math.round(sugar)}g gula`
+  );
+}
+
+function describeItem(it: MealItem): { name: string; detail: string; kcal: number } {
+  if (isCustomItem(it)) {
+    const portion = it.grams > 0 ? `${Math.round(it.grams)} g` : "1 porsi";
+    return {
+      name: it.name,
+      kcal: it.kcal,
+      detail: `${portion} · ${macroLine(it.protein, it.carbs, it.fat, it.sugar ?? 0)}`,
+    };
+  }
+  const ing = getIngredient(it.id);
+  const m = macrosFor(it.id, it.qty);
+  const portion = ing?.gramsPerUnit
+    ? `${Math.round(ing.gramsPerUnit * it.qty)} g`
+    : `${round1(it.qty)}×`;
+  const sugar = (ing?.sugar ?? 0) * it.qty;
+  return {
+    name: ing?.name ?? it.id,
+    kcal: m.kcal,
+    detail: `${portion} · ${macroLine(m.protein, m.carbs, m.fat, sugar)}`,
+  };
+}
 
 export default function MealHome() {
   const vtNavigate = useVTNavigate();
-  const {
-    activeDate,
-    setActiveDate,
-    todayStr,
-  } = useActiveDate();
+  const { activeDate, setActiveDate, todayStr } = useActiveDate();
 
   const [allMeals, setAllMeals] = useState<MealLog[]>([]);
   const [gymDay, setGymDay] = useState(false);
@@ -525,10 +601,15 @@ export default function MealHome() {
   const [manageOpen, setManageOpen] = useState(false);
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
   const [lockRatio, setLockRatio] = useState(true);
-  const [aturPressed, setAturPressed] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [quickPickOpen, setQuickPickOpen] = useState(false);
   const [builderMeal, setBuilderMeal] = useState<MealType | null>(null);
+  // Which slot the clock is in right now. Resolved after mount so the server
+  // render and the first client render agree.
+  const [nowSlot, setNowSlot] = useState<MealType | null>(null);
+  // Full-screen view of a meal photo.
+  const [photoView, setPhotoView] = useState<string | null>(null);
+  // Meal id whose photo is uploading, so its slot can show a spinner.
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
   // Which logged food is pending deletion (drives the confirmation dialog).
   const [pendingDelete, setPendingDelete] = useState<{
     mealId: string;
@@ -539,12 +620,16 @@ export default function MealHome() {
   // (backdrop fade + card drop) instead of snapping to nothing.
   const [deleteClosing, setDeleteClosing] = useState(false);
 
+  // One file input serves all four slots; pendingPhotoMeal says which one asked.
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const pendingPhotoMeal = useRef<string | null>(null);
+
   // Hardware back closes the top-most open sheet instead of leaving the page.
   // (FoodBuilder wires its own step-aware handler internally.)
   useSheetBack(pickerOpen, () => setPickerOpen(false));
   useSheetBack(manageOpen, () => setManageOpen(false));
   useSheetBack(!!editDraft, () => setEditDraft(null));
-  useSheetBack(quickPickOpen, () => setQuickPickOpen(false));
+  useSheetBack(!!photoView, () => setPhotoView(null));
 
   const reloadFromStore = useCallback(() => {
     dedupeMeals();
@@ -557,6 +642,10 @@ export default function MealHome() {
   useEffect(() => {
     reloadFromStore();
   }, [reloadFromStore]);
+
+  useEffect(() => {
+    setNowSlot(inferMealType());
+  }, []);
 
   // Deep-link from the iPhone widget: /meal?add=1 opens the food builder right
   // away at the time-inferred meal — one tap from the home screen to logging.
@@ -576,6 +665,7 @@ export default function MealHome() {
 
   function toggleGym(next: boolean) {
     if (!activeDate || next === gymDay) return;
+    haptic("tap");
     setGymDay(next);
     const d = getDaily(activeDate);
     setDaily({ date: activeDate, gymDay: next, checklist: d.checklist ?? {} });
@@ -586,77 +676,47 @@ export default function MealHome() {
     [allMeals, activeDate]
   );
 
-  const byType = useMemo(() => {
-    const m: Record<MealType, MealBucket> = {
-      breakfast: { macros: { ...EMPTY_MACROS }, items: 0 },
-      lunch:     { macros: { ...EMPTY_MACROS }, items: 0 },
-      snack:     { macros: { ...EMPTY_MACROS }, items: 0 },
-      dinner:    { macros: { ...EMPTY_MACROS }, items: 0 },
-    };
-    for (const meal of dayMeals) {
-      m[meal.mealType].macros = addMacros(m[meal.mealType].macros, sumMealMacros(meal));
-      m[meal.mealType].items += meal.items.length;
-    }
-    return m;
-  }, [dayMeals]);
-
-  const totals = useMemo<Macros>(() => {
-    return (Object.values(byType) as MealBucket[]).reduce(
-      (a, b) => addMacros(a, b.macros),
-      { ...EMPTY_MACROS }
-    );
-  }, [byType]);
+  const totals = useMemo<Macros>(
+    () => dayMeals.reduce((a, m) => addMacros(a, sumMealMacros(m)), { ...EMPTY_MACROS }),
+    [dayMeals]
+  );
 
   const sugarTotal = useMemo(
     () => dayMeals.reduce((acc, m) => acc + sumMealSugar(m), 0),
     [dayMeals]
   );
 
-  // Today's actually-logged foods, flattened across meal types into a single
-  // time-ordered timeline (most recent first) so you can see what — and when —
-  // you ate today. Per-item `addedAt` drives the time; legacy items without one
-  // fall back to the meal's loggedAt.
-  const loggedItems = useMemo<LoggedRow[]>(() => {
-    const rows: LoggedRow[] = [];
-    for (const meal of dayMeals) {
-      meal.items.forEach((it, idx) => {
-        const at = it.addedAt ?? meal.loggedAt;
-        const label = MEAL_ID_LABEL[meal.mealType];
-        if (isCustomItem(it)) {
-          const g = it.grams > 0 ? `${Math.round(it.grams)}g · ` : "";
-          rows.push({
+  // The day as four slots rather than one flat stream, so an empty SNACK is as
+  // visible as a logged SARAPAN. saveMeal merges by (date, mealType), so a slot
+  // normally holds one meal row — extra rows are still folded in defensively.
+  const slots = useMemo<Slot[]>(() => {
+    return SLOT_DEFS.map((def) => {
+      const meals = dayMeals.filter((m) => m.mealType === def.key);
+      const items: SlotItem[] = [];
+      let kcal = 0;
+      let lastAt: number | null = null;
+      for (const meal of meals) {
+        meal.items.forEach((it, idx) => {
+          const d = describeItem(it);
+          const at = it.addedAt ?? meal.loggedAt;
+          kcal += d.kcal;
+          if (lastAt === null || at > lastAt) lastAt = at;
+          items.push({
             key: `${meal.id}:${idx}`,
             mealId: meal.id,
             itemIndex: idx,
-            mealType: meal.mealType,
-            name: it.name,
-            detail: `${g}${label}`,
-            kcal: it.kcal,
+            name: d.name,
+            detail: d.detail,
+            kcal: d.kcal,
             at,
           });
-        } else {
-          const ing = getIngredient(it.id);
-          const m = macrosFor(it.id, it.qty);
-          const g = ing?.gramsPerUnit
-            ? `${Math.round(ing.gramsPerUnit * it.qty)}g · `
-            : it.qty > 1
-              ? `${it.qty}× · `
-              : "";
-          rows.push({
-            key: `${meal.id}:${idx}`,
-            mealId: meal.id,
-            itemIndex: idx,
-            mealType: meal.mealType,
-            name: ing?.name ?? it.id,
-            detail: `${g}${label}`,
-            kcal: m.kcal,
-            at,
-          });
-        }
-      });
-    }
-    rows.sort((a, b) => b.at - a.at);
-    return rows;
+        });
+      }
+      items.sort((a, b) => a.at - b.at);
+      // Prefer a row that already carries a photo, so re-shooting replaces it.
+      const meal = meals.find((m) => m.photoUrl) ?? meals[0] ?? null;
+      return { key: def.key, label: def.label, window: def.window, meal, items, kcal, lastAt };
+    });
   }, [dayMeals]);
 
   // Remove one logged food (from the swipe gesture). Drops the item from its
@@ -692,7 +752,6 @@ export default function MealHome() {
   );
 
   const target = gymDay ? TARGETS.gymDay : TARGETS.restDay;
-  const wk = activeDate ? weekNumber(parseDate(activeDate)) : 1;
   const dateLine = bahasaDate(activeDate);
 
   // Log a configured quick-log entry straight into the day (no navigation).
@@ -721,332 +780,568 @@ export default function MealHome() {
     [activeDate, reloadFromStore]
   );
 
-  const bars: BarSpec[] = [
+  /** Ask for a picture for this meal. Empty slots have nothing to attach to. */
+  const askForPhoto = useCallback((slot: Slot) => {
+    if (!slot.meal) {
+      haptic("warn");
+      toast("Catat makanannya dulu, baru fotonya", "warn");
+      return;
+    }
+    if (slot.meal.photoUrl) {
+      setPhotoView(slot.meal.photoUrl);
+      return;
+    }
+    pendingPhotoMeal.current = slot.meal.id;
+    fileRef.current?.click();
+  }, []);
+
+  const onPhotoPicked = useCallback(
+    async (file: File | undefined) => {
+      const mealId = pendingPhotoMeal.current;
+      pendingPhotoMeal.current = null;
+      if (!file || !mealId) return;
+      setUploadingId(mealId);
+      const res = await uploadMealPhoto(mealId, file);
+      setUploadingId(null);
+      if (res.ok) {
+        haptic("success");
+        toast("Foto tersimpan", "success");
+        reloadFromStore();
+      } else {
+        haptic("warn");
+        toast(res.message, "warn");
+      }
+    },
+    [reloadFromStore]
+  );
+
+  const macros = [
     {
-      label: "KALORI", value: totals.kcal, target: target.kcal, unit: "",
-      grad: "linear-gradient(90deg,#ff8a3d,#ee2f1f)", glow: "rgba(238,60,48,.6)",
-      cap: false, delay: 0,
+      label: "PROTEIN",
+      value: totals.protein,
+      target: target.protein,
+      grad: "linear-gradient(90deg,#6ff0a4,#22c55e)",
+      cap: false,
     },
     {
-      label: "PROTEIN", value: totals.protein, target: target.protein, unit: "g",
-      grad: "linear-gradient(90deg,#6ff0a4,#22c55e)", glow: "rgba(34,197,94,.5)",
-      cap: false, delay: 0.5,
+      label: "KARBO",
+      value: totals.carbs,
+      target: target.carbs,
+      grad: "linear-gradient(90deg,#5ac8f5,#229ed9)",
+      cap: false,
     },
     {
-      label: "KARBO", value: totals.carbs, target: target.carbs, unit: "g",
-      grad: "linear-gradient(90deg,#5ac8f5,#229ed9)", glow: "rgba(34,158,217,.5)",
-      cap: false, delay: 1,
+      label: "LEMAK",
+      value: totals.fat,
+      target: target.fat,
+      grad: "linear-gradient(90deg,#ffd25a,#eab308)",
+      cap: false,
     },
     {
-      label: "LEMAK", value: totals.fat, target: target.fat, unit: "g",
-      grad: "linear-gradient(90deg,#ffd25a,#eab308)", glow: "rgba(234,179,8,.5)",
-      cap: false, delay: 1.5,
-    },
-    {
-      label: "GULA", value: sugarTotal, target: DAILY_SUGAR_TARGET_G, unit: "g",
-      grad: "linear-gradient(90deg,#ff8a72,#ee3c30)", glow: "rgba(238,60,48,.6)",
-      cap: true, delay: 2,
+      label: "GULA",
+      value: sugarTotal,
+      target: DAILY_SUGAR_TARGET_G,
+      grad: "linear-gradient(90deg,#ff8a72,#ee3c30)",
+      cap: true,
     },
   ];
 
   return (
     <main
+      className="page-rise"
       style={{
-        maxWidth: 480,
+        maxWidth: 460,
         margin: "0 auto",
         minHeight: "100dvh",
-        padding: "calc(20px + env(safe-area-inset-top)) 20px 26px",
+        position: "relative",
+        fontFamily: SANS,
         background:
           "radial-gradient(1100px 700px at 50% -8%, #17100f 0%, #0a0809 42%, #050406 100%)",
-        fontFamily: SANS,
       }}
     >
-      {/* header: wordmark + date chip */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <div
-          style={{
-            fontFamily: SANS,
-            fontWeight: 700,
-            fontSize: 26,
-            letterSpacing: "-.01em",
-            color: "#f1ede9",
-          }}
-        >
-          🍽️ <span style={FIRE_TEXT}>MAKAN</span>
-        </div>
-        <button
-          type="button"
-          onClick={() => setPickerOpen(true)}
-          aria-label="Pilih tanggal"
-          style={{
-            fontFamily: MONO,
-            fontSize: 11,
-            letterSpacing: ".06em",
-            color: "#9a938d",
-            padding: "7px 12px",
-            borderRadius: 10,
-            border: "1px solid rgba(255,255,255,.1)",
-            background: "rgba(255,255,255,.03)",
-            cursor: "pointer",
-          }}
-        >
-          {dateLine} ▾
-        </button>
-      </div>
-
-      {/* day toggle */}
-      <div style={{ display: "flex", gap: 8, marginTop: 26 }}>
-        <button type="button" onClick={() => toggleGym(true)} style={toggleStyle(gymDay)}>
-          🏋️ GYM
-        </button>
-        <button type="button" onClick={() => toggleGym(false)} style={toggleStyle(!gymDay)}>
-          🌙 REST
-        </button>
-      </div>
-
-      {/* macro bars */}
-      <div
-        style={{
-          marginTop: 20,
-          padding: 16,
-          borderRadius: 18,
-          background: "#0c0a0b",
-          border: "1px solid rgba(255,255,255,.08)",
-          boxShadow: "inset 0 1px 0 rgba(255,255,255,.06)",
-        }}
-      >
-        {bars.map((b) => (
-          <Bar key={b.label} {...b} animate={loaded} />
-        ))}
-      </div>
-
-      {/* today's food-log header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginTop: 22,
-        }}
-      >
-        <div
-          style={{
-            fontFamily: SANS,
-            fontWeight: 700,
-            fontSize: 14,
-            letterSpacing: ".02em",
-            color: "#f1ede9",
-          }}
-        >
-          🍽️ HARI INI
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            haptic("tap");
-            setQuickPickOpen(true);
-          }}
-          onPointerDown={() => setAturPressed(true)}
-          onPointerUp={() => setAturPressed(false)}
-          onPointerLeave={() => setAturPressed(false)}
-          style={{
-            fontFamily: MONO,
-            fontSize: 9.5,
-            letterSpacing: ".12em",
-            color: aturPressed ? "#ff8a72" : "#7c736e",
-            padding: "6px 10px",
-            borderRadius: 9,
-            border: aturPressed
-              ? "1px solid rgba(255,150,120,.5)"
-              : "1px solid rgba(255,255,255,.1)",
-            background: "rgba(255,255,255,.03)",
-            cursor: "pointer",
-          }}
-        >
-          ⚡ QUICK
-        </button>
-      </div>
-
-      {/* count · total kcal logged today */}
-      {loggedItems.length > 0 ? (
-        <div
-          style={{
-            fontFamily: MONO,
-            fontSize: 9.5,
-            letterSpacing: ".06em",
-            color: "#7c736e",
-            marginTop: 6,
-          }}
-        >
-          {loggedItems.length} item · {Math.round(totals.kcal)} kkal · geser untuk hapus
-        </div>
-      ) : null}
-
-      {/* today's food log — what (and when) you ate today. Tap a row to open
-          that meal in the builder. Empty until you log something. */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 7,
-          marginTop: 10,
-        }}
-      >
-        {loggedItems.length === 0 ? (
+      {/* Bottom padding clears the nav AND the FAB (which tops out 148px up),
+          so the last slot card is never partly hidden behind the ＋. */}
+      <div style={{ padding: "calc(16px + env(safe-area-inset-top)) 18px 170px" }}>
+        {/* header — wordmark + date, with the day type as a compact segment */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <div style={{ minWidth: 0 }}>
+            <h1
+              style={{
+                fontSize: 26,
+                fontWeight: 800,
+                letterSpacing: ".3px",
+                color: "#f1ede9",
+                lineHeight: 1,
+              }}
+            >
+              Makan<span style={{ color: "#ee3c30" }}>.</span>
+            </h1>
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              aria-label="Pilih tanggal"
+              style={{
+                display: "block",
+                marginTop: 6,
+                padding: 0,
+                border: "none",
+                background: "transparent",
+                textAlign: "left",
+                cursor: "pointer",
+                fontFamily: MONO,
+                fontSize: 10,
+                letterSpacing: ".15em",
+                color: "#f1ede9",
+              }}
+            >
+              {dateLine}
+            </button>
+          </div>
           <div
             style={{
-              padding: "22px 16px",
-              borderRadius: 14,
-              textAlign: "center",
-              background: "#0d0b0c",
-              border: "1px dashed rgba(255,255,255,.12)",
+              display: "flex",
+              gap: 6,
+              flex: "none",
+              padding: 3,
+              borderRadius: 12,
+              background: "rgba(255,255,255,.05)",
+              border: "1px solid rgba(255,255,255,.09)",
             }}
           >
-            <div
-              style={{
-                fontFamily: SANS,
-                fontWeight: 700,
-                fontSize: 13.5,
-                color: "#cfc8c2",
-              }}
-            >
-              Belum ada yang dicatat hari ini
-            </div>
-            <div
-              style={{
-                fontFamily: MONO,
-                fontSize: 9.5,
-                letterSpacing: ".06em",
-                color: "#7c736e",
-                marginTop: 6,
-              }}
-            >
-              Tap ＋ untuk catat makan · ⚡ QUICK buat cepat
-            </div>
+            <button type="button" className="tap-press" onClick={() => toggleGym(true)} style={segStyle(gymDay)}>
+              GYM
+            </button>
+            <button type="button" className="tap-press" onClick={() => toggleGym(false)} style={segStyle(!gymDay)}>
+              REST
+            </button>
           </div>
-        ) : (
-          loggedItems.map((row) => (
-            <SwipeRow
-              key={row.key}
-              onTap={() => {
-                haptic("tap");
-                setBuilderMeal(row.mealType);
-              }}
-              onRequestDelete={() => {
-                haptic("tap");
-                setPendingDelete({
-                  mealId: row.mealId,
-                  itemIndex: row.itemIndex,
-                  name: row.name,
-                });
-              }}
-            >
-              <span
-                aria-hidden="true"
+        </div>
+
+        {/* hero — sisa kalori + the four macros */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 18,
+            marginTop: 18,
+            padding: 18,
+            borderRadius: 22,
+            background: "rgba(255,255,255,.035)",
+            border: "1px solid rgba(255,255,255,.09)",
+          }}
+        >
+          <CalorieRing kcal={totals.kcal} target={target.kcal} animate={loaded} />
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+            {macros.map((m) => (
+              <MiniBar key={m.label} {...m} animate={loaded} />
+            ))}
+          </div>
+        </div>
+
+        {/* quick rail — always visible, one tap logs */}
+        <div
+          className="mk-rail"
+          style={{
+            display: "flex",
+            gap: 8,
+            overflowX: "auto",
+            margin: "22px -18px 0",
+            padding: "2px 18px 4px",
+          }}
+        >
+          {quickEntries.map((e) => {
+            const [first, ...rest] = e.label.split(" ");
+            return (
+              <button
+                key={e.id}
+                type="button"
+                className="tap-press"
+                onClick={() => logQuick(e)}
                 style={{
-                  width: 38,
-                  height: 38,
                   flex: "none",
-                  borderRadius: 11,
-                  display: "grid",
-                  placeItems: "center",
-                  fontSize: 18,
-                  background: "rgba(238,60,48,.08)",
-                  border: "1px solid rgba(238,60,48,.22)",
+                  width: 104,
+                  padding: "11px 13px",
+                  borderRadius: 15,
+                  textAlign: "left",
+                  cursor: "pointer",
+                  background:
+                    "linear-gradient(180deg,rgba(255,255,255,.05),transparent 60%),#0d0b0c",
+                  border: "1px solid rgba(255,255,255,.1)",
                 }}
               >
-                {QUICK_EMOJI[row.mealType]}
-              </span>
-              <span style={{ flex: 1, minWidth: 0 }}>
                 <span
                   style={{
                     display: "block",
                     fontFamily: SANS,
+                    fontSize: 12.5,
                     fontWeight: 700,
-                    fontSize: 14,
+                    lineHeight: 1.25,
                     color: "#f1ede9",
-                    lineHeight: 1.15,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
                   }}
                 >
-                  {row.name}
+                  {first}
+                  <br />
+                  {rest.join(" ") || " "}
                 </span>
+              </button>
+            );
+          })}
+
+          {/* one-tap add-ons — these open the confirm step instead of logging
+              straight away, so they carry a fire edge to read as different */}
+          {ADDONS.map((a) => {
+            const preset = PRESETS.find((p) => p.id === a.id);
+            if (!preset) return null;
+            const href = `/meal/confirm?preset=${preset.id}&date=${activeDate}`;
+            const [first, ...rest] = a.label.split(" ");
+            return (
+              <Link
+                key={a.id}
+                href={href}
+                className="tap-press"
+                onClick={(ev) => {
+                  ev.preventDefault();
+                  vtNavigate(href, { haptic: null });
+                }}
+                style={{
+                  flex: "none",
+                  width: 104,
+                  padding: "11px 13px",
+                  borderRadius: 15,
+                  textDecoration: "none",
+                  cursor: "pointer",
+                  background:
+                    "linear-gradient(180deg,rgba(255,138,60,.1),rgba(255,138,60,.02) 55%),#0d0b0c",
+                  border: "1px solid rgba(255,138,60,.32)",
+                }}
+              >
                 <span
                   style={{
                     display: "block",
-                    fontFamily: MONO,
-                    fontSize: 9.5,
-                    letterSpacing: ".04em",
-                    color: "#8a837d",
-                    marginTop: 2,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {row.detail}
-                </span>
-              </span>
-              <span style={{ flex: "none", textAlign: "right" }}>
-                <span
-                  style={{
-                    display: "block",
-                    fontFamily: MONO,
+                    fontFamily: SANS,
+                    fontSize: 12.5,
                     fontWeight: 700,
-                    fontSize: 18,
-                    color: "#ff8a5c",
-                    lineHeight: 1,
+                    lineHeight: 1.25,
+                    color: "#f1ede9",
                   }}
                 >
-                  {Math.round(row.kcal)}
+                  {first}
+                  <br />
+                  {rest.join(" ") || " "}
                 </span>
-                <span
-                  style={{
-                    display: "block",
-                    fontFamily: MONO,
-                    fontSize: 9,
-                    letterSpacing: ".08em",
-                    color: "#7c736e",
-                    marginTop: 3,
-                  }}
-                >
-                  {fmtTime(row.at)}
-                </span>
-              </span>
-            </SwipeRow>
-          ))
-        )}
+              </Link>
+            );
+          })}
+
+          <button
+            type="button"
+            className="tap-press"
+            onClick={() => {
+              haptic("tap");
+              setManageOpen(true);
+            }}
+            aria-label="Atur catat cepat"
+            style={{
+              flex: "none",
+              width: 60,
+              borderRadius: 15,
+              cursor: "pointer",
+              fontFamily: MONO,
+              fontSize: 9.5,
+              letterSpacing: ".1em",
+              color: "#7c736e",
+              background: "rgba(255,255,255,.03)",
+              border: "1px dashed rgba(255,255,255,.14)",
+            }}
+          >
+            ✎<br />ATUR
+          </button>
+        </div>
+
+        {/* the day, as four slots */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 22 }}>
+          {slots.map((s) => {
+            const empty = s.items.length === 0;
+            // Only an empty slot glows: once it's logged there's nothing to nag about.
+            const isNow = s.key === nowSlot && empty;
+            const photoUrl = s.meal?.photoUrl ?? null;
+            const busy = !!s.meal && uploadingId === s.meal.id;
+            return (
+              <div
+                key={s.key}
+                style={{
+                  padding: "15px 16px",
+                  borderRadius: 18,
+                  background: isNow
+                    ? "linear-gradient(180deg,rgba(238,60,48,.1),transparent 70%),#0d0b0c"
+                    : "rgba(255,255,255,.035)",
+                  border: isNow
+                    ? "1px solid rgba(255,150,120,.4)"
+                    : "1px solid rgba(255,255,255,.09)",
+                  opacity: empty && !isNow ? 0.72 : 1,
+                  animation: isNow ? "wo-cardglow 2.8s ease-in-out infinite" : "none",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+                  <button
+                    type="button"
+                    className="tap-press"
+                    onClick={() => askForPhoto(s)}
+                    aria-label={photoUrl ? `Lihat foto ${s.label}` : `Foto ${s.label}`}
+                    style={{
+                      flex: "none",
+                      width: 44,
+                      height: 44,
+                      borderRadius: 13,
+                      display: "grid",
+                      placeItems: "center",
+                      overflow: "hidden",
+                      fontSize: 16,
+                      cursor: "pointer",
+                      padding: 0,
+                      background: "radial-gradient(circle at 50% 38%,#1c1517,#0b090a)",
+                      border: photoUrl
+                        ? "1px solid rgba(255,150,120,.5)"
+                        : `1px dashed rgba(255,150,120,${empty ? ".22" : ".38"})`,
+                      color: "#6a6660",
+                      opacity: empty ? 0.6 : 1,
+                    }}
+                  >
+                    {busy ? (
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          width: 15,
+                          height: 15,
+                          borderRadius: "50%",
+                          border: "2px solid rgba(255,150,120,.28)",
+                          borderTopColor: "#ff8a5c",
+                          animation: "fbSpin .8s linear infinite",
+                        }}
+                      />
+                    ) : photoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={photoUrl}
+                        alt=""
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      />
+                    ) : (
+                      "📷"
+                    )}
+                  </button>
+
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span
+                      style={{
+                        display: "block",
+                        fontFamily: MONO,
+                        fontSize: 10,
+                        fontWeight: 500,
+                        letterSpacing: ".2em",
+                        color: empty ? "#7c736e" : "#f1ede9",
+                      }}
+                    >
+                      {s.label}
+                    </span>
+                    <span
+                      style={{
+                        display: "block",
+                        fontFamily: MONO,
+                        fontSize: 9,
+                        color: "#7c736e",
+                        marginTop: 4,
+                      }}
+                    >
+                      {empty
+                        ? s.window
+                        : `${s.items.length} item · ${fmtTime(s.lastAt ?? Date.now())}`}
+                    </span>
+                  </span>
+
+                  <span style={{ flex: "none", width: KCAL_COL, textAlign: "right" }}>
+                    <span
+                      style={{
+                        display: "block",
+                        fontFamily: MONO,
+                        fontSize: empty ? 13 : 18,
+                        fontWeight: 700,
+                        lineHeight: 1,
+                        color: empty ? "#5a524e" : "#f1ede9",
+                      }}
+                    >
+                      {empty ? "—" : Math.round(s.kcal)}
+                    </span>
+                    <span
+                      style={{
+                        display: "block",
+                        fontFamily: MONO,
+                        fontSize: 7.5,
+                        letterSpacing: ".18em",
+                        color: "#6a6660",
+                        marginTop: 3,
+                      }}
+                    >
+                      KKAL
+                    </span>
+                  </span>
+                </div>
+
+                {!empty && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 7,
+                      marginTop: 12,
+                      paddingTop: 12,
+                      borderTop: "1px solid rgba(255,255,255,.07)",
+                    }}
+                  >
+                    {s.items.map((it) => (
+                      <SwipeRow
+                        key={it.key}
+                        onTap={() => {
+                          haptic("tap");
+                          setBuilderMeal(s.key);
+                        }}
+                        onRequestDelete={() => {
+                          haptic("tap");
+                          setPendingDelete({
+                            mealId: it.mealId,
+                            itemIndex: it.itemIndex,
+                            name: it.name,
+                          });
+                        }}
+                      >
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span
+                            style={{
+                              display: "block",
+                              fontFamily: SANS,
+                              fontSize: 13.5,
+                              fontWeight: 700,
+                              color: "#f1ede9",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {it.name}
+                          </span>
+                          <span
+                            style={{
+                              display: "block",
+                              fontFamily: MONO,
+                              fontSize: 8.5,
+                              lineHeight: 1.5,
+                              color: "#8a837d",
+                              marginTop: 3,
+                            }}
+                          >
+                            {it.detail}
+                          </span>
+                        </span>
+                        <span style={{ flex: "none", width: KCAL_COL, textAlign: "right" }}>
+                          <span
+                            style={{
+                              display: "block",
+                              fontFamily: MONO,
+                              fontSize: 13,
+                              fontWeight: 700,
+                              color: "#f1ede9",
+                              lineHeight: 1,
+                            }}
+                          >
+                            {Math.round(it.kcal)}
+                          </span>
+                          <span
+                            style={{
+                              display: "block",
+                              fontFamily: MONO,
+                              fontSize: 8.5,
+                              color: "#6a6660",
+                              marginTop: 3,
+                            }}
+                          >
+                            {fmtTime(it.at)}
+                          </span>
+                        </span>
+                      </SwipeRow>
+                    ))}
+                  </div>
+                )}
+
+                {empty && (
+                  <button
+                    type="button"
+                    className="tap-press"
+                    onClick={() => {
+                      haptic("tap");
+                      setBuilderMeal(s.key);
+                    }}
+                    style={{
+                      width: "100%",
+                      marginTop: 11,
+                      padding: 11,
+                      borderRadius: 12,
+                      cursor: "pointer",
+                      fontFamily: MONO,
+                      fontSize: 9.5,
+                      letterSpacing: ".15em",
+                      color: isNow ? "#ff9a80" : "#7c736e",
+                      background: "rgba(255,255,255,.03)",
+                      border: isNow
+                        ? "1px dashed rgba(255,150,120,.4)"
+                        : "1px dashed rgba(255,255,255,.14)",
+                    }}
+                  >
+                    ＋ CATAT {s.label}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {/* add-meal FAB */}
+      {/* the camera input every slot shares */}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        // No `capture` attribute on purpose: iOS then offers "Ambil Foto" AND
+        // "Pilih dari Album", so a picture taken earlier can still be attached.
+        onChange={(ev) => {
+          const file = ev.target.files?.[0];
+          ev.target.value = ""; // re-picking the same file must still fire
+          void onPhotoPicked(file);
+        }}
+        style={{ display: "none" }}
+      />
+
+      {/* add-meal FAB — sits clear of the kcal column rather than pushing it in */}
       <button
         type="button"
         aria-label="Catat makan"
+        className="tap-press"
         onClick={() => setBuilderMeal(inferMealType())}
         style={{
           position: "fixed",
-          right: "max(18px, env(safe-area-inset-right))",
-          bottom: "calc(88px + env(safe-area-inset-bottom))",
+          // Hugs the 460px column on wide screens, the screen edge on phones.
+          right: "max(14px, calc(50vw - 216px))",
+          bottom: "calc(96px + env(safe-area-inset-bottom))",
           zIndex: 44,
-          width: 58,
-          height: 58,
+          width: 52,
+          height: 52,
           borderRadius: "50%",
-          fontSize: 28,
+          fontSize: 27,
           lineHeight: 1,
           color: "#fff",
           cursor: "pointer",
-          background: "linear-gradient(180deg,#ff8a52,#ee3c30 55%,#c01f12)",
+          background: FIRE,
           border: "1px solid rgba(255,150,120,.6)",
-          boxShadow:
-            "inset 0 1.5px 1px rgba(255,225,205,.7),0 12px 26px rgba(238,60,48,.5)",
+          animation: "wo-firepulse 2.6s ease-in-out infinite",
         }}
       >
         ＋
@@ -1062,6 +1357,65 @@ export default function MealHome() {
             reloadFromStore();
           }}
         />
+      )}
+
+      {/* meal photo, full size */}
+      {photoView && (
+        <div
+          onClick={() => setPhotoView(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 250,
+            background: "rgba(5,4,6,.92)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+            animation: "dlgBackdropIn .3s var(--ease-out) both",
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={photoView}
+            alt="Foto makanan"
+            style={{
+              maxWidth: "100%",
+              maxHeight: "82dvh",
+              borderRadius: 18,
+              border: "1px solid rgba(255,255,255,.12)",
+            }}
+          />
+          <button
+            type="button"
+            onClick={(ev) => {
+              ev.stopPropagation();
+              const id = slots.find((s) => s.meal?.photoUrl === photoView)?.meal?.id;
+              setPhotoView(null);
+              if (id) {
+                pendingPhotoMeal.current = id;
+                fileRef.current?.click();
+              }
+            }}
+            style={{
+              position: "absolute",
+              bottom: "calc(34px + env(safe-area-inset-bottom))",
+              left: "50%",
+              transform: "translateX(-50%)",
+              padding: "12px 20px",
+              borderRadius: 999,
+              fontFamily: MONO,
+              fontSize: 11,
+              letterSpacing: ".1em",
+              color: "#fff",
+              cursor: "pointer",
+              background: FIRE,
+              border: "1px solid rgba(255,150,120,.6)",
+            }}
+          >
+            📷 GANTI FOTO
+          </button>
+        </div>
       )}
 
       {/* delete confirmation — nothing is removed on the swipe itself; the
@@ -1204,245 +1558,6 @@ export default function MealHome() {
         </div>
       )}
 
-      {/* quick-log picker — one-tap presets + add-ons (kept behind ⚡ QUICK
-          now that the home surface shows today's food log instead). */}
-      {quickPickOpen && (
-        <div
-          onClick={() => setQuickPickOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 200,
-            background: "rgba(5,4,6,.72)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "flex-end",
-          }}
-        >
-          <div
-            onClick={(ev) => ev.stopPropagation()}
-            style={{
-              width: "100%",
-              maxWidth: 480,
-              margin: "0 auto",
-              borderRadius: "26px 26px 0 0",
-              padding: "22px 20px calc(30px + env(safe-area-inset-bottom))",
-              background: "linear-gradient(180deg,#161011,#0c0a0b 60%)",
-              borderTop: "1px solid rgba(255,255,255,.1)",
-              boxShadow: "0 -20px 50px rgba(0,0,0,.6)",
-              animation: "sheetCardIn .44s var(--ease-ios) both",
-              maxHeight: "80dvh",
-              overflowY: "auto",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <div style={{ fontFamily: SANS, fontWeight: 800, fontSize: 18, color: "#f5f2ef" }}>
-                ⚡ QUICK LOG
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setQuickPickOpen(false);
-                  setManageOpen(true);
-                }}
-                style={{
-                  fontFamily: MONO,
-                  fontSize: 9.5,
-                  letterSpacing: ".12em",
-                  color: "#7c736e",
-                  padding: "6px 10px",
-                  borderRadius: 9,
-                  border: "1px solid rgba(255,255,255,.1)",
-                  background: "rgba(255,255,255,.03)",
-                  cursor: "pointer",
-                }}
-              >
-                ✎ ATUR
-              </button>
-            </div>
-            <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: ".06em", color: "#7c736e", marginTop: 5 }}>
-              Catat cepat — sekali tap
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 16 }}>
-              {quickEntries.map((e) => (
-                <button
-                  key={e.id}
-                  type="button"
-                  onClick={() => {
-                    logQuick(e);
-                    setQuickPickOpen(false);
-                  }}
-                  style={{
-                    position: "relative",
-                    overflow: "hidden",
-                    display: "flex",
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "9px 12px",
-                    borderRadius: 13,
-                    textAlign: "left",
-                    cursor: "pointer",
-                    background:
-                      "linear-gradient(180deg,rgba(255,255,255,.045),transparent 40%),#0d0b0c",
-                    border: "1px solid rgba(255,255,255,.09)",
-                    boxShadow: "inset 0 1px 0 rgba(255,255,255,.06)",
-                  }}
-                >
-                  <span
-                    aria-hidden="true"
-                    style={{
-                      width: 38,
-                      height: 38,
-                      flex: "none",
-                      borderRadius: 11,
-                      display: "grid",
-                      placeItems: "center",
-                      fontSize: 18,
-                      background: "rgba(238,60,48,.08)",
-                      border: "1px solid rgba(238,60,48,.22)",
-                    }}
-                  >
-                    {QUICK_EMOJI[e.mealType]}
-                  </span>
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <span
-                      style={{
-                        display: "block",
-                        fontFamily: SANS,
-                        fontWeight: 700,
-                        fontSize: 14,
-                        color: "#f1ede9",
-                        lineHeight: 1.15,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {e.label}
-                    </span>
-                    <span
-                      style={{
-                        display: "block",
-                        fontFamily: MONO,
-                        fontSize: 9.5,
-                        letterSpacing: ".04em",
-                        color: "#8a837d",
-                        marginTop: 2,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {e.sub ||
-                        `${Math.round(e.protein)}p · ${Math.round(e.carbs)}c · ${Math.round(e.fat)}f`}
-                    </span>
-                  </span>
-                  <span style={{ flex: "none", textAlign: "right" }}>
-                    <span
-                      style={{
-                        display: "block",
-                        fontFamily: MONO,
-                        fontWeight: 700,
-                        fontSize: 18,
-                        color: "#ff8a5c",
-                        lineHeight: 1,
-                      }}
-                    >
-                      {Math.round(e.kcal)}
-                    </span>
-                    <span
-                      style={{
-                        display: "block",
-                        fontFamily: MONO,
-                        fontSize: 8,
-                        letterSpacing: ".16em",
-                        color: "#7c736e",
-                        marginTop: 2,
-                      }}
-                    >
-                      KKAL
-                    </span>
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            {/* one-tap add-ons */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 9,
-                marginTop: 9,
-              }}
-            >
-              {ADDONS.map((a) => {
-                const preset = PRESETS.find((p) => p.id === a.id);
-                if (!preset) return null;
-                const kcal = Math.round(sumMacros(preset.items).kcal);
-                const href = `/meal/confirm?preset=${preset.id}&date=${activeDate}`;
-                return (
-                  <Link
-                    key={a.id}
-                    href={href}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      padding: "12px 14px",
-                      borderRadius: 14,
-                      cursor: "pointer",
-                      textDecoration: "none",
-                      background:
-                        "linear-gradient(180deg,rgba(255,138,60,.1),rgba(255,138,60,.02) 40%),#0d0b0c",
-                      border: "1px solid rgba(255,138,60,.32)",
-                      boxShadow: "inset 0 1px 0 rgba(255,205,175,.16)",
-                    }}
-                    onClick={(ev) => {
-                      ev.preventDefault();
-                      setQuickPickOpen(false);
-                      vtNavigate(href, { haptic: null });
-                    }}
-                  >
-                    <span style={{ fontSize: 18 }}>{a.emoji}</span>
-                    <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                      <span
-                        style={{
-                          fontFamily: SANS,
-                          fontWeight: 700,
-                          fontSize: 13,
-                          color: "#f1ede9",
-                        }}
-                      >
-                        {a.label}
-                      </span>
-                      <span
-                        style={{
-                          fontFamily: MONO,
-                          fontSize: 9,
-                          letterSpacing: ".1em",
-                          color: "#ff8a72",
-                        }}
-                      >
-                        +{kcal} KKAL
-                      </span>
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* manage quick-log sheet */}
       {manageOpen && (
         <div
@@ -1474,10 +1589,10 @@ export default function MealHome() {
             }}
           >
             <div style={{ fontFamily: SANS, fontWeight: 800, fontSize: 18, color: "#f5f2ef" }}>
-              ATUR QUICK LOG
+              ATUR CATAT CEPAT
             </div>
             <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: ".06em", color: "#7c736e", marginTop: 5 }}>
-              Tambah, ubah, atau hapus
+              Yang muncul di baris atas — tambah, ubah, atau hapus
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 16 }}>
@@ -1743,6 +1858,11 @@ export default function MealHome() {
                 label="LEMAK (g)"
                 value={editDraft.fat}
                 onChange={(n) => setEditDraft({ ...editDraft, fat: n })}
+              />
+              <NumField
+                label="GULA (g)"
+                value={editDraft.sugar ?? 0}
+                onChange={(n) => setEditDraft({ ...editDraft, sugar: n })}
               />
             </div>
 
