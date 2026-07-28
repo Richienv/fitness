@@ -848,7 +848,11 @@ export default function MealHome() {
 
   return (
     <main
-      className="page-rise"
+      // No page-rise here. Its animation resolves `transform` to an identity
+      // matrix rather than `none`, which makes this element a containing block
+      // — and every position:fixed child (FoodBuilder's full-screen overlay,
+      // the delete dialog, DatePicker) then sizes to the page instead of the
+      // viewport. The entrance flourish isn't worth that.
       style={{
         maxWidth: 460,
         margin: "0 auto",
