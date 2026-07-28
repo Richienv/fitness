@@ -1,7 +1,7 @@
 "use client";
 
 import type { MealType } from "./presets";
-import { macrosFor, type Macros } from "./ingredients";
+import { macrosFor, getIngredient, type Macros } from "./ingredients";
 import { scopedKey } from "./userScope";
 import { contributeFood } from "./foodContribute";
 
@@ -100,20 +100,27 @@ export type IngredientOverride = {
   sodium?: number;
 };
 
-function sumItemsMacros(items: MealItem[]): Macros {
-  return items.reduce<Macros>(
+/** Totals now carry sugar as well: Skor Sehat weights "gula rendah" at 20, so
+ *  it has to be summed rather than inferred. Library ingredients already
+ *  declare `sugar`; custom items carry their own. */
+function sumItemsMacros(items: MealItem[]): Macros & { sugar: number } {
+  return items.reduce<Macros & { sugar: number }>(
     (acc, it) => {
       const m = isCustomItem(it)
         ? { kcal: it.kcal, protein: it.protein, fat: it.fat, carbs: it.carbs }
         : macrosFor(it.id, it.qty);
+      const sugar = isCustomItem(it)
+        ? it.sugar ?? 0
+        : (getIngredient(it.id)?.sugar ?? 0) * it.qty;
       return {
         kcal: acc.kcal + m.kcal,
         protein: acc.protein + m.protein,
         fat: acc.fat + m.fat,
         carbs: acc.carbs + m.carbs,
+        sugar: acc.sugar + sugar,
       };
     },
-    { kcal: 0, protein: 0, fat: 0, carbs: 0 }
+    { kcal: 0, protein: 0, fat: 0, carbs: 0, sugar: 0 }
   );
 }
 

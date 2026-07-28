@@ -62,11 +62,15 @@ export type DaySummary = {
   protein: number;
   carbs: number;
   fat: number;
-  meals: { mealType: string; kcal: number; items: string[] }[];
-  workouts: { sessionType: string; totalVolume: number; exercises: string[] }[];
+  /** Needed by Skor Sehat ("gula rendah", weight 20). */
+  sugar: number;
+  meals: { id: string; mealType: string; kcal: number; items: string[]; photoUrl: string | null }[];
+  /** Machine count is the headline training metric, not volume. */
+  workouts: { sessionType: string; totalVolume: number; machines: number; location: string | null; exercises: string[] }[];
+  cardio: { kind: string; distanceM: number; durationSec: number; location: string | null }[];
 };
 
-type Totals = { kcal?: number; protein?: number; carbs?: number; fat?: number };
+type Totals = { kcal?: number; protein?: number; carbs?: number; fat?: number; sugar?: number };
 type ItemLike = { name?: string; id?: string; custom?: boolean };
 
 function num(x: unknown): number {
@@ -82,14 +86,14 @@ export async function daySummaries(
 ): Promise<DaySummary[]> {
   if (userIds.length === 0) return [];
 
-  const [users, meals, workouts] = await Promise.all([
+  const [users, meals, workouts, cardio] = await Promise.all([
     db.user.findMany({
       where: { id: { in: userIds } },
       select: { id: true, name: true, username: true, email: true },
     }),
     db.mealEntry.findMany({
       where: { userId: { in: userIds }, date },
-      select: { userId: true, mealType: true, items: true, totals: true },
+      select: { id: true, userId: true, mealType: true, items: true, totals: true, photoUrl: true },
       orderBy: { createdAt: "asc" },
     }),
     db.workoutSession.findMany({
@@ -98,9 +102,15 @@ export async function daySummaries(
         userId: true,
         sessionType: true,
         totalVolume: true,
+        location: true,
         exercises: { select: { name: true } },
       },
       orderBy: { createdAt: "asc" },
+    }),
+    db.cardioSession.findMany({
+      where: { userId: { in: userIds }, date },
+      select: { userId: true, kind: true, distanceM: true, durationSec: true, location: true },
+      orderBy: { startedAt: "asc" },
     }),
   ]);
 
@@ -114,8 +124,10 @@ export async function daySummaries(
       protein: 0,
       carbs: 0,
       fat: 0,
+      sugar: 0,
       meals: [],
       workouts: [],
+      cardio: [],
     });
   }
 
@@ -127,8 +139,11 @@ export async function daySummaries(
     s.protein += num(t.protein);
     s.carbs += num(t.carbs);
     s.fat += num(t.fat);
+    s.sugar += num(t.sugar);
     const rawItems = Array.isArray(m.items) ? (m.items as ItemLike[]) : [];
     s.meals.push({
+      id: m.id,
+      photoUrl: m.photoUrl,
       mealType: m.mealType,
       kcal: Math.round(num(t.kcal)),
       // Custom items carry their name inline; library items only carry an id,
@@ -149,7 +164,21 @@ export async function daySummaries(
     s.workouts.push({
       sessionType: w.sessionType,
       totalVolume: Math.round(w.totalVolume),
+      // Distinct machines/lifts — the metric the redesign leads with.
+      machines: new Set(w.exercises.map((e) => e.name)).size,
+      location: w.location,
       exercises: w.exercises.map((e) => e.name),
+    });
+  }
+
+  for (const c of cardio) {
+    const s = byUser.get(c.userId);
+    if (!s) continue;
+    s.cardio.push({
+      kind: c.kind,
+      distanceM: c.distanceM ?? 0,
+      durationSec: c.durationSec,
+      location: c.location,
     });
   }
 
@@ -159,5 +188,6 @@ export async function daySummaries(
     protein: Math.round(s.protein),
     carbs: Math.round(s.carbs),
     fat: Math.round(s.fat),
+    sugar: Math.round(s.sugar),
   }));
 }
