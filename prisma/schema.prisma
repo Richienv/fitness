@@ -23,6 +23,11 @@ model User {
   // unaffected until they fill it in.
   sex                      String?  // "male" | "female"
   goal                     String?  // "fat_loss" | "recomp" | "muscle_gain" | "maintain"
+  // Used to estimate steps from cardio distance: steps = distance_m / (0.65 * height_m)
+  heightCm                 Float?
+  // Leaderboard scopes. Null = the user only appears on the friends board.
+  kecamatan                String?
+  city                     String?
   menstrualTrackingEnabled Boolean  @default(false)
   cycleStartDate           String?  // YYYY-MM-DD
   createdAt    DateTime @default(now())
@@ -39,6 +44,68 @@ model User {
   // `followers` = rows where someone asked to follow this user.
   following    Follow[]         @relation("FollowRequester")
   followers    Follow[]         @relation("FollowTarget")
+  cardio       CardioSession[]
+  badges       UserBadge[]
+  mealLikes    MealLike[]
+  mealComments MealComment[]
+}
+
+// Cardio is tracked separately from lifting: it has distance/pace/place rather
+// than sets and reps, and the profile shows it in its own card.
+model CardioSession {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date       String   // YYYY-MM-DD, Asia/Shanghai (see lib/targets todayKey)
+  kind       String   // "lari" | "jalan" | "renang" | "sepeda"
+  distanceM  Float?
+  durationSec Int     @default(0)
+  location   String?
+  startedAt  DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([userId, date])
+}
+
+// An achievement the user has earned (or is progressing toward). `key` matches
+// lib/badges.ts; progress is the raw metric so the UI can show "62 / 100 km".
+model UserBadge {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key      String
+  progress Float    @default(0)
+  earnedAt DateTime?
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, key])
+  @@index([userId])
+}
+
+// Reactions on a meal. Only users who can already SEE the meal (accepted
+// follow) may react — enforced in the route, not here.
+model MealLike {
+  id        String    @id @default(cuid())
+  mealId    String
+  meal      MealEntry @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@unique([mealId, userId])
+  @@index([mealId])
+}
+
+model MealComment {
+  id        String    @id @default(cuid())
+  mealId    String
+  meal      MealEntry @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime  @default(now())
+
+  @@index([mealId])
 }
 
 enum FollowStatus {
@@ -101,7 +168,12 @@ model MealEntry {
   mealType   String
   items      Json
   totals     Json
+  // Proof photo (Vercel Blob URL). Null until one is attached.
+  photoUrl   String?
   createdAt  DateTime @default(now())
+
+  likes      MealLike[]
+  comments   MealComment[]
 
   @@index([userId, date])
 }
@@ -113,6 +185,8 @@ model WorkoutSession {
   date        String
   sessionType String
   totalVolume Float      @default(0)
+  // Where it happened, shown on the feed/profile session card.
+  location    String?
   exercises   Exercise[]
   createdAt   DateTime   @default(now())
 
