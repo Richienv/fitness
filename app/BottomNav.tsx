@@ -9,19 +9,22 @@ const OS_URL = "https://r2-os.vercel.app";
 
 type Tab = { href: string; label: string; icon: string; match: (p: string) => boolean };
 
-// The daily loop (eat / train / stats) lives in the nav; TIDUR is a card on
-// Beranda and SET is the gear icon in the Beranda header.
+// Four slots, not six.
+//
+// MAKAN and LATIHAN are gone from here on purpose: they're the two full-width
+// primary CTAs at the top of Beranda, so the nav was offering a second, worse
+// route to the same places. Six items also meant six 8.5px labels competing
+// for a phone's width, which made none of them read.
+//
+// What's left is what has nowhere else to live: home, the OS jump, friends,
+// and stats. TIDUR is a card on Beranda; SET is the gear in its header.
 const LEFT: Tab[] = [
-  { href: "/",     label: "BERANDA", icon: "🏠", match: (p) => p === "/" || p.startsWith("/sleep") || p.startsWith("/settings") },
-  { href: "/meal", label: "MAKAN",   icon: "🍽️", match: (p) => p.startsWith("/meal") },
+  { href: "/", label: "BERANDA", icon: "🏠", match: (p) => p === "/" || p.startsWith("/sleep") || p.startsWith("/settings") || p.startsWith("/meal") || p.startsWith("/workout") },
 ];
 
 const RIGHT: Tab[] = [
-  { href: "/workout",   label: "LATIHAN", icon: "🏋️", match: (p) => p.startsWith("/workout") },
-  // TEMAN was only reachable from a grey row at the very bottom of Beranda —
-  // below the fold and styled like a footnote, so it was effectively hidden.
-  { href: "/social",    label: "TEMAN",   icon: "👥", match: (p) => p.startsWith("/social") },
-  { href: "/dashboard", label: "STATS",   icon: "📊", match: (p) => p.startsWith("/dashboard") },
+  { href: "/social",    label: "TEMAN", icon: "👥", match: (p) => p.startsWith("/social") },
+  { href: "/dashboard", label: "STATS", icon: "📊", match: (p) => p.startsWith("/dashboard") },
 ];
 
 export default function BottomNav() {
