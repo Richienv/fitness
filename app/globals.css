@@ -2935,9 +2935,11 @@ a { color: inherit; text-decoration: none; }
   bottom: 0;
   z-index: 100;
   display: grid;
-  /* 4 slots: BERANDA · [OS] · TEMAN · STATS. MAKAN and LATIHAN live as the
+  /* 4 slots: BERANDA · TEMAN · STATS · [OS]. MAKAN and LATIHAN live as the
      two primary CTAs on Beranda instead — six labels at 8.5px was more nav
-     than a phone can render legibly. */
+     than a phone can render legibly.
+     Four equal columns with nothing breaking the top edge, so the bar is
+     symmetric: the OS chip is centred in its own cell like every label. */
   grid-template-columns: repeat(4, 1fr);
   background: rgba(10, 10, 10, 0.95);
   backdrop-filter: blur(12px);
@@ -2972,35 +2974,45 @@ a { color: inherit; text-decoration: none; }
 }
 .bn-item.active { color: var(--accent); }
 
-/* Raised center OS button (QRIS-style) */
+/* OS jump — a chip inside its cell, not a raised pill above the bar.
+   It used to be a 56px circle pushed 12px above the top edge, which only
+   looks deliberate when it's dead centre. With three in-app tabs it never
+   could be, so the lift is gone and the chip sits on the same line as the
+   labels. It still reads as the odd one out because it's the only filled,
+   light element in a row of grey mono text. */
 .bn-os-slot {
   display: flex;
   align-items: center;
   justify-content: center;
+  height: 64px;
 }
 .bn-os-btn {
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
+  min-width: 54px;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 999px;
   background: #f0f0f0;
   color: #080808;
   border: none;
   cursor: pointer;
   font-family: Impact, "Arial Narrow", sans-serif;
-  font-size: 16px;
+  font-size: 14px;
   letter-spacing: 2px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transform: translateY(-12px);
-  box-shadow: 0 -4px 16px rgba(238, 60, 48, 0.2);
-  transition: transform 100ms, box-shadow 100ms;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
 }
-.bn-os-btn:active {
-  transform: translateY(-12px) scale(0.92);
-  box-shadow: 0 -2px 6px rgba(238, 60, 48, 0.1);
+@media (max-width: 360px) {
+  /* Shrink with the labels, or the chip swallows its quarter of a 320px bar. */
+  .bn-os-btn {
+    min-width: 42px;
+    height: 24px;
+    padding: 0 10px;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+  }
 }
 
 /* ============================================================

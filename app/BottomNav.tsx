@@ -20,13 +20,15 @@ type Tab = { href: string; label: string; match: (p: string) => boolean };
 // route to the same places. Six items also meant six 8.5px labels competing
 // for a phone's width, which made none of them read.
 //
-// What's left is what has nowhere else to live: home, the OS jump, friends,
-// and stats. TIDUR is a card on Beranda; SET is the gear in its header.
-const LEFT: Tab[] = [
+// What's left is what has nowhere else to live: home, friends, stats, and the
+// OS jump. TIDUR is a card on Beranda; SET is the gear in its header.
+//
+// OS goes last rather than second. With three in-app tabs there is no way to
+// centre a fourth slot — second-of-four put it at 37.5% across, which read as
+// a mistake rather than a feature. Sitting at the end it's evenly spaced with
+// everything else, and "leave the app" belongs at the edge anyway.
+const TABS: Tab[] = [
   { href: "/", label: "BERANDA", match: (p) => p === "/" || p.startsWith("/sleep") || p.startsWith("/settings") || p.startsWith("/meal") || p.startsWith("/workout") },
-];
-
-const RIGHT: Tab[] = [
   { href: "/social",    label: "TEMAN", match: (p) => p.startsWith("/social") },
   { href: "/dashboard", label: "STATS", match: (p) => p.startsWith("/dashboard") },
 ];
@@ -47,7 +49,7 @@ export default function BottomNav() {
       aria-label="Primary"
       style={{ viewTransitionName: "bottom-nav" } as React.CSSProperties}
     >
-      {LEFT.map((t) => (
+      {TABS.map((t) => (
         <Link
           key={t.href}
           href={t.href}
@@ -65,22 +67,11 @@ export default function BottomNav() {
             haptic("tap");
             window.location.href = OS_URL;
           }}
-          aria-label="Open R2·OS"
+          aria-label="Buka R2·OS"
         >
           OS
         </button>
       </div>
-
-      {RIGHT.map((t) => (
-        <Link
-          key={t.href}
-          href={t.href}
-          onClick={(e) => nav(t.href, e)}
-          className={`bn-item${t.match(pathname) ? " active" : ""}`}
-        >
-          <span className="bn-label">{t.label}</span>
-        </Link>
-      ))}
     </nav>
   );
 }
