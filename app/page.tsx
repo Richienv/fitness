@@ -469,7 +469,7 @@ export default function HomePage() {
               color: "#ff8a72",
             }}
           >
-            🔥 {mounted ? streak : 0} HARI
+            {mounted ? streak : 0} HARI
           </div>
           {/* Settings moved out of the bottom nav (nav now carries the daily
               loop: Makan / Latihan / Stats). */}
@@ -485,11 +485,14 @@ export default function HomePage() {
               borderRadius: 999,
               border: "1px solid rgba(255,255,255,.14)",
               background: "rgba(255,255,255,.05)",
-              fontSize: 15,
+              fontFamily: MONO,
+              fontSize: 9,
+              letterSpacing: ".1em",
+              color: "#9a938d",
               textDecoration: "none",
             }}
           >
-            ⚙️
+            SET
           </Link>
         </div>
       </div>
@@ -585,10 +588,10 @@ export default function HomePage() {
       {/* day toggle */}
       <div style={{ display: "flex", gap: 8, marginTop: 26 }}>
         <button type="button" onClick={() => toggleGym(true)} style={toggleStyle(gymDay)}>
-          🏋️ GYM
+          GYM
         </button>
         <button type="button" onClick={() => toggleGym(false)} style={toggleStyle(!gymDay)}>
-          🌙 REST
+          REST
         </button>
       </div>
 
@@ -633,7 +636,7 @@ export default function HomePage() {
             textShadow: "0 1px 2px rgba(120,15,5,.5)",
           }}
         >
-          MULAI LATIHAN <span style={{ fontWeight: 500 }}>↗</span>
+          MULAI LATIHAN
         </span>
         <span
           style={{
@@ -692,7 +695,7 @@ export default function HomePage() {
             textShadow: "0 1px 2px rgba(140,60,5,.5)",
           }}
         >
-          🍽 CATAT MAKAN <span style={{ fontWeight: 500 }}>↗</span>
+          CATAT MAKAN
         </span>
         <span
           style={{
@@ -726,9 +729,6 @@ export default function HomePage() {
           border: "1px solid rgba(255,255,255,.08)",
         }}
       >
-        <span aria-hidden="true" style={{ fontSize: 15, opacity: 0.75 }}>
-          😴
-        </span>
         <span
           style={{
             flex: 1,
@@ -751,7 +751,7 @@ export default function HomePage() {
             whiteSpace: "nowrap",
           }}
         >
-          target 8 jam ↗
+          target 8 jam
         </span>
       </Link>
 
