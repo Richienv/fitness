@@ -31,7 +31,7 @@ const OG_IMAGE = `${SITE_URL}/api/og?days=75&v=2`;
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: "R2·FIT — Track",
-  description: "75 days before meet-up. 💪",
+  description: "75 days before meet-up.",
   applicationName: "R2·FIT",
   appleWebApp: {
     title: "R2·FIT",
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
     url: SITE_URL,
     siteName: "R2·FIT",
     title: "R2·FIT — Track",
-    description: "75 days before meet-up. 💪",
+    description: "75 days before meet-up.",
     images: [
       {
         url: OG_IMAGE,
@@ -56,7 +56,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "R2·FIT — Track",
-    description: "75 days before meet-up. 💪",
+    description: "75 days before meet-up.",
     images: [OG_IMAGE],
   },
 };

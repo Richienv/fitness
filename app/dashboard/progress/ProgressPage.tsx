@@ -330,7 +330,7 @@ export default function ProgressPage() {
       </div>
 
       <button type="button" className="share-btn" onClick={() => setSheet(true)}>
-        📏 TAKE MEASUREMENTS
+        TAKE MEASUREMENTS
       </button>
 
       {sheet && (

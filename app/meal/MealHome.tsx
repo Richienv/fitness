@@ -180,7 +180,7 @@ function SwipeRow({
             fontWeight: prog >= 1 ? 700 : 400,
           }}
         >
-          🗑 HAPUS
+          HAPUS
         </span>
       </div>
       <div
@@ -1131,7 +1131,7 @@ export default function MealHome() {
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                       />
                     ) : (
-                      "📷"
+                      "FOTO"
                     )}
                   </button>
 
@@ -1417,7 +1417,7 @@ export default function MealHome() {
               border: "1px solid rgba(255,150,120,.6)",
             }}
           >
-            📷 GANTI FOTO
+            GANTI FOTO
           </button>
         </div>
       )}
@@ -1476,7 +1476,7 @@ export default function MealHome() {
                 border: "1px solid rgba(238,60,48,.3)",
               }}
             >
-              🗑
+              HAPUS
             </div>
             <div
               style={{
@@ -1663,7 +1663,7 @@ export default function MealHome() {
                     onClick={() => setQuickEntries(deleteQuickLogEntry(e.id))}
                     style={manageIconStyle(false)}
                   >
-                    🗑
+                    HAPUS
                   </button>
                 </div>
               ))}
@@ -1799,7 +1799,7 @@ export default function MealHome() {
                     : "1px solid rgba(255,255,255,.12)",
                 }}
               >
-                {lockRatio ? "🔒 KUNCI RASIO" : "🔓 BEBAS"}
+                {lockRatio ? "KUNCI RASIO" : "BEBAS"}
               </button>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 8 }}>

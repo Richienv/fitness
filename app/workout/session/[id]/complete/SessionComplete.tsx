@@ -242,7 +242,7 @@ export default function SessionComplete({ workoutId }: { workoutId: string }) {
           <StatCard num={volume.toLocaleString("id-ID")} unit=" kg" label="TOTAL VOLUME" numColor="#ff8a72" />
           <StatCard num={String(setsLogged)} label="SET SELESAI" />
           <div style={{ background: "linear-gradient(180deg,rgba(238,60,48,.14),rgba(238,60,48,.03))", border: "1px solid rgba(255,150,120,.3)", borderRadius: 16, padding: 16, textAlign: "center" }}>
-            <div style={{ fontSize: 30, fontWeight: 800, color: "#ff8a3d", lineHeight: 1 }}>{prs.length} 🔥</div>
+            <div style={{ fontSize: 30, fontWeight: 800, color: "#ff8a3d", lineHeight: 1 }}>{prs.length}</div>
             <div className="mono" style={{ fontSize: 8.5, letterSpacing: "2px", color: "#ffb99e", marginTop: 7 }}>REKOR BARU</div>
           </div>
         </div>
@@ -251,7 +251,7 @@ export default function SessionComplete({ workoutId }: { workoutId: string }) {
         {prs.length > 0 && (
           <>
             <div className="mono rise-3" style={{ fontSize: 10, letterSpacing: "2px", color: "#7c736e", margin: "26px 0 10px" }}>
-              🔥 REKOR PRIBADI BARU
+              REKOR PRIBADI BARU
             </div>
             <div className="rise-3" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {prs.map((p) => (
@@ -267,8 +267,7 @@ export default function SessionComplete({ workoutId }: { workoutId: string }) {
                     border: "1px solid rgba(255,150,120,.28)",
                   }}
                 >
-                  <span style={{ fontSize: 20 }}>🏆</span>
-                  <span style={{ flex: 1, fontWeight: 700, fontSize: 14, color: "#f1ede9" }}>{p.name}</span>
+                      <span style={{ flex: 1, fontWeight: 700, fontSize: 14, color: "#f1ede9" }}>{p.name}</span>
                   <span className="mono" style={{ fontSize: 11, color: "#ff8a72", fontWeight: 600 }}>{p.value}</span>
                 </div>
               ))}
@@ -414,7 +413,7 @@ export default function SessionComplete({ workoutId }: { workoutId: string }) {
             opacity: sharing ? 0.7 : 1,
           }}
         >
-          {sharing ? "MEMBUAT…" : "📸 BAGIKAN PROGRES"}
+          {sharing ? "MEMBUAT…" : "BAGIKAN PROGRES"}
         </button>
         <Link
           href="/workout"

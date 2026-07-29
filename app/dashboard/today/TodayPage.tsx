@@ -38,11 +38,11 @@ function itemSodium(it: MealItem): number {
 
 const EMPTY: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
 
-const MEAL_ORDER: { type: MealType; emoji: string; label: string }[] = [
-  { type: "breakfast", emoji: "🌅", label: "BREAKFAST" },
-  { type: "lunch",     emoji: "☀️", label: "LUNCH" },
-  { type: "snack",     emoji: "🍎", label: "SNACK" },
-  { type: "dinner",    emoji: "🌙", label: "DINNER" },
+const MEAL_ORDER: { type: MealType; label: string }[] = [
+  { type: "breakfast", label: "BREAKFAST" },
+  { type: "lunch",     label: "LUNCH" },
+  { type: "snack",     label: "SNACK" },
+  { type: "dinner",    label: "DINNER" },
 ];
 
 function itemMacros(it: MealItem): Macros {
@@ -336,13 +336,13 @@ export default function TodayPage() {
 
         {loaded && <MicroRings rings={microRings} />}
 
-        <div className="smart-tip mono">💡 {tip}</div>
+        <div className="smart-tip mono">{tip}</div>
 
         {highSodiumItem && !sodiumDismissed && (
           <div className="sodium-tip mono" role="note">
             <div className="sodium-tip-body">
               <div className="sodium-tip-head">
-                <span className="sodium-tip-flag">⚠️ HIGH SODIUM MEAL</span>
+                <span className="sodium-tip-flag">HIGH SODIUM MEAL</span>
                 <button
                   type="button"
                   className="sodium-tip-close"
@@ -361,14 +361,14 @@ export default function TodayPage() {
         )}
 
         <button type="button" className="share-btn" onClick={handleShare} disabled={sharing}>
-          {sharing ? "GENERATING…" : "📤 SHARE TODAY"}
+          {sharing ? "GENERATING…" : "SHARE TODAY"}
         </button>
 
         <div className="today-divider" />
         <div className="today-meals-label mono">// TODAY&apos;S MEALS</div>
 
         <div className="today-meals">
-          {MEAL_ORDER.map(({ type, emoji, label }) => {
+          {MEAL_ORDER.map(({ type, label }) => {
             const meal = mealByType.get(type);
             const isExpanded = meal ? !!expanded[meal.id] : false;
 
@@ -377,7 +377,6 @@ export default function TodayPage() {
                 <div key={type} className="meal-breakdown-card unlogged">
                   <div className="mbc-head">
                     <div className="mbc-title">
-                      <span className="mbc-emoji">{emoji}</span>
                       <span className="mbc-label mono">{label}</span>
                     </div>
                     <div className="mbc-right">
@@ -398,7 +397,6 @@ export default function TodayPage() {
                   onClick={() => toggleExpand(meal.id)}
                 >
                   <div className="mbc-title">
-                    <span className="mbc-emoji">{emoji}</span>
                     <span className="mbc-label mono">{label}</span>
                   </div>
                   <div className="mbc-right">
@@ -474,8 +472,8 @@ export default function TodayPage() {
                             <span className="mbc-item-kcal mono">{Math.round(m.kcal)} kcal</span>
                           </div>
                           <div className="mbc-item-actions">
-                            <button type="button" className="mbc-icon-btn" onClick={() => startEdit(meal, idx)} aria-label="Edit">✏️</button>
-                            <button type="button" className="mbc-icon-btn" onClick={() => setConfirmDel({ mealId: meal.id, index: idx })} aria-label="Delete">🗑️</button>
+                            <button type="button" className="mbc-icon-btn" onClick={() => startEdit(meal, idx)} aria-label="Edit">UBAH</button>
+                            <button type="button" className="mbc-icon-btn" onClick={() => setConfirmDel({ mealId: meal.id, index: idx })} aria-label="Delete">HAPUS</button>
                           </div>
                         </div>
                       );

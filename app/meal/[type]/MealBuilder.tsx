@@ -51,12 +51,12 @@ const LABELS: Record<MealType, string> = {
   dinner: "DINNER",
 };
 
-const STEPS: { key: Ingredient["group"]; title: string; emoji: string }[] = [
-  { key: "protein",   title: "PROTEIN",    emoji: "💪" },
-  { key: "carb",      title: "CARBS",      emoji: "🌾" },
-  { key: "vegetable", title: "VEGETABLES", emoji: "🥬" },
-  { key: "extra",     title: "EXTRAS",     emoji: "✨" },
-  { key: "drink",     title: "DRINKS",     emoji: "🥤" },
+const STEPS: { key: Ingredient["group"]; title: string }[] = [
+  { key: "protein",   title: "PROTEIN" },
+  { key: "carb",      title: "CARBS" },
+  { key: "vegetable", title: "VEGETABLES" },
+  { key: "extra",     title: "EXTRAS" },
+  { key: "drink",     title: "DRINKS" },
 ];
 
 const ZERO: CustomMacros = { kcal: 0, protein: 0, fat: 0, carbs: 0, sugar: 0, sodium: 0 };
@@ -492,7 +492,7 @@ export default function MealBuilder({
               className="preset-btn last"
               onClick={() => applyPreset(lastMeal.items.filter((it) => !isCustomItem(it)) as { id: string; qty: number }[])}
             >
-              🔁 Usual ({lastMeal.items.length})
+              Usual ({lastMeal.items.length})
             </button>
           )}
           {presets.map((p) => (

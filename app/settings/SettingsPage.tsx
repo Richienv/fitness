@@ -300,7 +300,7 @@ export default function SettingsPage() {
             className="settings-row"
             style={{ textDecoration: "none", cursor: "pointer" }}
           >
-            <div className="settings-row-label">📱 iPhone Widget</div>
+            <div className="settings-row-label">iPhone Widget</div>
             <span className="settings-chip mono" style={CHIP_INACTIVE}>
               BUKA →
             </span>
@@ -459,14 +459,12 @@ export default function SettingsPage() {
 
           <TargetBlock
             title="GYM DAY"
-            emoji="🏋️"
             target={settings.targets.gymDay}
             total={gymTotal}
             onSet={(k, v) => setTarget("gymDay", k, v)}
           />
           <TargetBlock
             title="REST DAY"
-            emoji="🌙"
             target={settings.targets.restDay}
             total={restTotal}
             onSet={(k, v) => setTarget("restDay", k, v)}
@@ -650,13 +648,11 @@ function macroTotal(t: MacroTarget): string {
 
 function TargetBlock({
   title,
-  emoji,
   target,
   total,
   onSet,
 }: {
   title: string;
-  emoji: string;
   target: MacroTarget;
   total: string;
   onSet: (key: MacroKey, value: number) => void;
@@ -665,7 +661,6 @@ function TargetBlock({
     <div className="settings-target">
       <div className="settings-target-head">
         <div className="settings-target-title">
-          <span>{emoji}</span>
           <span>{title}</span>
         </div>
         <div className="settings-target-total mono">{total}</div>

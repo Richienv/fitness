@@ -100,7 +100,6 @@ export default function ProfilePage({ username }: { username: string }) {
       <main style={shell}>
         <Back />
         <div style={{ textAlign: "center", padding: "60px 20px" }}>
-          <div style={{ fontSize: 40 }}>🔒</div>
           <div style={{ fontSize: 19, fontWeight: 800, color: "#f1ede9", marginTop: 14 }}>{locked.name}</div>
           <div className="mono" style={{ fontSize: 11, color: "#8a837d", marginTop: 8, lineHeight: 1.6 }}>
             Kamu belum bisa lihat harinya.
@@ -241,9 +240,7 @@ export default function ProfilePage({ username }: { username: string }) {
                         {m.photoUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={m.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                        ) : (
-                          <span style={{ fontSize: 17, opacity: 0.5 }}>📷</span>
-                        )}
+                        ) : null}
                       </button>
                     </div>
                   </div>

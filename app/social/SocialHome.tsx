@@ -421,7 +421,6 @@ export default function SocialHome() {
             textAlign: "center",
           }}
         >
-          <div style={{ fontSize: 48 }}>🤜🤛</div>
           <div style={{ fontSize: 22, fontWeight: 800, color: "#f1ede9", marginTop: 14 }}>
             Makin rame, makin susah bolos
           </div>
@@ -623,7 +622,6 @@ function Pedestal({ row, place }: { row: Row | undefined; place: 1 | 2 | 3 }) {
         <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center" }}>
           <div style={{ position: "absolute", top: 8, left: "14%", fontSize: 9, color: "#ffe19a", animation: "tm-sparkle 2.2s ease-in-out .2s infinite" }}>✦</div>
           <div style={{ position: "absolute", top: 14, right: "10%", fontSize: 8, color: "#fff3cf", animation: "tm-sparkle 2.6s ease-in-out 1.1s infinite" }}>✦</div>
-          <div style={{ fontSize: 24, animation: "tm-crownfloat 2.8s ease-in-out infinite" }}>👑</div>
         </div>
       )}
       <div
@@ -965,7 +963,6 @@ function FriendReel({ day, rank, me }: { day: Day; rank: number; me: Day | null 
                 border: "1px solid rgba(255,150,120,.25)",
               }}
             >
-              <span style={{ fontSize: 15 }}>🏋️</span>
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#f1ede9", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {w.exercises.length > 0 ? w.exercises.join(", ") : w.sessionType}
@@ -990,7 +987,6 @@ function FriendReel({ day, rank, me }: { day: Day; rank: number; me: Day | null 
                 border: "1px solid rgba(255,255,255,.09)",
               }}
             >
-              <span style={{ fontSize: 15 }}>🏃</span>
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#f1ede9", textTransform: "capitalize" }}>
                   {c.kind}
@@ -1196,7 +1192,7 @@ function SearchModal({
         {incoming.length > 0 && (
           <>
             <div className="mono" style={{ fontSize: 9, letterSpacing: ".16em", color: "#ffb99e", margin: "18px 0 9px" }}>
-              🔔 PERMINTAAN MASUK · {incoming.length}
+              PERMINTAAN MASUK · {incoming.length}
             </div>
             {incoming.map((p) => (
               <div key={p.followId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 13, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,150,120,.35)", marginBottom: 7 }}>
@@ -1231,7 +1227,7 @@ function SearchModal({
 
         {/* search */}
         <div className="mono" style={{ fontSize: 9, letterSpacing: ".16em", color: "#7c736e", margin: "18px 0 9px" }}>
-          🔍 CARI TEMAN
+          CARI TEMAN
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 18, fontWeight: 800, color: "#ff8a72" }}>@</span>

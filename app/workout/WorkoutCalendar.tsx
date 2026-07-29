@@ -69,7 +69,7 @@ export default function WorkoutCalendar({ today }: { today: string }) {
             border: streak > 0 ? "1px solid rgba(255,150,120,.4)" : "1px solid rgba(255,255,255,.1)",
           }}
         >
-          🔥 {streak} hari
+          {streak} hari
         </span>
       </div>
 
@@ -134,7 +134,7 @@ export default function WorkoutCalendar({ today }: { today: string }) {
                 boxShadow: c.trained ? "0 3px 10px rgba(238,60,48,.3)" : "none",
               }}
             >
-              {c.trained ? "🔥" : c.day}
+              {c.day}
             </div>
           );
         })}

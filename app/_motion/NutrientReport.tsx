@@ -94,7 +94,7 @@ export default function NutrientReport({
           NUTRIENT TARGETS
           {streak >= 2 && (
             <span className="nr-streak mono" title="Consecutive days hitting ≥80% of targets">
-              · <AnimatedNumber value={streak} />D STREAK 🔥
+              · <AnimatedNumber value={streak} />D STREAK
             </span>
           )}
         </span>
