@@ -52,14 +52,26 @@ export async function GET(req: Request) {
     }
 
     // Existing relationship in either direction, so the UI can label the row.
+    // This used to only read rows where the caller was the follower, so someone
+    // who had asked YOU and been accepted still showed a "+ TAMBAH" button.
+    const ids = users.map((u) => u.id);
     const rels = await db.follow.findMany({
       where: {
-        followerId: userId,
-        followingId: { in: users.map((u) => u.id) },
+        OR: [
+          { followerId: userId, followingId: { in: ids } },
+          { followerId: { in: ids }, followingId: userId },
+        ],
       },
-      select: { followingId: true, status: true },
+      select: { followerId: true, followingId: true, status: true },
     });
-    const byId = new Map(rels.map((r) => [r.followingId, r.status]));
+    const RANK = { ACCEPTED: 3, PENDING: 2, DECLINED: 1 } as const;
+    const byId = new Map<string, "PENDING" | "ACCEPTED" | "DECLINED">();
+    for (const r of rels) {
+      const other = r.followerId === userId ? r.followingId : r.followerId;
+      const prev = byId.get(other);
+      // A pair can hold a row each way; the stronger state is the true one.
+      if (!prev || RANK[r.status] > RANK[prev]) byId.set(other, r.status);
+    }
 
     return NextResponse.json(
       {

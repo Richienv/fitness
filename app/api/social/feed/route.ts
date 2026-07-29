@@ -3,14 +3,14 @@
 // One day of every person the caller is ACCEPTED to follow: their calories,
 // macros, meals and workouts.
 //
-// The authorisation is `acceptedFollowingIds(viewerId)` — the id list is
+// The authorisation is `friendIds(viewerId)` — the id list is
 // derived from ACCEPTED follow rows and is the ONLY source of user ids passed
 // to the data query. A caller cannot ask for an arbitrary user's day, so a
 // PENDING or DECLINED request leaks nothing.
 
 import { NextResponse } from "next/server";
 import { getUserId } from "@/lib/session";
-import { acceptedFollowingIds, daySummaries } from "@/lib/social";
+import { friendIds, daySummaries } from "@/lib/social";
 import { todayKey } from "@/lib/targets";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +32,7 @@ export async function GET(req: Request) {
     // Asia/Shanghai, so toISOString() would have queried a different day.
     const date = DATE_RE.test(raw) ? raw : todayKey();
 
-    const ids = await acceptedFollowingIds(userId);
+    const ids = await friendIds(userId);
     if (ids.length === 0) {
       return NextResponse.json({ ok: true, data: { date, feed: [] } }, { headers: noStore });
     }

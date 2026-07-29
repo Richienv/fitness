@@ -1,9 +1,18 @@
-// Server-side helpers for the follow graph.
+// Server-side helpers for the friend graph.
 //
-// PRIVACY INVARIANT: nothing about a user's day is readable unless THEY have
-// accepted the viewer's follow request. Every read path goes through
-// `acceptedFollowingIds` / `canView`, so the check lives in exactly one place
+// PRIVACY INVARIANT: nothing about a user's day is readable unless the two of
+// you are friends — one of you asked, the other accepted. Every read path goes
+// through `friendIds` / `canView`, so the check lives in exactly one place
 // rather than being re-derived (and eventually mis-derived) per route.
+//
+// Friendship is MUTUAL, and one ACCEPTED row expresses it in whichever
+// direction it happened to be created. It didn't used to be: reads only ever
+// looked at `followerId = viewer`, so accepting someone's request let THEM see
+// you while you still saw nothing of them — and no screen said so. Treating
+// the row as symmetric fixes that without a second row or a backfill.
+//
+// Nobody is exposed without an act of their own: the requester opted in by
+// asking, the accepter by accepting.
 
 import { db } from "./db";
 import { INGREDIENTS } from "./ingredients";
@@ -34,24 +43,41 @@ export function displayName(u: {
   return u.name?.trim() || u.username || u.email?.split("@")[0] || "Teman";
 }
 
-/** IDs of users who have ACCEPTED `viewerId`'s follow request — i.e. exactly
- *  the people whose data `viewerId` is allowed to see. */
-export async function acceptedFollowingIds(viewerId: string): Promise<string[]> {
+/** IDs of everyone `viewerId` is friends with — i.e. exactly the people whose
+ *  data `viewerId` is allowed to see. Matches an ACCEPTED row in either
+ *  direction, since who sent the request doesn't change who the friends are. */
+export async function friendIds(viewerId: string): Promise<string[]> {
   const rows = await db.follow.findMany({
-    where: { followerId: viewerId, status: "ACCEPTED" },
-    select: { followingId: true },
+    where: {
+      status: "ACCEPTED",
+      OR: [{ followerId: viewerId }, { followingId: viewerId }],
+    },
+    select: { followerId: true, followingId: true },
   });
-  return rows.map((r) => r.followingId);
+  const ids = new Set<string>();
+  for (const r of rows) {
+    ids.add(r.followerId === viewerId ? r.followingId : r.followerId);
+  }
+  // A self-row shouldn't exist (the request route rejects it), but a stale one
+  // would otherwise put you on your own feed.
+  ids.delete(viewerId);
+  return Array.from(ids);
 }
 
 /** True when `viewerId` may read `targetId`'s day. Always true for yourself. */
 export async function canView(viewerId: string, targetId: string): Promise<boolean> {
   if (viewerId === targetId) return true;
-  const row = await db.follow.findUnique({
-    where: { followerId_followingId: { followerId: viewerId, followingId: targetId } },
-    select: { status: true },
+  const row = await db.follow.findFirst({
+    where: {
+      status: "ACCEPTED",
+      OR: [
+        { followerId: viewerId, followingId: targetId },
+        { followerId: targetId, followingId: viewerId },
+      ],
+    },
+    select: { id: true },
   });
-  return row?.status === "ACCEPTED";
+  return !!row;
 }
 
 export type DaySummary = {
@@ -79,7 +105,7 @@ function num(x: unknown): number {
 }
 
 /** Build one day's summary for each of `userIds`. Callers MUST have already
- *  authorised those ids (see acceptedFollowingIds). */
+ *  authorised those ids (see friendIds). */
 export async function daySummaries(
   userIds: string[],
   date: string
