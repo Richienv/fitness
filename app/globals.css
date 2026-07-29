@@ -2935,8 +2935,10 @@ a { color: inherit; text-decoration: none; }
   bottom: 0;
   z-index: 100;
   display: grid;
-  /* 6 slots: BERANDA · MAKAN · [OS] · LATIHAN · TEMAN · STATS */
-  grid-template-columns: repeat(6, 1fr);
+  /* 4 slots: BERANDA · [OS] · TEMAN · STATS. MAKAN and LATIHAN live as the
+     two primary CTAs on Beranda instead — six labels at 8.5px was more nav
+     than a phone can render legibly. */
+  grid-template-columns: repeat(4, 1fr);
   background: rgba(10, 10, 10, 0.95);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -2956,25 +2958,19 @@ a { color: inherit; text-decoration: none; }
   transition: color 0.15s ease, transform 0.1s ease;
 }
 .bn-item:active { transform: scale(0.94); }
-.bn-icon {
-  font-size: 20px;
-  line-height: 1;
-  filter: grayscale(1) opacity(0.55);
-  transition: filter 0.15s ease;
-}
 .bn-label {
   font-family: var(--font-dm-mono), monospace;
-  font-size: 9px;
-  /* Tightened from 1.5px: at 6 slots a 7-char label ("BERANDA", "LATIHAN")
-     has ~62px on a 375px phone, and the old spacing wrapped it. */
-  letter-spacing: 0.8px;
+  /* Labels carry the nav on their own now that the emoji icons are gone, so
+     they get the size back. Four slots also means ~93px each on a 375px
+     phone rather than ~62px, which is room the old spacing didn't have. */
+  font-size: 11px;
+  letter-spacing: 1.2px;
   white-space: nowrap;
 }
 @media (max-width: 360px) {
   .bn-label { font-size: 8px; letter-spacing: 0.4px; }
 }
 .bn-item.active { color: var(--accent); }
-.bn-item.active .bn-icon { filter: none; }
 
 /* Raised center OS button (QRIS-style) */
 .bn-os-slot {
@@ -6906,7 +6902,6 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
   background: rgba(238, 60, 48, 0.08);
   color: var(--accent);
 }
-.wo-group-emoji { font-size: 18px; line-height: 1; }
 .wo-group-label {
   font-family: var(--font-dm-mono), monospace;
   font-size: 10px;

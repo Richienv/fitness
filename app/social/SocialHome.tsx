@@ -213,27 +213,59 @@ export default function SocialHome() {
         }}
       >
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 19, fontWeight: 800, color: "#f1ede9", letterSpacing: ".3px", lineHeight: 1 }}>
-            TEMAN <span style={FIRE_TEXT}>SEPERJUANGAN</span>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "#f1ede9", letterSpacing: ".3px", lineHeight: 1, whiteSpace: "nowrap" }}>
+            Teman<span style={{ color: "#ee3c30" }}>.</span>
           </div>
           <div className="mono" style={{ fontSize: 10, fontWeight: 500, letterSpacing: "1.4px", color: "#f1ede9", marginTop: 5 }}>
             {fmtDateID(date)}
           </div>
         </div>
+        {/* Adding someone is the whole point of this screen, so it gets a
+            labelled button in the header rather than only a small pill in the
+            corner and a CTA on the very last reel — which you could only reach
+            by scrolling past every friend you already have. */}
+        <button
+          type="button"
+          className="tm-tap mono"
+          onClick={() => {
+            haptic("tap");
+            setSearchOpen(true);
+          }}
+          style={{
+            flex: "none",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "10px 15px",
+            borderRadius: 999,
+            fontSize: 10.5,
+            fontWeight: 700,
+            letterSpacing: ".08em",
+            color: "#fff",
+            background: FIRE,
+            border: "1px solid rgba(255,150,120,.6)",
+            boxShadow: "0 6px 16px rgba(238,60,48,.4)",
+            cursor: "pointer",
+          }}
+        >
+          ＋ TAMBAH
+        </button>
         <button
           type="button"
           className="tm-tap"
           onClick={() => setSearchOpen(true)}
-          aria-label="Profil & cari teman"
+          aria-label="Profil & permintaan masuk"
           style={{
             position: "relative",
             flex: "none",
             width: 36,
             height: 36,
             borderRadius: "50%",
-            background: FIRE,
-            border: "1px solid rgba(255,150,120,.55)",
-            color: "#fff",
+            // Neutral now that TAMBAH TEMAN carries the fire — two fire
+            // buttons side by side and neither reads as the primary one.
+            background: "rgba(255,255,255,.07)",
+            border: "1px solid rgba(255,255,255,.14)",
+            color: "#cfc8c2",
             fontFamily: MONO,
             fontSize: 11,
             fontWeight: 700,
@@ -451,32 +483,6 @@ export default function SocialHome() {
           </button>
         </section>
       </div>
-
-      {/* floating search pill */}
-      <button
-        type="button"
-        className="tm-tap mono"
-        onClick={() => setSearchOpen(true)}
-        style={{
-          position: "absolute",
-          right: 16,
-          bottom: 18,
-          zIndex: 25,
-          whiteSpace: "nowrap",
-          padding: "11px 16px",
-          borderRadius: 999,
-          fontSize: 10,
-          fontWeight: 700,
-          letterSpacing: ".08em",
-          color: "#fff",
-          background: FIRE,
-          border: "1px solid rgba(255,150,120,.6)",
-          boxShadow: "0 8px 20px rgba(238,60,48,.45)",
-          cursor: "pointer",
-        }}
-      >
-        🔍 CARI TEMAN
-      </button>
 
       {toast && (
         <div

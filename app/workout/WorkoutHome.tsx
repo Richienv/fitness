@@ -296,7 +296,6 @@ export default function WorkoutHome() {
               border: "1px solid rgba(255,150,120,.32)",
             }}
           >
-            <span style={{ fontSize: 15, color: "#ff8a72" }}>▶</span>
             <span style={{ flex: 1, minWidth: 0 }}>
               <span
                 className="mono"
@@ -503,7 +502,6 @@ export default function WorkoutHome() {
               border: "1px solid rgba(255,255,255,.08)",
             }}
           >
-            <span style={{ fontSize: 22 }}>🌙</span>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 700, fontSize: 14, color: "#f1ede9" }}>Hari istirahat</div>
               <div className="mono" style={{ fontSize: 10, color: "#8a837d", marginTop: 3 }}>
@@ -598,24 +596,33 @@ export default function WorkoutHome() {
                   : "inset 0 1.5px 1px rgba(255,225,205,.7),0 10px 26px rgba(238,60,48,.42)",
               }}
             >
-              {curIsToday ? "MULAI · HARI INI ▶" : "MULAI LEBIH AWAL ▶"}
+              {curIsToday ? "MULAI · HARI INI" : "MULAI LEBIH AWAL"}
             </button>
             <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-              {/* CACEP = "Catat cepat" — the freestyle path. Named so it reads
-                  as a thing you can do (log any machine right now), not as a
-                  search box, which is what "CARI / TUKAR" implied. */}
+              {/* CACEP = "Catat cepat" — the freestyle path, for when the
+                  machine you planned on is taken. It's a real alternative to
+                  the program, not a footnote, so it's filled rather than
+                  outlined. Cream instead of fire: a second red button beside
+                  MULAI would just split the eye between two reds. */}
               <button
                 type="button"
                 className="mono tap-press"
                 onClick={() => setSearchOpen(true)}
                 style={{
-                  ...ghostBtn,
-                  color: "#ffb99e",
-                  background: "rgba(255,138,60,.1)",
-                  border: "1px solid rgba(255,150,120,.3)",
+                  flex: 1.35,
+                  borderRadius: 14,
+                  padding: "14px 10px",
+                  border: "none",
+                  background: "linear-gradient(180deg,#fbf7f3,#e4ded7)",
+                  color: "#171213",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: "1.5px",
+                  cursor: "pointer",
+                  boxShadow: "inset 0 1.5px 0 rgba(255,255,255,.9), 0 6px 16px rgba(0,0,0,.5)",
                 }}
               >
-                ⚡ CACEP · BEBAS
+                CACEP · BEBAS
               </button>
               <button
                 type="button"
@@ -717,11 +724,11 @@ export default function WorkoutHome() {
             onClick={() => setSearchOpen(true)}
             style={utilBtn}
           >
-            🔍 CARI
+            CARI
           </button>
           <span style={{ color: "#3a3330" }}>|</span>
           <Link href="/workout/equipment" className="mono" style={{ ...utilBtn, textDecoration: "none" }}>
-            🏋️ ALAT
+            ALAT
           </Link>
         </div>
 
@@ -1000,7 +1007,7 @@ function SearchModal({
             className="mono"
             style={{ textAlign: "center", fontSize: 10, color: "#8a837d", marginTop: 18, lineHeight: 1.6 }}
           >
-            ⚡ CATAT CEPAT — latihan bebas, nggak usah ikut program.
+            CATAT CEPAT — latihan bebas, nggak usah ikut program.
             <br />
             Ketik mesin apa aja (mis. &ldquo;chest&rdquo;, &ldquo;inner thigh&rdquo;), langsung catat.
           </div>
@@ -1028,7 +1035,7 @@ function SearchModal({
                       {s.focus}
                     </span>
                   </span>
-                  <span className="mono" style={pillFire}>MULAI ▶</span>
+                  <span className="mono" style={pillFire}>MULAI</span>
                 </button>
               ))}
             </div>
@@ -1146,7 +1153,7 @@ function CoachChip() {
         whiteSpace: "nowrap",
       }}
     >
-      ⚠ PERLU COACH
+      PERLU COACH
     </span>
   );
 }
@@ -1175,13 +1182,13 @@ function draftToExerciseDef(d: DraftExercise): ExerciseDef {
   };
 }
 
-const GROUP_META: { key: MuscleColorGroup; label: string; emoji: string }[] = [
-  { key: "chest",     label: "Dada",     emoji: "💪" },
-  { key: "back",      label: "Punggung", emoji: "🦾" },
-  { key: "shoulders", label: "Bahu",     emoji: "🛡️" },
-  { key: "arms",      label: "Lengan",   emoji: "💥" },
-  { key: "legs",      label: "Kaki",     emoji: "🦵" },
-  { key: "abs",       label: "Perut",    emoji: "🔥" },
+const GROUP_META: { key: MuscleColorGroup; label: string }[] = [
+  { key: "chest", label: "Dada" },
+  { key: "back", label: "Punggung" },
+  { key: "shoulders", label: "Bahu" },
+  { key: "arms", label: "Lengan" },
+  { key: "legs", label: "Kaki" },
+  { key: "abs", label: "Perut" },
 ];
 
 function buildCatalog(): CatalogEntry[] {
@@ -1319,7 +1326,6 @@ function CustomSessionModal({
                   className={`wo-group-chip${on ? " on" : ""}`}
                   onClick={() => toggleGroup(g.key)}
                 >
-                  <span className="wo-group-emoji">{g.emoji}</span>
                   <span className="wo-group-label">{g.label}</span>
                 </button>
               );
