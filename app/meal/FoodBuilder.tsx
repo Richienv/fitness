@@ -82,7 +82,6 @@ const BLABEL: Record<string, string> = {
 type MealT = "breakfast" | "lunch" | "snack" | "dinner";
 const MEAL_KEYS: MealT[] = ["breakfast", "lunch", "snack", "dinner"];
 
-const EMOJI_OPTS = ["🍜", "🍽️", "🥡", "☕", "🍔", "🥗", "🔥", "🏪"];
 
 // Sort modes. "semua" is the default and shows the whole library immediately —
 // it replaced the old "relevan" ranked-only mode AND the separate staples list.
@@ -359,15 +358,15 @@ function ModWheel({
 // Foods resolve via foodGroup (DB rows, extended to the fuller catalogue) or
 // the legacy step-key group (local ingredients).
 
-type Cat = { emoji: string; label: string; color: string };
+type Cat = { label: string; color: string };
 const CAT_BUCKET: Record<string, Cat> = {
-  protein: { emoji: "🥩", label: "PROTEIN", color: "#ff6a4c" },
-  carb: { emoji: "🍚", label: "KARBO", color: "#5ac8f5" },
-  vegetable: { emoji: "🥦", label: "SAYUR", color: "#5fe39a" },
-  extra: { emoji: "✨", label: "EKSTRA", color: "#eab308" },
-  drink: { emoji: "🥤", label: "MINUM", color: "#b28bf0" },
+  protein: { label: "PROTEIN", color: "#ff6a4c" },
+  carb: { label: "KARBO", color: "#5ac8f5" },
+  vegetable: { label: "SAYUR", color: "#5fe39a" },
+  extra: { label: "EKSTRA", color: "#eab308" },
+  drink: { label: "MINUM", color: "#b28bf0" },
 };
-const CAT_FALLBACK: Cat = { emoji: "🍽️", label: "LAIN", color: "#8a837d" };
+const CAT_FALLBACK: Cat = { label: "LAIN", color: "#8a837d" };
 
 // DB foodGroup + legacy step-key → one of the 5 buckets above.
 const GROUP_TO_BUCKET: Record<string, keyof typeof CAT_BUCKET> = {
@@ -1246,7 +1245,7 @@ export default function FoodBuilder({
   };
 
   // ---------- new group ----------
-  const openNewGroup = () => setNewGroup({ name: "", emoji: "🍜" });
+  const openNewGroup = () => setNewGroup({ name: "", emoji: "" });
   const saveNewGroup = () => {
     if (!newGroup || !newGroup.name.trim()) {
       setNewGroup(null);
@@ -1456,11 +1455,11 @@ export default function FoodBuilder({
     .filter((i) => !i.favorite)
     .concat(customFoods);
   const browseSections: Section[] = [];
-  browseSections.push(mk("usual", "⭐", "USUAL KAMU", favs, false, null));
+  browseSections.push(mk("usual", "", "USUAL KAMU", favs, false, null));
   for (const g of groups) {
     browseSections.push(mk(g.id, g.emoji, g.name, g.foods, true, g.id));
   }
-  browseSections.push(mk("all", "🍽️", "SEMUA MAKANAN", nonFavs, false, null));
+  browseSections.push(mk("all", "", "SEMUA MAKANAN", nonFavs, false, null));
 
   // ---------- totals ----------
   let tk = 0,
@@ -1536,7 +1535,7 @@ export default function FoodBuilder({
   const entryCells: { key: string; label: string; go: () => void }[] = [
     { key: "library", label: "LIBRARY", go: () => setBrowseOpen(true) },
     { key: "menu", label: "EDIT MENU", go: () => setMenuManage(true) },
-    { key: "warung", label: "WARUNG", go: () => setNewGroup({ name: "", emoji: "🏪" }) },
+    { key: "warung", label: "WARUNG", go: () => setNewGroup({ name: "", emoji: "" }) },
     {
       key: "impor",
       label: "IMPOR",
@@ -1865,7 +1864,6 @@ export default function FoodBuilder({
         >
           {sec.chev}
         </span>
-        <span style={{ fontSize: 14 }}>{sec.emoji}</span>
         <span
           style={{
             fontFamily: MONO,
@@ -2231,7 +2229,7 @@ export default function FoodBuilder({
                       : "rgba(255,255,255,.06)",
                   }}
                 >
-                  {photo ? "" : "📷"}
+                  {photo ? "" : "FOTO"}
                 </button>
               </div>
 
@@ -2358,7 +2356,7 @@ export default function FoodBuilder({
               <button
                 type="button"
                 onClick={() =>
-                  setNamingTemplate({ name: BLABEL[activeMeal].toLowerCase(), emoji: "🍽️" })
+                  setNamingTemplate({ name: BLABEL[activeMeal].toLowerCase(), emoji: "" })
                 }
                 style={{
                   marginTop: 10,
@@ -2721,7 +2719,7 @@ export default function FoodBuilder({
                         aria-label={`Hapus ${t.name}`}
                         style={{ ...dockBtn, fontSize: 13, color: "#6a6660" }}
                       >
-                        🗑
+                        HAPUS
                       </button>
                     ) : (
                       <button
@@ -3021,9 +3019,6 @@ export default function FoodBuilder({
               background: "rgba(255,255,255,.06)",
             }}
           >
-            <span aria-hidden="true" style={{ flex: "none", fontSize: 15, paddingLeft: 8 }}>
-              🔎
-            </span>
             <input
               ref={searchRef}
               type="text"
@@ -3626,7 +3621,7 @@ export default function FoodBuilder({
                 }}
               >
                 Isi berat 1 porsi + gizinya. Makanan ini otomatis masuk ke
-                database bersama — biar semua orang bisa cari juga. 🤝
+                database bersama — biar semua orang bisa cari juga.
               </div>
             )}
             {editing.sugarFull != null ? (
@@ -3956,7 +3951,7 @@ export default function FoodBuilder({
                 color: "#f5f2ef",
               }}
             >
-              📚 GRUP BARU
+              GRUP BARU
             </div>
             <div
               style={{
@@ -3991,46 +3986,6 @@ export default function FoodBuilder({
                 outline: "none",
               }}
             />
-            <div
-              style={{
-                fontFamily: MONO,
-                fontSize: 9,
-                letterSpacing: ".14em",
-                color: "#6a6660",
-                margin: "16px 0 9px",
-              }}
-            >
-              IKON
-            </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {EMOJI_OPTS.map((em) => {
-                const on = newGroup.emoji === em;
-                return (
-                  <button
-                    key={em}
-                    type="button"
-                    onClick={() =>
-                      setNewGroup((g) => (g ? { ...g, emoji: em } : g))
-                    }
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 12,
-                      fontSize: 20,
-                      cursor: "pointer",
-                      background: on
-                        ? "rgba(238,60,48,.15)"
-                        : "rgba(255,255,255,.04)",
-                      border: on
-                        ? "1px solid rgba(238,60,48,.6)"
-                        : "1px solid rgba(255,255,255,.1)",
-                    }}
-                  >
-                    {em}
-                  </button>
-                );
-              })}
-            </div>
             <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
               <button
                 type="button"
@@ -4116,31 +4071,6 @@ export default function FoodBuilder({
               {count} item · {Math.round(tk)} kkal. Besok tinggal satu tap.
             </div>
 
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 16 }}>
-              {EMOJI_OPTS.map((em) => {
-                const on = namingTemplate.emoji === em;
-                return (
-                  <button
-                    key={em}
-                    type="button"
-                    onClick={() => setNamingTemplate((n) => (n ? { ...n, emoji: em } : n))}
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 11,
-                      fontSize: 19,
-                      cursor: "pointer",
-                      background: on ? "rgba(255,138,60,.16)" : "rgba(255,255,255,.04)",
-                      border: on
-                        ? "1px solid rgba(255,150,120,.6)"
-                        : "1px solid rgba(255,255,255,.1)",
-                    }}
-                  >
-                    {em}
-                  </button>
-                );
-              })}
-            </div>
 
             <input
               autoFocus

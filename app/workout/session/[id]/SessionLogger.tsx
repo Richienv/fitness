@@ -561,9 +561,6 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                           boxShadow: "inset 0 1px 1px rgba(255,247,225,.85),0 5px 14px rgba(200,110,20,.4)",
                         }}
                       >
-                        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: "50%", background: "rgba(90,45,5,.22)", fontSize: 12 }}>
-                          🏆
-                        </span>
                         <span style={{ display: "flex", flexDirection: "column", lineHeight: 1 }}>
                           <span className="mono" style={{ fontSize: 7, letterSpacing: "1.5px", fontWeight: 700, color: "#7a4a12" }}>
                             {lp ? "REKOR · LAMPAUI!" : "REKOR"}
@@ -721,7 +718,7 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                             cursor: "pointer",
                           }}
                         >
-                          👆 TAHAN / GANTI MESIN
+                          TAHAN / GANTI MESIN
                         </button>
                         <button
                           type="button"
@@ -841,7 +838,6 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                   border: "1px solid rgba(34,197,94,.35)",
                 }}
               >
-                <div style={{ fontSize: 32 }}>{freestyle ? "💪" : "🎉"}</div>
                 <div style={{ fontSize: 20, fontWeight: 800, color: "#f1ede9", marginTop: 8 }}>
                   {freestyle ? "Mesin ini kelar!" : "Sesi selesai!"}
                 </div>
@@ -1198,7 +1194,6 @@ function SwapDemo({ name }: { name: string }) {
   }
   return (
     <div style={{ width: "100%", height: 128, borderRadius: 13, background: "radial-gradient(circle at 50% 38%,#1c1517,#0b090a)", border: "1px dashed rgba(255,150,120,.35)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 7, color: "#8a837d" }}>
-      <span style={{ fontSize: 38 }}>🏋️</span>
       <span className="mono" style={{ fontSize: 8, letterSpacing: "1.5px" }}>FOTO / ANIMASI MESIN</span>
     </div>
   );
@@ -1388,7 +1383,7 @@ function DetailSheet({
             <DemoBlock exerciseName={exerciseName} canonicalName={canonicalName} />
 
             <section className="detail-section">
-              <div className="detail-section-head">🎯 OTOT TARGET</div>
+              <div className="detail-section-head">OTOT TARGET</div>
               <div className="detail-row"><span className="dl">Utama:</span> {detail.primary}</div>
               <div className="detail-row"><span className="dl">Pendukung:</span> {detail.secondary}</div>
               <div className="detail-row"><span className="dl">Rasain di:</span> {detail.feelIt}</div>
@@ -1396,14 +1391,14 @@ function DetailSheet({
             </section>
 
             <section className="detail-section">
-              <div className="detail-section-head">📐 TIPS FORM</div>
+              <div className="detail-section-head">TIPS FORM</div>
               <ul className="detail-list">
                 {detail.formTips.map((t, i) => <li key={i}>{t}</li>)}
               </ul>
             </section>
 
             <section className="detail-section">
-              <div className="detail-section-head">❌ KESALAHAN UMUM</div>
+              <div className="detail-section-head">KESALAHAN UMUM</div>
               <ul className="detail-list danger">
                 {detail.mistakes.map((t, i) => <li key={i}>{t}</li>)}
               </ul>
@@ -1411,13 +1406,13 @@ function DetailSheet({
 
             {mindset && (
               <section className="detail-section mindset">
-                <div className="detail-section-head">🧠 MINDSET</div>
+                <div className="detail-section-head">MINDSET</div>
                 <blockquote className="detail-quote">&ldquo;{mindset}&rdquo;</blockquote>
               </section>
             )}
 
             <section className="detail-section">
-              <div className="detail-section-head">📊 RIWAYATMU</div>
+              <div className="detail-section-head">RIWAYATMU</div>
               {history ? (
                 <>
                   <div className="detail-row">
@@ -1448,7 +1443,7 @@ function DetailSheet({
             </section>
 
             <section className="detail-section overload">
-              <div className="detail-section-head">💡 TIPS PROGRESSIVE OVERLOAD</div>
+              <div className="detail-section-head">TIPS PROGRESSIVE OVERLOAD</div>
               <div className="detail-quote">&ldquo;{overloadTip}&rdquo;</div>
             </section>
           </div>

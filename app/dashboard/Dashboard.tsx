@@ -57,11 +57,11 @@ function bahasaDateLine(dateStr: string): string {
 }
 
 /** Meal-type presentation for the stats "MAKANAN HARI INI" list. */
-const MEALS: { type: MealType; emoji: string; label: string }[] = [
-  { type: "breakfast", emoji: "🌅", label: "SARAPAN" },
-  { type: "lunch", emoji: "☀️", label: "MAKAN SIANG" },
-  { type: "snack", emoji: "🍎", label: "CAMILAN" },
-  { type: "dinner", emoji: "🌙", label: "MAKAN MALAM" },
+const MEALS: { type: MealType; label: string }[] = [
+  { type: "breakfast", label: "SARAPAN" },
+  { type: "lunch", label: "MAKAN SIANG" },
+  { type: "snack", label: "CAMILAN" },
+  { type: "dinner", label: "MAKAN MALAM" },
 ];
 
 /** Eases a 0→1 reveal factor on mount so bars/rings animate up like the ref. */
@@ -529,10 +529,10 @@ export default function Dashboard() {
       {/* day toggle */}
       <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
         <button type="button" onClick={() => toggleGym(true)} style={toggleStyle(gymDay)}>
-          🏋️ GYM
+          GYM
         </button>
         <button type="button" onClick={() => toggleGym(false)} style={toggleStyle(!gymDay)}>
-          🌙 REST
+          REST
         </button>
       </div>
 
@@ -681,7 +681,7 @@ export default function Dashboard() {
           color: "#ffb39e",
         }}
       >
-        💡 {tip}
+        {tip}
       </div>
 
       {/* meals today */}
@@ -710,7 +710,6 @@ export default function Dashboard() {
                 border: "1px solid rgba(255,255,255,.06)",
               }}
             >
-              <span style={{ fontSize: 17 }}>{m.emoji}</span>
               <span
                 style={{
                   fontFamily: MONO,
@@ -788,7 +787,7 @@ export default function Dashboard() {
             animation: "btnSheen 6s ease-in-out infinite",
           }}
         />
-        {sharing ? "MENYIAPKAN…" : "📤 BAGIKAN HARI INI"}
+        {sharing ? "MENYIAPKAN…" : "BAGIKAN HARI INI"}
       </button>
 
       {/* recommendations — female-aware coaching (supplements, don'ts, lock) */}
@@ -908,7 +907,7 @@ export default function Dashboard() {
               color: "#ffb39e",
             }}
           >
-            ⛔ {randomDont(parseDate(activeDate).getUTCDate())}
+            {randomDont(parseDate(activeDate).getUTCDate())}
           </div>
 
           {/* program-lock encouragement */}
@@ -925,7 +924,7 @@ export default function Dashboard() {
               color: "#cfc8c2",
             }}
           >
-            🔒 MINGGU KE-{startDate ? weeksOnProgram(startDate) : 0} /{" "}
+            MINGGU KE-{startDate ? weeksOnProgram(startDate) : 0} /{" "}
             {PROGRAM_LOCK_WEEKS} — tahan di program yang sama, konsistensi
             &gt; gonta-ganti.
           </div>

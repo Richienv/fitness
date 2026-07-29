@@ -55,7 +55,7 @@ export async function POST(req: Request) {
     }
     if (target.id === userId) {
       return NextResponse.json(
-        { ok: false, error: "self", message: "Itu kamu sendiri 🙂" },
+        { ok: false, error: "self", message: "Itu kamu sendiri" },
         { status: 400, headers: noStore }
       );
     }

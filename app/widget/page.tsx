@@ -204,7 +204,7 @@ export default function WidgetSetupPage() {
             letterSpacing: "-.02em",
           }}
         >
-          📱 iPhone Widget
+          iPhone Widget
         </div>
         <div
           style={{

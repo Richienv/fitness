@@ -246,10 +246,10 @@ function Ring({
   );
 }
 
-const QUALITY: { v: SleepQuality; emoji: string; label: string }[] = [
-  { v: 1, emoji: "😵", label: "BURUK" },
-  { v: 2, emoji: "😐", label: "OKE" },
-  { v: 3, emoji: "😌", label: "NYENYAK" },
+const QUALITY: { v: SleepQuality; label: string }[] = [
+  { v: 1, label: "BURUK" },
+  { v: 2, label: "OKE" },
+  { v: 3, label: "NYENYAK" },
 ];
 
 export default function SleepPage() {
@@ -306,7 +306,7 @@ export default function SleepPage() {
     const avg = last2.reduce((a, s) => a + s.durationMin, 0) / last2.length;
     if (avg < 360) return "Kurang tidur — pertimbangkan sesi ringan hari ini.";
     if (avg >= SLEEP_TARGET_MIN && (consistency ?? 0) >= 70)
-      return "Recovery mantap — hajar latihan berat. 🔥";
+      return "Recovery mantap — hajar latihan berat.";
     return "Recovery oke — latihan normal aman.";
   }, [loggedList, consistency]);
 
@@ -318,7 +318,7 @@ export default function SleepPage() {
     if (lastNight && lastNight.durationMin < SLEEP_TARGET_MIN)
       return `Kurang ${SLEEP_TARGET_MIN - lastNight.durationMin} menit dari target — dorong lebih awal.`;
     if (!lastNight) return "Belum catat tidur tadi malam. Tap tombol di atas.";
-    return "Tidurmu on track. Pertahankan. 😌";
+    return "Tidurmu on track. Pertahankan.";
   }, [debtMin, consistency, lastNight]);
 
   function openSheet() {
@@ -388,7 +388,7 @@ export default function SleepPage() {
             color: "#8ea0ff",
           }}
         >
-          😴 {mounted ? streak : 0} MALAM
+          {mounted ? streak : 0} MALAM
         </div>
       </div>
 
@@ -636,7 +636,7 @@ export default function SleepPage() {
           color: "#c7ccf5",
         }}
       >
-        🛌 {recovery}
+        {recovery}
       </div>
 
       {/* smart tip */}
@@ -653,7 +653,7 @@ export default function SleepPage() {
           color: "#9a9db8",
         }}
       >
-        💡 {tip}
+        {tip}
       </div>
 
       {/* log sheet */}
@@ -721,7 +721,6 @@ export default function SleepPage() {
                       boxShadow: on ? "0 0 14px rgba(91,110,224,.35)" : "none",
                     }}
                   >
-                    <span style={{ fontSize: 22 }}>{q.emoji}</span>
                     <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: ".1em", color: on ? "#8ea0ff" : "#66688a" }}>
                       {q.label}
                     </span>

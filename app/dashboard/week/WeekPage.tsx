@@ -231,7 +231,7 @@ export default function WeekPage() {
       </div>
 
       <button type="button" className="share-btn" onClick={handleShare} disabled={sharing}>
-        {sharing ? "GENERATING…" : "📤 SHARE WEEK"}
+        {sharing ? "GENERATING…" : "SHARE WEEK"}
       </button>
     </main>
   );
