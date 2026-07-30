@@ -55,6 +55,16 @@ const TASKS: SeedTask[] = [
   { file: "fruits.csv", source: "CUSTOM", prefix: "FRUIT:" },
   // Curated prepared-dish pack, cuisine-tagged (padang / chinese / japanese …).
   { file: "masakan_pack.csv", source: "CUSTOM", prefix: "MASAK:" },
+  // Regional dishes the catalogue was missing entirely — Bali, Manado,
+  // Sulawesi, Aceh, Medan, Palembang, Kalimantan, Maluku, NTT.
+  { file: "pack_nusantara.csv", source: "CUSTOM", prefix: "NUS:" },
+  // Street food, kue basah, kerupuk, sambal — and the raw staples (nasi,
+  // minyak, cabai, ikan, telur) the ingredient composer builds a plate from.
+  { file: "pack_jajanan_bahan.csv", source: "CUSTOM", prefix: "JJN:" },
+  // The plain, generic staples. "Ayam Goreng" did not exist as a row — only
+  // "Ayam Goreng Mentega", "Ayam Goreng Korea" and so on — so the single most
+  // ordinary thing a user types matched nothing exactly.
+  { file: "pack_staples.csv", source: "CUSTOM", prefix: "STAPLE:" },
   // Optional — skipped silently if the file is absent.
   { file: "usda_foods.csv", source: "USDA", prefix: "USDA:" },
 ];

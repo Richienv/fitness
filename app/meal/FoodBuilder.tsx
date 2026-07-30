@@ -22,6 +22,7 @@ import { contributeFood } from "@/lib/foodContribute";
 import { prettyFoodName } from "@/lib/foodDisplayName";
 import { loadCatalogue, clearCatalogueCache } from "@/lib/foodCatalogue";
 import { prepare as prepareSearch, searchPrepared } from "@/lib/foodSearch";
+import { buildDictionary, parseDish } from "@/lib/dishParse";
 import {
   recordFoodPick,
   getFoodPicks,
@@ -1319,6 +1320,51 @@ export default function FoodBuilder({
     picked.sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
     return picked.concat(rest);
   })();
+  // ── RACIK: read a typed plate as its parts ────────────────────────────
+  //
+  // "nasi ayam goreng sambal" is not one food and never will be one row, but
+  // it is three foods the catalogue already has. Dictionary segmentation
+  // (lib/dishParse) turns the query into those parts so the whole plate goes
+  // in with one tap instead of three searches.
+  //
+  // It only offers itself when the query is NOT already a known dish: if
+  // "Nasi Goreng" exists as a measured composition, that row is the better
+  // nutrition answer than rice + oil reconstructed from parts.
+  const dishDict = useMemo(
+    () => buildDictionary(merged.concat(allFoods ?? []).map((f) => ({ id: f.id, name: f.name }))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [customFoods, groups, allFoods]
+  );
+  const racik = useMemo(() => {
+    if (!q || q.trim().length < 4) return null;
+    const r = parseDish(q, dishDict);
+    // Two or more parts, confidently read, and not just the top search hit
+    // wearing a different hat.
+    if (r.whole || r.parts.length < 2 || r.confidence < 0.6) return null;
+    const foods = r.parts
+      .map((p) => bIng(p.id))
+      .filter((f): f is BuilderFood => !!f);
+    if (foods.length < 2) return null;
+    return { foods, unmatched: r.unmatched, confidence: r.confidence };
+  }, [q, dishDict, bIng]);
+
+  /** Add every detected part at its default household portion. */
+  const addRacik = () => {
+    if (!racik) return;
+    haptic("success");
+    setSelection((sel) => {
+      const next = { ...sel };
+      for (const f of racik.foods) {
+        const perUnit = baseGrams(f);
+        const grams = f.portionG && f.portionG > 0 ? f.portionG : perUnit;
+        next[f.id] = Math.round((grams / perUnit) * 1000) / 1000;
+      }
+      return next;
+    });
+    setAddTick((t) => t + 1);
+    setQuery("");
+  };
+
   // Apply the chosen sort. "relevan" keeps the incoming (ranked / most-used)
   // order as-is.
   const applySort = (list: BuilderFood[]): BuilderFood[] => {
@@ -1433,33 +1479,78 @@ export default function FoodBuilder({
     name: string,
     list: BuilderFood[],
     canAdd: boolean,
-    gid: string | null
+    gid: string | null,
+    // Catalogue sections start CLOSED. `collapsed` only records an explicit
+    // toggle, so without this every one of them would default open and the
+    // panel would mount the whole catalogue on first render.
+    defaultOpen = true
   ): Section => {
-    const open = !collapsed[key];
+    const open = collapsed[key] === undefined ? defaultOpen : !collapsed[key];
     const sc = list.filter((x) => (selection[x.id] || 0) > 0).length;
+    // A closed section renders nothing, which is what makes it safe to list the
+    // whole catalogue. An OPEN one is capped: 600 rows of DOM to scroll past is
+    // not browsing, and search is the right tool past that point. The count
+    // label always states the true total, so the cap never hides the size.
+    const SECTION_CAP = 120;
+    const shown = open ? list.slice(0, SECTION_CAP) : [];
     return {
       key,
       chev: open ? "▾" : "▸",
       emoji,
       name,
-      countLabel: sc > 0 ? `${sc} dipilih` : String(list.length),
+      countLabel:
+        sc > 0
+          ? `${sc} dipilih`
+          : open && list.length > SECTION_CAP
+          ? `${SECTION_CAP} / ${list.length}`
+          : String(list.length),
       open,
       canAdd,
-      onToggle: () => toggleSection(key),
+      // Store the CURRENT open state as the new `collapsed` value rather than
+      // flipping `!c[key]`. For a section that defaults closed, `c[key]` is
+      // undefined and `!undefined` is true — which means "collapsed", so the
+      // first tap on a catalogue group would have done nothing at all.
+      onToggle: () => setCollapsed((c) => ({ ...c, [key]: open })),
       onAddFood: gid ? () => openNewFood(gid) : () => {},
-      items: open ? list.map(applyOv) : [],
+      items: shown.map(applyOv),
     };
   };
+  // LIBRARY KAMU used to list `INGREDIENTS` — the 141-row list hardcoded in
+  // lib/ingredients.ts — while search ran against `allFoods`, the ~1700-row
+  // server catalogue. Same screen, two different libraries: browsing showed
+  // "SEMUA MAKANAN 121" to someone whose search could reach 1700 foods.
+  //
+  // The catalogue is the library now. INGREDIENTS survives only as the
+  // hand-picked USUAL KAMU shortlist, which is what it's actually good for.
   const favs = (INGREDIENTS as BuilderFood[]).filter((i) => i.favorite);
-  const nonFavs = (INGREDIENTS as BuilderFood[])
-    .filter((i) => !i.favorite)
-    .concat(customFoods);
+
+  // Catalogue split by food group so the list is navigable. One section of
+  // 1700 is not a library, it's a wall — and every section is collapsed by
+  // default, so a closed one renders nothing at all (see `mk`).
+  const catalogue = allFoods ?? [];
+  const byGroup = new Map<string, BuilderFood[]>();
+  for (const f of catalogue) {
+    const key = (f.foodGroup ?? "").trim() || "Lainnya";
+    const list = byGroup.get(key);
+    if (list) list.push(f);
+    else byGroup.set(key, [f]);
+  }
+  // Biggest groups first — the ones you're most likely to be looking for.
+  const catalogueGroups = [...byGroup.entries()].sort(
+    (a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], "id")
+  );
+
   const browseSections: Section[] = [];
   browseSections.push(mk("usual", "", "USUAL KAMU", favs, false, null));
   for (const g of groups) {
     browseSections.push(mk(g.id, g.emoji, g.name, g.foods, true, g.id));
   }
-  browseSections.push(mk("all", "", "SEMUA MAKANAN", nonFavs, false, null));
+  if (customFoods.length > 0) {
+    browseSections.push(mk("mine", "", "BUATAN KAMU", customFoods, false, null));
+  }
+  for (const [name, list] of catalogueGroups) {
+    browseSections.push(mk(`cat:${name}`, "", name.toUpperCase(), list, false, null, false));
+  }
 
   // ---------- totals ----------
   let tk = 0,
@@ -2855,6 +2946,60 @@ export default function FoodBuilder({
                 ) : null}
               </div>
 
+              {/* RACIK — the typed plate read as its parts, offered above the
+                  ordinary results because it answers the whole query rather
+                  than one word of it. */}
+              {racik ? (
+                <button
+                  type="button"
+                  onClick={addRacik}
+                  style={{
+                    width: "100%",
+                    marginBottom: 10,
+                    padding: "13px 14px",
+                    borderRadius: 14,
+                    textAlign: "left",
+                    cursor: "pointer",
+                    color: "#f1ede9",
+                    background: "rgba(238,60,48,.08)",
+                    border: "1.5px dashed rgba(238,60,48,.45)",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: MONO,
+                      fontSize: 9,
+                      letterSpacing: ".16em",
+                      color: "#ffb99e",
+                    }}
+                  >
+                    RACIK · {racik.foods.length} BAHAN
+                  </span>
+                  <span style={{ display: "block", fontSize: 14, fontWeight: 700, marginTop: 5 }}>
+                    {racik.foods.map((f) => f.name).join("  +  ")}
+                  </span>
+                  <span
+                    style={{
+                      display: "block",
+                      fontFamily: MONO,
+                      fontSize: 9.5,
+                      color: "#8a837d",
+                      marginTop: 5,
+                    }}
+                  >
+                    {Math.round(
+                      racik.foods.reduce((n, f) => {
+                        const per = baseGrams(f);
+                        const g = f.portionG && f.portionG > 0 ? f.portionG : per;
+                        return n + (f.kcal * g) / per;
+                      }, 0)
+                    )}{" "}
+                    kkal · tap untuk tambah semua
+                    {racik.unmatched.length > 0 ? ` · nggak kenal: ${racik.unmatched.join(", ")}` : ""}
+                  </span>
+                </button>
+              ) : null}
+
               {searchResultCount > 0 && sortGroupToolbar}
 
               {groupCuisine ? (
@@ -2879,7 +3024,7 @@ export default function FoodBuilder({
                     MENCARI…
                   </span>
                 </div>
-              ) : searchResultCount === 0 ? (
+              ) : searchResultCount === 0 && !racik ? (
                 <div style={{ textAlign: "center", padding: "26px 10px" }}>
                   <div
                     style={{ fontFamily: MONO, fontSize: 11, color: "#7c736e" }}

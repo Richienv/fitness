@@ -17,6 +17,8 @@
 //     "Ayam goreng tepung saus padang", because the extra words are things the
 //     user did not ask for.
 
+import { buildIndex, termScore, type Bm25Field, type Bm25Index } from "./bm25.ts";
+
 export type SearchableFood = {
   id: string;
   name: string;
@@ -125,9 +127,36 @@ export function scoreToken(token: string, field: string): number {
  *  hit on a food-group label, which is often generic ("Masakan Nusantara"). */
 const FIELD_WEIGHT = { name: 1, english: 0.75, group: 0.35, cuisine: 0.35 } as const;
 
+/**
+ * How much of a term occurrence a match is WORTH, by how it matched.
+ *
+ * This is the bridge between the tiered matcher above and BM25 below. The old
+ * ranker used the tier as the score itself; now the tier only decides how much
+ * evidence the match provides, and BM25 decides what that evidence is worth
+ * given how rare the word is across the catalogue. A fuzzy hit on "betutu"
+ * (one food) should still beat an exact hit on "ayam" (hundreds), and no hand
+ * -tuned table gets that right on its own.
+ */
+// NOTE the branch order: the tiers are 100 / 80 / 70 / 50 / 22 / 16, so these
+// MUST be tested from the top down. Written as EXACT, WORD_EXACT, PREFIX_FIELD
+// this silently collapses two tiers — 80 satisfies `>= 70` first, so a name
+// that STARTS with the query scores the same as one that merely contains it as
+// a word, and "Mie ayam" ties with "Ayam Geprek" for the query "ayam". Length
+// normalisation then breaks the tie toward the shorter name, and the wrong
+// food wins.
+function tierToTf(tier: number): number {
+  if (tier >= HIT.EXACT) return 1;
+  if (tier >= HIT.PREFIX_FIELD) return 0.92;
+  if (tier >= HIT.WORD_EXACT) return 0.8;
+  if (tier >= HIT.WORD_PREFIX) return 0.6;
+  if (tier >= HIT.SUBSTRING) return 0.4;
+  if (tier >= HIT.FUZZY) return 0.28;
+  return 0;
+}
+
 export type Scored<T> = { food: T; score: number };
 
-type Prepared<T> = {
+type Doc<T> = {
   food: T;
   name: string;
   english: string;
@@ -137,10 +166,24 @@ type Prepared<T> = {
   nameLen: number;
 };
 
-/** Pre-normalize the catalogue once. Doing this per keystroke over ~1800 rows
- *  is what makes naive client search feel slow; doing it once makes it free. */
-export function prepare<T extends SearchableFood>(foods: readonly T[]): Prepared<T>[] {
-  return foods.map((f) => {
+/** Opaque to callers: the normalized docs plus the BM25 statistics over them. */
+export type Prepared<T> = {
+  docs: Doc<T>[];
+  index: Bm25Index;
+};
+
+const FIELDS: Bm25Field[] = [
+  { name: "name", weight: FIELD_WEIGHT.name },
+  { name: "english", weight: FIELD_WEIGHT.english },
+  { name: "group", weight: FIELD_WEIGHT.group },
+  { name: "cuisine", weight: FIELD_WEIGHT.cuisine },
+];
+
+/** Pre-normalize the catalogue and build the BM25 index once. Doing this per
+ *  keystroke over ~1800 rows is what makes naive client search feel slow;
+ *  doing it once makes it free. */
+export function prepare<T extends SearchableFood>(foods: readonly T[]): Prepared<T> {
+  const docs: Doc<T>[] = foods.map((f) => {
     const name = normalize(f.name);
     return {
       food: f,
@@ -152,6 +195,18 @@ export function prepare<T extends SearchableFood>(foods: readonly T[]): Prepared
       nameLen: name.length,
     };
   });
+  const index = buildIndex(
+    docs.map((d) => ({
+      fields: {
+        name: d.name ? d.name.split(" ") : [],
+        english: d.english ? d.english.split(" ") : [],
+        group: d.group ? d.group.split(" ") : [],
+        cuisine: d.cuisine ? d.cuisine.split(" ") : [],
+      },
+    })),
+    FIELDS
+  );
+  return { docs, index };
 }
 
 export type SearchOptions = {
@@ -162,59 +217,74 @@ export type SearchOptions = {
 };
 
 /**
- * Rank a prepared catalogue against a query.
+ * Rank a prepared catalogue against a query, scoring with Okapi BM25.
  *
  * EVERY query token must hit something, or the food is dropped. This is the
  * difference between "ayam bakar" meaning "grilled chicken" and it meaning
- * "anything chicken, plus anything grilled".
+ * "anything chicken, plus anything grilled". BM25 does not change that
+ * decision — it is a ranking function, not a matching one, and OR semantics
+ * here would put "Bakar" dishes with no chicken above chicken dishes purely on
+ * term rarity. AND first, then rank what survives.
  */
 export function searchPrepared<T extends SearchableFood>(
-  prepared: readonly Prepared<T>[],
+  prepared: Prepared<T>,
   query: string,
   opts: SearchOptions = {}
 ): Scored<T>[] {
   const tokens = tokenize(query);
   if (tokens.length === 0) return [];
   const limit = opts.limit ?? 60;
+  const { docs, index } = prepared;
 
   const out: Scored<T>[] = [];
-  for (const p of prepared) {
+  for (let i = 0; i < docs.length; i++) {
+    const p = docs[i];
     let total = 0;
     let ok = true;
 
     for (const token of tokens) {
       const variants = opts.aliases ? [token, ...opts.aliases(token)] : [token];
-      let bestForToken = 0;
+      let best = 0;
       for (const v of variants) {
         // An alias match is real but weaker than the word the user typed.
         const penalty = v === token ? 1 : 0.8;
-        bestForToken = Math.max(
-          bestForToken,
-          scoreToken(v, p.name) * FIELD_WEIGHT.name * penalty,
-          scoreToken(v, p.english) * FIELD_WEIGHT.english * penalty,
-          scoreToken(v, p.group) * FIELD_WEIGHT.group * penalty,
-          scoreToken(v, p.cuisine) * FIELD_WEIGHT.cuisine * penalty
-        );
+        for (const [field, weight] of [
+          ["name", FIELD_WEIGHT.name],
+          ["english", FIELD_WEIGHT.english],
+          ["group", FIELD_WEIGHT.group],
+          ["cuisine", FIELD_WEIGHT.cuisine],
+        ] as const) {
+          const text = p[field];
+          if (!text) continue;
+          const tf = tierToTf(scoreToken(v, text)) * weight * penalty;
+          if (tf <= 0) continue;
+          // IDF comes from the term the user actually typed when the corpus
+          // knows it; for a prefix or typo the token is absent from the
+          // vocabulary, and idf() then returns the maximum — which is right,
+          // because an unknown word is maximally selective.
+          const s = termScore(index, v, i, tf);
+          if (s > best) best = s;
+        }
       }
-      if (bestForToken <= 0) {
+      if (best <= 0) {
         ok = false;
         break;
       }
-      total += bestForToken;
+      total += best;
     }
     if (!ok) continue;
 
     // Whole-query bonus: the tokens appearing together, in order, beats them
-    // being scattered ("nasi goreng" over "nasi + telur goreng").
+    // being scattered ("nasi goreng" over "nasi + telur goreng"). Expressed
+    // relative to the BM25 total so it stays a nudge as the corpus grows.
     const phrase = tokens.join(" ");
-    if (tokens.length > 1 && p.name.includes(phrase)) total += 60;
+    if (tokens.length > 1 && p.name.includes(phrase)) total += 0.6 * total + 1;
 
-    // Popularity is a tiebreaker, never a driver — capped so a staple can't
-    // outrank an exact-name match on a rare food.
-    total += Math.min(p.popularity, 200) * 0.05;
+    // Popularity is a tiebreaker, never a driver.
+    total += Math.min(p.popularity, 200) * 0.0015;
 
     // Prefer the shorter name among equals: fewer unasked-for words.
-    total -= Math.min(p.nameLen, 60) * 0.12;
+    total -= Math.min(p.nameLen, 60) * 0.004;
 
     out.push({ food: p.food, score: total });
   }
