@@ -1,0 +1,52 @@
+code,name,energy_kcal,protein_g,fat_g,carb_g,bdd_pct,state,group,cuisine,portion_g_cooked,note
+bl-ayam-betutu,Ayam Betutu,192,18.0,12.0,3.0,100,Olahan,Masakan Nusantara,bali,180,Balinese Spiced Roast Chicken · ayam bumbu betutu dipanggang · per 100g · conf:med · Estimasi komposisi
+bl-bebek-betutu,Bebek Betutu,242,17.0,18.0,3.0,100,Olahan,Masakan Nusantara,bali,180,Balinese Spiced Duck · bebek bumbu betutu · per 100g · conf:med · Estimasi komposisi
+bl-sate-lilit,Sate Lilit,165,16.0,9.0,5.0,100,Olahan,Masakan Nusantara,bali,80,Balinese Minced Satay · ikan/ayam cincang + kelapa · per 100g · conf:med · Estimasi komposisi
+bl-lawar-bali,Lawar Bali,133,6.0,9.0,7.0,100,Olahan,Masakan Nusantara,bali,100,Balinese Vegetable Mince · sayur + kelapa + bumbu · per 100g · conf:med · Estimasi komposisi
+bl-tipat-cantok,Tipat Cantok,146,5.0,6.0,18.0,100,Olahan,Masakan Nusantara,bali,200,Balinese Rice Cake Salad · ketupat + sayur + bumbu kacang · per 100g · conf:med · Estimasi komposisi
+bl-nasi-jinggo,Nasi Jinggo,166,5.5,4.5,26.0,100,Olahan,Masakan Nusantara,bali,150,Balinese Small Rice Packet · nasi + lauk kecil · per 100g · conf:med · Estimasi komposisi
+bl-serombotan,Serombotan,110,4.0,6.0,10.0,100,Olahan,Masakan Nusantara,bali,120,Balinese Mixed Vegetables · sayur rebus + bumbu kelapa · per 100g · conf:med · Estimasi komposisi
+bl-jukut-ares,Jukut Ares,63,2.0,3.0,7.0,100,Olahan,Masakan Nusantara,bali,150,Banana Stem Soup · batang pisang muda berkuah · per 100g · conf:med · Estimasi komposisi
+mn-ayam-woku,Ayam Woku,187,18.0,11.0,4.0,100,Olahan,Masakan Nusantara,manado,150,Chicken in Woku Spices · ayam bumbu woku belanga · per 100g · conf:med · Estimasi komposisi
+mn-panada,Panada,248,7.0,12.0,28.0,100,Olahan,Jajanan,manado,80,Manado Fish Pastry · roti goreng isi cakalang · per 100g · conf:med · Estimasi komposisi
+mn-klappertaart,Klappertaart,232,4.5,14.0,22.0,100,Olahan,Kue/Dessert,manado,100,Coconut Custard Tart · kelapa muda + custard · per 100g · conf:med · Estimasi komposisi
+mn-nasi-jaha,Nasi Jaha,188,3.5,6.0,30.0,100,Olahan,Masakan Nusantara,manado,120,Bamboo Glutinous Rice · beras ketan + santan dibakar · per 100g · conf:med · Estimasi komposisi
+mn-sup-brenebon,Sup Brenebon,129,7.0,5.0,14.0,100,Olahan,Masakan Nusantara,manado,250,Red Bean Soup · kacang merah + kaki babi/sapi · per 100g · conf:med · Estimasi komposisi
+sl-konro-bakar,Konro Bakar,214,18.0,14.0,4.0,100,Olahan,Masakan Nusantara,sulawesi,200,Grilled Beef Ribs · iga bakar bumbu kacang · per 100g · conf:med · Estimasi komposisi
+sl-sop-konro,Sop Konro,158,14.0,10.0,3.0,100,Olahan,Masakan Nusantara,sulawesi,300,Beef Rib Soup · iga sapi kuah keluak · per 100g · conf:med · Estimasi komposisi
+sl-pallubasa,Pallubasa,171,14.0,11.0,4.0,100,Olahan,Masakan Nusantara,sulawesi,250,Makassar Offal Soup · jeroan + kelapa sangrai · per 100g · conf:med · Estimasi komposisi
+sl-pallumara,Pallumara,125,17.0,5.0,3.0,100,Olahan,Masakan Nusantara,sulawesi,200,Sour Fish Soup · ikan kuah asam kunyit · per 100g · conf:med · Estimasi komposisi
+sl-sop-saudara,Sop Saudara,144,13.0,8.0,5.0,100,Olahan,Masakan Nusantara,sulawesi,250,Makassar Beef Soup · daging + bihun + perkedel · per 100g · conf:med · Estimasi komposisi
+sl-mie-titi,Mie Titi,255,9.0,11.0,30.0,100,Olahan,Masakan Nusantara,sulawesi,200,Makassar Crispy Noodles · mie kering + kuah kental · per 100g · conf:med · Estimasi komposisi
+sl-jalangkote,Jalangkote,245,6.0,13.0,26.0,100,Olahan,Jajanan,sulawesi,60,Makassar Fried Pastry · pastel isi sayur + telur · per 100g · conf:med · Estimasi komposisi
+sl-es-pisang-ijo,Es Pisang Ijo,172,3.0,4.5,30.0,100,Olahan,Kue/Dessert,sulawesi,250,Green Banana Dessert · pisang balut + bubur sumsum · per 100g · conf:med · Estimasi komposisi
+ac-mie-aceh-goreng,Mie Aceh Goreng,276,10.0,12.0,32.0,100,Olahan,Masakan Nusantara,aceh,250,Acehnese Fried Noodles · mie tebal + bumbu kari · per 100g · conf:med · Estimasi komposisi
+ac-mie-aceh-kuah,Mie Aceh Kuah,229,9.0,9.0,28.0,100,Olahan,Masakan Nusantara,aceh,300,Acehnese Noodle Soup · mie kuah rempah · per 100g · conf:med · Estimasi komposisi
+ac-ayam-tangkap,Ayam Tangkap,231,21.0,15.0,3.0,100,Olahan,Masakan Nusantara,aceh,150,Acehnese Fried Chicken · ayam + daun temurui goreng · per 100g · conf:med · Estimasi komposisi
+ac-kuah-pliek-u,Kuah Pliek U,105,3.5,7.0,7.0,100,Olahan,Masakan Nusantara,aceh,200,Acehnese Vegetable Curry · sayur + ampas kelapa · per 100g · conf:med · Estimasi komposisi
+ac-sie-reuboh,Sie Reuboh,232,20.0,16.0,2.0,100,Olahan,Masakan Nusantara,aceh,120,Acehnese Vinegar Beef · daging + cuka aren · per 100g · conf:med · Estimasi komposisi
+ac-martabak-aceh,Martabak Aceh,275,11.0,15.0,24.0,100,Olahan,Masakan Nusantara,aceh,150,Acehnese Egg Martabak · telur + roti canai · per 100g · conf:med · Estimasi komposisi
+md-arsik-ikan-mas,Arsik Ikan Mas,147,17.0,7.0,4.0,100,Olahan,Masakan Nusantara,medan,180,Batak Spiced Carp · ikan mas + andaliman · per 100g · conf:med · Estimasi komposisi
+md-saksang,Saksang,264,18.0,20.0,3.0,100,Olahan,Masakan Nusantara,medan,120,Batak Minced Pork · babi + andaliman + kelapa · per 100g · conf:med · Estimasi komposisi
+md-mie-gomak,Mie Gomak,241,8.0,9.0,32.0,100,Olahan,Masakan Nusantara,medan,250,Batak Thick Noodles · mie lidi + kuah santan · per 100g · conf:med · Estimasi komposisi
+md-bihun-bebek-medan,Bihun Bebek Medan,237,13.0,9.0,26.0,100,Olahan,Masakan Nusantara,medan,250,Medan Duck Vermicelli · bihun + bebek · per 100g · conf:med · Estimasi komposisi
+md-soto-medan,Soto Medan,176,11.0,12.0,6.0,100,Olahan,Masakan Nusantara,medan,300,Medan Coconut Soto · soto santan kental · per 100g · conf:med · Estimasi komposisi
+md-lontong-medan,Lontong Medan,163,5.0,7.0,20.0,100,Olahan,Masakan Nusantara,medan,300,Medan Rice Cake Breakfast · lontong + sayur + tauco · per 100g · conf:med · Estimasi komposisi
+pl-pempek-lenjer,Pempek Lenjer,198,12.5,4.0,28.0,100,Olahan,Masakan Nusantara,palembang,100,Cylindrical Fishcake · pempek ikan tenggiri · per 100g · conf:med · Estimasi komposisi
+pl-model-palembang,Model Palembang,167,8.0,7.0,18.0,100,Olahan,Masakan Nusantara,palembang,300,Palembang Tofu Fishcake Soup · pempek tahu + kuah · per 100g · conf:med · Estimasi komposisi
+pl-laksan,Laksan,162,7.0,6.0,20.0,100,Olahan,Masakan Nusantara,palembang,250,Palembang Fishcake in Coconut · pempek + kuah santan · per 100g · conf:med · Estimasi komposisi
+pl-pindang-patin,Pindang Patin,134,17.0,6.0,3.0,100,Olahan,Masakan Nusantara,palembang,250,Sour Catfish Soup · patin kuah nanas pedas · per 100g · conf:med · Estimasi komposisi
+pl-martabak-har,Martabak Har,276,11.0,16.0,22.0,100,Olahan,Masakan Nusantara,palembang,150,Palembang Egg Martabak · telur bebek + kari kentang · per 100g · conf:med · Estimasi komposisi
+lp-seruit,Seruit,142,18.0,6.0,4.0,100,Olahan,Masakan Nusantara,nusantara,180,Lampung Grilled Fish Dish · ikan bakar + sambal terasi · per 100g · conf:med · Estimasi komposisi
+lp-tempoyak,Tempoyak,96,3.0,4.0,12.0,100,Olahan,Masakan Nusantara,nusantara,80,Fermented Durian Relish · durian fermentasi + cabai · per 100g · conf:med · Estimasi komposisi
+kl-soto-banjar,Soto Banjar,144,11.0,8.0,7.0,100,Olahan,Masakan Nusantara,kalimantan,300,Banjar Chicken Soto · soto ayam + perkedel · per 100g · conf:med · Estimasi komposisi
+kl-ayam-cincane,Ayam Cincane,213,19.0,13.0,5.0,100,Olahan,Masakan Nusantara,kalimantan,150,Samarinda Red Chicken · ayam bumbu merah · per 100g · conf:med · Estimasi komposisi
+kl-bubur-pedas-sambas,Bubur Pedas Sambas,103,3.0,3.0,16.0,100,Olahan,Masakan Nusantara,kalimantan,250,Sambas Spiced Porridge · bubur sayur + kelapa · per 100g · conf:med · Estimasi komposisi
+kl-juhu-singkah,Juhu Singkah,74,2.5,3.5,8.0,100,Olahan,Masakan Nusantara,kalimantan,150,Dayak Rattan Shoot Curry · umbut rotan + santan · per 100g · conf:med · Estimasi komposisi
+mk-ikan-kuah-kuning,Ikan Kuah Kuning,129,18.0,5.0,3.0,100,Olahan,Masakan Nusantara,maluku,250,Yellow Fish Broth · ikan kuah kunyit · per 100g · conf:med · Estimasi komposisi
+mk-kohu-kohu,Kohu-Kohu,127,8.0,7.0,8.0,100,Olahan,Masakan Nusantara,maluku,120,Maluku Fish Salad · ikan cakalang + kelapa · per 100g · conf:med · Estimasi komposisi
+mk-colo-colo,Colo-Colo,24,1.0,0.5,4.0,100,Olahan,Sambal,maluku,30,Maluku Fresh Sambal · tomat + cabai + kecap · per 100g · conf:med · Estimasi komposisi
+nt-sate-rembiga,Sate Rembiga,207,21.0,11.0,6.0,100,Olahan,Masakan Nusantara,ntt,80,Lombok Beef Satay · sate sapi manis pedas · per 100g · conf:med · Estimasi komposisi
+nt-sate-bulayak,Sate Bulayak,194,18.0,10.0,8.0,100,Olahan,Masakan Nusantara,ntt,100,Lombok Satay with Rice Cake · sate + bulayak · per 100g · conf:med · Estimasi komposisi
+nt-se-i-sapi,Se'i Sapi,189,26.0,9.0,1.0,100,Olahan,Masakan Nusantara,ntt,100,Smoked Beef · daging sapi asap · per 100g · conf:med · Estimasi komposisi
+nt-jagung-bose,Jagung Bose,136,4.0,3.5,22.0,100,Olahan,Masakan Nusantara,ntt,200,Corn and Bean Stew · jagung + kacang + santan · per 100g · conf:med · Estimasi komposisi

@@ -1,0 +1,28 @@
+code,name,energy_kcal,protein_g,fat_g,carb_g,bdd_pct,state,group,cuisine,portion_g_cooked,note
+stp-ayam-goreng,Ayam Goreng,250,25.0,14.0,6.0,100,Olahan,Masakan Nusantara,nusantara,100,"Fried Chicken · ayam berbumbu digoreng, dengan kulit · per 100g · conf:high · Nilai umum"
+stp-ayam-bakar,Ayam Bakar,201,26.0,9.0,4.0,100,Olahan,Masakan Nusantara,nusantara,100,Grilled Chicken · ayam bakar bumbu kecap · per 100g · conf:high · Nilai umum
+stp-ayam-rebus,Ayam Rebus,162,27.0,6.0,0.0,100,Olahan,Masakan Nusantara,nusantara,100,Boiled Chicken · ayam rebus tanpa bumbu · per 100g · conf:high · Nilai umum
+stp-ayam,Ayam,200,23.0,12.0,0.0,100,Olahan,Bahan,nusantara,100,"Chicken · daging ayam campur, matang · per 100g · conf:high · Nilai umum"
+stp-ikan-goreng,Ikan Goreng,217,22.0,13.0,3.0,100,Olahan,Masakan Nusantara,nusantara,100,Fried Fish · ikan goreng bumbu kuning · per 100g · conf:high · Nilai umum
+stp-ikan,Ikan,125,20.0,5.0,0.0,100,Olahan,Bahan,nusantara,100,"Fish · ikan campur, matang · per 100g · conf:high · Nilai umum"
+stp-udang,Udang,96,20.0,1.5,0.5,100,Olahan,Bahan,nusantara,80,Prawn · udang rebus/kukus · per 100g · conf:high · Nilai umum
+stp-cumi-goreng,Cumi Goreng,198,17.0,10.0,10.0,100,Olahan,Masakan Nusantara,nusantara,80,Fried Squid · cumi goreng · per 100g · conf:high · Nilai umum
+stp-telur,Telur,145,12.6,10.0,1.1,100,Olahan,Bahan,nusantara,55,"Egg · telur ayam, matang · per 100g · conf:high · Nilai umum"
+stp-telur-goreng,Telur Goreng,191,13.0,15.0,1.0,100,Olahan,Masakan Nusantara,nusantara,55,Fried Egg · telur digoreng minyak · per 100g · conf:high · Nilai umum
+stp-daging-sapi,Daging Sapi,239,26.0,15.0,0.0,100,Olahan,Bahan,nusantara,100,Beef · daging sapi matang · per 100g · conf:high · Nilai umum
+stp-daging-ayam,Daging Ayam,200,23.0,12.0,0.0,100,Olahan,Bahan,nusantara,100,Chicken Meat · daging ayam matang · per 100g · conf:high · Nilai umum
+stp-tahu,Tahu,83,8.0,4.8,1.9,100,Olahan,Bahan,nusantara,50,Tofu · tahu putih · per 100g · conf:high · Nilai umum
+stp-tempe,Tempe,211,19.0,11.0,9.0,100,Olahan,Bahan,nusantara,50,Tempe · tempe kedelai · per 100g · conf:high · Nilai umum
+stp-mie-rebus,Mie Rebus,156,5.0,4.0,25.0,100,Olahan,Masakan Nusantara,nusantara,200,Boiled Noodles · mie kuah sederhana · per 100g · conf:high · Nilai umum
+stp-bakso,Bakso,173,13.0,9.0,10.0,100,Olahan,Masakan Nusantara,nusantara,150,Meatball · bakso sapi + kuah · per 100g · conf:high · Nilai umum
+stp-rendang,Rendang,253,20.0,17.0,5.0,100,Olahan,Masakan Nusantara,padang,100,Rendang · rendang daging sapi · per 100g · conf:high · Nilai umum
+stp-gulai,Gulai,176,12.0,12.0,5.0,100,Olahan,Masakan Nusantara,padang,150,Gulai Curry · gulai santan campur · per 100g · conf:high · Nilai umum
+stp-capcay,Capcay,106,5.0,6.0,8.0,100,Olahan,Masakan Nusantara,chinese,200,Mixed Vegetables · capcay tumis sayuran · per 100g · conf:high · Nilai umum
+stp-sambal,Sambal,98,2.0,6.0,9.0,100,Olahan,Sambal,nusantara,25,Chilli Sauce · sambal ulek umum · per 100g · conf:high · Nilai umum
+stp-kentang-goreng,Kentang Goreng,313,3.4,15.0,41.0,100,Olahan,Jajanan,nusantara,100,French Fries · kentang goreng · per 100g · conf:high · Nilai umum
+stp-jagung-rebus,Jagung Rebus,103,3.4,1.5,19.0,100,Olahan,Bahan,nusantara,150,Boiled Corn · jagung manis rebus · per 100g · conf:high · Nilai umum
+stp-roti-tawar,Roti Tawar,264,9.0,3.5,49.0,100,Olahan,Jajanan,nusantara,50,White Bread · roti tawar putih · per 100g · conf:high · Nilai umum
+stp-susu,Susu,65,3.4,3.6,4.8,100,Mentah,Minuman,nusantara,200,Milk · susu sapi cair · per 100g · conf:high · Nilai umum
+stp-kopi,Kopi,0,0.1,0.0,0.0,100,Olahan,Minuman,nusantara,200,Black Coffee · kopi tanpa gula · per 100g · conf:high · Nilai umum
+stp-teh,Teh,1,0.0,0.0,0.3,100,Olahan,Minuman,nusantara,200,Tea · teh tawar · per 100g · conf:high · Nilai umum
+stp-air-putih,Air Putih,0,0.0,0.0,0.0,100,Mentah,Minuman,nusantara,250,Water · air mineral · per 100g · conf:high · Nilai umum
