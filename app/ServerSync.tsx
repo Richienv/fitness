@@ -72,8 +72,26 @@ function softRefresh(): void {
   window.dispatchEvent(new Event(SOFT_REFRESH_EVENT));
 }
 
-export default function ServerSync() {
+/**
+ * `userId` is what makes this work, and it used to be missing.
+ *
+ * This component lives in the root layout, which also wraps /login. With an
+ * empty dependency array it mounted on the login page, fired all five pulls
+ * with no session, took five 401s, and — because fetchJson swallows a non-OK
+ * response — imported nothing. Signing in is a client-side navigation into the
+ * SAME layout, so the effect never re-ran. The result: you signed in and your
+ * own data wasn't there. It only appeared after a manual refresh, a tab
+ * refocus, or the 60s interval, by which point you'd assume it was lost.
+ *
+ * Keying the effect on the session id fixes both halves: nothing runs while
+ * signed out, and the moment login's router.refresh() re-renders the layout
+ * with a real id, the pull runs for the first time — with cookies.
+ */
+export default function ServerSync({ userId }: { userId: string | null }) {
   useEffect(() => {
+    // Signed out: every one of these calls is a guaranteed 401.
+    if (!userId) return;
+
     let cancelled = false;
 
     const seed = seedApr13Meals();
@@ -123,7 +141,7 @@ export default function ServerSync() {
       window.removeEventListener("focus", onFocus);
       clearInterval(interval);
     };
-  }, []);
+  }, [userId]);
 
   return null;
 }
