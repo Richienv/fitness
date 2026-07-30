@@ -1,10 +1,20 @@
 import { notFound } from "next/navigation";
-import MealBuilder from "./MealBuilder";
+import MealHome from "../MealHome";
 import type { MealType } from "@/lib/presets";
 
 const VALID: MealType[] = ["breakfast", "lunch", "snack", "dinner"];
 
-export default async function MealBuilderPage({
+/**
+ * /meal/breakfast … /meal/dinner — the same MAKAN screen as /meal, with the
+ * food builder already open on that slot.
+ *
+ * This route used to render its own MealBuilder: a separate, older food logger
+ * in English with a different search box, which meant the app had two food
+ * UIs and you got one or the other depending on whether you tapped "CATAT" on
+ * MAKAN or "LOG NOW" on the dashboard. The links all still work; they just
+ * arrive somewhere consistent now.
+ */
+export default async function MealTypePage({
   params,
   searchParams,
 }: {
@@ -14,5 +24,5 @@ export default async function MealBuilderPage({
   const { type } = await params;
   const { date } = await searchParams;
   if (!VALID.includes(type as MealType)) notFound();
-  return <MealBuilder mealType={type as MealType} dateParam={date} />;
+  return <MealHome initialBuilder={type as MealType} initialDate={date} />;
 }
