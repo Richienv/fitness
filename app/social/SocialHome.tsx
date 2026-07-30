@@ -17,6 +17,12 @@ import { haptic } from "@/lib/haptics";
 import { normalizeUsername, usernameError } from "@/lib/username";
 import { todayKey } from "@/lib/targets";
 import { badgeStyle, carved } from "./metal";
+import {
+  readCachedBoard,
+  readCachedSocial,
+  writeCachedBoard,
+  writeCachedSocial,
+} from "@/lib/socialCache";
 import type { BadgeTier } from "@/lib/badges";
 
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
@@ -123,10 +129,21 @@ function fmtSince(iso: string): string {
 
 export default function SocialHome() {
   const date = todayKey();
+  // NOT seeded in the initializer. This component is server-rendered, and
+  // localStorage doesn't exist there — so a useState(() => readCache()) seed
+  // renders skeletons on the server and friends on the client, which is a
+  // hydration mismatch. React throws away the server tree and re-renders the
+  // whole page, and the "fast" cache ends up SLOWER than no cache at all.
+  // The cache is read at the top of load() instead, one effect tick later.
+  //
+  // `ready` is the important half: until the server has answered, "no friends"
+  // is not a fact, so nothing is allowed to say it.
   const [social, setSocial] = useState<Social | null>(null);
+  const [socialReady, setSocialReady] = useState(false);
   const [feed, setFeed] = useState<Day[] | null>(null);
   const [feedError, setFeedError] = useState(false);
   const [board, setBoard] = useState<Board | null>(null);
+  const [boardReady, setBoardReady] = useState(false);
   const [scope, setScope] = useState<(typeof SCOPES)[number]["key"]>("friends");
   const [myUsername, setMyUsername] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -139,28 +156,62 @@ export default function SocialHome() {
     toastTimer.current = window.setTimeout(() => setToast(null), 1800);
   }, []);
 
+  // Three separate awaits, NOT one Promise.all.
+  //
+  // They used to be bundled, so nothing appeared until the slowest returned —
+  // and the slowest is the feed, which builds a full day summary (meals,
+  // workouts, cardio) for every friend. Your friend list waited on a query it
+  // has nothing to do with. Each one now lands the instant it's ready.
   const load = useCallback(async () => {
-    const [s, f, u] = await Promise.all([
-      fetch("/api/social").then((r) => (r.ok ? r.json() : null)).catch(() => null),
-      fetch(`/api/social/feed?date=${date}`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-      fetch("/api/social/username").then((r) => (r.ok ? r.json() : null)).catch(() => null),
-    ]);
-    if (s?.ok) setSocial(s.data);
-    if (u?.ok) setMyUsername(u.data?.username ?? null);
-    if (f?.ok) {
-      setFeed(f.data.feed);
-      setFeedError(false);
-    } else {
-      setFeed([]);
-      setFeedError(true);
-    }
+    // Last-known friends, painted before a single request goes out. Not marked
+    // ready — this is what you saw last time, not what the server just said.
+    const cached = readCachedSocial<Social>();
+    if (cached) setSocial(cached);
+
+    const get = (u: string) =>
+      fetch(u).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+
+    const social = get("/api/social").then((s) => {
+      if (s?.ok) {
+        setSocial(s.data);
+        writeCachedSocial(s.data);
+      }
+      // Ready even on failure: a stuck skeleton is worse than an empty state,
+      // and the invite CTA is a reasonable thing to show someone offline.
+      setSocialReady(true);
+    });
+
+    const feed = get(`/api/social/feed?date=${date}`).then((f) => {
+      if (f?.ok) {
+        setFeed(f.data.feed);
+        setFeedError(false);
+      } else {
+        setFeed([]);
+        setFeedError(true);
+      }
+    });
+
+    const me = get("/api/social/username").then((u) => {
+      if (u?.ok) setMyUsername(u.data?.username ?? null);
+    });
+
+    await Promise.all([social, feed, me]);
   }, [date]);
 
   const loadBoard = useCallback(async () => {
+    const cached = readCachedBoard<Board>(scope, date);
+    if (cached) {
+      setBoard(cached);
+      setBoardReady(true);
+    }
     const r = await fetch(`/api/social/leaderboard?scope=${scope}&date=${date}`)
       .then((x) => (x.ok ? x.json() : null))
       .catch(() => null);
-    if (r?.ok) setBoard(r.data);
+    if (r?.ok) {
+      setBoard(r.data);
+      writeCachedBoard(scope, date, r.data);
+    }
+    setBoardReady(true);
   }, [scope, date]);
 
   useEffect(() => {
@@ -382,7 +433,10 @@ export default function SocialHome() {
             })}
           </div>
 
-          <Podium rows={podium} />
+          {/* A podium with nobody on it is what "loading" used to look like.
+              Show its shape instead — the plinths are the right size, so
+              nothing jumps when the real names land. */}
+          {!board && !boardReady ? <PodiumSkeleton /> : <Podium rows={podium} />}
 
           {/* ranks 4+ */}
           <div
@@ -398,20 +452,30 @@ export default function SocialHome() {
               padding: "0 2px 46px",
             }}
           >
-            {rest.length === 0 && podium.length > 0 && (
-              <div className="mono" style={{ fontSize: 10, color: "#6a6660", textAlign: "center", padding: "10px 0" }}>
-                {board && board.total <= 3
-                  ? `Baru ${board.total} orang di papan ini — ajak temanmu.`
-                  : ""}
-              </div>
-            )}
-            {rest.map((r) => (
-              <BoardRow key={r.userId} row={r} onFollow={() => followFromBoard(r.username)} />
-            ))}
-            {board && board.total === 0 && (
-              <div className="mono" style={{ fontSize: 11, color: "#7c736e", textAlign: "center", padding: "18px 0" }}>
-                Belum ada yang catat hari ini.
-              </div>
+            {!boardReady && !board ? (
+              <>
+                <RowSkeleton i={0} />
+                <RowSkeleton i={1} />
+                <RowSkeleton i={2} />
+              </>
+            ) : (
+              <>
+                {rest.length === 0 && podium.length > 0 && board && board.total <= 3 && (
+                  <div className="mono tm-in" style={{ fontSize: 10, color: "#6a6660", textAlign: "center", padding: "10px 0" }}>
+                    {`Baru ${board.total} orang di papan ini — ajak temanmu.`}
+                  </div>
+                )}
+                {rest.map((r, i) => (
+                  <div key={r.userId} className="tm-in" style={{ animationDelay: `${Math.min(i, 8) * 35}ms` }}>
+                    <BoardRow row={r} onFollow={() => followFromBoard(r.username)} />
+                  </div>
+                ))}
+                {board && board.total === 0 && (
+                  <div className="mono tm-in" style={{ fontSize: 11, color: "#7c736e", textAlign: "center", padding: "18px 0" }}>
+                    Belum ada yang catat hari ini.
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -448,6 +512,7 @@ export default function SocialHome() {
           friends={friends}
           incoming={incoming}
           outgoing={outgoing}
+          ready={socialReady}
           onRespond={respond}
           onRemove={removeFriend}
           onOpenSearch={() => setSearchOpen(true)}
@@ -472,9 +537,14 @@ export default function SocialHome() {
             Makin rame, makin susah bolos
           </div>
           <div className="mono" style={{ fontSize: 11, color: "#8a837d", marginTop: 8, lineHeight: 1.6, maxWidth: 280 }}>
-            {feedError
+            {/* feed === null means still loading. It used to fall through to
+                "kamu belum punya teman", which told people with friends that
+                they had none for as long as the fetch took. */}
+            {feed === null
+              ? "Memuat…"
+              : feedError
               ? "Feed gagal dimuat — cek koneksi."
-              : (feed?.length ?? 0) === 0
+              : feed.length === 0
               ? "Kamu belum punya teman di sini. Cari @username temanmu."
               : "Ajak lebih banyak orang biar papan peringkatnya hidup."}
           </div>
@@ -877,6 +947,7 @@ function FriendsReel({
   friends,
   incoming,
   outgoing,
+  ready,
   onRespond,
   onRemove,
   onOpenSearch,
@@ -884,11 +955,15 @@ function FriendsReel({
   friends: Person[];
   incoming: Person[];
   outgoing: Person[];
+  /** False until /api/social has actually answered. Until then "you have no
+   *  friends" is a guess, and it was being shown as a fact. */
+  ready: boolean;
   onRespond: (p: Person, accept: boolean) => void;
   onRemove: (p: Person) => void;
   onOpenSearch: () => void;
 }) {
   const [confirming, setConfirming] = useState<string | null>(null);
+  const loading = !ready && friends.length === 0 && incoming.length === 0;
 
   return (
     <section
@@ -898,12 +973,20 @@ function FriendsReel({
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
         <span style={{ fontSize: 20, fontWeight: 800, color: "#f1ede9" }}>Temanmu</span>
         <span className="mono" style={{ fontSize: 11, fontWeight: 700, ...FIRE_TEXT }}>
-          {friends.length}
+          {loading ? "·  ·  ·" : friends.length}
         </span>
       </div>
       <div className="mono" style={{ fontSize: 9.5, letterSpacing: ".1em", color: "#7c736e", marginBottom: 14 }}>
         SALING LIHAT CATATAN HARIAN
       </div>
+
+      {loading && (
+        <>
+          <FriendSkeleton i={0} />
+          <FriendSkeleton i={1} />
+          <FriendSkeleton i={2} />
+        </>
+      )}
 
       {/* Requests waiting on you — first, because they're the only thing here
           that needs a decision. */}
@@ -945,7 +1028,7 @@ function FriendsReel({
         </>
       )}
 
-      {friends.length === 0 && incoming.length === 0 && outgoing.length === 0 ? (
+      {loading ? null : friends.length === 0 && incoming.length === 0 && outgoing.length === 0 ? (
         <div
           style={{
             padding: "24px 18px",
@@ -970,7 +1053,7 @@ function FriendsReel({
           </button>
         </div>
       ) : (
-        friends.map((p) => {
+        friends.map((p, fi) => {
           const armed = confirming === p.user.id;
           const row = (
             <>
@@ -1010,6 +1093,7 @@ function FriendsReel({
           return (
             <div
               key={p.followId}
+              className="tm-in"
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -1019,6 +1103,7 @@ function FriendsReel({
                 marginBottom: 8,
                 background: "rgba(255,255,255,.035)",
                 border: "1px solid rgba(255,255,255,.09)",
+                animationDelay: `${Math.min(fi, 8) * 40}ms`,
               }}
             >
               {p.user.username ? (
@@ -1113,6 +1198,78 @@ function FriendsReel({
         </button>
       )}
     </section>
+  );
+}
+
+// ── Skeletons ───────────────────────────────────────────────────────────────
+//
+// Deliberately the same SIZE as the thing they stand in for, so the layout
+// doesn't jump when real data replaces them. A shimmer that changes is what
+// separates "working on it" from "broken"; a static grey box reads as a bug.
+// `i` staggers the shimmer so the rows ripple instead of pulsing in unison.
+
+function FriendSkeleton({ i }: { i: number }) {
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "11px 12px",
+        borderRadius: 14,
+        marginBottom: 8,
+        background: "rgba(255,255,255,.025)",
+        border: "1px solid rgba(255,255,255,.06)",
+      }}
+    >
+      <span className="tm-shimmer" style={{ flex: "none", width: 32, height: 32, borderRadius: "50%", animationDelay: `${i * 140}ms` }} />
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span className="tm-shimmer" style={{ display: "block", height: 11, width: `${58 - i * 9}%`, borderRadius: 5, animationDelay: `${i * 140 + 60}ms` }} />
+        <span className="tm-shimmer" style={{ display: "block", height: 8, width: `${40 - i * 6}%`, borderRadius: 4, marginTop: 7, animationDelay: `${i * 140 + 120}ms` }} />
+      </span>
+    </div>
+  );
+}
+
+function RowSkeleton({ i }: { i: number }) {
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "10px 12px",
+        borderRadius: 13,
+        background: "rgba(255,255,255,.025)",
+        border: "1px solid rgba(255,255,255,.06)",
+      }}
+    >
+      <span className="tm-shimmer" style={{ flex: "none", width: 32, height: 32, borderRadius: "50%", animationDelay: `${i * 140}ms` }} />
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span className="tm-shimmer" style={{ display: "block", height: 10, width: `${52 - i * 8}%`, borderRadius: 5, animationDelay: `${i * 140 + 60}ms` }} />
+        <span className="tm-shimmer" style={{ display: "block", height: 7, width: `${34 - i * 5}%`, borderRadius: 4, marginTop: 6, animationDelay: `${i * 140 + 120}ms` }} />
+      </span>
+    </div>
+  );
+}
+
+/** Three empty plinths at the real heights, so the podium doesn't pop in. */
+function PodiumSkeleton() {
+  return (
+    <div aria-hidden="true" style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 10, padding: "26px 0 0" }}>
+      {[
+        { h: 96, d: 140 },
+        { h: 128, d: 0 },
+        { h: 78, d: 280 },
+      ].map((c, i) => (
+        <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, width: 92 }}>
+          <span className="tm-shimmer" style={{ width: 54, height: 54, borderRadius: "50%", animationDelay: `${c.d}ms` }} />
+          <span className="tm-shimmer" style={{ width: "100%", height: c.h, borderRadius: "10px 10px 0 0", animationDelay: `${c.d + 80}ms` }} />
+        </div>
+      ))}
+    </div>
   );
 }
 

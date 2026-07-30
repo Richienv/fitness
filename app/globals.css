@@ -8361,6 +8361,62 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
 .tm-reel:first-child { padding-bottom: 18px; }
 .tm-tap { transition: transform .12s cubic-bezier(.34,1.56,.64,1); }
 .tm-tap:active { transform: scale(.93); }
+
+/* ── Loading state ──────────────────────────────────────────────────────────
+   The friends page used to render its EMPTY state while the three fetches
+   were still in flight — "Belum ada teman di sini", shown to someone who has
+   friends. Loading and having-nothing looked identical, and only one of them
+   was true.
+
+   A skeleton is the honest answer: this is the shape of what's coming. It has
+   to MOVE, though — a static grey box reads as a broken image, so the sweep
+   below is doing real work, not decoration. */
+.tm-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.055);
+  animation: tm-skel-breathe 2.1s ease-in-out infinite;
+}
+.tm-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    rgba(255, 170, 140, 0.14) 46%,
+    rgba(255, 210, 190, 0.2) 52%,
+    transparent 80%
+  );
+  animation: tm-skel-sweep 1.55s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation-delay: inherit;
+}
+@keyframes tm-skel-sweep {
+  to { transform: translateX(100%); }
+}
+@keyframes tm-skel-breathe {
+  50% { background-color: rgba(255, 255, 255, 0.085); }
+}
+
+/* Real content arriving. Rows are staggered by index in the JSX, so the list
+   assembles top-down instead of appearing all at once — which is what makes a
+   fast load feel deliberate rather than abrupt. */
+.tm-in {
+  animation: tm-in 380ms cubic-bezier(0.22, 1.2, 0.36, 1) both;
+}
+@keyframes tm-in {
+  from { opacity: 0; transform: translateY(9px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Keep the skeleton — it's information, not decoration — but stop it moving,
+     and let content simply be there. */
+  .tm-shimmer,
+  .tm-shimmer::after { animation: none; }
+  .tm-in { animation: none; }
+}
 .tm-lihat:active {
   transform: translateY(4px);
   box-shadow: inset 0 2px 1px rgba(255,235,220,.75), 0 1px 0 #7a1408, 0 3px 8px rgba(238,60,48,.45);
