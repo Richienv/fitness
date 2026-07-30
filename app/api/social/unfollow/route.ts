@@ -1,10 +1,11 @@
-// POST /api/social/unfollow  { userId, mode?: "unfollow" | "remove" }
+// POST /api/social/unfollow  { userId }  — stop being friends.
 //
-//   unfollow (default) — I stop following THEM  (deletes follower=me row)
-//   remove             — I revoke THEIR access to me (deletes following=me row)
+// Friendship is mutual, so ending it is too: both rows go, whichever direction
+// they were created in. There is no half-friendship to leave behind, and a
+// surviving row would keep one of you visible to the other.
 //
-// Either way the row is deleted, so access ends immediately: every feed read
-// requires an ACCEPTED row to exist.
+// The legacy `mode` field is accepted and ignored — it drew a distinction
+// ("unfollow" vs "remove") that no longer exists.
 
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
@@ -22,11 +23,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401, headers: noStore });
     }
 
-    const body = (await req.json().catch(() => null)) as
-      | { userId?: unknown; mode?: unknown }
-      | null;
+    const body = (await req.json().catch(() => null)) as { userId?: unknown } | null;
     const other = typeof body?.userId === "string" ? body.userId : "";
-    const mode = body?.mode === "remove" ? "remove" : "unfollow";
     if (!other) {
       return NextResponse.json(
         { ok: false, error: "bad-request", message: "userId required" },
@@ -34,14 +32,16 @@ export async function POST(req: Request) {
       );
     }
 
-    const where =
-      mode === "remove"
-        ? { followerId_followingId: { followerId: other, followingId: me } }
-        : { followerId_followingId: { followerId: me, followingId: other } };
+    const { count } = await db.follow.deleteMany({
+      where: {
+        OR: [
+          { followerId: me, followingId: other },
+          { followerId: other, followingId: me },
+        ],
+      },
+    });
 
-    await db.follow.deleteMany({ where: where.followerId_followingId });
-
-    return NextResponse.json({ ok: true, data: { mode } }, { headers: noStore });
+    return NextResponse.json({ ok: true, data: { removed: count } }, { headers: noStore });
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: "unfollow-failed", message: (e as Error).message },

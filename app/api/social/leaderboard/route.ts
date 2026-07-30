@@ -3,10 +3,10 @@
 // Ranks people by Skor Sehat (lib/healthScore) for one day.
 //
 // PRIVACY — this is the one endpoint that returns rows for people the viewer
-// does NOT follow, so it is deliberately narrow: rank, display name, @handle,
-// initials, score and badge NAMES only. It never returns meals, photos,
-// session detail, macros or location. `daySummaries` (which does return that
-// detail) is only ever called for the viewer plus their ACCEPTED follows.
+// is NOT friends with, so it is deliberately narrow: rank, display name,
+// @handle, initials, score and badge NAMES only. It never returns meals,
+// photos, session detail, macros or location. `daySummaries` (which does
+// return that detail) is only ever called for the viewer plus their friends.
 //
 // The stat line ("168g protein · 7 workout") is derived from aggregates the
 // score already needs; for non-friends we omit it rather than leak intake.
@@ -14,7 +14,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserId } from "@/lib/session";
-import { acceptedFollowingIds, displayName } from "@/lib/social";
+import { friendIds, displayName } from "@/lib/social";
 import { healthScore } from "@/lib/healthScore";
 import { todayKey } from "@/lib/targets";
 import { BADGE_BY_KEY } from "@/lib/badges";
@@ -63,12 +63,12 @@ export async function GET(req: Request) {
     }
 
     // Who is in this board?
-    const friendIds = await acceptedFollowingIds(viewerId);
+    const friends = await friendIds(viewerId);
     let userIds: string[];
     let scopeLabel: string;
 
     if (scope === "friends") {
-      userIds = [viewerId, ...friendIds];
+      userIds = [viewerId, ...friends];
       scopeLabel = "TEMAN";
     } else if (scope === "kecamatan") {
       scopeLabel = me.kecamatan?.toUpperCase() || "KECAMATAN";
@@ -163,7 +163,7 @@ export async function GET(req: Request) {
       badgesById.set(b.userId, list);
     }
 
-    const friendSet = new Set(friendIds);
+    const friendSet = new Set(friends);
 
     const rows = users.map((u) => {
       const a = agg.get(u.id)!;
@@ -188,8 +188,8 @@ export async function GET(req: Request) {
         score: score.total,
         badges: (badgesById.get(u.id) ?? []).slice(0, 3),
         isMe,
-        // Follow state so the row can render ✓ / + IKUTI / KAMU inline.
-        following: isFriend,
+        // Friend state so the row can render TEMAN / + TAMBAH / KAMU inline.
+        isFriend,
         // Detail line only for people whose day you're already allowed to see.
         detail:
           isMe || isFriend

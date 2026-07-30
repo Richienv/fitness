@@ -60,13 +60,38 @@ export async function POST(req: Request) {
       );
     }
 
-    const existing = await db.follow.findUnique({
-      where: { followerId_followingId: { followerId: userId, followingId: target.id } },
-      select: { status: true },
+    // Either direction counts — if they asked you and you accepted, you are
+    // already friends and asking again would just make a second, pointless row.
+    const already = await db.follow.findFirst({
+      where: {
+        status: "ACCEPTED",
+        OR: [
+          { followerId: userId, followingId: target.id },
+          { followerId: target.id, followingId: userId },
+        ],
+      },
+      select: { id: true },
     });
-    if (existing?.status === "ACCEPTED") {
+    if (already) {
       return NextResponse.json(
-        { ok: false, error: "already", message: "Kamu sudah mengikuti dia." },
+        { ok: false, error: "already", message: "Kalian sudah berteman." },
+        { status: 409, headers: noStore }
+      );
+    }
+
+    // They asked you first and it's still waiting — sending back doesn't make
+    // sense; accept theirs instead.
+    const theirPending = await db.follow.findFirst({
+      where: { followerId: target.id, followingId: userId, status: "PENDING" },
+      select: { id: true },
+    });
+    if (theirPending) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "pending-incoming",
+          message: `@${target.username ?? ""} sudah mengajak kamu duluan — terima permintaannya.`,
+        },
         { status: 409, headers: noStore }
       );
     }

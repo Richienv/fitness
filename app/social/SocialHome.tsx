@@ -2,10 +2,14 @@
 
 // TEMAN SEPERJUANGAN — a vertically snapping reels feed.
 //
-// Reel 0 is the leaderboard (podium + ranks), reels 1..n are one friend's day
-// each, and the last reel is an invite CTA. Setup (username, search,
-// connections) is pulled OUT of the scroll into a floating button + modal —
-// it's one-time chrome, and it used to sit above the feed you actually came for.
+// Reel 0 is the leaderboard (podium + ranks), reel 1 is your friend list,
+// reels 2..n are one friend's day each, and the last reel is an invite CTA.
+// Username setup and search stay OUT of the scroll in a floating button +
+// modal — that's one-time chrome, and it used to sit above the feed you
+// actually came for.
+//
+// The friend list is NOT chrome, which is why it's a reel: accepting someone
+// used to leave no visible trace anywhere in the app.
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
@@ -26,8 +30,12 @@ const FIRE_TEXT: CSSProperties = {
 };
 
 type PubUser = { id: string; name: string | null; username: string | null };
-type Person = { followId: string; user: PubUser; name: string };
-type Social = { following: Person[]; followers: Person[]; incoming: Person[]; outgoing: Person[] };
+type Person = { followId: string; user: PubUser; name: string; since: string };
+// `friends` is accepted-in-either-direction. The API still returns the split
+// following/followers lists, but nothing on screen should care which way round
+// the request went — that distinction is exactly what made accepted friends
+// invisible to the person who accepted them.
+type Social = { friends: Person[]; incoming: Person[]; outgoing: Person[] };
 type Hit = { id: string; username: string | null; name: string; status: "PENDING" | "ACCEPTED" | "DECLINED" | null };
 
 type Meal = { id: string; mealType: string; kcal: number; items: string[]; photoUrl: string | null };
@@ -55,7 +63,7 @@ type Row = {
   score: number;
   badges: string[];
   isMe: boolean;
-  following: boolean;
+  isFriend: boolean;
   detail: string | null;
 };
 type Board = { scope: string; scopeLabel: string; total: number; myRank: number | null; rows: Row[] };
@@ -104,6 +112,13 @@ function km(m: number): string {
 }
 function mins(sec: number): string {
   return `${Math.round(sec / 60)} mnt`;
+}
+
+/** "12 Jul 2026" — when a friendship started, or when a request was sent. */
+function fmtSince(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
 }
 
 export default function SocialHome() {
@@ -177,7 +192,29 @@ export default function SocialHome() {
     }
   }
 
+  async function respond(p: Person, accept: boolean) {
+    haptic("tap");
+    const r = await post("/api/social/respond", { followId: p.followId, accept });
+    if (r.ok) {
+      flash(accept ? `${p.name} sekarang temanmu` : "Ditolak");
+      load();
+      loadBoard();
+    } else flash(r.message ?? "Gagal");
+  }
+
+  async function removeFriend(p: Person) {
+    haptic("tap");
+    const r = await post("/api/social/unfollow", { userId: p.user.id });
+    if (r.ok) {
+      flash(`${p.name} dihapus`);
+      load();
+      loadBoard();
+    } else flash(r.message ?? "Gagal");
+  }
+
   const incoming = social?.incoming ?? [];
+  const friends = social?.friends ?? [];
+  const outgoing = social?.outgoing ?? [];
   const rows = board?.rows ?? [];
   const podium = rows.slice(0, 3);
   const rest = rows.slice(3);
@@ -406,6 +443,16 @@ export default function SocialHome() {
           </div>
         </section>
 
+        {/* ══ REEL 1 · DAFTAR TEMAN ══ */}
+        <FriendsReel
+          friends={friends}
+          incoming={incoming}
+          outgoing={outgoing}
+          onRespond={respond}
+          onRemove={removeFriend}
+          onOpenSearch={() => setSearchOpen(true)}
+        />
+
         {/* ══ FRIEND REELS ══ */}
         {(feed ?? []).map((d, i) => (
           <FriendReel key={d.user.id} day={d} rank={i + 1} me={feedMe(feed)} />
@@ -428,7 +475,7 @@ export default function SocialHome() {
             {feedError
               ? "Feed gagal dimuat — cek koneksi."
               : (feed?.length ?? 0) === 0
-              ? "Kamu belum ngikutin siapa-siapa. Cari @username temanmu."
+              ? "Kamu belum punya teman di sini. Cari @username temanmu."
               : "Ajak lebih banyak orang biar papan peringkatnya hidup."}
           </div>
           <button
@@ -766,7 +813,7 @@ function BoardRow({ row, onFollow }: { row: Row; onFollow: () => void }) {
       </span>
       {row.isMe ? (
         <span className="mono" style={{ flex: "none", fontSize: 8.5, letterSpacing: ".1em", color: "#ff8a72", fontWeight: 700 }}>KAMU</span>
-      ) : row.following ? (
+      ) : row.isFriend ? (
         <span style={{ flex: "none", fontSize: 12, color: "#22c55e" }}>✓</span>
       ) : (
         <button
@@ -789,7 +836,7 @@ function BoardRow({ row, onFollow }: { row: Row; onFollow: () => void }) {
             cursor: "pointer",
           }}
         >
-          ＋ IKUTI
+          ＋ TAMBAH
         </button>
       )}
     </>
@@ -806,12 +853,289 @@ function BoardRow({ row, onFollow }: { row: Row; onFollow: () => void }) {
     border: row.isMe ? "1px solid rgba(255,150,120,.4)" : "1px solid rgba(255,255,255,.08)",
   };
 
-  return row.username && !row.isMe && row.following ? (
+  return row.username && !row.isMe && row.isFriend ? (
     <Link href={`/social/${row.username}`} className="tm-tap" style={style}>
       {body}
     </Link>
   ) : (
     <div style={style}>{body}</div>
+  );
+}
+
+// ── Friend list reel ────────────────────────────────────────────────────────
+//
+// Who you're actually friends with — the list the app never had. Before this,
+// /api/social returned `following`/`followers`/`incoming`/`outgoing` and the
+// page read exactly one of them (`incoming`, inside a modal). So you could
+// accept someone and then find no trace of them anywhere: not on the board
+// (that read the graph one way round), not in a list (there wasn't one).
+//
+// It's a reel rather than another thing buried in the TAMBAH sheet because
+// "who are my friends" is a question you ask on the way past, not a setup step.
+
+function FriendsReel({
+  friends,
+  incoming,
+  outgoing,
+  onRespond,
+  onRemove,
+  onOpenSearch,
+}: {
+  friends: Person[];
+  incoming: Person[];
+  outgoing: Person[];
+  onRespond: (p: Person, accept: boolean) => void;
+  onRemove: (p: Person) => void;
+  onOpenSearch: () => void;
+}) {
+  const [confirming, setConfirming] = useState<string | null>(null);
+
+  return (
+    <section
+      className="tm-reel"
+      style={{ background: "radial-gradient(620px 420px at 50% 8%,#1a1512,#0a0708 58%,#050406)", overflowY: "auto" }}
+    >
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
+        <span style={{ fontSize: 20, fontWeight: 800, color: "#f1ede9" }}>Temanmu</span>
+        <span className="mono" style={{ fontSize: 11, fontWeight: 700, ...FIRE_TEXT }}>
+          {friends.length}
+        </span>
+      </div>
+      <div className="mono" style={{ fontSize: 9.5, letterSpacing: ".1em", color: "#7c736e", marginBottom: 14 }}>
+        SALING LIHAT CATATAN HARIAN
+      </div>
+
+      {/* Requests waiting on you — first, because they're the only thing here
+          that needs a decision. */}
+      {incoming.length > 0 && (
+        <>
+          <div className="mono" style={{ fontSize: 9, letterSpacing: ".16em", color: "#ffb99e", margin: "0 0 9px" }}>
+            PERMINTAAN MASUK · {incoming.length}
+          </div>
+          {incoming.map((p) => (
+            <div
+              key={p.followId}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "11px 12px",
+                borderRadius: 14,
+                background: "rgba(238,60,48,.08)",
+                border: "1px solid rgba(255,150,120,.4)",
+                marginBottom: 8,
+              }}
+            >
+              <Avatar name={p.name} />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 13.5, fontWeight: 700, color: "#f1ede9" }}>{p.name}</span>
+                <span className="mono" style={{ display: "block", fontSize: 9, color: "#8a837d", marginTop: 3 }}>
+                  {p.user.username ? `@${p.user.username}` : fmtSince(p.since)}
+                </span>
+              </span>
+              <button type="button" className="mono tm-tap" style={pill} onClick={() => onRespond(p, true)}>
+                TERIMA
+              </button>
+              <button type="button" className="mono tm-tap" style={ghost} onClick={() => onRespond(p, false)}>
+                TOLAK
+              </button>
+            </div>
+          ))}
+          <div style={{ height: 14 }} />
+        </>
+      )}
+
+      {friends.length === 0 && incoming.length === 0 && outgoing.length === 0 ? (
+        <div
+          style={{
+            padding: "24px 18px",
+            borderRadius: 16,
+            border: "1.5px dashed rgba(238,60,48,.35)",
+            background: "rgba(238,60,48,.05)",
+            textAlign: "center",
+          }}
+        >
+          <div className="mono" style={{ fontSize: 11, color: "#ffb99e", lineHeight: 1.7 }}>
+            Belum ada teman di sini.
+            <br />
+            Cari @username temannya, atau bagikan linknya.
+          </div>
+          <button
+            type="button"
+            className="mono tm-tap"
+            onClick={onOpenSearch}
+            style={{ ...pill, marginTop: 14, padding: "11px 18px", fontSize: 10.5 }}
+          >
+            ＋ TAMBAH TEMAN
+          </button>
+        </div>
+      ) : (
+        friends.map((p) => {
+          const armed = confirming === p.user.id;
+          const row = (
+            <>
+              <Avatar name={p.name} />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span
+                  style={{
+                    display: "block",
+                    fontSize: 13.5,
+                    fontWeight: 700,
+                    color: "#f1ede9",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {p.name}
+                </span>
+                <span className="mono" style={{ display: "block", fontSize: 9, color: "#7c736e", marginTop: 3 }}>
+                  {p.user.username ? `@${p.user.username} · ` : ""}
+                  teman sejak {fmtSince(p.since)}
+                </span>
+              </span>
+            </>
+          );
+          // HAPUS lives INSIDE the card, so a friend row is exactly as wide as
+          // a request row. It can't go inside the Link (nesting a button in an
+          // anchor is invalid), hence the card is a div wrapping both.
+          const inner: CSSProperties = {
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flex: 1,
+            minWidth: 0,
+            textDecoration: "none",
+          };
+          return (
+            <div
+              key={p.followId}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "11px 12px",
+                borderRadius: 14,
+                marginBottom: 8,
+                background: "rgba(255,255,255,.035)",
+                border: "1px solid rgba(255,255,255,.09)",
+              }}
+            >
+              {p.user.username ? (
+                <Link href={`/social/${p.user.username}`} className="tm-tap" style={inner}>
+                  {row}
+                </Link>
+              ) : (
+                <div style={inner}>{row}</div>
+              )}
+              {/* Two taps to remove — one stray thumb shouldn't undo a friendship. */}
+              <button
+                type="button"
+                className="mono tm-tap"
+                onClick={() => {
+                  if (armed) {
+                    onRemove(p);
+                    setConfirming(null);
+                  } else {
+                    haptic("tap");
+                    setConfirming(p.user.id);
+                  }
+                }}
+                onBlur={() => setConfirming((c) => (c === p.user.id ? null : c))}
+                style={{
+                  ...ghost,
+                  color: armed ? "#fff" : "#6a6660",
+                  background: armed ? "rgba(238,60,48,.9)" : "rgba(255,255,255,.04)",
+                  border: armed ? "1px solid rgba(255,150,120,.6)" : "1px solid rgba(255,255,255,.1)",
+                }}
+              >
+                {armed ? "YAKIN?" : "HAPUS"}
+              </button>
+            </div>
+          );
+        })
+      )}
+
+      {outgoing.length > 0 && (
+        <>
+          <div className="mono" style={{ fontSize: 9, letterSpacing: ".16em", color: "#7c736e", margin: "14px 0 9px" }}>
+            MENUNGGU DITERIMA · {outgoing.length}
+          </div>
+          {outgoing.map((p) => (
+            <div
+              key={p.followId}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "11px 12px",
+                borderRadius: 14,
+                background: "rgba(255,255,255,.025)",
+                border: "1px dashed rgba(255,255,255,.14)",
+                marginBottom: 8,
+              }}
+            >
+              <Avatar name={p.name} dim />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#9a938d" }}>{p.name}</span>
+                <span className="mono" style={{ display: "block", fontSize: 9, color: "#6a6660", marginTop: 3 }}>
+                  dikirim {fmtSince(p.since)}
+                </span>
+              </span>
+              <span className="mono" style={{ flex: "none", fontSize: 9, letterSpacing: ".1em", color: "#ffb99e" }}>
+                MENUNGGU
+              </span>
+            </div>
+          ))}
+        </>
+      )}
+
+      {(friends.length > 0 || outgoing.length > 0) && (
+        <button
+          type="button"
+          className="mono tm-tap"
+          onClick={onOpenSearch}
+          style={{
+            width: "100%",
+            marginTop: 6,
+            marginBottom: 40,
+            padding: 13,
+            borderRadius: 14,
+            fontSize: 10.5,
+            letterSpacing: ".08em",
+            color: "#ffb99e",
+            background: "rgba(238,60,48,.06)",
+            border: "1.5px dashed rgba(238,60,48,.4)",
+            cursor: "pointer",
+          }}
+        >
+          ＋ TAMBAH TEMAN LAGI
+        </button>
+      )}
+    </section>
+  );
+}
+
+function Avatar({ name, dim = false }: { name: string; dim?: boolean }) {
+  return (
+    <span
+      style={{
+        flex: "none",
+        width: 32,
+        height: 32,
+        borderRadius: "50%",
+        display: "grid",
+        placeItems: "center",
+        fontFamily: MONO,
+        fontSize: 11,
+        fontWeight: 700,
+        color: dim ? "#8a837d" : "#f1ede9",
+        background: "rgba(255,255,255,.07)",
+        border: "1px solid rgba(255,255,255,.12)",
+      }}
+    >
+      {initialsOf(name)}
+    </span>
   );
 }
 
@@ -1263,7 +1587,7 @@ function SearchModal({
                 <span className="mono" style={{ display: "block", fontSize: 9.5, color: "#8a837d", marginTop: 3 }}>@{h.username}</span>
               </span>
               {h.status === "ACCEPTED" ? (
-                <span className="mono" style={{ fontSize: 9.5, color: "#5fe39a" }}>SUDAH</span>
+                <span className="mono" style={{ fontSize: 9.5, color: "#5fe39a" }}>TEMAN</span>
               ) : h.status === "PENDING" ? (
                 <span className="mono" style={{ fontSize: 9.5, color: "#ffb99e" }}>MENUNGGU</span>
               ) : (
@@ -1280,7 +1604,7 @@ function SearchModal({
                   }}
                   style={pill}
                 >
-                  IKUTI
+                  ＋ TAMBAH
                 </button>
               )}
             </div>

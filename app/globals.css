@@ -2935,10 +2935,11 @@ a { color: inherit; text-decoration: none; }
   bottom: 0;
   z-index: 100;
   display: grid;
-  /* 4 slots: BERANDA · [OS] · TEMAN · STATS. MAKAN and LATIHAN live as the
-     two primary CTAs on Beranda instead — six labels at 8.5px was more nav
-     than a phone can render legibly. */
-  grid-template-columns: repeat(4, 1fr);
+  /* 3 slots: BERANDA · TEMAN · STATS. MAKAN and LATIHAN live as the two
+     primary CTAs on Beranda; the OS jump is gone entirely — it was the only
+     item here that left the app. Three equal columns, so the bar is symmetric
+     AND the middle tab sits dead centre, which four could never do. */
+  grid-template-columns: repeat(3, 1fr);
   background: rgba(10, 10, 10, 0.95);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -2946,61 +2947,113 @@ a { color: inherit; text-decoration: none; }
   padding-bottom: env(safe-area-inset-bottom, 0px);
   max-width: 520px;
   margin: 0 auto;
+  /* Every spring in this bar comes from one of these two curves, so the whole
+     thing feels like one mechanism rather than three separate widgets.
+     OVERSHOOT passes its target and settles back; SETTLE is the same shape
+     with less bounce, for things that shouldn't wobble. */
+  --bn-overshoot: cubic-bezier(0.34, 1.62, 0.52, 1);
+  --bn-settle: cubic-bezier(0.22, 1.2, 0.36, 1);
 }
+
+/* ── The travelling blob ────────────────────────────────────────────────────
+   One element for all three tabs. It SLIDES between them rather than fading
+   in and out, because the movement is what tells you where you came from —
+   that's the whole trick behind an iOS tab bar, and a cross-fade throws it
+   away. Positioned by cell index, so it stays correct at any bar width. */
+.bn-blob {
+  position: absolute;
+  top: 8px;
+  left: 0;
+  width: 33.3333%;
+  height: 48px;
+  pointer-events: none;
+  display: grid;
+  place-items: center;
+  transform: translate3d(calc(var(--bn-i) * 100%), 0, 0);
+  /* Long and springy on purpose: it arrives, overshoots a few px, comes back.
+     420ms is slower than a "correct" UI transition and that is the point. */
+  transition: transform 420ms var(--bn-overshoot);
+}
+.bn-blob-skin {
+  width: 46px;
+  height: 34px;
+  border-radius: 14px;
+  background: radial-gradient(
+    120% 130% at 50% 0%,
+    rgba(255, 138, 82, 0.34),
+    rgba(238, 60, 48, 0.16) 55%,
+    rgba(192, 31, 18, 0.06)
+  );
+  border: 1px solid rgba(255, 150, 120, 0.28);
+  box-shadow: 0 4px 18px rgba(238, 60, 48, 0.32), inset 0 1px 0 rgba(255, 210, 190, 0.28);
+  /* Re-keyed on every tab change, so this replays each time: the blob squashes
+     along its direction of travel and springs back, like something with mass. */
+  animation: bn-squash 460ms var(--bn-overshoot);
+}
+@keyframes bn-squash {
+  0%   { transform: scale(0.72, 1.18); opacity: 0.55; }
+  38%  { transform: scale(1.26, 0.84); opacity: 1; }
+  68%  { transform: scale(0.94, 1.06); }
+  100% { transform: scale(1, 1); }
+}
+
 .bn-item {
+  position: relative;
+  z-index: 1;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   height: 64px;
-  gap: 2px;
-  color: #444444;
-  transition: color 0.15s ease, transform 0.1s ease;
-}
-.bn-item:active { transform: scale(0.94); }
-.bn-label {
-  font-family: var(--font-dm-mono), monospace;
-  /* Labels carry the nav on their own now that the emoji icons are gone, so
-     they get the size back. Four slots also means ~93px each on a 375px
-     phone rather than ~62px, which is room the old spacing didn't have. */
-  font-size: 11px;
-  letter-spacing: 1.2px;
-  white-space: nowrap;
-}
-@media (max-width: 360px) {
-  .bn-label { font-size: 8px; letter-spacing: 0.4px; }
+  color: #4a4a4a;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 260ms var(--bn-settle);
 }
 .bn-item.active { color: var(--accent); }
 
-/* Raised center OS button (QRIS-style) */
-.bn-os-slot {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* The wrapper takes the press; the icon takes the pop. Splitting them means a
+   press mid-flight can't cancel the entry animation. */
+.bn-ico-wrap {
+  display: grid;
+  place-items: center;
+  transition: transform 260ms var(--bn-overshoot);
 }
-.bn-os-btn {
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
-  background: #f0f0f0;
-  color: #080808;
-  border: none;
-  cursor: pointer;
-  font-family: Impact, "Arial Narrow", sans-serif;
-  font-size: 16px;
-  letter-spacing: 2px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transform: translateY(-12px);
-  box-shadow: 0 -4px 16px rgba(238, 60, 48, 0.2);
-  transition: transform 100ms, box-shadow 100ms;
-  -webkit-tap-highlight-color: transparent;
-  user-select: none;
+.bn-item:active .bn-ico-wrap {
+  transform: scale(0.82);
 }
-.bn-os-btn:active {
-  transform: translateY(-12px) scale(0.92);
-  box-shadow: 0 -2px 6px rgba(238, 60, 48, 0.1);
+.bn-ico {
+  width: 24px;
+  height: 24px;
+  display: block;
+  overflow: visible;
+  transition: filter 300ms var(--bn-settle);
+}
+/* Becoming active is the loud moment: the icon leaps, overshoots, lands, and
+   picks up a fire glow on the way. Leaving is silent — only one tab can be
+   arriving at a time, so only one thing should be moving. */
+.bn-item.active .bn-ico {
+  animation: bn-pop 520ms var(--bn-overshoot);
+  filter: drop-shadow(0 2px 7px rgba(238, 60, 48, 0.5));
+}
+@keyframes bn-pop {
+  0%   { transform: translateY(0) scale(0.86) rotate(-5deg); }
+  42%  { transform: translateY(-5px) scale(1.24) rotate(3deg); }
+  70%  { transform: translateY(1px) scale(0.96) rotate(-1deg); }
+  100% { transform: translateY(0) scale(1) rotate(0deg); }
+}
+
+@media (max-width: 360px) {
+  .bn-ico { width: 22px; height: 22px; }
+  .bn-blob-skin { width: 40px; height: 30px; }
+}
+
+/* Springs are decoration. Anyone who has asked the OS to stop moving things
+   gets the same bar with the motion removed — position and colour still
+   change, so nothing is lost but the show. */
+@media (prefers-reduced-motion: reduce) {
+  .bn-blob { transition: none; }
+  .bn-blob-skin,
+  .bn-item.active .bn-ico { animation: none; }
+  .bn-ico-wrap { transition: none; }
 }
 
 /* ============================================================
@@ -7310,7 +7363,6 @@ body.no-scroll .meal-home .mh-subtitle { font-size: 10px; }
 .tactile,
 button,
 [role="button"],
-a.bn-item,
 a.big-btn,
 .preset-btn,
 .food-card,
@@ -7324,7 +7376,6 @@ a.big-btn,
 .weigh-step,
 .complete-action-btn,
 .complete-share-btn,
-.bn-os-btn,
 .set-modal-stepper button,
 .gram-stepper button,
 .sel-stepper button {
@@ -7357,10 +7408,9 @@ button:active,
 .complete-share-btn:active {
   transform: scale(0.97);
 }
-.bn-item:active,
-.bn-os-btn:active {
-  transform: scale(0.92);
-}
+/* .bn-item is deliberately NOT in the sweeps above. The bottom nav runs its
+   own springs (blob slide, blob squash, icon pop) and a global scale on the
+   row would fight all three. */
 .set-modal-stepper button:active,
 .gram-stepper button:active,
 .sel-stepper button:active,

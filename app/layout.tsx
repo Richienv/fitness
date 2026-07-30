@@ -97,7 +97,8 @@ export default async function RootLayout({
           {/* Sets the per-user localStorage scope before ServerSync / pages read. */}
           <UserScopeInit userId={userId} />
           <ActiveDateProvider>
-            <ServerSync />
+            {/* userId is a DEPENDENCY, not decoration — see ServerSync. */}
+            <ServerSync userId={userId} />
             <div className="app-root">{children}</div>
             <BottomNav />
             <ToastStack />
