@@ -18,6 +18,7 @@
 //     user did not ask for.
 
 import { buildIndex, termScore, type Bm25Field, type Bm25Index } from "./bm25.ts";
+import { collapseReduplication, indonesianAliases } from "./indonesian.ts";
 
 export type SearchableFood = {
   id: string;
@@ -42,7 +43,13 @@ export function normalize(s: string): string {
 
 export function tokenize(s: string): string[] {
   const n = normalize(s);
-  return n ? n.split(" ").filter(Boolean) : [];
+  if (!n) return [];
+  // "gado-gado" normalises to two identical tokens. Left alone, the AND rule
+  // asks the same question twice and BM25 counts the same evidence twice; and
+  // someone typing the singular "cumi" would not reach "Cumi-Cumi". Indonesian
+  // does not otherwise repeat a word immediately, so collapsing an adjacent
+  // duplicate is safe.
+  return collapseReduplication(n.split(" ").filter(Boolean));
 }
 
 /** Damerau-Levenshtein distance, bailing out once it exceeds `max`.
@@ -243,7 +250,10 @@ export function searchPrepared<T extends SearchableFood>(
     let ok = true;
 
     for (const token of tokens) {
-      const variants = opts.aliases ? [token, ...opts.aliases(token)] : [token];
+      // Aliases default to the Indonesian layer: spelling variants, English
+      // synonyms, and affix-stripped forms. A caller can still override.
+      const expand = opts.aliases ?? indonesianAliases;
+      const variants = [token, ...expand(token)];
       let best = 0;
       for (const v of variants) {
         // An alias match is real but weaker than the word the user typed.

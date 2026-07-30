@@ -1,0 +1,15 @@
+code,name,energy_kcal,protein_g,fat_g,carb_g,bdd_pct,state,group,cuisine,portion_g_cooked,note
+jwa-soto-lamongan,Soto Lamongan,123,10.0,7.0,5.0,100,Olahan,Masakan Nusantara,jawa,300,Lamongan Chicken Soto · soto ayam + koya udang · per 100g · conf:med · Estimasi komposisi
+jwa-tauto-pekalongan,Tauto Pekalongan,153,12.0,9.0,6.0,100,Olahan,Masakan Nusantara,jawa,300,Pekalongan Beef Soto · soto tauco daging · per 100g · conf:med · Estimasi komposisi
+jwa-sambal-goreng-krecek,Sambal Goreng Krecek,159,6.0,11.0,9.0,100,Olahan,Masakan Nusantara,jawa,80,Buffalo Skin in Chilli · krecek + kacang tolo · per 100g · conf:med · Estimasi komposisi
+jwa-nasi-timbel,Nasi Timbel,164,4.0,4.0,28.0,100,Olahan,Masakan Nusantara,sunda,200,Sundanese Wrapped Rice · nasi daun pisang + lauk · per 100g · conf:med · Estimasi komposisi
+jwa-garang-asem,Garang Asem,165,17.0,9.0,4.0,100,Olahan,Masakan Nusantara,jawa,250,Steamed Sour Chicken · ayam kuah asam daun pisang · per 100g · conf:med · Estimasi komposisi
+jwa-mangut-lele,Mangut Lele,200,19.0,12.0,4.0,100,Olahan,Masakan Nusantara,jawa,200,Smoked Catfish Curry · lele asap + kuah santan pedas · per 100g · conf:med · Estimasi komposisi
+jwa-botok-tempe,Botok Tempe,161,12.0,9.0,8.0,100,Olahan,Masakan Nusantara,jawa,100,Steamed Tempe Parcel · tempe + kelapa dibungkus daun · per 100g · conf:med · Estimasi komposisi
+jwa-oseng-mercon,Oseng Mercon,232,18.0,16.0,4.0,100,Olahan,Masakan Nusantara,jawa,120,Fiery Beef Offal Stir-fry · koyor sapi super pedas · per 100g · conf:med · Estimasi komposisi
+jwa-ayam-kremes,Ayam Kremes,277,23.0,17.0,8.0,100,Olahan,Masakan Nusantara,jawa,150,Crispy Flake Fried Chicken · ayam goreng + kremesan · per 100g · conf:med · Estimasi komposisi
+jwa-tahu-gejrot,Tahu Gejrot,87,5.0,3.0,10.0,100,Olahan,Masakan Nusantara,sunda,120,Tofu in Sweet Sour Sauce · tahu + kuah gula asam · per 100g · conf:med · Estimasi komposisi
+jwa-tahu-petis,Tahu Petis,161,8.0,9.0,12.0,100,Olahan,Masakan Nusantara,jawa,80,Tofu with Shrimp Paste · tahu goreng isi petis · per 100g · conf:med · Estimasi komposisi
+jwa-mie-kocok-bandung,Mie Kocok Bandung,212,9.0,8.0,26.0,100,Olahan,Masakan Nusantara,sunda,300,Bandung Beef Tendon Noodles · mie + kikil + kuah · per 100g · conf:med · Estimasi komposisi
+jwa-kupat-tahu,Kupat Tahu,176,6.0,8.0,20.0,100,Olahan,Masakan Nusantara,sunda,250,Rice Cake with Tofu · ketupat + tahu + bumbu kacang · per 100g · conf:med · Estimasi komposisi
+jwa-laksa-bogor,Laksa Bogor,189,7.0,9.0,20.0,100,Olahan,Masakan Nusantara,jawa,300,Bogor Laksa · bihun + kuah santan oncom · per 100g · conf:med · Estimasi komposisi

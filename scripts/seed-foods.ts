@@ -65,6 +65,12 @@ const TASKS: SeedTask[] = [
   // "Ayam Goreng Mentega", "Ayam Goreng Korea" and so on — so the single most
   // ordinary thing a user types matched nothing exactly.
   { file: "pack_staples.csv", source: "CUSTOM", prefix: "STAPLE:" },
+  // Warung and kaki-lima dishes a coverage probe found missing: soto mie,
+  // kerak telor, bakso malang, mie tek-tek, tengkleng, timlo, jamu, es doger.
+  { file: "pack_warung.csv", source: "CUSTOM", prefix: "WARUNG:" },
+  // The last gaps the probe reported: soto lamongan, garang asem, mangut lele,
+  // oseng mercon, tahu gejrot, mie kocok, kupat tahu, laksa bogor.
+  { file: "pack_jawa.csv", source: "CUSTOM", prefix: "JAWA:" },
   // Optional — skipped silently if the file is absent.
   { file: "usda_foods.csv", source: "USDA", prefix: "USDA:" },
 ];

@@ -590,9 +590,29 @@ function describeItem(it: MealItem): { name: string; detail: string; kcal: numbe
   };
 }
 
-export default function MealHome() {
+/**
+ * `initialBuilder` opens the food builder straight away for that slot.
+ *
+ * It exists so /meal/[type] can render THIS screen. That route used to render
+ * a second, older food logger — English ("STEP 1 / 5", "Search food…"), its own
+ * search box, emoji still in it — reachable from the dashboard's LOG NOW,
+ * ADD MORE and EDIT MEAL, and from the confirm flow. Two different food UIs
+ * depending on which button you pressed. Pointing the route here retires it
+ * without breaking a single existing link.
+ */
+export default function MealHome({
+  initialBuilder,
+  initialDate,
+}: { initialBuilder?: MealType; initialDate?: string } = {}) {
   const vtNavigate = useVTNavigate();
   const { activeDate, setActiveDate, todayStr } = useActiveDate();
+
+  // The dashboard links to /meal/lunch?date=2026-07-28 to edit a past day. The
+  // route this replaced honoured that param; dropping it would have logged
+  // yesterday's edit onto today, silently and irreversibly.
+  useEffect(() => {
+    if (initialDate && initialDate !== activeDate) setActiveDate(initialDate);
+  }, [initialDate, activeDate, setActiveDate]);
 
   const [allMeals, setAllMeals] = useState<MealLog[]>([]);
   const [gymDay, setGymDay] = useState(false);
@@ -602,7 +622,7 @@ export default function MealHome() {
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
   const [lockRatio, setLockRatio] = useState(true);
   const [loaded, setLoaded] = useState(false);
-  const [builderMeal, setBuilderMeal] = useState<MealType | null>(null);
+  const [builderMeal, setBuilderMeal] = useState<MealType | null>(initialBuilder ?? null);
   // Which slot the clock is in right now. Resolved after mount so the server
   // render and the first client render agree.
   const [nowSlot, setNowSlot] = useState<MealType | null>(null);
