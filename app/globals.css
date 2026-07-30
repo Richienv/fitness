@@ -2935,11 +2935,11 @@ a { color: inherit; text-decoration: none; }
   bottom: 0;
   z-index: 100;
   display: grid;
-  /* 4 slots: BERANDA · TEMAN · STATS · [OS]. MAKAN and LATIHAN live as the
-     two primary CTAs on Beranda instead. Four equal columns with nothing
-     breaking the top edge, so the bar is symmetric — every cell is the same
-     box and the icon inside it is centred. */
-  grid-template-columns: repeat(4, 1fr);
+  /* 3 slots: BERANDA · TEMAN · STATS. MAKAN and LATIHAN live as the two
+     primary CTAs on Beranda; the OS jump is gone entirely — it was the only
+     item here that left the app. Three equal columns, so the bar is symmetric
+     AND the middle tab sits dead centre, which four could never do. */
+  grid-template-columns: repeat(3, 1fr);
   background: rgba(10, 10, 10, 0.95);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -2948,7 +2948,7 @@ a { color: inherit; text-decoration: none; }
   max-width: 520px;
   margin: 0 auto;
   /* Every spring in this bar comes from one of these two curves, so the whole
-     thing feels like one mechanism rather than four separate widgets.
+     thing feels like one mechanism rather than three separate widgets.
      OVERSHOOT passes its target and settles back; SETTLE is the same shape
      with less bounce, for things that shouldn't wobble. */
   --bn-overshoot: cubic-bezier(0.34, 1.62, 0.52, 1);
@@ -2964,7 +2964,7 @@ a { color: inherit; text-decoration: none; }
   position: absolute;
   top: 8px;
   left: 0;
-  width: 25%;
+  width: 33.3333%;
   height: 48px;
   pointer-events: none;
   display: grid;
@@ -3041,47 +3041,7 @@ a { color: inherit; text-decoration: none; }
   100% { transform: translateY(0) scale(1) rotate(0deg); }
 }
 
-/* ── OS jump ────────────────────────────────────────────────────────────────
-   A chip inside its cell, not a raised pill above the bar. It used to be a
-   56px circle pushed 12px above the top edge, which only looks deliberate
-   when it's dead centre — with three in-app tabs it never could be. It still
-   reads as the odd one out because it's the only filled, light element in a
-   row of hollow strokes. */
-.bn-os-slot {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 64px;
-}
-.bn-os-btn {
-  width: 46px;
-  height: 32px;
-  border-radius: 999px;
-  background: #f0f0f0;
-  color: #080808;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  -webkit-tap-highlight-color: transparent;
-  user-select: none;
-  transition: transform 300ms var(--bn-overshoot), box-shadow 300ms var(--bn-settle);
-}
-.bn-os-btn .bn-ico-os {
-  width: 17px;
-  height: 17px;
-}
-.bn-os-btn:active {
-  transform: scale(0.86);
-  box-shadow: 0 0 0 6px rgba(240, 240, 240, 0.09);
-}
 @media (max-width: 360px) {
-  /* Shrink so the chip doesn't swallow its quarter of a 320px bar. */
-  .bn-os-btn { width: 40px; height: 28px; }
-  .bn-os-btn .bn-ico-os { width: 15px; height: 15px; }
   .bn-ico { width: 22px; height: 22px; }
   .bn-blob-skin { width: 40px; height: 30px; }
 }
@@ -3093,8 +3053,7 @@ a { color: inherit; text-decoration: none; }
   .bn-blob { transition: none; }
   .bn-blob-skin,
   .bn-item.active .bn-ico { animation: none; }
-  .bn-ico-wrap,
-  .bn-os-btn { transition: none; }
+  .bn-ico-wrap { transition: none; }
 }
 
 /* ============================================================
@@ -7449,10 +7408,9 @@ button:active,
 .complete-share-btn:active {
   transform: scale(0.97);
 }
-/* .bn-item / .bn-os-btn are deliberately NOT in the sweeps above. The bottom
-   nav runs its own springs (blob slide, icon pop, chip squash) and a global
-   scale on the row would fight all three — it was already overriding the OS
-   chip's own :active rule by winning on source order. */
+/* .bn-item is deliberately NOT in the sweeps above. The bottom nav runs its
+   own springs (blob slide, blob squash, icon pop) and a global scale on the
+   row would fight all three. */
 .set-modal-stepper button:active,
 .gram-stepper button:active,
 .sel-stepper button:active,

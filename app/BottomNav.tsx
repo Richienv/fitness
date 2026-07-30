@@ -5,8 +5,6 @@ import { usePathname } from "next/navigation";
 import { haptic } from "@/lib/haptics";
 import { useVTNavigate } from "@/lib/navigate";
 
-const OS_URL = "https://r2-os.vercel.app";
-
 // ── Icons ───────────────────────────────────────────────────────────────────
 //
 // Inline SVG, stroked in currentColor — NOT emoji. Emoji were what the nav had
@@ -113,31 +111,22 @@ function StatsIcon({ active }: IconProps) {
   );
 }
 
-function OsIcon() {
-  // Four rounded squares — the universal "apps / operating system" mark. Sits
-  // dark-on-white inside the chip, so it doesn't take an active state.
-  return (
-    <svg className="bn-ico bn-ico-os" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="3.6" y="3.6" width="7" height="7" rx="2.2" fill="currentColor" />
-      <rect x="13.4" y="3.6" width="7" height="7" rx="2.2" fill="currentColor" fillOpacity="0.55" />
-      <rect x="3.6" y="13.4" width="7" height="7" rx="2.2" fill="currentColor" fillOpacity="0.55" />
-      <rect x="13.4" y="13.4" width="7" height="7" rx="2.2" fill="currentColor" />
-    </svg>
-  );
-}
-
 // ── Tabs ────────────────────────────────────────────────────────────────────
 //
-// Four slots, not six, and now icons rather than labels.
+// Three slots, icons only.
 //
 // MAKAN and LATIHAN are gone from here on purpose: they're the two full-width
 // primary CTAs at the top of Beranda, so the nav was offering a second, worse
-// route to the same places. What's left is what has nowhere else to live:
-// home, friends, stats, and the OS jump. TIDUR is a card on Beranda; SET is
-// the gear in its header.
+// route to the same places. TIDUR is a card on Beranda; SET is the gear in
+// its header.
 //
-// OS goes last. With three in-app tabs there is no way to centre a fourth
-// slot, and "leave the app" belongs at the edge anyway.
+// The OS jump is gone too. It was the only thing in this bar that left the
+// app, which made it the odd one out in every design it appeared in — a
+// raised circle that couldn't be centred, then a white chip that had to
+// out-shout three hollow strokes to justify its slot. Three tabs that all go
+// somewhere IN the app is a bar with one job.
+//
+// Three columns also happen to put an icon dead centre, which four never could.
 
 type Tab = { href: string; label: string; match: (p: string) => boolean; Icon: (p: IconProps) => React.ReactElement };
 
@@ -210,18 +199,6 @@ export default function BottomNav() {
         );
       })}
 
-      <div className="bn-os-slot">
-        <button
-          className="bn-os-btn"
-          onClick={() => {
-            haptic("tap");
-            window.location.href = OS_URL;
-          }}
-          aria-label="Buka R2·OS"
-        >
-          <OsIcon />
-        </button>
-      </div>
     </nav>
   );
 }
