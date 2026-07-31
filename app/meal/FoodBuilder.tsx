@@ -710,6 +710,9 @@ export default function FoodBuilder({
         fat: f.fat_g ?? 0,
         carbs: f.carb_g ?? 0,
         gramsPerUnit: 100,
+        // A real serving beats a flat 100 g: "1 bungkus · 185 g · 380 kkal"
+        // is the number someone eats, and it is what the source measured.
+        portionG: f.portionG ?? undefined,
         step: 0.1,
       }));
       setAllFoods(mapped);

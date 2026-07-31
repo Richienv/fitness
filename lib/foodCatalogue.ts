@@ -21,6 +21,8 @@ export type CatalogueFood = {
   nameEn: string | null;
   /** Space-separated alternative names. Search-only; never shown. */
   aliases: string | null;
+  /** Conventional serving in grams, when the source declares one. */
+  portionG: number | null;
   foodGroup: string | null;
   cuisine: string | null;
   energy_kcal: number | null;

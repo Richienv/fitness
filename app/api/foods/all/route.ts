@@ -26,6 +26,7 @@ interface Row {
   name: string;
   nameEn: string | null;
   aliases: string | null;
+  portionGCooked: Prisma.Decimal | null;
   foodGroup: string | null;
   cuisine: string | null;
   energy_kcal: Prisma.Decimal | null;
@@ -56,6 +57,7 @@ export async function GET() {
 
     const rows = await db.$queryRaw<Row[]>(Prisma.sql`
       SELECT f."sourceCode", f.name, f."nameEn", f.aliases, f."foodGroup", f.cuisine,
+             f."portionGCooked",
              f.energy_kcal, f.protein_g, f.fat_g, f.carb_g
       FROM "Food" f
       WHERE f.energy_kcal IS NOT NULL
@@ -67,6 +69,11 @@ export async function GET() {
       name: r.name,
       nameEn: r.nameEn,
       aliases: r.aliases,
+      // The row's own conventional serving. Without it every catalogue food
+      // defaults to 100 g, and a bungkus of Indomie logs as 205 kcal instead
+      // of 380 — the donated database ships a curated serving_g per row and
+      // we were dropping it here.
+      portionG: num(r.portionGCooked),
       foodGroup: r.foodGroup,
       cuisine: r.cuisine,
       energy_kcal: num(r.energy_kcal),
