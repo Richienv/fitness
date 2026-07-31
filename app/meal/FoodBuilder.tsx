@@ -136,6 +136,7 @@ type DbFoodRow = {
   protein_g: number | null;
   fat_g: number | null;
   carb_g: number | null;
+  sugar_g?: number | null;
 };
 
 /** A DB row's cuisine tag if valid, else null (grouping falls back to name). */
@@ -648,6 +649,7 @@ export default function FoodBuilder({
             id: f.sourceCode,
             name: prettyFoodName(f.name),
             englishName: f.nameEn ?? undefined,
+            sugar: f.sugar_g ?? undefined,
             foodGroup: f.foodGroup ?? undefined,
             cuisine: rowCuisine(f.cuisine),
             unit: "100 g",
@@ -665,7 +667,22 @@ export default function FoodBuilder({
           setSearching(false);
           setDbCache((c) => {
             const next = { ...c };
-            for (const m of mapped) next[m.id] = m;
+            // MERGE, don't replace. The catalogue load caches the full row;
+            // this search result is a thinner projection of the same food, and
+            // assigning it wholesale dropped every field the search endpoint
+            // doesn't return. That is how sugar reached the tray as 0 even
+            // after the catalogue started shipping it: typing the query
+            // overwrote the good entry with a poorer one. Undefined values
+            // must never win over a value we already have.
+            for (const m of mapped) {
+              const prev = next[m.id];
+              if (!prev) { next[m.id] = m; continue; }
+              const merged = { ...prev };
+              for (const [k, v] of Object.entries(m)) {
+                if (v !== undefined && v !== null) (merged as Record<string, unknown>)[k] = v;
+              }
+              next[m.id] = merged;
+            }
             return next;
           });
         })
