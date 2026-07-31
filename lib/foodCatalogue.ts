@@ -29,6 +29,7 @@ export type CatalogueFood = {
   protein_g: number | null;
   fat_g: number | null;
   carb_g: number | null;
+  sugar_g: number | null;
 };
 
 const CACHE_KEY = "richie.foodCatalogue.v1";

@@ -33,6 +33,7 @@ interface Row {
   protein_g: Prisma.Decimal | null;
   fat_g: Prisma.Decimal | null;
   carb_g: Prisma.Decimal | null;
+  sugar_g: Prisma.Decimal | null;
 }
 
 const num = (x: Prisma.Decimal | null): number | null =>
@@ -58,7 +59,7 @@ export async function GET() {
     const rows = await db.$queryRaw<Row[]>(Prisma.sql`
       SELECT f."sourceCode", f.name, f."nameEn", f.aliases, f."foodGroup", f.cuisine,
              f."portionGCooked",
-             f.energy_kcal, f.protein_g, f.fat_g, f.carb_g
+             f.energy_kcal, f.protein_g, f.fat_g, f.carb_g, f.sugar_g
       FROM "Food" f
       WHERE f.energy_kcal IS NOT NULL
       ORDER BY LEAST(COALESCE(f.popularity, 0), 200) DESC, f.name ASC;
@@ -80,6 +81,7 @@ export async function GET() {
       protein_g: num(r.protein_g),
       fat_g: num(r.fat_g),
       carb_g: num(r.carb_g),
+      sugar_g: num(r.sugar_g),
     }));
 
     cache = { at: Date.now(), foods };

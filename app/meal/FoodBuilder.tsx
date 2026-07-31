@@ -709,6 +709,8 @@ export default function FoodBuilder({
         protein: f.protein_g ?? 0,
         fat: f.fat_g ?? 0,
         carbs: f.carb_g ?? 0,
+        // Saved inline on every item, so it reaches Skor Sehat's sugar term.
+        sugar: f.sugar_g ?? undefined,
         gramsPerUnit: 100,
         // A real serving beats a flat 100 g: "1 bungkus · 185 g · 380 kkal"
         // is the number someone eats, and it is what the source measured.
