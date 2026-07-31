@@ -25,6 +25,7 @@ interface Row {
   sourceCode: string;
   name: string;
   nameEn: string | null;
+  aliases: string | null;
   foodGroup: string | null;
   cuisine: string | null;
   energy_kcal: Prisma.Decimal | null;
@@ -54,7 +55,7 @@ export async function GET() {
     }
 
     const rows = await db.$queryRaw<Row[]>(Prisma.sql`
-      SELECT f."sourceCode", f.name, f."nameEn", f."foodGroup", f.cuisine,
+      SELECT f."sourceCode", f.name, f."nameEn", f.aliases, f."foodGroup", f.cuisine,
              f.energy_kcal, f.protein_g, f.fat_g, f.carb_g
       FROM "Food" f
       WHERE f.energy_kcal IS NOT NULL
@@ -65,6 +66,7 @@ export async function GET() {
       sourceCode: r.sourceCode,
       name: r.name,
       nameEn: r.nameEn,
+      aliases: r.aliases,
       foodGroup: r.foodGroup,
       cuisine: r.cuisine,
       energy_kcal: num(r.energy_kcal),

@@ -302,6 +302,11 @@ model Food {
   // English name, when the source carries one (R2FIT library, drinks, café).
   // Used for bilingual search + display; null for TKPI/dessert rows.
   nameEn         String?
+  // Other names the same food is sold under, space-separated. Some dishes are
+  // ONLY findable this way — "Terang Bulan" and "Martabak Manis" are the same
+  // thing, and half of Indonesia uses each. Shipped to the client and indexed
+  // as a search field; never displayed.
+  aliases        String?
 
   // ─── Persisted search index (computed at seed time; see scripts/foodRanking) ─
   // Recall bag: normalized name + English name + serving desc + group, so a

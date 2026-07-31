@@ -112,7 +112,10 @@ export function extractNameEn(row: FoodRow): string | null {
  * flattened to spaces, deduped-ish whitespace. Safe for ILIKE '%term%' matching.
  */
 export function buildSearchText(row: FoodRow): string {
-  const parts = [row.name, noteHead(row.note), row.foodGroup ?? ""];
+  // Aliases belong in the recall bag: some foods are only reachable by one.
+  // "Terang Bulan" and "Martabak Manis" are the same pancake, and a user who
+  // knows it by the other name would otherwise find nothing.
+  const parts = [row.name, row.aliases ?? "", noteHead(row.note), row.foodGroup ?? ""];
   return normalizeName(parts.filter(Boolean).join(" "))
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")

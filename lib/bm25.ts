@@ -143,13 +143,31 @@ export function termScore(
   index: Bm25Index,
   term: string,
   docIdx: number,
-  tfOverride?: number
+  tfOverride?: number,
+  idfTerm?: string
 ): number {
   const p = index.postings.get(term);
   const rawTf = tfOverride ?? p?.tf.get(docIdx) ?? 0;
   if (rawTf <= 0) return 0;
   const norm = 1 - BM25_B + BM25_B * (index.len[docIdx] / (index.avgdl || 1));
-  return idf(index, term) * ((rawTf * (BM25_K1 + 1)) / (rawTf + BM25_K1 * norm));
+  // A synonym match is worth the MORE CONSERVATIVE of the two IDFs.
+  //
+  // Not the variant's alone: expanding "ayam" to "chicken" would hand the match
+  // the rarity bonus of a handful of English-named rows, and "Chicken katsu"
+  // outranks "Ayam" for the query "ayam". The user's need is the common word.
+  //
+  // But not the typed word's alone either: a word the corpus has never seen
+  // gets maximum IDF, so a query for an unknown term that only matches via a
+  // synonym would score HIGHER than querying the synonym directly — an alias
+  // route beating the real thing.
+  //
+  // min() is the honest answer: an alias can be worth at most what the word it
+  // matched is worth, and at most what the user actually asked for is worth.
+  const useIdf =
+    idfTerm && idfTerm !== term
+      ? Math.min(idf(index, term), idf(index, idfTerm))
+      : idf(index, term);
+  return useIdf * ((rawTf * (BM25_K1 + 1)) / (rawTf + BM25_K1 * norm));
 }
 
 /** Docs containing a term at all — the candidate set for a query token. */
