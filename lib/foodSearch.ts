@@ -292,7 +292,13 @@ export function searchPrepared<T extends SearchableFood>(
         for (const [field, weight] of FIELDS_W) {
           const text = p[field];
           if (!text) continue;
-          const tf = tierToTf(scoreTokenWords(v, text, p.words[field])) * weight * penalty;
+          const tier = scoreTokenWords(v, text, p.words[field]);
+          // A synonym may match, but only EXACTLY. Expansion is already a
+          // loosening; letting the expanded word also match by prefix or by
+          // typo compounds two guesses. "telur" expands to "egg", and a prefix
+          // hit then puts Eggplant above the actual eggs.
+          if (v !== plan.token && tier < HIT.WORD_EXACT) continue;
+          const tf = tierToTf(tier) * weight * penalty;
           if (tf <= 0) continue;
           const s = termScore(index, v, i, tf, plan.token);
           if (s > best) best = s;
