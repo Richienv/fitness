@@ -71,11 +71,16 @@ const TASKS: SeedTask[] = [
   // The last gaps the probe reported: soto lamongan, garang asem, mangut lele,
   // oseng mercon, tahu gejrot, mie kocok, kupat tahu, laksa bogor.
   { file: "pack_jawa.csv", source: "CUSTOM", prefix: "JAWA:" },
-  // Donated Indonesian food database v1.0 — 1337 rows after reconciliation,
+  // Donated Indonesian food database v1.1 — 2641 rows after reconciliation,
   // keyed on its own stable slug. Seeds LAST so nothing else can overwrite it;
   // rows it supersedes were removed from the packs above rather than left to
   // lose an upsert race silently (see #134 for what that costs).
-  { file: "pack_idn_v1.csv", source: "CUSTOM", prefix: "IDN:" },
+  //
+  // NOTE its carbs convention: `carb_g` here is TOTAL carbohydrate, fiber
+  // included, and its energy credits fiber at 2 kcal/g. Our older packs use
+  // carbs excluding fiber. validate-pack accepts either reading rather than
+  // forcing one — see the note on the Atwater check there.
+  { file: "pack_idn_v1_1.csv", source: "CUSTOM", prefix: "IDN:" },
   // Optional — skipped silently if the file is absent.
   { file: "usda_foods.csv", source: "USDA", prefix: "USDA:" },
 ];
