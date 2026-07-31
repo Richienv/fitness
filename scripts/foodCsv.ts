@@ -13,6 +13,10 @@ export const NUTRIENT_KEYS = [
   "protein_g",
   "fat_g",
   "carb_g",
+  // Skor Sehat weights "gula rendah" at 20 of 100. Without this column every
+  // catalogue food reported 0 g of sugar, which scored FULL marks for sugar —
+  // a free fifth of the health score, on the number the TEMAN board ranks by.
+  "sugar_g",
   "fiber_g",
   "ash_g",
   "calcium_mg",

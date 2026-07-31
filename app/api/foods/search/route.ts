@@ -63,6 +63,7 @@ interface SearchRow {
   protein_g: Prisma.Decimal | null;
   fat_g: Prisma.Decimal | null;
   carb_g: Prisma.Decimal | null;
+  sugar_g: Prisma.Decimal | null;
   score: number;
 }
 
@@ -304,7 +305,7 @@ export async function GET(req: Request) {
       SELECT
         f.id, f."sourceCode", f.name, f."nameEn", f.state, f."foodGroup", f.cuisine,
         f."portionGCooked",
-        f.energy_kcal, f.protein_g, f.fat_g, f.carb_g,
+        f.energy_kcal, f.protein_g, f.fat_g, f.carb_g, f.sugar_g,
         ${scoreExpr} AS score
       FROM "Food" f
       WHERE ${where}
@@ -340,6 +341,7 @@ export async function GET(req: Request) {
       protein_g: num(r.protein_g),
       fat_g: num(r.fat_g),
       carb_g: num(r.carb_g),
+      sugar_g: num(r.sugar_g),
       score: Math.round(Number(r.score)),
     }));
 

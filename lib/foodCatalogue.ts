@@ -21,12 +21,15 @@ export type CatalogueFood = {
   nameEn: string | null;
   /** Space-separated alternative names. Search-only; never shown. */
   aliases: string | null;
+  /** Conventional serving in grams, when the source declares one. */
+  portionG: number | null;
   foodGroup: string | null;
   cuisine: string | null;
   energy_kcal: number | null;
   protein_g: number | null;
   fat_g: number | null;
   carb_g: number | null;
+  sugar_g: number | null;
 };
 
 const CACHE_KEY = "richie.foodCatalogue.v1";
