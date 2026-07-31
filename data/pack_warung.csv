@@ -1,12 +1,10 @@
 code,name,energy_kcal,protein_g,fat_g,carb_g,bdd_pct,state,group,cuisine,portion_g_cooked,note
 wrg-nasi-ulam,Nasi Ulam,187,5.0,7.0,26.0,100,Olahan,Masakan Nusantara,jawa,200,Betawi Herbed Rice · nasi + serundeng + lauk · per 100g · conf:med · Estimasi komposisi
 wrg-tahu-campur,Tahu Campur,164,7.0,8.0,16.0,100,Olahan,Masakan Nusantara,jawa,300,Surabaya Tofu Salad · tahu + petis + daging · per 100g · conf:med · Estimasi komposisi
-wrg-sambal-goreng-ati,Sambal Goreng Ati,197,14.0,13.0,6.0,100,Olahan,Masakan Nusantara,jawa,80,Liver in Chilli Sauce · ati ampela sambal goreng · per 100g · conf:med · Estimasi komposisi
 wrg-ayam-suwir,Ayam Suwir,190,22.0,10.0,3.0,100,Olahan,Masakan Nusantara,jawa,80,Shredded Chicken · ayam suwir bumbu · per 100g · conf:med · Estimasi komposisi
 wrg-mihun-goreng,Mihun Goreng,208,6.0,8.0,28.0,100,Olahan,Masakan Nusantara,jajanan,200,Fried Rice Vermicelli · bihun goreng sayur · per 100g · conf:med · Estimasi komposisi
 wrg-mie-yamin,Mie Yamin,276,10.0,12.0,32.0,100,Olahan,Masakan Nusantara,jajanan,200,Yamin Noodles · mie manis + ayam · per 100g · conf:med · Estimasi komposisi
 wrg-mie-tek-tek,Mie Tek-Tek,255,9.0,11.0,30.0,100,Olahan,Masakan Nusantara,jajanan,250,Street Fried Noodles · mie goreng gerobak · per 100g · conf:med · Estimasi komposisi
-wrg-mie-belitung,Mie Belitung,199,8.0,7.0,26.0,100,Olahan,Masakan Nusantara,nusantara,300,Belitung Noodles · mie kuah udang manis · per 100g · conf:med · Estimasi komposisi
 wrg-ayam-bakar-taliwang,Ayam Bakar Taliwang,221,21.0,13.0,5.0,100,Olahan,Masakan Nusantara,ntt,180,Taliwang Grilled Chicken · ayam bakar sambal khas · per 100g · conf:med · Estimasi komposisi
 wrg-pecel-madiun,Pecel Madiun,178,7.0,10.0,15.0,100,Olahan,Masakan Nusantara,jawa,250,Madiun Pecel · sayur + sambal pecel · per 100g · conf:med · Estimasi komposisi
 wrg-tengkleng,Tengkleng,172,13.0,12.0,3.0,100,Olahan,Masakan Nusantara,jawa,250,Goat Bone Soup · tulang kambing kuah · per 100g · conf:med · Estimasi komposisi
