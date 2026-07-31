@@ -110,6 +110,8 @@ type BuilderFood = {
   zh?: string;
   pinyin?: string;
   englishName?: string;
+  /** Alternative names, search-only — never rendered. */
+  aliases?: string;
   foodGroup?: string;
   cuisine?: CuisineKey;
   step?: number;
@@ -698,6 +700,7 @@ export default function FoodBuilder({
         id: f.sourceCode,
         name: prettyFoodName(f.name),
         englishName: f.nameEn ?? undefined,
+        aliases: f.aliases ?? undefined,
         foodGroup: f.foodGroup ?? undefined,
         cuisine: rowCuisine(f.cuisine),
         unit: "100 g",

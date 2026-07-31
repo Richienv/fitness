@@ -46,6 +46,8 @@ export interface FoodRow {
   cuisine: string | null;
   bddPct: number;
   portionGCooked: number | null;
+  /** Space-separated alternative names, for search recall only. */
+  aliases: string | null;
   note: string | null;
   nutrients: Record<NutrientKey, number | null>;
 }
@@ -170,6 +172,7 @@ export function parseFoodCsv(text: string): FoodRow[] {
   const bddI = idx("bdd_pct");
   const portionI = idx("portion_g_cooked");
   const noteI = idx("note");
+  const aliasI = idx("aliases");
 
   const rows: FoodRow[] = [];
   for (let i = 1; i < lines.length; i++) {
@@ -193,6 +196,7 @@ export function parseFoodCsv(text: string): FoodRow[] {
       cuisine: cuisineI >= 0 ? (cells[cuisineI] ?? "").trim().toLowerCase() || null : null,
       bddPct: bddRaw == null ? 100 : Math.round(bddRaw),
       portionGCooked: portionI >= 0 ? numOrNull(cells[portionI]) : null,
+      aliases: aliasI >= 0 ? (cells[aliasI] ?? "").trim() || null : null,
       note: noteI >= 0 ? (cells[noteI] ?? "").trim() || null : null,
       nutrients,
     });

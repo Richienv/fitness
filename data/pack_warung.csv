@@ -1,51 +1,23 @@
 code,name,energy_kcal,protein_g,fat_g,carb_g,bdd_pct,state,group,cuisine,portion_g_cooked,note
-wrg-soto-mie-bogor,Soto Mie Bogor,151,8.0,7.0,14.0,100,Olahan,Masakan Nusantara,jawa,300,Bogor Noodle Soto · mie + risol + kikil · per 100g · conf:med · Estimasi komposisi
 wrg-nasi-ulam,Nasi Ulam,187,5.0,7.0,26.0,100,Olahan,Masakan Nusantara,jawa,200,Betawi Herbed Rice · nasi + serundeng + lauk · per 100g · conf:med · Estimasi komposisi
-wrg-kerak-telor,Kerak Telor,285,13.0,17.0,20.0,100,Olahan,Jajanan,jawa,120,Betawi Egg Crust · ketan + telur bebek + serundeng · per 100g · conf:med · Estimasi komposisi
-wrg-gabus-pucung,Gabus Pucung,152,17.0,8.0,3.0,100,Olahan,Masakan Nusantara,jawa,200,Betawi Snakehead in Keluak · ikan gabus kuah pucung · per 100g · conf:med · Estimasi komposisi
-wrg-lontong-balap,Lontong Balap,154,5.0,6.0,20.0,100,Olahan,Masakan Nusantara,jawa,300,Surabaya Lontong Balap · lontong + tauge + lentho · per 100g · conf:med · Estimasi komposisi
 wrg-tahu-campur,Tahu Campur,164,7.0,8.0,16.0,100,Olahan,Masakan Nusantara,jawa,300,Surabaya Tofu Salad · tahu + petis + daging · per 100g · conf:med · Estimasi komposisi
 wrg-sambal-goreng-ati,Sambal Goreng Ati,197,14.0,13.0,6.0,100,Olahan,Masakan Nusantara,jawa,80,Liver in Chilli Sauce · ati ampela sambal goreng · per 100g · conf:med · Estimasi komposisi
 wrg-ayam-suwir,Ayam Suwir,190,22.0,10.0,3.0,100,Olahan,Masakan Nusantara,jawa,80,Shredded Chicken · ayam suwir bumbu · per 100g · conf:med · Estimasi komposisi
 wrg-mihun-goreng,Mihun Goreng,208,6.0,8.0,28.0,100,Olahan,Masakan Nusantara,jajanan,200,Fried Rice Vermicelli · bihun goreng sayur · per 100g · conf:med · Estimasi komposisi
-wrg-bakso-urat,Bakso Urat,191,15.0,11.0,8.0,100,Olahan,Masakan Nusantara,jajanan,150,Tendon Meatball · bakso urat sapi · per 100g · conf:med · Estimasi komposisi
-wrg-bakso-malang,Bakso Malang,185,12.0,9.0,14.0,100,Olahan,Masakan Nusantara,jajanan,250,Malang Meatball Set · bakso + pangsit + tahu · per 100g · conf:med · Estimasi komposisi
-wrg-bakso-aci,Bakso Aci,177,3.0,5.0,30.0,100,Olahan,Masakan Nusantara,jajanan,200,Tapioca Meatball · baso aci kuah pedas · per 100g · conf:med · Estimasi komposisi
 wrg-mie-yamin,Mie Yamin,276,10.0,12.0,32.0,100,Olahan,Masakan Nusantara,jajanan,200,Yamin Noodles · mie manis + ayam · per 100g · conf:med · Estimasi komposisi
 wrg-mie-tek-tek,Mie Tek-Tek,255,9.0,11.0,30.0,100,Olahan,Masakan Nusantara,jajanan,250,Street Fried Noodles · mie goreng gerobak · per 100g · conf:med · Estimasi komposisi
-wrg-mie-nyemek,Mie Nyemek,238,9.0,10.0,28.0,100,Olahan,Masakan Nusantara,jajanan,250,Semi-dry Noodles · mie berkuah sedikit · per 100g · conf:med · Estimasi komposisi
-wrg-lomie,Lomie,212,9.0,8.0,26.0,100,Olahan,Masakan Nusantara,chinese,300,Thick Gravy Noodles · mie kuah kental · per 100g · conf:med · Estimasi komposisi
-wrg-nasi-goreng-kampung,Nasi Goreng Kampung,216,6.0,8.0,30.0,100,Olahan,Masakan Nusantara,jajanan,250,Village Fried Rice · nasgor ikan asin + kangkung · per 100g · conf:med · Estimasi komposisi
-wrg-nasi-goreng-pete,Nasi Goreng Pete,229,7.0,9.0,30.0,100,Olahan,Masakan Nusantara,jajanan,250,Fried Rice with Petai · nasgor + pete · per 100g · conf:med · Estimasi komposisi
-wrg-bubur-sumsum,Bubur Sumsum,141,2.0,5.0,22.0,100,Olahan,Kue/Dessert,jawa,200,Rice Flour Porridge · bubur santan + gula jawa · per 100g · conf:med · Estimasi komposisi
-wrg-bubur-ketan-hitam,Bubur Ketan Hitam,160,3.0,4.0,28.0,100,Olahan,Kue/Dessert,jawa,200,Black Glutinous Porridge · ketan hitam + santan · per 100g · conf:med · Estimasi komposisi
-wrg-mie-celor,Mie Celor,217,10.0,9.0,24.0,100,Olahan,Masakan Nusantara,palembang,300,Palembang Coconut Noodles · mie kuah udang santan · per 100g · conf:med · Estimasi komposisi
 wrg-mie-belitung,Mie Belitung,199,8.0,7.0,26.0,100,Olahan,Masakan Nusantara,nusantara,300,Belitung Noodles · mie kuah udang manis · per 100g · conf:med · Estimasi komposisi
-wrg-sate-klathak,Sate Klathak,204,22.0,12.0,2.0,100,Olahan,Masakan Nusantara,jawa,100,Yogya Skewered Mutton · kambing tusuk jeruji · per 100g · conf:med · Estimasi komposisi
-wrg-sate-ayam-madura,Sate Ayam Madura,220,20.0,12.0,8.0,100,Olahan,Masakan Nusantara,jawa,100,Madura Chicken Satay · sate + bumbu kacang manis · per 100g · conf:med · Estimasi komposisi
 wrg-ayam-bakar-taliwang,Ayam Bakar Taliwang,221,21.0,13.0,5.0,100,Olahan,Masakan Nusantara,ntt,180,Taliwang Grilled Chicken · ayam bakar sambal khas · per 100g · conf:med · Estimasi komposisi
-wrg-nasi-bakar,Nasi Bakar,186,5.0,6.0,28.0,100,Olahan,Masakan Nusantara,jawa,200,Grilled Rice Parcel · nasi bumbu dibakar daun · per 100g · conf:med · Estimasi komposisi
-wrg-nasi-tutug-oncom,Nasi Tutug Oncom,199,6.0,7.0,28.0,100,Olahan,Masakan Nusantara,jawa,200,Rice with Oncom · nasi aduk oncom bakar · per 100g · conf:med · Estimasi komposisi
-wrg-lotek,Lotek,161,6.0,9.0,14.0,100,Olahan,Masakan Nusantara,jawa,250,Sundanese Vegetable Salad · sayur + bumbu kacang · per 100g · conf:med · Estimasi komposisi
 wrg-pecel-madiun,Pecel Madiun,178,7.0,10.0,15.0,100,Olahan,Masakan Nusantara,jawa,250,Madiun Pecel · sayur + sambal pecel · per 100g · conf:med · Estimasi komposisi
-wrg-soto-sokaraja,Soto Sokaraja,152,10.0,8.0,10.0,100,Olahan,Masakan Nusantara,jawa,300,Sokaraja Soto · soto + sambal kacang · per 100g · conf:med · Estimasi komposisi
 wrg-tengkleng,Tengkleng,172,13.0,12.0,3.0,100,Olahan,Masakan Nusantara,jawa,250,Goat Bone Soup · tulang kambing kuah · per 100g · conf:med · Estimasi komposisi
 wrg-krengsengan,Krengsengan,222,19.0,14.0,5.0,100,Olahan,Masakan Nusantara,jawa,150,Sweet Spiced Mutton · kambing kecap petis · per 100g · conf:med · Estimasi komposisi
 wrg-selat-solo,Selat Solo,177,12.0,9.0,12.0,100,Olahan,Masakan Nusantara,jawa,250,Solo Beef Salad · bistik jawa + sayur · per 100g · conf:med · Estimasi komposisi
 wrg-timlo-solo,Timlo Solo,143,11.0,7.0,9.0,100,Olahan,Masakan Nusantara,jawa,300,Solo Clear Soup · sosis solo + telur + ayam · per 100g · conf:med · Estimasi komposisi
-wrg-nasi-gandul,Nasi Gandul,230,9.0,10.0,26.0,100,Olahan,Masakan Nusantara,jawa,250,Pati Beef Rice · nasi kuah daging · per 100g · conf:med · Estimasi komposisi
-wrg-sego-sambel,Sego Sambel,208,6.0,8.0,28.0,100,Olahan,Masakan Nusantara,jawa,250,Rice with Sambal · nasi + sambal + lauk · per 100g · conf:med · Estimasi komposisi
 wrg-penyetan,Penyetan,235,20.0,15.0,5.0,100,Olahan,Masakan Nusantara,jawa,150,Smashed Fried Protein · lauk goreng diulek sambal · per 100g · conf:med · Estimasi komposisi
 wrg-lalapan,Lalapan,25,1.5,0.3,4.0,100,Mentah,Masakan Nusantara,jawa,80,Raw Vegetable Side · timun kol kemangi · per 100g · conf:med · Estimasi komposisi
 wrg-es-dawet,Es Dawet,111,1.0,3.0,20.0,100,Olahan,Minuman,minuman,250,Dawet Iced Drink · cendol + santan + gula jawa · per 100g · conf:med · Estimasi komposisi
-wrg-es-doger,Es Doger,132,2.0,4.0,22.0,100,Olahan,Minuman,minuman,250,Doger Shaved Ice · kelapa + tape + santan · per 100g · conf:med · Estimasi komposisi
 wrg-es-kacang-merah,Es Kacang Merah,144,3.0,4.0,24.0,100,Olahan,Minuman,minuman,250,Red Bean Ice · kacang merah + susu · per 100g · conf:med · Estimasi komposisi
-wrg-bandrek,Bandrek,72,0.5,1.5,14.0,100,Olahan,Minuman,minuman,200,Ginger Spice Drink · jahe + gula aren + rempah · per 100g · conf:med · Estimasi komposisi
-wrg-bajigur,Bajigur,106,1.5,4.0,16.0,100,Olahan,Minuman,minuman,200,Coconut Ginger Drink · santan + kopi + gula aren · per 100g · conf:med · Estimasi komposisi
-wrg-sekoteng,Sekoteng,104,2.5,2.5,18.0,100,Olahan,Minuman,minuman,250,Ginger Dessert Drink · jahe + kacang + roti · per 100g · conf:med · Estimasi komposisi
-wrg-jamu-kunyit-asam,Jamu Kunyit Asam,38,0.4,0.1,9.0,100,Olahan,Minuman,minuman,200,Turmeric Tamarind Tonic · kunyit + asam + gula · per 100g · conf:med · Estimasi komposisi
 wrg-beras-kencur,Beras Kencur,48,0.5,0.2,11.0,100,Olahan,Minuman,minuman,200,Rice Galangal Tonic · beras + kencur + gula · per 100g · conf:med · Estimasi komposisi
 wrg-air-tebu,Air Tebu,54,0.2,0.1,13.0,100,Olahan,Minuman,minuman,250,Sugarcane Juice · perasan tebu segar · per 100g · conf:med · Estimasi komposisi
 wrg-es-alpukat,Es Alpukat,135,2.0,7.0,16.0,100,Olahan,Minuman,minuman,250,Avocado Shake · alpukat + susu + cokelat · per 100g · conf:med · Estimasi komposisi
-wrg-kopi-tubruk,Kopi Tubruk,26,0.2,0.1,6.0,100,Olahan,Minuman,minuman,150,Indonesian Boiled Coffee · kopi + gula diseduh · per 100g · conf:med · Estimasi komposisi
 wrg-kebab-daging,Kebab Daging,264,13.0,12.0,26.0,100,Olahan,Jajanan,jajanan,200,Doner Kebab Wrap · tortilla + daging + sayur · per 100g · conf:med · Estimasi komposisi

@@ -19,9 +19,6 @@ stp-rendang,Rendang,253,20.0,17.0,5.0,100,Olahan,Masakan Nusantara,padang,100,Re
 stp-gulai,Gulai,176,12.0,12.0,5.0,100,Olahan,Masakan Nusantara,padang,150,Gulai Curry · gulai santan campur · per 100g · conf:high · Nilai umum
 stp-capcay,Capcay,106,5.0,6.0,8.0,100,Olahan,Masakan Nusantara,chinese,200,Mixed Vegetables · capcay tumis sayuran · per 100g · conf:high · Nilai umum
 stp-sambal,Sambal,98,2.0,6.0,9.0,100,Olahan,Sambal,nusantara,25,Chilli Sauce · sambal ulek umum · per 100g · conf:high · Nilai umum
-stp-kentang-goreng,Kentang Goreng,313,3.4,15.0,41.0,100,Olahan,Jajanan,nusantara,100,French Fries · kentang goreng · per 100g · conf:high · Nilai umum
-stp-jagung-rebus,Jagung Rebus,103,3.4,1.5,19.0,100,Olahan,Bahan,nusantara,150,Boiled Corn · jagung manis rebus · per 100g · conf:high · Nilai umum
-stp-roti-tawar,Roti Tawar,264,9.0,3.5,49.0,100,Olahan,Jajanan,nusantara,50,White Bread · roti tawar putih · per 100g · conf:high · Nilai umum
 stp-susu,Susu,65,3.4,3.6,4.8,100,Mentah,Minuman,nusantara,200,Milk · susu sapi cair · per 100g · conf:high · Nilai umum
 stp-kopi,Kopi,0,0.1,0.0,0.0,100,Olahan,Minuman,nusantara,200,Black Coffee · kopi tanpa gula · per 100g · conf:high · Nilai umum
 stp-teh,Teh,1,0.0,0.0,0.3,100,Olahan,Minuman,nusantara,200,Tea · teh tawar · per 100g · conf:high · Nilai umum

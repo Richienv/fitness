@@ -24,6 +24,10 @@ export type SearchableFood = {
   id: string;
   name: string;
   englishName?: string;
+  /** Other names the food is sold under. Weighted just under the English name:
+   *  a real alias ("Terang Bulan") is as good an answer as the English gloss,
+   *  but it is not what the row is called, so an exact name match still wins. */
+  aliases?: string;
   foodGroup?: string;
   cuisine?: string;
   /** Static prior from the seed — staples should edge out obscure entries. */
@@ -105,13 +109,23 @@ const HIT = {
   NONE: 0,
 } as const;
 
-/** Best match of one token against one field. */
+/** Best match of one token against one field. Public + tested. */
 export function scoreToken(token: string, field: string): number {
+  return scoreTokenWords(token, field, field ? field.split(" ") : []);
+}
+
+/**
+ * The same rules, but taking the field's words pre-split.
+ *
+ * Splitting inside the scorer meant re-splitting every field of every document
+ * on every keystroke — five fields x ~3000 docs x each query variant. The words
+ * never change, so they are computed once in prepare() instead.
+ */
+function scoreTokenWords(token: string, field: string, words: string[]): number {
   if (!field) return HIT.NONE;
   if (field === token) return HIT.EXACT;
   if (field.startsWith(token + " ")) return HIT.PREFIX_FIELD;
 
-  const words = field.split(" ");
   let best: number = HIT.NONE;
   for (const w of words) {
     if (w === token) return HIT.WORD_EXACT;
@@ -132,7 +146,7 @@ export function scoreToken(token: string, field: string): number {
 
 /** Field weights. A hit on the Indonesian name counts for more than the same
  *  hit on a food-group label, which is often generic ("Masakan Nusantara"). */
-const FIELD_WEIGHT = { name: 1, english: 0.75, group: 0.35, cuisine: 0.35 } as const;
+const FIELD_WEIGHT = { name: 1, english: 0.75, aliases: 0.7, group: 0.35, cuisine: 0.35 } as const;
 
 /**
  * How much of a term occurrence a match is WORTH, by how it matched.
@@ -167,8 +181,11 @@ type Doc<T> = {
   food: T;
   name: string;
   english: string;
+  aliases: string;
   group: string;
   cuisine: string;
+  /** The same four fields pre-split into words — see scoreTokenWords. */
+  words: Record<string, string[]>;
   popularity: number;
   nameLen: number;
 };
@@ -182,6 +199,7 @@ export type Prepared<T> = {
 const FIELDS: Bm25Field[] = [
   { name: "name", weight: FIELD_WEIGHT.name },
   { name: "english", weight: FIELD_WEIGHT.english },
+  { name: "aliases", weight: FIELD_WEIGHT.aliases },
   { name: "group", weight: FIELD_WEIGHT.group },
   { name: "cuisine", weight: FIELD_WEIGHT.cuisine },
 ];
@@ -196,23 +214,21 @@ export function prepare<T extends SearchableFood>(foods: readonly T[]): Prepared
       food: f,
       name,
       english: f.englishName ? normalize(f.englishName) : "",
+      aliases: f.aliases ? normalize(f.aliases) : "",
       group: f.foodGroup ? normalize(f.foodGroup) : "",
       cuisine: f.cuisine ? normalize(f.cuisine) : "",
+      words: {
+        name: name ? name.split(" ") : [],
+        english: f.englishName ? normalize(f.englishName).split(" ") : [],
+        aliases: f.aliases ? normalize(f.aliases).split(" ") : [],
+        group: f.foodGroup ? normalize(f.foodGroup).split(" ") : [],
+        cuisine: f.cuisine ? normalize(f.cuisine).split(" ") : [],
+      },
       popularity: f.popularity ?? 0,
       nameLen: name.length,
     };
   });
-  const index = buildIndex(
-    docs.map((d) => ({
-      fields: {
-        name: d.name ? d.name.split(" ") : [],
-        english: d.english ? d.english.split(" ") : [],
-        group: d.group ? d.group.split(" ") : [],
-        cuisine: d.cuisine ? d.cuisine.split(" ") : [],
-      },
-    })),
-    FIELDS
-  );
+  const index = buildIndex(docs.map((d) => ({ fields: d.words })), FIELDS);
   return { docs, index };
 }
 
@@ -243,36 +259,42 @@ export function searchPrepared<T extends SearchableFood>(
   const limit = opts.limit ?? 60;
   const { docs, index } = prepared;
 
+  // Expansion and the per-field table are computed ONCE, not per document.
+  // Both used to sit inside the document loop, so a 4-token query over 3000
+  // foods called indonesianAliases() 12,000 times and rebuilt a five-entry
+  // array 15,000 times — per keystroke.
+  const expand = opts.aliases ?? indonesianAliases;
+  const plans = tokens.map((token) => ({
+    token,
+    // An alias match is real but weaker than the word the user typed.
+    variants: [
+      { v: token, penalty: 1 },
+      ...expand(token).map((v) => ({ v, penalty: 0.8 })),
+    ],
+  }));
+  const FIELDS_W = [
+    ["name", FIELD_WEIGHT.name],
+    ["english", FIELD_WEIGHT.english],
+    ["aliases", FIELD_WEIGHT.aliases],
+    ["group", FIELD_WEIGHT.group],
+    ["cuisine", FIELD_WEIGHT.cuisine],
+  ] as const;
+
   const out: Scored<T>[] = [];
   for (let i = 0; i < docs.length; i++) {
     const p = docs[i];
     let total = 0;
     let ok = true;
 
-    for (const token of tokens) {
-      // Aliases default to the Indonesian layer: spelling variants, English
-      // synonyms, and affix-stripped forms. A caller can still override.
-      const expand = opts.aliases ?? indonesianAliases;
-      const variants = [token, ...expand(token)];
+    for (const plan of plans) {
       let best = 0;
-      for (const v of variants) {
-        // An alias match is real but weaker than the word the user typed.
-        const penalty = v === token ? 1 : 0.8;
-        for (const [field, weight] of [
-          ["name", FIELD_WEIGHT.name],
-          ["english", FIELD_WEIGHT.english],
-          ["group", FIELD_WEIGHT.group],
-          ["cuisine", FIELD_WEIGHT.cuisine],
-        ] as const) {
+      for (const { v, penalty } of plan.variants) {
+        for (const [field, weight] of FIELDS_W) {
           const text = p[field];
           if (!text) continue;
-          const tf = tierToTf(scoreToken(v, text)) * weight * penalty;
+          const tf = tierToTf(scoreTokenWords(v, text, p.words[field])) * weight * penalty;
           if (tf <= 0) continue;
-          // IDF comes from the term the user actually typed when the corpus
-          // knows it; for a prefix or typo the token is absent from the
-          // vocabulary, and idf() then returns the maximum — which is right,
-          // because an unknown word is maximally selective.
-          const s = termScore(index, v, i, tf);
+          const s = termScore(index, v, i, tf, plan.token);
           if (s > best) best = s;
         }
       }

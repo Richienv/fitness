@@ -1,51 +1,18 @@
 code,name,energy_kcal,protein_g,fat_g,carb_g,bdd_pct,state,group,cuisine,portion_g_cooked,note
-gr-combro,Combro,242,3.5,12.0,30.0,100,Olahan,Jajanan,jajanan,60,Fried Cassava with Oncom · singkong isi oncom · per 100g · conf:med · Estimasi komposisi
-gr-misro,Misro,245,2.5,11.0,34.0,100,Olahan,Jajanan,jajanan,60,Sweet Cassava Fritter · singkong isi gula merah · per 100g · conf:med · Estimasi komposisi
 gr-risol-mayo,Risol Mayo,273,8.0,17.0,22.0,100,Olahan,Jajanan,jajanan,70,Mayo Smoked Beef Roll · isi mayo + smoked beef · per 100g · conf:med · Estimasi komposisi
-gr-cakwe,Cakwe,293,6.0,13.0,38.0,100,Olahan,Jajanan,jajanan,45,Chinese Fried Dough · adonan goreng panjang · per 100g · conf:med · Estimasi komposisi
-gr-odading,Odading,292,6.0,12.0,40.0,100,Olahan,Jajanan,jajanan,60,Fried Sweet Dough · roti goreng gula · per 100g · conf:med · Estimasi komposisi
 gr-molen-pisang,Molen Pisang,280,5.0,12.0,38.0,100,Olahan,Jajanan,jajanan,50,Banana Molen · pisang balut pastry · per 100g · conf:med · Estimasi komposisi
-gr-cireng-isi,Cireng Isi,263,2.5,13.0,34.0,100,Olahan,Jajanan,jajanan,50,Stuffed Tapioca Fritter · aci goreng isi ayam · per 100g · conf:med · Estimasi komposisi
-gr-cilor,Cilor,235,6.0,11.0,28.0,100,Olahan,Jajanan,jajanan,70,Tapioca and Egg Skewer · cilok + telur goreng · per 100g · conf:med · Estimasi komposisi
-gr-telur-gulung,Telur Gulung,164,8.0,12.0,6.0,100,Olahan,Jajanan,jajanan,50,Rolled Egg Skewer · telur digoreng digulung · per 100g · conf:med · Estimasi komposisi
-gr-seblak-basah,Seblak Basah,218,6.0,10.0,26.0,100,Olahan,Jajanan,jajanan,250,Spicy Wet Crackers · kerupuk basah + kencur · per 100g · conf:med · Estimasi komposisi
-gr-basreng,Basreng,348,8.0,20.0,34.0,100,Olahan,Jajanan,jajanan,40,Fried Meatball Chips · bakso goreng pedas · per 100g · conf:med · Estimasi komposisi
-gr-sosis-bakar,Sosis Bakar,260,12.0,20.0,8.0,100,Olahan,Jajanan,jajanan,60,Grilled Sausage · sosis bakar saus · per 100g · conf:med · Estimasi komposisi
-gr-bakso-bakar,Bakso Bakar,199,13.0,11.0,12.0,100,Olahan,Jajanan,jajanan,80,Grilled Meatball Skewer · bakso bumbu bakar · per 100g · conf:med · Estimasi komposisi
 gr-sate-taichan,Sate Taichan,146,22.0,6.0,1.0,100,Olahan,Jajanan,jajanan,80,Taichan Chicken Satay · ayam tanpa bumbu + sambal · per 100g · conf:med · Estimasi komposisi
 kb-kue-putu,Kue Putu,196,2.0,4.0,38.0,100,Olahan,Kue/Dessert,jajanan,60,Steamed Rice Flour Cake · tepung beras + gula jawa · per 100g · conf:med · Estimasi komposisi
-kb-putu-ayu,Putu Ayu,223,4.0,7.0,36.0,100,Olahan,Kue/Dessert,jajanan,50,Pandan Coconut Cake · kue kukus kelapa · per 100g · conf:med · Estimasi komposisi
-kb-serabi-solo,Serabi Solo,189,3.5,7.0,28.0,100,Olahan,Kue/Dessert,jajanan,60,Solo Coconut Pancake · serabi santan · per 100g · conf:med · Estimasi komposisi
-kb-wajik-ketan,Wajik Ketan,242,3.0,6.0,44.0,100,Olahan,Kue/Dessert,jajanan,50,Sticky Rice Diamond · ketan + gula merah · per 100g · conf:med · Estimasi komposisi
-kb-getuk-lindri,Getuk Lindri,187,2.0,3.0,38.0,100,Olahan,Kue/Dessert,jajanan,60,Sweet Cassava Cake · singkong + kelapa · per 100g · conf:med · Estimasi komposisi
-kb-cenil,Cenil,172,0.8,1.0,40.0,100,Olahan,Kue/Dessert,jajanan,60,Chewy Tapioca Cake · sagu warna + kelapa · per 100g · conf:med · Estimasi komposisi
-kb-carabikang,Carabikang,209,3.0,5.0,38.0,100,Olahan,Kue/Dessert,jajanan,50,Blooming Rice Cake · kue carabikang · per 100g · conf:med · Estimasi komposisi
-kb-apem,Apem,210,3.5,4.0,40.0,100,Olahan,Kue/Dessert,jajanan,60,Steamed Rice Cake · apem tepung beras · per 100g · conf:med · Estimasi komposisi
-kb-ongol-ongol,Ongol-Ongol,189,0.6,3.0,40.0,100,Olahan,Kue/Dessert,jajanan,60,Sago Palm Sugar Cake · sagu + gula jawa · per 100g · conf:med · Estimasi komposisi
-kp-kerupuk-udang,Kerupuk Udang,470,6.0,22.0,62.0,100,Olahan,Jajanan,jajanan,20,Prawn Crackers · kerupuk udang goreng · per 100g · conf:med · Estimasi komposisi
 kp-kerupuk-kulit,Kerupuk Kulit,362,30.0,18.0,20.0,100,Olahan,Jajanan,jajanan,20,Beef Skin Crackers · rambak sapi · per 100g · conf:med · Estimasi komposisi
 kp-emping-melinjo,Emping Melinjo,442,12.0,18.0,58.0,100,Olahan,Jajanan,jajanan,20,Melinjo Crackers · emping goreng · per 100g · conf:med · Estimasi komposisi
-kp-rempeyek-kacang,Rempeyek Kacang,454,13.0,26.0,42.0,100,Olahan,Jajanan,jajanan,25,Peanut Crisp · peyek kacang tanah · per 100g · conf:med · Estimasi komposisi
 kp-keripik-pisang,Keripik Pisang,460,1.5,22.0,64.0,100,Olahan,Jajanan,jajanan,25,Banana Chips · pisang goreng kering · per 100g · conf:med · Estimasi komposisi
-sb-sambal-terasi,Sambal Terasi,102,3.0,6.0,9.0,100,Olahan,Sambal,nusantara,25,Shrimp Paste Chilli · cabai + terasi + tomat · per 100g · conf:med · Estimasi komposisi
-sb-sambal-matah,Sambal Matah,156,1.5,14.0,6.0,100,Olahan,Sambal,nusantara,25,Balinese Raw Shallot Chilli · bawang + serai + minyak · per 100g · conf:med · Estimasi komposisi
-sb-sambal-bawang,Sambal Bawang,144,2.0,12.0,7.0,100,Olahan,Sambal,nusantara,25,Garlic Chilli Sauce · cabai + bawang + minyak · per 100g · conf:med · Estimasi komposisi
-sb-sambal-kecap,Sambal Kecap,58,1.5,0.5,12.0,100,Olahan,Sambal,nusantara,25,Sweet Soy Chilli · kecap + cabai rawit · per 100g · conf:med · Estimasi komposisi
-sb-sambal-pecel,Sambal Pecel,356,12.0,20.0,32.0,100,Olahan,Sambal,nusantara,30,Peanut Sauce for Pecel · bumbu kacang pecel · per 100g · conf:med · Estimasi komposisi
 sb-bumbu-rendang,Bumbu Rendang,178,3.0,14.0,10.0,100,Olahan,Sambal,nusantara,30,Rendang Spice Paste · bumbu + santan kental · per 100g · conf:med · Estimasi komposisi
-sb-kecap-manis,Kecap Manis,249,2.0,0.1,60.0,100,Olahan,Sambal,nusantara,15,Sweet Soy Sauce · kecap manis botolan · per 100g · conf:med · Estimasi komposisi
-bh-nasi-merah,Nasi Merah,118,2.6,0.9,25.0,100,Olahan,Bahan,nusantara,150,Steamed Brown Rice · beras merah matang · per 100g · conf:med · Estimasi komposisi
 bh-minyak-goreng,Minyak Goreng,900,0.0,100.0,0.0,100,Mentah,Bahan,nusantara,10,Cooking Oil · minyak sawit · per 100g · conf:med · Estimasi komposisi
-bh-santan-kental,Santan Kental,248,2.0,24.0,6.0,100,Mentah,Bahan,nusantara,50,Thick Coconut Milk · santan peras pertama · per 100g · conf:med · Estimasi komposisi
 bh-cabai-rawit,Cabai Rawit,48,2.0,0.5,9.0,100,Mentah,Bahan,nusantara,10,Bird's Eye Chilli · cabai rawit segar · per 100g · conf:med · Estimasi komposisi
 bh-cabai-merah,Cabai Merah,42,1.5,0.4,8.0,100,Mentah,Bahan,nusantara,15,Red Chilli · cabai merah besar · per 100g · conf:med · Estimasi komposisi
 bh-bawang-merah,Bawang Merah,75,1.5,0.1,17.0,100,Mentah,Bahan,nusantara,10,Shallot · bawang merah segar · per 100g · conf:med · Estimasi komposisi
 bh-bawang-putih,Bawang Putih,160,6.0,0.5,33.0,100,Mentah,Bahan,nusantara,5,Garlic · bawang putih segar · per 100g · conf:med · Estimasi komposisi
-bh-ikan-kembung-bakar,Ikan Kembung Bakar,160,22.0,8.0,0.0,100,Olahan,Bahan,nusantara,100,Grilled Mackerel · ikan kembung dibakar · per 100g · conf:med · Estimasi komposisi
-bh-ikan-nila-goreng,Ikan Nila Goreng,200,21.0,12.0,2.0,100,Olahan,Bahan,nusantara,100,Fried Tilapia · nila goreng · per 100g · conf:med · Estimasi komposisi
-bh-ikan-lele-goreng,Ikan Lele Goreng,214,19.0,14.0,3.0,100,Olahan,Bahan,nusantara,100,Fried Catfish · lele goreng · per 100g · conf:med · Estimasi komposisi
 bh-ikan-tongkol-balado,Ikan Tongkol Balado,189,23.0,9.0,4.0,100,Olahan,Bahan,nusantara,100,Tuna in Chilli · tongkol bumbu balado · per 100g · conf:med · Estimasi komposisi
-bh-udang-goreng,Udang Goreng,164,21.0,8.0,2.0,100,Olahan,Bahan,nusantara,80,Fried Prawn · udang goreng tepung tipis · per 100g · conf:med · Estimasi komposisi
 bh-dada-ayam-rebus,Dada Ayam Rebus,156,31.0,3.6,0.0,100,Olahan,Bahan,nusantara,100,Boiled Chicken Breast · dada ayam tanpa kulit · per 100g · conf:med · Estimasi komposisi
 bh-paha-ayam-bakar,Paha Ayam Bakar,203,25.0,11.0,1.0,100,Olahan,Bahan,nusantara,100,Grilled Chicken Thigh · paha ayam bakar · per 100g · conf:med · Estimasi komposisi
 bh-telur-rebus,Telur Rebus,150,12.6,10.6,1.1,100,Olahan,Bahan,nusantara,55,Boiled Egg · telur ayam rebus · per 100g · conf:med · Estimasi komposisi
@@ -53,5 +20,4 @@ bh-telur-ceplok,Telur Ceplok,191,13.0,15.0,1.0,100,Olahan,Bahan,nusantara,55,Fri
 bh-tempe-rebus,Tempe Rebus,184,19.0,8.0,9.0,100,Olahan,Bahan,nusantara,50,Boiled Tempe · tempe kukus · per 100g · conf:med · Estimasi komposisi
 bh-tahu-putih,Tahu Putih,83,8.0,4.8,1.9,100,Mentah,Bahan,nusantara,50,White Tofu · tahu putih mentah · per 100g · conf:med · Estimasi komposisi
 bh-kangkung-tumis,Kangkung Tumis,62,2.6,4.0,4.0,100,Olahan,Bahan,nusantara,100,Stir-fried Water Spinach · kangkung tumis bawang · per 100g · conf:med · Estimasi komposisi
-bh-bayam-rebus,Bayam Rebus,29,2.9,0.3,3.6,100,Olahan,Bahan,nusantara,100,Boiled Spinach · bayam rebus · per 100g · conf:med · Estimasi komposisi
 bh-tauge-tumis,Tauge Tumis,59,3.0,3.0,5.0,100,Olahan,Bahan,nusantara,80,Stir-fried Bean Sprouts · tauge tumis · per 100g · conf:med · Estimasi komposisi

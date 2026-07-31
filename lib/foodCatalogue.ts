@@ -19,6 +19,8 @@ export type CatalogueFood = {
   sourceCode: string;
   name: string;
   nameEn: string | null;
+  /** Space-separated alternative names. Search-only; never shown. */
+  aliases: string | null;
   foodGroup: string | null;
   cuisine: string | null;
   energy_kcal: number | null;

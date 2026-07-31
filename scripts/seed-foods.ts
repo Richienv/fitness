@@ -71,6 +71,11 @@ const TASKS: SeedTask[] = [
   // The last gaps the probe reported: soto lamongan, garang asem, mangut lele,
   // oseng mercon, tahu gejrot, mie kocok, kupat tahu, laksa bogor.
   { file: "pack_jawa.csv", source: "CUSTOM", prefix: "JAWA:" },
+  // Donated Indonesian food database v1.0 — 1337 rows after reconciliation,
+  // keyed on its own stable slug. Seeds LAST so nothing else can overwrite it;
+  // rows it supersedes were removed from the packs above rather than left to
+  // lose an upsert race silently (see #134 for what that costs).
+  { file: "pack_idn_v1.csv", source: "CUSTOM", prefix: "IDN:" },
   // Optional — skipped silently if the file is absent.
   { file: "usda_foods.csv", source: "USDA", prefix: "USDA:" },
 ];
@@ -202,6 +207,7 @@ async function main() {
         portionGCooked: toDecimal(row.portionGCooked),
         note: row.note,
         nameEn: extractNameEn(row),
+        aliases: row.aliases,
         // Persisted search index (see scripts/foodRanking.ts).
         searchText: buildSearchText(row),
         popularity: computePopularity(row, task.source),
