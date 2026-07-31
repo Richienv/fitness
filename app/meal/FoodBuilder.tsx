@@ -1324,14 +1324,43 @@ export default function FoodBuilder({
   // with the API's own OR-ish matching. Concatenating them raw made "ayam
   // bakar" return MORE results than "ayam" — typing more must never widen the
   // list — so they go through the same ranker before joining.
+  // Two different limits, on purpose.
+  //
+  // RANK_LIMIT is how deep the partition below can reach; SHOW_LIMIT is how
+  // much is rendered. They used to be the same 60, which meant a favourite
+  // could not be floated unless it already ranked in the top 60 — and "Whole
+  // egg" sits at 82 of 132 for the query "telur", behind every row literally
+  // named Telur. Truncating before choosing what to promote makes the promotion
+  // unreachable exactly when it is most needed.
+  //
+  // Scoring already visits every document regardless of the limit, so ranking
+  // deeper costs a larger sort, not a larger scan.
+  const RANK_LIMIT = 400;
+  const SHOW_LIMIT = 60;
   const searchFlatRaw: BuilderFood[] = q
-    ? searchPrepared(searchPool, q, { limit: 60 })
+    ? searchPrepared(searchPool, q, { limit: RANK_LIMIT })
         .map((r) => r.food)
-        .concat(searchPrepared(prepareSearch(dbResults), q, { limit: 30 }).map((r) => r.food))
+        .concat(
+          searchPrepared(prepareSearch(dbResults), q, { limit: 30 }).map((r) => r.food)
+        )
     : [];
   const searchFlat: BuilderFood[] = (() => {
     if (!q) return searchFlatRaw;
-    const rank = getPickRank();
+    // YOUR list first, then everything else.
+    //
+    // Remembered picks already floated. Favourites — the USUAL KAMU shortlist —
+    // did not, and a 4500-row catalogue buries them: searching "telur" returned
+    // six rows literally named Telur and never reached "Whole egg", the entry
+    // with the "1 egg" unit that a user actually taps. Pure relevance is right
+    // about those six and useless to the person asking.
+    //
+    // Favourites rank AFTER real picks: something you have logged beats
+    // something merely on the default shortlist.
+    const rank = new Map(getPickRank());
+    const base = rank.size;
+    (INGREDIENTS as BuilderFood[]).forEach((f, i) => {
+      if (f.favorite && !rank.has(f.id)) rank.set(f.id, base + i);
+    });
     // Stable partition: picked matches first (by staple rank), then the rest,
     // de-duped by id so a food doesn't appear twice.
     const seen = new Set<string>();
@@ -1343,7 +1372,7 @@ export default function FoodBuilder({
       (rank.has(f.id) ? picked : rest).push(f);
     }
     picked.sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
-    return picked.concat(rest);
+    return picked.concat(rest).slice(0, SHOW_LIMIT);
   })();
   // ── RACIK: read a typed plate as its parts ────────────────────────────
   //
