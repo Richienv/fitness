@@ -14,8 +14,15 @@ export default function PWA() {
     if (process.env.NODE_ENV !== "production") return;
     if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
 
+    // A brand-new worker calls clients.claim() on activate, which fires
+    // controllerchange on this very first page load. That is NOT an update —
+    // reloading there throws away whatever the user has typed and gives every
+    // first-time visitor a pointless flash. Only a swap from one controller to
+    // another is worth a reload.
+    const hadController = !!navigator.serviceWorker.controller;
     let reloading = false;
     const onControllerChange = () => {
+      if (!hadController) return;
       // Exactly one reload per swap. Without the guard this is an infinite loop.
       if (reloading) return;
       reloading = true;

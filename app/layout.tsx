@@ -7,6 +7,7 @@ import ToastStack from "./Toast";
 import Providers from "./Providers";
 import UserScopeInit from "./UserScopeInit";
 import PWA from "./PWA";
+import NativeBridge from "./NativeBridge";
 import { ActiveDateProvider } from "@/lib/activeDate";
 import { auth } from "@/auth";
 
@@ -107,6 +108,7 @@ export default async function RootLayout({
           {/* Sets the per-user localStorage scope before ServerSync / pages read. */}
           <UserScopeInit userId={userId} />
           <PWA />
+          <NativeBridge userId={userId} />
           <ActiveDateProvider>
             {/* userId is a DEPENDENCY, not decoration — see ServerSync. */}
             <ServerSync userId={userId} />

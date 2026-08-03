@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { TARGETS, todayKey } from "@/lib/targets";
 import { getDaily } from "@/lib/store";
+import { isNativeApp, syncWidget } from "@/lib/native";
 
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
 const MONO = "var(--font-dm-mono), 'JetBrains Mono', monospace";
@@ -103,6 +104,10 @@ export default function WidgetSetupPage() {
   );
   const [base, setBase] = useState("");
   const [copied, setCopied] = useState<"" | "script" | "url">("");
+  // Resolved in an effect, not at render: `isNativeApp()` reads window, and
+  // guessing on the server would flip the layout on hydration.
+  const [native, setNative] = useState(false);
+  const [synced, setSynced] = useState<"" | "syncing" | "ok" | "failed">("");
 
   const mint = useCallback(async () => {
     setStatus("loading");
@@ -128,6 +133,7 @@ export default function WidgetSetupPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") setBase(window.location.origin);
+    setNative(isNativeApp());
     mint();
     // Capture the user's personal daily target (today's gym/rest goal) so the
     // widget shows /1700 etc. instead of the server default.
@@ -219,19 +225,69 @@ export default function WidgetSetupPage() {
         </div>
       </header>
 
-      <p
-        style={{
-          fontFamily: SANS,
-          fontSize: 13.5,
-          lineHeight: 1.5,
-          color: "#cfc8c2",
-          marginBottom: 16,
-        }}
-      >
-        iOS tidak bisa bikin widget langsung dari web app, tapi lewat app gratis{" "}
-        <b>Scriptable</b> kamu bisa nampilin kalori &amp; makro hari ini di home
-        screen. Token di bawah cuma buat akun kamu — jangan dibagikan.
-      </p>
+      {native ? (
+        // Inside the iOS shell the widget is built in — no Scriptable, no
+        // copy-paste. The token is pushed to the shared App Group on every
+        // launch; this card just makes that visible and offers a manual kick.
+        <div style={{ ...card, marginBottom: 16 }}>
+          <div
+            style={{
+              fontFamily: MONO,
+              fontSize: 9.5,
+              letterSpacing: ".14em",
+              color: "#6a6660",
+              marginBottom: 10,
+            }}
+          >
+            // WIDGET BAWAAN APP
+          </div>
+          <div style={{ fontFamily: SANS, fontSize: 13.5, lineHeight: 1.5, color: "#cfc8c2" }}>
+            Tahan home screen → <b>+</b> → cari <b>R2·FIT</b> → tambah widget
+            kecil atau sedang. Datanya nyambung sendiri, nggak usah tempel token.
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              setSynced("syncing");
+              setSynced((await syncWidget()) === "ok" ? "ok" : "failed");
+            }}
+            style={{
+              marginTop: 12,
+              padding: "10px 16px",
+              borderRadius: 12,
+              fontFamily: SANS,
+              fontWeight: 800,
+              fontSize: 13,
+              color: "#fff",
+              cursor: "pointer",
+              background: FIRE,
+              border: "1px solid rgba(255,150,120,.6)",
+            }}
+          >
+            {synced === "syncing"
+              ? "MENYAMBUNGKAN…"
+              : synced === "ok"
+                ? "✓ TERSAMBUNG"
+                : synced === "failed"
+                  ? "GAGAL — COBA LAGI"
+                  : "SAMBUNGKAN ULANG"}
+          </button>
+        </div>
+      ) : (
+        <p
+          style={{
+            fontFamily: SANS,
+            fontSize: 13.5,
+            lineHeight: 1.5,
+            color: "#cfc8c2",
+            marginBottom: 16,
+          }}
+        >
+          iOS tidak bisa bikin widget langsung dari web app, tapi lewat app gratis{" "}
+          <b>Scriptable</b> kamu bisa nampilin kalori &amp; makro hari ini di home
+          screen. Token di bawah cuma buat akun kamu — jangan dibagikan.
+        </p>
+      )}
 
       {status === "unauth" ? (
         <div style={card}>
@@ -289,6 +345,12 @@ export default function WidgetSetupPage() {
         </div>
       ) : (
         <>
+          {/* The Scriptable route only exists because the web app can't ship a
+              widget. Inside the shell there IS a real widget, so showing both
+              would just be two ways to do the same thing. The raw URL card
+              below stays either way — it's still useful for Shortcuts. */}
+          {native ? null : (
+            <>
           {/* steps */}
           <div style={{ ...card, marginBottom: 12 }}>
             <div
@@ -376,6 +438,8 @@ export default function WidgetSetupPage() {
               {scriptText}
             </pre>
           </div>
+            </>
+          )}
 
           {/* raw url (for Shortcuts / debugging) */}
           <div style={card}>
