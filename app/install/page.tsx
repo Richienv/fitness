@@ -60,6 +60,12 @@ export default function InstallPage() {
     setPlatform(detectPlatform());
     setOrigin(window.location.origin);
 
+    // Chrome usually fires beforeinstallprompt before React hydrates, so the
+    // event is normally already waiting for us — the layout stashes it. The
+    // listener below only covers the case where it fires late.
+    const stashed = (window as unknown as { __r2bip?: Event | null }).__r2bip;
+    if (stashed) setDeferred(stashed);
+
     // Android/desktop Chrome hands us the install prompt to fire later.
     const onPrompt = (e: Event) => {
       e.preventDefault();
