@@ -18,10 +18,10 @@ import { GOLDEN } from "./searchGolden.ts";
 
 // Measured on the commit that introduced this file. Raise, never lower.
 const FLOOR = {
-  mrr: 0.63,
-  ndcg: 0.52,
-  clean: 0.85,
-  top1: 0.47,
+  mrr: 0.77,
+  ndcg: 0.63,
+  clean: 0.90,
+  top1: 0.70,
 };
 
 const pool = buildPool();

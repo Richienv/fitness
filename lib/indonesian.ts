@@ -66,6 +66,48 @@ export function collapseReduplication(tokens: string[]): string[] {
 }
 
 /**
+ * Alternate SPELLINGS of one word — not different words.
+ *
+ * This is separated from the synonym table below because the two need opposite
+ * treatment, and conflating them is what makes "telor" return Kerak Telor.
+ *
+ * A spelling variant is the SAME term. "telor" and "telur" are one word with
+ * two orthographies, so they must share a document frequency and carry no
+ * penalty. Treated as separate index terms, the rarer spelling gets the higher
+ * IDF, and the six catalogue rows that happen to spell it "telor" outrank the
+ * row literally named "Telur" — the query's own word, spelled the common way,
+ * loses to a spelling accident.
+ *
+ * A synonym ("ayam" → "chicken") is a DIFFERENT word that happens to mean the
+ * same thing. That is a genuine loosening and should cost something.
+ *
+ * Membership rule: same referent AND same language. "singkong"/"ubi kayu" are
+ * two names, not two spellings, so they live below.
+ */
+const SPELLING: Record<string, string[]> = {
+  telur: ["telor"], telor: ["telur"], telorr: ["telur", "telor"],
+  cabe: ["cabai"], cabai: ["cabe"],
+  trasi: ["terasi"], terasi: ["trasi"],
+  tauge: ["toge", "taoge"], toge: ["tauge", "taoge"], taoge: ["tauge", "toge"],
+  bihun: ["bihoen"], bihoen: ["bihun"],
+  mi: ["mie"], mie: ["mi"],
+  kueh: ["kue"], kue: ["kueh"],
+  baso: ["bakso"], bakso: ["baso"],
+  soto: ["sroto"], sroto: ["soto"],
+  jengkol: ["jering"], jering: ["jengkol"],
+};
+
+/** Other spellings of the same word. No penalty; shares an IDF. */
+export function spellingVariants(token: string): string[] {
+  const out = new Set<string>(SPELLING[token] ?? []);
+  for (const v of affixVariants(token)) {
+    for (const w of SPELLING[v] ?? []) out.add(w);
+  }
+  out.delete(token);
+  return [...out];
+}
+
+/**
  * Spellings that are common enough to be worth naming.
  *
  * These are NOT typos — a typo is a slip, and edit distance already forgives
@@ -75,24 +117,15 @@ export function collapseReduplication(tokens: string[]): string[] {
  * "terasi"/"trasi" changes length, and a 4-letter word gets a budget of 1.
  */
 const VARIANTS: Record<string, string[]> = {
-  cabe: ["cabai"], cabai: ["cabe"],
   bawal: ["bawal"],
-  trasi: ["terasi"], terasi: ["trasi"],
   singkong: ["ubi kayu"], ketela: ["singkong"],
-  tauge: ["toge", "taoge"], toge: ["tauge"], taoge: ["tauge"],
-  bihun: ["bihoen"], mi: ["mie"],
-  kueh: ["kue"],
-  telor: ["telur"], telur: ["telor", "egg"], egg: ["telur"],
-  jengkol: ["jering"],
-  baso: ["bakso"],
-  soto: ["sroto"],
+  telur: ["egg"], telor: ["egg"], egg: ["telur"],
   es: ["ice"], ice: ["es"],
   ayam: ["chicken"], chicken: ["ayam"],
   ikan: ["fish"], fish: ["ikan"],
   sapi: ["beef"], beef: ["sapi"],
   udang: ["shrimp", "prawn"], shrimp: ["udang"], prawn: ["udang"],
   nasi: ["rice"], rice: ["nasi"],
-  telurr: ["telur"],
   goreng: ["fried"], fried: ["goreng"],
   bakar: ["grilled", "panggang"], grilled: ["bakar"], panggang: ["bakar"],
   rebus: ["boiled"], boiled: ["rebus"],
@@ -116,16 +149,16 @@ const VARIANTS: Record<string, string[]> = {
   mangga: ["mango"], mango: ["mangga"],
   alpukat: ["avocado"], avocado: ["alpukat"],
   kelapa: ["coconut"], coconut: ["kelapa"],
-  mie: ["mi", "noodle", "noodles"], noodle: ["mie"], noodles: ["mie"],
+  mie: ["noodle", "noodles"], mi: ["noodle", "noodles"], noodle: ["mie"], noodles: ["mie"],
   bubur: ["porridge", "congee"], porridge: ["bubur"], congee: ["bubur"],
   sate: ["satay"], satay: ["sate"],
-  bakso: ["baso", "meatball"], meatball: ["bakso"],
+  bakso: ["meatball"], baso: ["meatball"], meatball: ["bakso"],
   kambing: ["goat", "mutton"], goat: ["kambing"],
   bebek: ["duck"], duck: ["bebek"],
   babi: ["pork"], pork: ["babi"],
   cumi: ["squid", "calamari"], squid: ["cumi"],
   daging: ["meat"], meat: ["daging"],
-  kue: ["kueh", "cake"], cake: ["kue"],
+  kue: ["cake"], kueh: ["cake"], cake: ["kue"],
   air: ["water"], water: ["air"],
   kopi: ["coffee"], coffee: ["kopi"],
   teh: ["tea"], tea: ["teh"],

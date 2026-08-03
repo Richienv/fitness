@@ -15,7 +15,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { parseFoodCsv, type FoodRow } from "./foodCsv.ts";
 import { computePopularity, extractNameEn } from "./foodRanking.ts";
-import { INGREDIENTS } from "../lib/ingredients.ts";
+import { INGREDIENTS, STAPLE_POPULARITY } from "../lib/ingredients.ts";
 import type { SearchableFood } from "../lib/foodSearch.ts";
 
 /**
@@ -60,7 +60,7 @@ export function buildPool(): PoolFood[] {
     name: i.name,
     aliases: i.aliases,
     foodGroup: i.group,
-    popularity: 0,
+    popularity: STAPLE_POPULARITY,
     source: "ingredient" as const,
     unit: i.unit,
     favorite: i.favorite,
