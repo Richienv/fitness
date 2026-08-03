@@ -62,11 +62,25 @@ enum R2WidgetState {
     case unreachable
 }
 
+private func firstPositive(_ candidates: Int...) -> Int {
+    candidates.first(where: { $0 > 0 }) ?? 1
+}
+
 enum R2FitAPI {
+    // Every field is optional even though the endpoint always sends them: one
+    // missing key would otherwise blank the whole widget, and "0g sugar" is a
+    // far better failure than "Nggak ada koneksi" when the network was fine.
     private struct Envelope: Decodable {
-        struct Totals: Decodable { let kcal, protein, carbs, fat, sugar: Double }
-        struct Targets: Decodable { let kcal, protein: Double }
-        struct Payload: Decodable { let totals: Totals; let targets: Targets }
+        struct Totals: Decodable {
+            let kcal, protein, carbs, fat, sugar: Double?
+        }
+        struct Targets: Decodable {
+            let kcal, protein: Double?
+        }
+        struct Payload: Decodable {
+            let totals: Totals?
+            let targets: Targets?
+        }
         let ok: Bool
         let data: Payload?
     }
@@ -99,14 +113,18 @@ enum R2FitAPI {
             }
             let envelope = try JSONDecoder().decode(Envelope.self, from: data)
             guard envelope.ok, let d = envelope.data else { return .unreachable }
+            // Named to avoid shadowing Foundation's round(_:) in this scope.
+            let intOf = { (v: Double?) -> Int in Int((v ?? 0).rounded()) }
             return .ready(R2Today(
-                kcal: Int(d.totals.kcal.rounded()),
-                protein: Int(d.totals.protein.rounded()),
-                carbs: Int(d.totals.carbs.rounded()),
-                fat: Int(d.totals.fat.rounded()),
-                sugar: Int(d.totals.sugar.rounded()),
-                kcalTarget: Int(d.targets.kcal.rounded()),
-                proteinTarget: Int(d.targets.protein.rounded())
+                kcal: intOf(d.totals?.kcal),
+                protein: intOf(d.totals?.protein),
+                carbs: intOf(d.totals?.carbs),
+                fat: intOf(d.totals?.fat),
+                sugar: intOf(d.totals?.sugar),
+                // A zero target makes the bar and the ring meaningless, so fall
+                // back: server → what the app last pushed → the app's default.
+                kcalTarget: firstPositive(intOf(d.targets?.kcal), R2FitStore.kcalTarget, 2200),
+                proteinTarget: firstPositive(intOf(d.targets?.protein), R2FitStore.proteinTarget, 175)
             ))
         } catch {
             return .unreachable
