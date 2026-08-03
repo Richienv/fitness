@@ -103,6 +103,17 @@ export default async function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
           rel="stylesheet"
         />
+        {/* Chrome fires beforeinstallprompt as soon as it decides the site is
+            installable, which is usually BEFORE React hydrates — so a listener
+            added in an effect misses it and /install falls back to "open the ⋮
+            menu". Stash it here instead, before any of our JS runs, and let
+            the page pick it up whenever it mounts. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "window.__r2bip=null;addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__r2bip=e;});",
+          }}
+        />
       </head>
       <body>
         <Providers>

@@ -1,8 +1,10 @@
-// Precached by the service worker and served when a navigation fails. It has
-// to be self-contained: no data fetch, no client state, nothing that assumes a
-// network. The retry is a plain reload, which the SW will pass through to the
-// network first.
-"use client";
+// Precached by the service worker and served when a navigation fails.
+//
+// Deliberately NOT a client component. This page is the one page guaranteed to
+// render when things are broken, so it must not depend on hydration: offline,
+// the JS chunks it would need may not be in the cache at all. Everything here
+// is inline-styled markup plus a plain <a> — no React on the client, no
+// handlers that silently do nothing.
 
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
 const MONO = "var(--font-dm-mono), 'JetBrains Mono', monospace";
@@ -63,10 +65,12 @@ export default function OfflinePage() {
           R2·FIT butuh internet buat sinkronin data kamu. Cek Wi-Fi atau data
           seluler, terus coba lagi.
         </p>
-        <button
-          type="button"
-          onClick={() => window.location.reload()}
+        {/* A link, not a button: navigating re-enters the service worker's
+            network-first path, and it works with zero JavaScript. */}
+        <a
+          href="/"
           style={{
+            display: "inline-block",
             marginTop: 20,
             padding: "12px 22px",
             borderRadius: 12,
@@ -74,13 +78,13 @@ export default function OfflinePage() {
             fontWeight: 800,
             fontSize: 13,
             color: "#fff",
-            cursor: "pointer",
+            textDecoration: "none",
             background: "linear-gradient(180deg,#ff8a52,#ee3c30 55%,#c01f12)",
             border: "1px solid rgba(255,150,120,.6)",
           }}
         >
           COBA LAGI
-        </button>
+        </a>
         <div
           style={{
             fontFamily: MONO,

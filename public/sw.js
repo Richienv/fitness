@@ -65,6 +65,23 @@ function isImmutableAsset(url) {
   return url.hostname === "fonts.gstatic.com" || url.hostname === "fonts.googleapis.com";
 }
 
+// Every deploy mints a fresh set of content-hashed chunk URLs, and the old ones
+// are never requested again — so without a cap this cache only ever grows. That
+// matters more than the disk it wastes: when a site hits its storage quota the
+// browser evicts the WHOLE origin, and this app keeps meals, daily flags, and
+// the food catalogue in localStorage. Losing that to stale JS would be absurd.
+//
+// Rough LRU: keys() returns insertion order, so dropping from the front sheds
+// the oldest deploys' chunks first.
+const STATIC_MAX_ENTRIES = 150;
+
+async function trimStaticCache(cache) {
+  const keys = await cache.keys();
+  const excess = keys.length - STATIC_MAX_ENTRIES;
+  if (excess <= 0) return;
+  for (let i = 0; i < excess; i++) await cache.delete(keys[i]);
+}
+
 async function cacheFirst(request) {
   const cached = await caches.match(request);
   if (cached) return cached;
@@ -72,7 +89,10 @@ async function cacheFirst(request) {
   // Opaque (cross-origin font) responses have status 0 — still worth keeping.
   if (response && (response.ok || response.type === "opaque")) {
     const cache = await caches.open(STATIC_CACHE);
-    cache.put(request, response.clone());
+    // Not awaited: the page is waiting on this asset, and neither the write nor
+    // the trim should sit in front of it. The clone is taken synchronously, so
+    // returning `response` first is safe.
+    void cache.put(request, response.clone()).then(() => trimStaticCache(cache));
   }
   return response;
 }
