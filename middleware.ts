@@ -52,6 +52,10 @@ export default auth((req) => {
   // login page as the offline screen, so it stays open.
   if (pathname === "/offline") return NextResponse.next();
 
+  // /install is the link people forward to friends. Whoever opens it does not
+  // have an account yet, so gating it behind /login makes it a dead end.
+  if (pathname === "/install") return NextResponse.next();
+
   // ---- Page routes: gate by session ----
   const isLoggedIn = !!req.auth;
   const isAuthPage = pathname === "/login" || pathname === "/register";

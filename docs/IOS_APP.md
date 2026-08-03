@@ -1,221 +1,254 @@
-# R2·FIT di iPhone — dari repo ke TestFlight
+# R2·FIT di iPhone
 
-Semua yang bisa dikerjain di repo udah beres. Yang tersisa cuma langkah yang
-**wajib jalan di Mac** (Xcode, signing, upload) — itu nggak bisa dikerjain dari
-container Linux, jadi ini panduannya.
+Ada dua jalan. Yang pertama **gratis dan udah jalan sekarang** — itu yang
+dipakai. Yang kedua butuh bayar Apple $99/tahun, dan kodenya udah disiapin di
+repo buat kapan pun mau dipakai.
 
-Target rilis: **TestFlight internal testing**. Maksimal 100 orang, nggak lewat
-App Review, undangan via email. Build kedaluwarsa tiap **90 hari** — tinggal
-upload build baru.
+| | Gratis (PWA) | Bayar ($99/th) |
+|---|---|---|
+| Ikon di home screen | ✅ | ✅ |
+| Full screen, tanpa browser | ✅ | ✅ |
+| Temen bisa pasang sendiri | ✅ lewat link | ⚠️ maks 100 orang, diundang satu-satu |
+| Widget kalori di home screen | ✅ lewat Scriptable | ✅ bawaan |
+| Long-press ikon → shortcut | ❌ | ✅ |
+| Kedaluwarsa | ❌ nggak pernah | ⚠️ tiap 90 hari, harus upload ulang |
+| Muncul di App Store | ❌ | ❌ (TestFlight ≠ App Store) |
+| Biaya | **Rp 0** | ~Rp 1,6jt/tahun |
 
----
-
-## 0. Bentuk aplikasinya
-
-Ini **bukan** rewrite. Aplikasinya tetap web app yang sekarang; yang ditambah:
-
-```
-iPhone
- ├── R2·FIT.app          ← WKWebView nunjuk ke https://r2-fit.vercel.app
- │     └── R2WidgetBridge  (Swift) → nulis token ke App Group
- └── R2FitWidget           ← WidgetKit, baca App Group, panggil /api/widget/today
-```
-
-Konsekuensi yang perlu kamu tau:
-
-- **Deploy ke Vercel = update ke semua HP.** Nggak perlu upload build baru buat
-  ganti UI, nambah makanan, apa pun. Build baru cuma perlu kalau kode Swift-nya
-  berubah atau build-nya expired.
-- **Butuh internet.** Ada halaman offline, tapi datanya di server.
-- Kalau nanti mau masuk App Store beneran (bukan TestFlight), Apple bakal
-  nilai ini di bawah **Guideline 4.2 (Minimum Functionality)**. Widget, quick
-  action, dan haptics native itu yang bikin lolos. Buat TestFlight internal
-  nggak ada review sama sekali.
+Perhatiin baris terakhir sebelum biaya: **TestFlight juga nggak bikin app-nya
+muncul di App Store.** Jadi yang kamu "beli" dengan $99 itu cuma widget bawaan
+dan quick action. Sisanya udah kamu punya gratis.
 
 ---
 
-## 1. Yang dibutuhin
+# BAGIAN 1 — Cara gratis (dipakai sekarang)
+
+## Buat kamu dan temen-temen
+
+Kirim satu link:
+
+```
+https://r2-fit.vercel.app/install
+```
+
+Halaman itu ngedeteksi HP-nya sendiri dan nampilin langkah yang bener buat
+device itu doang. Di iPhone: **Share → Add to Home Screen → Add**. Tiga tap,
+selesai. Ikon R2·FIT nongol di home screen, kebuka full screen, nggak ada
+address bar Safari.
+
+Di dalam app, link-nya juga ada di **Settings → Pasang di home screen**, dan
+ada bar kecil yang muncul sendiri sekali buat orang yang belum pasang.
+
+### Yang perlu kamu tau (biar nggak dikira bug)
+
+- **Harus Safari.** Di iPhone cuma Safari yang bisa bikin app home screen
+  beneran. Chrome iOS cuma bikin bookmark. Halaman `/install` udah ngasih tau
+  ini otomatis kalau kebuka di Chrome.
+- **Login sekali lagi.** iOS misahin penyimpanan app home screen dari Safari,
+  jadi habis dipasang kamu perlu login lagi di dalam app-nya. Cuma sekali.
+- **Update otomatis.** Tiap deploy ke Vercel langsung kepakai di semua HP.
+  Nggak ada yang perlu install ulang apa pun, selamanya.
+- **Offline.** Ada layar offline yang bener (bukan dinosaurus Safari), tapi
+  datanya tetep di server — butuh internet buat nyatet.
+
+## Widget kalori (juga gratis)
+
+WidgetKit — widget "beneran" bawaan iOS — cuma bisa dari app native, jadi itu
+masuk Bagian 2. Tapi ada jalan gratis yang hasilnya sama-sama widget di home
+screen:
+
+1. Install **Scriptable** dari App Store (gratis).
+2. Di R2·FIT: **Settings → iPhone Widget** → **SALIN SCRIPT**.
+3. Buka Scriptable → **+** → hapus isinya → tempel → simpan (nama: `R2FIT`).
+4. Home screen → tahan → **+** → cari Scriptable → tambah widget kecil.
+5. Tahan widget itu → **Edit Widget** → **Script: R2FIT**.
+
+Hasilnya: kalori, sisa kalori, progress bar, dan makro hari ini di home screen.
+Tap widget-nya → langsung buka layar catat makan.
+
+Token-nya cuma buat akun kamu dan berlaku ±180 hari. **Jangan dibagiin** —
+siapa pun yang punya token itu bisa lihat ringkasan kalorimu.
+
+## Yang nggak bisa gratis
+
+- **Long-press ikon → quick action.** Manifest PWA punya `shortcuts` dan
+  Android nurut, tapi iOS nggak baca itu sama sekali.
+- **Widget bawaan** (tanpa Scriptable).
+- **Push notification.** iOS 16.4+ sebenernya udah support web push buat app
+  home screen — ini yang paling masuk akal ditambah nanti, dan tetep gratis.
+
+---
+
+# BAGIAN 2 — Cara bayar (kodenya udah siap, belum dipakai)
+
+Semua kode native-nya udah ada di repo. **Nggak perlu diapa-apain sekarang** —
+nggak ganggu apa pun, nggak nambah beban ke web app, dan nggak akan jalan
+sampai ada yang buka Xcode. Bagian ini catetan buat kamu-yang-nanti.
+
+## Yang dibutuhin
 
 | Item | Catatan |
 |---|---|
+| **Apple Developer Program** | **$99/tahun.** Nggak bisa dihindarin. |
 | Mac + Xcode 15+ | Xcode 16 ke atas lebih enak buat widget |
-| Apple Developer Program | **$99/tahun** — nggak bisa dihindarin, akun gratis nggak bisa TestFlight |
-| CocoaPods | `sudo gem install cocoapods` atau `brew install cocoapods` |
-| Node 20+ | buat `npx cap` |
+| CocoaPods | `brew install cocoapods` |
 
-Bundle ID yang dipakai di repo: `com.richienv.r2fit`
-App Group: `group.com.richienv.r2fit`
+**Akun Apple gratis nggak cukup**, dan bukan cuma karena TestFlight. Free
+provisioning nggak ngasih **App Groups** — dan App Group itu satu-satunya cara
+widget baca data dari app. Jadi tanpa bayar, widget native-nya nggak bakal
+jalan sama sekali. Ditambah app-nya expired tiap **7 hari** dan tiap HP harus
+dicolok ke Mac. Buat dibagi ke temen: nggak mungkin.
 
-Kalau mau ganti, ganti di **empat** tempat sekaligus:
-`capacitor.config.ts`, `ios/App/App/App.entitlements`,
-`ios/App/R2FitWidget/R2FitWidget.entitlements`, dan konstanta `appGroup` di
-`ios/App/App/R2WidgetBridge.swift` + `ios/App/R2FitWidget/R2FitStore.swift`.
+## Bentuknya
 
----
-
-## 2. Siapin project (Mac, terminal)
-
-```bash
-git clone <repo> && cd fitness
-npm install
-npx cap sync ios      # copy web fallback + jalanin pod install
-npx cap open ios      # buka ios/App/App.xcworkspace di Xcode
+```
+iPhone
+ ├── R2·FIT.app          WKWebView → https://r2-fit.vercel.app
+ │     └── R2WidgetBridge  (Swift) nulis token ke App Group
+ └── R2FitWidget           WidgetKit, baca App Group, panggil /api/widget/today
 ```
 
-`npx cap sync ios` **harus** jalan di Mac minimal sekali — itu yang bikin
-`ios/App/Pods` dan `App.xcworkspace` beneran kepakai. Selalu buka
+Ini **bukan** rewrite — web app yang sekarang dibungkus. Konsekuensinya sama
+kayak PWA: deploy ke Vercel = update ke semua HP. Build baru cuma perlu kalau
+kode Swift berubah atau kena expiry 90 hari.
+
+Bundle ID: `com.richienv.r2fit` · App Group: `group.com.richienv.r2fit`
+
+Kalau mau ganti, ganti di **lima** tempat: `capacitor.config.ts`,
+`ios/App/App/App.entitlements`, `ios/App/R2FitWidget/R2FitWidget.entitlements`,
+dan konstanta `appGroup` di `R2WidgetBridge.swift` + `R2FitStore.swift`.
+
+## Langkah-langkahnya
+
+### 1. Siapin project
+
+```bash
+npm install
+npx cap sync ios      # copy fallback + pod install
+npx cap open ios      # buka App.xcworkspace
+```
+
+`npx cap sync ios` harus jalan di Mac minimal sekali. Selalu buka
 `.xcworkspace`, jangan `.xcodeproj`.
 
----
+### 2. Signing app utama
 
-## 3. Signing app utama (Xcode)
+Target **App** → **Signing & Capabilities**:
+- Centang **Automatically manage signing**, pilih Team
+- Bundle ID: `com.richienv.r2fit`
+- **+ Capability → App Groups** → `group.com.richienv.r2fit`
 
-1. Pilih target **App** → tab **Signing & Capabilities**.
-2. Centang **Automatically manage signing**, pilih **Team** kamu.
-3. Bundle Identifier: `com.richienv.r2fit`.
-4. Klik **+ Capability** → **App Groups** → centang / tambahin
-   `group.com.richienv.r2fit`.
+Langkah terakhir bukan formalitas: file `App.entitlements` udah ada dan udah
+ke-link ke target, tapi grup-nya tetep harus **di-register ke akun developer**
+lewat UI ini.
 
-Langkah 4 penting: bukan cuma nulis entitlement, tapi juga **daftarin App Group
-itu ke akun developer kamu**. File `App.entitlements` udah ada di repo dan udah
-ke-link ke target, tapi grup-nya tetep harus di-register lewat UI ini.
+Coba **Run** ke iPhone. Kalau kebuka dan nampilin R2·FIT — shell-nya beres.
 
-Coba **Run** ke iPhone kamu sekarang. Kalau aplikasi kebuka dan nampilin R2·FIT
-seperti di browser — shell-nya udah beres.
-
----
-
-## 4. Bikin target widget (Xcode)
+### 3. Bikin target widget
 
 Source Swift-nya udah ditulis dan ada di `ios/App/R2FitWidget/`. Yang belum:
-target-nya sendiri. Target extension itu punya build phase, embed phase, dan
-entitlement sendiri — bikin itu lewat wizard Xcode jauh lebih aman daripada
-nyunting `project.pbxproj` dari luar, makanya sengaja nggak digenerate.
+target-nya. Target extension punya build phase, embed phase, dan entitlement
+sendiri — bikin lewat wizard Xcode jauh lebih aman daripada nyunting
+`project.pbxproj` dari luar, makanya sengaja nggak digenerate.
 
-1. **File → New → Target… → Widget Extension**.
-2. Product Name: **`R2FitWidget`** (persis, biar folder-nya nyambung).
+1. **File → New → Target… → Widget Extension**
+2. Product Name: **`R2FitWidget`** (persis)
    - **Uncheck** "Include Live Activity"
-   - **Uncheck** "Include Configuration App Intent" (widget-nya static)
-3. Xcode nanya "Activate scheme?" → **Activate**.
-4. Xcode bikin file template (`R2FitWidget.swift`, `R2FitWidgetBundle.swift`,
-   dll) di folder baru. **Hapus semua file .swift template itu**
-   (Move to Trash).
+   - **Uncheck** "Include Configuration App Intent"
+3. "Activate scheme?" → **Activate**
+4. **Hapus semua file .swift template** yang dibikin Xcode (Move to Trash) —
+   kalau nggak, bakal ada dua `@main` dan gagal compile
 5. Klik kanan grup `R2FitWidget` → **Add Files to "App"…** → pilih
-   `ios/App/R2FitWidget/R2FitWidget.swift` dan `R2FitStore.swift` →
-   pastikan **Target membership: R2FitWidget** dicentang (dan App **tidak**).
-6. Target **R2FitWidget** → **Signing & Capabilities**:
-   - Team yang sama
-   - Bundle ID: `com.richienv.r2fit.R2FitWidget`
-   - **+ Capability → App Groups** → centang `group.com.richienv.r2fit`
-7. Target **R2FitWidget** → **Build Settings**:
-   - `iOS Deployment Target` = **17.0**
-     (`.contentMarginsDisabled()` butuh iOS 17)
+   `R2FitWidget.swift` dan `R2FitStore.swift` dari `ios/App/R2FitWidget/` →
+   **Target membership: R2FitWidget** dicentang, **App** nggak
+6. **Signing & Capabilities**: Team sama, Bundle ID
+   `com.richienv.r2fit.R2FitWidget`, **+ Capability → App Groups** →
+   `group.com.richienv.r2fit`
+7. **Build Settings**:
+   - `iOS Deployment Target` = **17.0** (`.contentMarginsDisabled()` butuh 17)
    - `Info.plist File` = `R2FitWidget/Info.plist`
-     (kalau Xcode udah nunjuk ke Info.plist buatannya sendiri, arahin ke yang
-     di repo — yang itu `CFBundleDisplayName`-nya udah "R2·FIT")
+   - kalau error `Multiple commands produce Info.plist`:
+     `GENERATE_INFOPLIST_FILE = NO`
 
-Kalau ada error `Multiple commands produce Info.plist`, set
-`GENERATE_INFOPLIST_FILE = NO` di target widget.
+### 4. Tes widget-nya
 
----
+Run ke iPhone beneran (bukan Simulator). Login. Keluar ke home screen → tahan
+→ **+** → cari **R2·FIT** → tambah widget kecil.
 
-## 5. Coba widget-nya
+- **"Belum tersambung"** → token belum nyampe App Group. Berarti App Group-nya
+  beda antara dua target, atau belum di-register. Buka app →
+  **Settings → iPhone Widget → SAMBUNGKAN ULANG**.
+- **"Nggak ada koneksi"** → endpoint nggak kejangkau. Tes:
+  `curl "https://r2-fit.vercel.app/api/widget/today?token=<token>"`
+  (token-nya ada di kartu "URL DATA" di halaman iPhone Widget).
 
-1. Run ke iPhone beneran (widget nggak jalan bener di Simulator kalau
-   networknya perlu).
-2. Login di app.
-3. Keluar ke home screen → tahan → **+** → cari **R2·FIT** → tambah widget
-   kecil.
-
-Widget harus langsung nampilin kalori hari ini.
-
-**Kalau tulisannya "Belum tersambung":** token belum nyampe App Group. Berarti
-App Group belum sama persis di dua target, atau salah satu belum di-register.
-Buka app → **Settings → iPhone Widget → SAMBUNGKAN ULANG**, terus cek lagi.
-
-**Kalau "Nggak ada koneksi":** endpoint-nya nggak kejangkau. Tes manual:
-
-```bash
-curl "https://r2-fit.vercel.app/api/widget/today?token=<token>"
-```
-
-Token-nya bisa diambil dari kartu "URL DATA" di halaman
-**Settings → iPhone Widget**.
-
-### Kapan widget-nya update
-
-iOS yang nentuin, bukan kita. Timeline minta refresh tiap 15 menit dan iOS
-sering ngasih lebih jarang. Yang bikin langsung update adalah
+**Kapan widget update:** iOS yang nentuin. Timeline minta tiap 15 menit dan iOS
+sering ngasih lebih jarang. Yang bikin langsung update itu
 `reloadAllTimelines()` yang dipanggil tiap app nge-push token — dan app
-nge-push token **tiap kali kamu keluar dari app**. Jadi alur normalnya:
-catat makan → balik ke home screen → angkanya udah baru.
+nge-push **tiap kali kamu keluar dari app**. Jadi: catat makan → balik ke home
+screen → angkanya udah baru.
 
----
+### 5. TestFlight
 
-## 6. Upload ke TestFlight
+1. **App Store Connect** → My Apps → **+** → New App, Bundle ID
+   `com.richienv.r2fit`
+2. Xcode: device **Any iOS Device (arm64)** → **Product → Archive**
+3. Organizer → **Distribute App → TestFlight (Internal Only)** → Upload
+4. Tunggu ±10 menit processing
+5. App Store Connect → **TestFlight → Internal Testing** → bikin grup →
+   tambah tester lewat email
 
-1. **App Store Connect** → My Apps → **+** → New App
-   - Platform iOS, Bundle ID `com.richienv.r2fit`
-   - SKU bebas, mis. `r2fit`
-2. Di Xcode: pilih device **Any iOS Device (arm64)**
-3. **Product → Archive**
-4. Di Organizer: **Distribute App → TestFlight (Internal Only)** → Upload
-5. Tunggu ±10 menit sampai "Processing" selesai
-6. App Store Connect → app kamu → **TestFlight** → **Internal Testing** →
-   bikin grup → **+** tambah tester lewat email
+Tester install **TestFlight** dari App Store, buka undangan, tap Install.
 
-Tester install **TestFlight** dari App Store, buka undangan di email, tap
-Install. Kelar.
+Buat build berikutnya: naikin `CURRENT_PROJECT_VERSION` di **dua** target
+(App dan R2FitWidget, harus sama), archive, upload. Internal testing nggak
+lewat App Review sama sekali.
 
-### Buat build berikutnya
+## Kalau nanti mau monetize
 
-Naikin `CURRENT_PROJECT_VERSION` (build number) di target App **dan**
-R2FitWidget — dua-duanya harus sama. Archive lagi, upload lagi.
-`MARKETING_VERSION` cuma perlu naik kalau mau nandain rilis baru.
+Belum ada apa pun soal ini di kode — sengaja.
 
-**Internal testing nggak lewat App Review sama sekali.** Yang ada cuma
-proses otomatis ±10 menit.
-
----
-
-## 7. Kalau nanti mau monetize
-
-Belum ada apa pun soal ini di kode — memang sengaja, kamu bilang gratis dulu.
-Waktu nanti mau:
-
-- **Langganan / one-time purchase**: butuh StoreKit 2 + produk di App Store
-  Connect + server-side receipt validation. Apple ambil 15% (di bawah $1jt/tahun).
-  Ini yang **wajib** dipakai kalau yang dijual adalah fitur di dalam app.
-- **Bayar di luar app** (mis. transfer, langganan lewat web): boleh, tapi app
-  **nggak boleh** nunjuk ke situ (Guideline 3.1.3). Aturannya lagi berubah-ubah
-  di beberapa negara — cek lagi pas waktunya.
-- Begitu ada pembayaran, app-nya **harus** lewat App Review beneran, dan
-  Guideline 4.2 jadi relevan. Widget + quick action yang udah ada sekarang itu
-  modal buat argumen "ini bukan sekadar bungkus website".
+- **Langganan / IAP**: StoreKit 2 + produk di App Store Connect + validasi
+  receipt. Apple ambil 15% (di bawah $1jt/tahun). Wajib pakai ini kalau yang
+  dijual fitur di dalam app.
+- **Bayar di luar app**: boleh, tapi app **nggak boleh** nunjuk ke situ
+  (Guideline 3.1.3). Aturannya lagi berubah-ubah — cek lagi pas waktunya.
+- Begitu ada pembayaran, app-nya **wajib** lewat App Review beneran, dan
+  **Guideline 4.2 (Minimum Functionality)** jadi relevan: Apple nolak app yang
+  cuma bungkus website. Widget + quick action yang udah ada itu modal buat
+  argumen sebaliknya.
 
 ---
 
 ## Peta file
 
-| File | Isinya |
-|---|---|
-| `capacitor.config.ts` | app id, nama, URL server |
-| `native/www/index.html` | layar fallback kalau server nggak kejangkau pas launch |
-| `ios/App/App/AppDelegate.swift` | quick action + deep link `r2fit://` |
-| `ios/App/App/R2WidgetBridge.swift` | plugin Capacitor → App Group |
-| `ios/App/R2FitWidget/R2FitStore.swift` | baca App Group, panggil API |
-| `ios/App/R2FitWidget/R2FitWidget.swift` | tampilan widget (SwiftUI) |
-| `lib/native.ts` | sisi web dari bridge (nggak import @capacitor/*) |
-| `app/NativeBridge.tsx` | push token pas launch & pas app ditutup |
-| `app/manifest.ts` | manifest PWA (buat Add to Home Screen di browser) |
-| `public/sw.js` | service worker: aset offline + halaman offline |
+| File | Isinya | Kepakai kapan |
+|---|---|---|
+| `app/install/page.tsx` | halaman `/install` yang dikirim ke temen | **sekarang** |
+| `app/InstallPrompt.tsx` | bar nudge di dalam app | **sekarang** |
+| `lib/install.ts` | deteksi platform + memori dismiss | **sekarang** |
+| `app/manifest.ts` | manifest PWA | **sekarang** |
+| `public/sw.js` | service worker: aset offline + halaman offline | **sekarang** |
+| `app/widget/page.tsx` | setup widget Scriptable | **sekarang** |
+| `capacitor.config.ts` | app id, nama, URL server | Bagian 2 |
+| `native/www/index.html` | layar fallback shell | Bagian 2 |
+| `ios/App/App/AppDelegate.swift` | quick action + deep link `r2fit://` | Bagian 2 |
+| `ios/App/App/R2WidgetBridge.swift` | plugin Capacitor → App Group | Bagian 2 |
+| `ios/App/R2FitWidget/*.swift` | widget WidgetKit | Bagian 2 |
+| `lib/native.ts` | sisi web dari bridge (no-op di browser) | Bagian 2 |
+| `app/NativeBridge.tsx` | push token pas launch & pas app ditutup | Bagian 2 |
 
-## Yang di-skip, dan kenapa
+Semua yang "Bagian 2" itu **mati total** di browser: `lib/native.ts` nggak
+import `@capacitor/*` sama sekali, dia cuma baca global `window.Capacitor` yang
+cuma ada di dalam shell. Bundle web-nya nggak berubah seiota.
 
-- **Push notification** — butuh APNs key, entitlement, dan UI izin. Nggak ada
-  di scope ini. Kalau nanti mau reminder "belum catat makan malam", ini
-  langkah berikutnya yang paling masuk akal.
-- **HealthKit** — bisa nulis kalori/berat ke Apple Health. Nambah nilai buat
+## Yang di-skip
+
+- **Push notification** — butuh APNs key + UI izin. Buat PWA iOS 16.4+
+  sebenernya bisa gratis via Web Push; ini kandidat paling kuat berikutnya
+  (mis. reminder "belum catat makan malam").
+- **HealthKit** — nulis kalori/berat ke Apple Health. Nambah nilai buat
   Guideline 4.2 kalau nanti masuk App Store beneran.
-- **Android** — `npx cap add android` jalan dengan config yang sama. Widget-nya
-  harus ditulis ulang (Glance/RemoteViews), tapi shell-nya gratis.
+- **Android** — `npx cap add android` jalan dengan config yang sama. Tapi PWA
+  di Android udah bagus banget (`beforeinstallprompt` bikin install satu tap),
+  jadi kemungkinan besar nggak perlu.

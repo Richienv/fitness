@@ -8,6 +8,7 @@ import Providers from "./Providers";
 import UserScopeInit from "./UserScopeInit";
 import PWA from "./PWA";
 import NativeBridge from "./NativeBridge";
+import InstallPrompt from "./InstallPrompt";
 import { ActiveDateProvider } from "@/lib/activeDate";
 import { auth } from "@/auth";
 
@@ -114,6 +115,7 @@ export default async function RootLayout({
             <ServerSync userId={userId} />
             <div className="app-root">{children}</div>
             <BottomNav />
+            <InstallPrompt userId={userId} />
             <ToastStack />
           </ActiveDateProvider>
         </Providers>
