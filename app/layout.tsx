@@ -6,6 +6,9 @@ import ServerSync from "./ServerSync";
 import ToastStack from "./Toast";
 import Providers from "./Providers";
 import UserScopeInit from "./UserScopeInit";
+import PWA from "./PWA";
+import NativeBridge from "./NativeBridge";
+import InstallPrompt from "./InstallPrompt";
 import { ActiveDateProvider } from "@/lib/activeDate";
 import { auth } from "@/auth";
 
@@ -33,11 +36,15 @@ export const metadata: Metadata = {
   title: "R2·FIT — Track",
   description: "75 days before meet-up.",
   applicationName: "R2·FIT",
+  manifest: "/manifest.webmanifest",
   appleWebApp: {
     title: "R2·FIT",
     capable: true,
     statusBarStyle: "black-translucent",
   },
+  // Stops iOS from turning "2200 kkal" or a date into a blue phone-number link
+  // once the app is running full-screen from the home screen.
+  formatDetection: { telephone: false, date: false, address: false, email: false },
   openGraph: {
     type: "website",
     url: SITE_URL,
@@ -67,6 +74,11 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   themeColor: "#070608",
+  // Required for `env(safe-area-inset-*)` to report anything but 0 — the app
+  // already has 55 of those, and without cover they were all no-ops. It also
+  // pairs with statusBarStyle: "black-translucent": the status bar draws over
+  // the page, so the top inset is what keeps the header clear of the notch.
+  viewportFit: "cover",
   // Lets `100dvh` shrink while the on-screen keyboard is open so bottom-sheet
   // modals (custom food, custom workout) stay reachable instead of being
   // pushed behind the keyboard.
@@ -96,11 +108,14 @@ export default async function RootLayout({
         <Providers>
           {/* Sets the per-user localStorage scope before ServerSync / pages read. */}
           <UserScopeInit userId={userId} />
+          <PWA />
+          <NativeBridge userId={userId} />
           <ActiveDateProvider>
             {/* userId is a DEPENDENCY, not decoration — see ServerSync. */}
             <ServerSync userId={userId} />
             <div className="app-root">{children}</div>
             <BottomNav />
+            <InstallPrompt userId={userId} />
             <ToastStack />
           </ActiveDateProvider>
         </Providers>

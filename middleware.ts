@@ -47,6 +47,15 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
+  // The service worker precaches /offline at install time and serves it when a
+  // navigation can't reach the network. Redirecting it to /login would cache a
+  // login page as the offline screen, so it stays open.
+  if (pathname === "/offline") return NextResponse.next();
+
+  // /install is the link people forward to friends. Whoever opens it does not
+  // have an account yet, so gating it behind /login makes it a dead end.
+  if (pathname === "/install") return NextResponse.next();
+
   // ---- Page routes: gate by session ----
   const isLoggedIn = !!req.auth;
   const isAuthPage = pathname === "/login" || pathname === "/register";
@@ -63,6 +72,8 @@ export default auth((req) => {
 // Run on pages + /api, but skip Next internals and static asset files.
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icon.svg|manifest.webmanifest|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|txt|json)).*)",
+    // sw.js is listed by name: the extension list below stops at static image
+    // types, and a service worker that 302s to /login never installs.
+    "/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon.png|sw.js|manifest.webmanifest|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|txt|json)).*)",
   ],
 };

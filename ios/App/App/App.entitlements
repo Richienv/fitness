@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Shared container between the app and the widget extension. The same
+	     group must be listed on R2FitWidget.entitlements, registered on the
+	     Apple Developer account, and match R2WidgetBridge.appGroup. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.richienv.r2fit</string>
+	</array>
+</dict>
+</plist>

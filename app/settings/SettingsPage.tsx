@@ -294,7 +294,19 @@ export default function SettingsPage() {
         )}
 
         <section className="settings-section">
-          <div className="settings-section-label mono">// WIDGET</div>
+          <div className="settings-section-label mono">// APP</div>
+          {/* Findable after the install nudge has been dismissed, and the
+              thing to open when sending the link to someone. */}
+          <Link
+            href="/install"
+            className="settings-row"
+            style={{ textDecoration: "none", cursor: "pointer" }}
+          >
+            <div className="settings-row-label">Pasang di home screen</div>
+            <span className="settings-chip mono" style={CHIP_INACTIVE}>
+              CARANYA →
+            </span>
+          </Link>
           <Link
             href="/widget"
             className="settings-row"

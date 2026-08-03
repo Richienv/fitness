@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "node scripts/check-server-imports.mjs && npx tsx scripts/validate-pack.ts data/*.csv && prisma generate && (prisma db push --skip-generate || echo 'db push skipped \u2014 run npm run db:push manually') && (npx tsx scripts/seed-foods.ts || echo 'food seed skipped') && next build",
+    "build": "node scripts/check-server-imports.mjs && npx tsx scripts/validate-pack.ts data/*.csv && prisma generate && (prisma db push --skip-generate || echo 'db push skipped — run npm run db:push manually') && (npx tsx scripts/seed-foods.ts || echo 'food seed skipped') && next build",
     "start": "next start",
     "lint": "next lint",
     "test": "node --experimental-strip-types --test lib/*.test.ts lib/suggest/*.test.ts",
@@ -17,6 +17,12 @@
     "db:push": "prisma db push"
   },
   "dependencies": {
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/core": "^7.6.8",
+    "@capacitor/haptics": "^7.0.5",
+    "@capacitor/ios": "^7.6.8",
+    "@capacitor/splash-screen": "^7.0.5",
+    "@capacitor/status-bar": "^7.0.6",
     "@prisma/client": "^6.0.0",
     "@types/bcryptjs": "^2.4.6",
     "@vercel/blob": "^2.6.1",
@@ -28,6 +34,7 @@
     "recharts": "^2.15.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.6.8",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

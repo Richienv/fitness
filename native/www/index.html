@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>R2·FIT</title>
+    <style>
+      /* Capacitor requires a webDir even when server.url is set. This bundle is
+         what WKWebView falls back to when the deployment can't be reached at
+         launch — without it the user gets a white screen and a WebKit error. */
+      html, body { margin: 0; height: 100%; }
+      body {
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        text-align: center;
+        color: #f1ede9;
+        background: radial-gradient(720px 520px at 50% -10%, #17100f, #0a0809 55%, #070608);
+        font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      .mark {
+        width: 56px; height: 56px; margin: 0 auto 18px;
+        border-radius: 18px; display: grid; place-items: center;
+        font-weight: 800; font-size: 20px;
+        background: linear-gradient(180deg, #241614, #0d0a0b);
+        border: 1px solid rgba(255,255,255,.08);
+      }
+      h1 { font-size: 22px; font-weight: 800; letter-spacing: -.02em; margin: 0; }
+      p { font-size: 13.5px; line-height: 1.55; color: #a9a29c; margin: 10px 0 0; max-width: 300px; }
+      button {
+        margin-top: 20px; padding: 12px 22px; border-radius: 12px;
+        font-weight: 800; font-size: 13px; color: #fff;
+        background: linear-gradient(180deg, #ff8a52, #ee3c30 55%, #c01f12);
+        border: 1px solid rgba(255,150,120,.6);
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <div class="mark">R2</div>
+      <h1>Nggak ada koneksi</h1>
+      <p>R2·FIT butuh internet buat sinkronin data kamu. Cek Wi-Fi atau data seluler, terus buka lagi.</p>
+      <button type="button" onclick="location.reload()">COBA LAGI</button>
+    </div>
+  </body>
+</html>
