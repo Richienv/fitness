@@ -26,9 +26,9 @@ import { buildDictionary, parseDish } from "@/lib/dishParse";
 import {
   recordFoodPick,
   getFoodPicks,
-  getPickRank,
   type FoodPick,
 } from "@/lib/foodPicks";
+import { affinityScorer, migrateFromPicks, recordAffinity } from "@/lib/foodAffinity";
 import {
   getFoodGroups,
   addFoodToGroup,
@@ -851,7 +851,11 @@ export default function FoodBuilder({
         gramsPerUnit: ing.gramsPerUnit,
         step: ing.step,
       });
-      setPicks(getFoodPicks());
+      // Same event, richer store: decayed counters + meal slot + what else is
+      // on the tray. recordFoodPick stays for the "usual" shortlist UI.
+      recordAffinity(ing.id, platedIds);
+      recordAffinity(ing.id, platedIds);
+    setPicks(getFoodPicks());
     }
     setQuery("");
     setAddedFlash((f) => ({ name: ing?.name ?? "Makanan", tick: (f?.tick ?? 0) + 1 }));
@@ -907,6 +911,7 @@ export default function FoodBuilder({
       gramsPerUnit: ing.gramsPerUnit,
       step: ing.step,
     });
+    recordAffinity(ing.id, platedIds);
     setPicks(getFoodPicks());
     setSheet(null);
     setQuery("");
@@ -1314,6 +1319,19 @@ export default function FoodBuilder({
   // late, not the thing the list waits on. It also means search still works
   // with no signal, and the ranking rules live in lib/foodSearch where they're
   // readable and tested rather than inside a SQL score expression.
+  // How much this user eats each food, 0..1. Rebuilt when the query settles
+  // rather than per keystroke — it reads localStorage, and the answer does not
+  // change between two letters.
+  // What is already on the tray, which is what makes "nasi goreng usually
+  // comes with telur" learnable and usable.
+  const platedIds = useMemo(() => Object.keys(selection), [selection]);
+  const affinity = useMemo(() => {
+    // One-time upgrade of the legacy {count,last} picks store, so an existing
+    // user's six months of history is not thrown away.
+    migrateFromPicks(getFoodPicks());
+    return affinityScorer({ plate: platedIds });
+  }, [platedIds]);
+
   const searchPool = useMemo(
     () => prepareSearch(merged.concat(allFoods ?? [])),
     // Re-prepared only when the underlying lists change, never per keystroke.
@@ -1338,41 +1356,33 @@ export default function FoodBuilder({
   const RANK_LIMIT = 400;
   const SHOW_LIMIT = 60;
   const searchFlatRaw: BuilderFood[] = q
-    ? searchPrepared(searchPool, q, { limit: RANK_LIMIT })
+    ? searchPrepared(searchPool, q, { limit: RANK_LIMIT, affinity: affinity })
         .map((r) => r.food)
         .concat(
-          searchPrepared(prepareSearch(dbResults), q, { limit: 30 }).map((r) => r.food)
+          searchPrepared(prepareSearch(dbResults), q, { limit: 30, affinity }).map((r) => r.food)
         )
     : [];
   const searchFlat: BuilderFood[] = (() => {
     if (!q) return searchFlatRaw;
-    // YOUR list first, then everything else.
+    // De-dupe only. What used to live here was a HARD PARTITION — every food
+    // the user had ever picked, concatenated above every food they hadn't,
+    // regardless of relevance. It was the only way to make a signal worth 0.3
+    // points visible against a BM25 total near 3.9, and it bought that
+    // visibility by making relevance irrelevant: a food tapped once months ago
+    // outranked an exact name match, and "Telur balado is still showing even
+    // though the user never picked it" was the direct consequence.
     //
-    // Remembered picks already floated. Favourites — the USUAL KAMU shortlist —
-    // did not, and a 4500-row catalogue buries them: searching "telur" returned
-    // six rows literally named Telur and never reached "Whole egg", the entry
-    // with the "1 egg" unit that a user actually taps. Pure relevance is right
-    // about those six and useless to the person asking.
-    //
-    // Favourites rank AFTER real picks: something you have logged beats
-    // something merely on the default shortlist.
-    const rank = new Map(getPickRank());
-    const base = rank.size;
-    (INGREDIENTS as BuilderFood[]).forEach((f, i) => {
-      if (f.favorite && !rank.has(f.id)) rank.set(f.id, base + i);
-    });
-    // Stable partition: picked matches first (by staple rank), then the rest,
-    // de-duped by id so a food doesn't appear twice.
+    // Behaviour is a scored FEATURE now (lib/foodAffinity), applied inside the
+    // ranker and capped at +40%, with an exact-name lock above it. Ordering
+    // here would fight that.
     const seen = new Set<string>();
-    const picked: BuilderFood[] = [];
-    const rest: BuilderFood[] = [];
+    const out: BuilderFood[] = [];
     for (const f of searchFlatRaw) {
       if (seen.has(f.id)) continue;
       seen.add(f.id);
-      (rank.has(f.id) ? picked : rest).push(f);
+      out.push(f);
     }
-    picked.sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
-    return picked.concat(rest).slice(0, SHOW_LIMIT);
+    return out.slice(0, SHOW_LIMIT);
   })();
   // ── RACIK: read a typed plate as its parts ────────────────────────────
   //

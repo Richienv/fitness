@@ -190,7 +190,7 @@ function tierToTf(tier: number): number {
   return 0;
 }
 
-export type Scored<T> = { food: T; score: number };
+export type Scored<T> = { food: T; score: number; exact?: boolean };
 
 type Doc<T> = {
   food: T;
@@ -203,6 +203,10 @@ type Doc<T> = {
   words: Record<string, string[]>;
   popularity: number;
   nameLen: number;
+  /** Each alias as a WHOLE name, for the exact-name lock. The aliases field is
+   *  space-separated, so substring-matching it would make "telur" an exact
+   *  match for anything listing "telur ayam". */
+  aliasSet: Set<string>;
 };
 
 /** Opaque to callers: the normalized docs plus the BM25 statistics over them. */
@@ -241,6 +245,12 @@ export function prepare<T extends SearchableFood>(foods: readonly T[]): Prepared
       },
       popularity: f.popularity ?? 0,
       nameLen: name.length,
+      aliasSet: new Set(
+        (f.aliases ?? "")
+          .split(/[,;|]/)
+          .map((a) => normalize(a))
+          .filter(Boolean)
+      ),
     };
   });
   const index = buildIndex(docs.map((d) => ({ fields: d.words })), FIELDS);
@@ -249,6 +259,19 @@ export function prepare<T extends SearchableFood>(foods: readonly T[]): Prepared
 
 export type SearchOptions = {
   limit?: number;
+  /**
+   * How much this user eats a given food, 0..1. Supplied by the caller rather
+   * than read here on purpose: this module is pure and runs in node tests and
+   * offline eval scripts, and localStorage has no business in a ranker.
+   *
+   * Applied as a CAPPED MULTIPLIER, never a partition. The version this
+   * replaces concatenated every previously-picked food above every other one,
+   * which cannot express "relevant but unfamiliar beats familiar but
+   * irrelevant" — the exact complaint it was meant to solve.
+   */
+  affinity?: (id: string) => number;
+  /** Ceiling on the affinity boost. 0.4 = a favourite gets at most +40%. */
+  affinityMax?: number;
   /** Expand each token into synonyms (English↔Indonesian). Any one matching
    *  satisfies that token. */
   aliases?: (token: string) => string[];
@@ -272,6 +295,10 @@ export function searchPrepared<T extends SearchableFood>(
   const tokens = tokenize(query);
   if (tokens.length === 0) return [];
   const limit = opts.limit ?? 60;
+  const aff = opts.affinity;
+  const affMax = opts.affinityMax ?? 0.4;
+  // The whole query, normalized, for the exact-name lock below.
+  const queryText = tokens.join(" ");
   const { docs, index } = prepared;
 
   // Expansion and the per-field table are computed ONCE, not per document.
@@ -444,10 +471,35 @@ export function searchPrepared<T extends SearchableFood>(
     // additive and tiny — it is a genuine tiebreaker, not a signal.
     total -= Math.min(p.nameLen, 60) * 0.004;
 
-    out.push({ food: p.food, score: total });
+    // AFFINITY — capped, multiplicative, and only ever a bonus.
+    //
+    // Never a penalty: an unknown food scores 0 here and is simply not lifted.
+    // Punishing the unfamiliar would build a feedback loop where the only foods
+    // you can find are the ones you have already eaten.
+    if (aff) {
+      const a = aff(p.food.id);
+      if (a > 0) total *= 1 + affMax * (a > 1 ? 1 : a);
+    }
+
+    // EXACT NAME — a lock, not a score.
+    //
+    // The cap above is what stops a familiar food outranking a better match,
+    // but a cap alone cannot guarantee it: enough affinity on a near-tie still
+    // flips the order. When the user typed a food's WHOLE name, that is not a
+    // ranking signal to be weighed, it is an answer. So it sorts first and
+    // affinity decides the order only among equals.
+    const exact =
+      p.name === queryText || p.english === queryText || p.aliasSet.has(queryText);
+
+    out.push({ food: p.food, score: total, exact });
   }
 
-  out.sort((a, b) => b.score - a.score || a.food.name.localeCompare(b.food.name, "id"));
+  out.sort(
+    (a, b) =>
+      Number(b.exact) - Number(a.exact) ||
+      b.score - a.score ||
+      a.food.name.localeCompare(b.food.name, "id")
+  );
   return out.slice(0, limit);
 }
 
