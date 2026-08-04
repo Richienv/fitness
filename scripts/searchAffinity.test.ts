@@ -11,7 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { prepare, searchPrepared } from "../lib/foodSearch.ts";
-import { makeScorer, type AffinityStore } from "../lib/foodAffinity.ts";
+import { makeScorer, makeSuppressor, type AffinityStore } from "../lib/foodAffinity.ts";
 import { buildPool } from "./searchPool.ts";
 
 const DAY = 86_400_000;
@@ -161,4 +161,47 @@ test("meal slot shades the score without dominating it", () => {
   // W_SLOT is 0.18 of the affinity, which is itself capped at 0.4 — so slot is
   // worth at most ~7%. It must not be able to flip a real relevance gap.
   assert.ok(breakfast - dinner < 0.2, `slot swing too large: ${breakfast - dinner}`);
+});
+
+// ── suppression: "you keep showing me this and I keep saying no" ───────────
+
+test("a food shown many times and never taken is demoted", () => {
+  // Affinity can only LIFT what you eat; it says nothing about a food you have
+  // never touched. This is the only signal that separates "not met yet" from
+  // "not for me" — and it is the last piece of the reported complaint.
+  const store: AffinityStore = {
+    foods: { "stp-telur-goreng": { nf: 20, ns: 20, sl: [20, 0, 0, 0], last: NOW } },
+    pairs: {},
+    shown: { "telur-balado": 30, "stp-telur-goreng": 30, "bh-telur-rebus": 2 },
+  };
+  const supp = makeSuppressor(store);
+  assert.ok(supp("telur-balado") > 0.5, `shown 30x, never taken: ${supp("telur-balado")}`);
+  assert.equal(supp("bh-telur-rebus"), 0, "two impressions is noise, not a verdict");
+  // Netted against picks: a food you eat weekly is shown often BECAUSE you want
+  // it, and must never be suppressed for that.
+  assert.equal(supp("stp-telur-goreng"), 0, "a food you actually eat must not be suppressed");
+});
+
+test("suppression is bounded and never touches an exact-name match", () => {
+  const store: AffinityStore = { foods: {}, pairs: {}, shown: { "stp-telur": 500 } };
+  const supp = makeSuppressor(store);
+  assert.ok(supp("stp-telur") <= 1, "suppression must stay in range");
+  // Typing a food's whole name is not a request to be second-guessed.
+  const res = searchPrepared(prepared, "telur", { limit: 10, suppression: supp });
+  assert.equal(res[0].food.id, "stp-telur", "an exact name must survive any suppression");
+});
+
+test("suppression moves a result down, not out", () => {
+  const heavy: AffinityStore = { foods: {}, pairs: {}, shown: { "telur-balado": 100 } };
+  const before = rank("telur");
+  const after = rank("telur", undefined);
+  void after;
+  const withSupp = searchPrepared(prepared, "telur", {
+    limit: 400,
+    suppression: makeSuppressor(heavy),
+  }).map((r) => r.food.id);
+  const b = at(before, "telur-balado");
+  const a = at(withSupp, "telur-balado");
+  assert.ok(a >= b, `balado should not rise: ${b} → ${a}`);
+  assert.notEqual(a, Infinity, "suppression must demote, never remove — the food still exists");
 });

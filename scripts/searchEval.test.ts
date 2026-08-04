@@ -80,5 +80,9 @@ test("search stays fast enough to run per keystroke", () => {
   const start = performance.now();
   for (let i = 0; i < 5; i++) for (const q of queries) searchPrepared(prepared, q, { limit: 400 });
   const per = (performance.now() - start) / (5 * queries.length);
-  assert.ok(per < 40, `search took ${per.toFixed(1)}ms per query (budget 40ms in CI)`);
+  // Tightened from 40ms after the letter-mask prefilter roughly halved the
+  // fuzzy tier: "telur" went 24.6ms → 13.1ms, "ayam" 22.2 → 9.8. Node on this
+  // box is slower than a phone's JIT on a warm path, so this is a ceiling, not
+  // a target.
+  assert.ok(per < 20, `search took ${per.toFixed(1)}ms per query (budget 20ms in CI)`);
 });
