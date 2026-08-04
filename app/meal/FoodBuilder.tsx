@@ -23,6 +23,7 @@ import { prettyFoodName } from "@/lib/foodDisplayName";
 import { loadCatalogue, clearCatalogueCache } from "@/lib/foodCatalogue";
 import { prepare as prepareSearch, searchPrepared } from "@/lib/foodSearch";
 import { buildDictionary, parseDish } from "@/lib/dishParse";
+import { RACIK_EXAMPLES } from "@/lib/racikExamples";
 import {
   recordFoodPick,
   getFoodPicks,
@@ -498,11 +499,17 @@ export default function FoodBuilder({
   dateKey,
   onClose,
   onSaved,
+  startInRacik = false,
 }: {
   meal: MealT;
   dateKey: string;
   onClose: () => void;
   onSaved?: () => void;
+  /** Open straight into the ingredient composer, with the search field focused
+   *  and a worked example on screen. RACIK could already read a typed plate as
+   *  its parts, but only if you guessed that typing several foods at once was
+   *  a thing — nothing in the UI said so. */
+  startInRacik?: boolean;
 }) {
   // The meal time is auto-picked from the clock (see MealHome), but stays
   // changeable here via the header chip in case you're logging for another slot.
@@ -1412,6 +1419,14 @@ export default function FoodBuilder({
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, searchFlat.length]);
+
+  // Opened via the RACIK button: put the cursor in the field straight away, so
+  // the example placeholder is visible with the keyboard already up.
+  useEffect(() => {
+    if (!startInRacik) return;
+    const t = window.setTimeout(() => searchRef.current?.focus(), 260);
+    return () => window.clearTimeout(t);
+  }, [startInRacik]);
 
   // ── RACIK: read a typed plate as its parts ────────────────────────────
   //
@@ -2921,6 +2936,69 @@ export default function FoodBuilder({
             </div>
           ) : null}
 
+              {/* Opened via RACIK with nothing typed yet: say what this is for
+              and show a plate that works, because "type several foods at
+              once" is not a thing anyone guesses. The examples are real
+              queries — each resolves against the catalogue. */}
+          {startInRacik && !q ? (
+            <div
+              style={{
+                marginBottom: 12,
+                padding: 14,
+                borderRadius: 14,
+                background: "rgba(238,60,48,.06)",
+                border: "1px solid rgba(238,60,48,.22)",
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 9,
+                  letterSpacing: ".16em",
+                  color: "#ffb99e",
+                }}
+              >
+                RACIK SENDIRI
+              </div>
+              <div
+                style={{
+                  fontFamily: SANS,
+                  fontSize: 13.5,
+                  lineHeight: 1.55,
+                  color: "#ded8d2",
+                  marginTop: 7,
+                }}
+              >
+                Piring yang nggak ada di daftar? Ketik bahannya sekaligus —
+                tiap bahan dihitung kalorinya sendiri dari library.
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 11 }}>
+                {RACIK_EXAMPLES.map((ex) => (
+                  <button
+                    key={ex}
+                    type="button"
+                    onClick={() => {
+                      haptic("tap");
+                      setQuery(ex);
+                    }}
+                    style={{
+                      padding: "8px 11px",
+                      borderRadius: 10,
+                      fontFamily: SANS,
+                      fontSize: 12.5,
+                      cursor: "pointer",
+                      color: "#f1ede9",
+                      background: "rgba(255,255,255,.06)",
+                      border: "1px solid rgba(255,255,255,.13)",
+                    }}
+                  >
+                    {ex}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           {/* ── THE LIBRARY — SEMUA shows it all straight away ──
               No "⭐ SERING DIPAKAI" / "☆ MENU SIMPANAN" headings and no
               "// N HASIL" count: the segmented control already says what
@@ -3265,7 +3343,7 @@ export default function FoodBuilder({
               enterKeyHint="search"
               value={query}
               onChange={(ev) => setQuery(ev.target.value)}
-              placeholder="Cari makanan"
+              placeholder={startInRacik ? "nasi · ayam goreng · sambal" : "Cari makanan"}
               style={{
                 flex: 1,
                 minWidth: 0,

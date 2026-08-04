@@ -623,6 +623,8 @@ export default function MealHome({
   const [lockRatio, setLockRatio] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [builderMeal, setBuilderMeal] = useState<MealType | null>(initialBuilder ?? null);
+  /** Same builder, opened straight into the ingredient composer. */
+  const [racikMeal, setRacikMeal] = useState<MealType | null>(null);
   // Which slot the clock is in right now. Resolved after mount so the server
   // render and the first client render agree.
   const [nowSlot, setNowSlot] = useState<MealType | null>(null);
@@ -885,7 +887,11 @@ export default function MealHome({
     >
       {/* Bottom padding clears the nav AND the FAB (which tops out 148px up),
           so the last slot card is never partly hidden behind the ＋. */}
-      <div style={{ padding: "calc(16px + env(safe-area-inset-top)) 18px 170px" }}>
+      {/* 170px cleared the bottom nav but not the RACIK pill, which is fixed
+          above it — the last slot's "+ Catat" button ended up underneath it,
+          two tap targets on the same pixels. 230px lets the last card scroll
+          clear of both. */}
+      <div style={{ padding: "calc(16px + env(safe-area-inset-top)) 18px 230px" }}>
         {/* header — wordmark + date, with the day type as a compact segment */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
           <div style={{ minWidth: 0 }}>
@@ -1304,23 +1310,34 @@ export default function MealHome({
                       haptic("tap");
                       setBuilderMeal(s.key);
                     }}
+                    // This is the primary action of the whole page and it was
+                    // drawn as a dashed ghost — 9.5px grey type on a 3%-white
+                    // fill, fainter than the section labels around it. The
+                    // slot you are actually in gets the solid fire treatment;
+                    // the others stay quiet but legible, so the eye still
+                    // lands on "now" first.
                     style={{
                       width: "100%",
                       marginTop: 11,
-                      padding: 11,
-                      borderRadius: 12,
+                      padding: isNow ? "14px 12px" : "12px 11px",
+                      borderRadius: 13,
                       cursor: "pointer",
-                      fontFamily: MONO,
-                      fontSize: 9.5,
-                      letterSpacing: ".15em",
-                      color: isNow ? "#ff9a80" : "#7c736e",
-                      background: "rgba(255,255,255,.03)",
+                      fontFamily: SANS,
+                      fontWeight: 800,
+                      fontSize: isNow ? 14 : 13,
+                      letterSpacing: "-.01em",
+                      color: isNow ? "#fff" : "#cfc8c2",
+                      background: isNow ? FIRE : "rgba(255,255,255,.07)",
                       border: isNow
-                        ? "1px dashed rgba(255,150,120,.4)"
-                        : "1px dashed rgba(255,255,255,.14)",
+                        ? "1px solid rgba(255,150,120,.6)"
+                        : "1px solid rgba(255,255,255,.13)",
+                      boxShadow: isNow
+                        ? "inset 0 1.5px 1px rgba(255,225,205,.55), 0 8px 20px rgba(238,60,48,.32)"
+                        : "none",
+                      textShadow: isNow ? "0 1px 2px rgba(120,15,5,.45)" : "none",
                     }}
                   >
-                    ＋ CATAT {s.label}
+                    ＋ Catat {s.label.toLowerCase()}
                   </button>
                 )}
               </div>
@@ -1344,31 +1361,51 @@ export default function MealHome({
         style={{ display: "none" }}
       />
 
-      {/* add-meal FAB — sits clear of the kcal column rather than pushing it in */}
+      {/* RACIK FAB — "susun makanan sendiri".
+          This used to be a second "+" that opened exactly what the CATAT
+          buttons open, so it was a duplicate of the primary action wearing the
+          loudest styling on the page. It now opens the composer instead: type
+          a plate the catalogue has no single row for — "mie kuning ikan
+          cakalang sambal" — and get it back as its parts, each with its own
+          calories. That feature already existed and was unreachable unless you
+          happened to type more than one word into search. */}
       <button
         type="button"
-        aria-label="Catat makan"
+        aria-label="Racik makanan sendiri"
         className="tap-press"
-        onClick={() => setBuilderMeal(inferMealType())}
+        onClick={() => {
+          haptic("tap");
+          setRacikMeal(inferMealType());
+        }}
         style={{
           position: "fixed",
           // Hugs the 460px column on wide screens, the screen edge on phones.
           right: "max(14px, calc(50vw - 216px))",
           bottom: "calc(96px + env(safe-area-inset-bottom))",
           zIndex: 44,
-          width: 52,
-          height: 52,
-          borderRadius: "50%",
-          fontSize: 27,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 7,
+          height: 48,
+          padding: "0 16px",
+          borderRadius: 999,
+          fontFamily: SANS,
+          fontWeight: 800,
+          fontSize: 13.5,
+          letterSpacing: "-.01em",
           lineHeight: 1,
           color: "#fff",
           cursor: "pointer",
           background: FIRE,
           border: "1px solid rgba(255,150,120,.6)",
+          boxShadow:
+            "inset 0 1.5px 1px rgba(255,225,205,.55), 0 10px 26px rgba(238,60,48,.42)",
+          textShadow: "0 1px 2px rgba(120,15,5,.45)",
           animation: "wo-firepulse 2.6s ease-in-out infinite",
         }}
       >
-        ＋
+        <span style={{ fontSize: 19, lineHeight: 1, marginTop: -1 }}>🍜</span>
+        RACIK
       </button>
 
       {builderMeal && (
@@ -1378,6 +1415,19 @@ export default function MealHome({
           onClose={() => setBuilderMeal(null)}
           onSaved={() => {
             setBuilderMeal(null);
+            reloadFromStore();
+          }}
+        />
+      )}
+
+      {racikMeal && (
+        <FoodBuilder
+          meal={racikMeal}
+          dateKey={activeDate}
+          startInRacik
+          onClose={() => setRacikMeal(null)}
+          onSaved={() => {
+            setRacikMeal(null);
             reloadFromStore();
           }}
         />
