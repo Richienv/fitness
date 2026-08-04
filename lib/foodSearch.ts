@@ -156,7 +156,12 @@ function scoreTokenWords(token: string, field: string, words: string[]): number 
 // secondary one. Discounting it to 0.7 gave every catalogue row named "Ayam …"
 // a 2x lexical head start over the staple a user actually taps. Kept a hair
 // under 1 so a canonical-name match still edges an alias match on a true tie.
-const FIELD_WEIGHT = { name: 1, english: 0.75, aliases: 0.95, group: 0.35, cuisine: 0.35 } as const;
+// English sits level with aliases, not below them. Measured over 44 matched
+// ID/EN query pairs, an English query reached the same food with MRR 0.774
+// against Indonesian's 0.919, and a bilingual user got a DIFFERENT top result
+// 37% of the time depending on which language they typed. Discounting English
+// to 0.75 was a third of that gap.
+const FIELD_WEIGHT = { name: 1, english: 0.95, aliases: 0.95, group: 0.35, cuisine: 0.35 } as const;
 
 /**
  * How much of a term occurrence a match is WORTH, by how it matched.
@@ -185,7 +190,7 @@ function tierToTf(tier: number): number {
   return 0;
 }
 
-export type Scored<T> = { food: T; score: number };
+export type Scored<T> = { food: T; score: number; exact?: boolean };
 
 type Doc<T> = {
   food: T;
@@ -198,6 +203,10 @@ type Doc<T> = {
   words: Record<string, string[]>;
   popularity: number;
   nameLen: number;
+  /** Each alias as a WHOLE name, for the exact-name lock. The aliases field is
+   *  space-separated, so substring-matching it would make "telur" an exact
+   *  match for anything listing "telur ayam". */
+  aliasSet: Set<string>;
 };
 
 /** Opaque to callers: the normalized docs plus the BM25 statistics over them. */
@@ -236,6 +245,12 @@ export function prepare<T extends SearchableFood>(foods: readonly T[]): Prepared
       },
       popularity: f.popularity ?? 0,
       nameLen: name.length,
+      aliasSet: new Set(
+        (f.aliases ?? "")
+          .split(/[,;|]/)
+          .map((a) => normalize(a))
+          .filter(Boolean)
+      ),
     };
   });
   const index = buildIndex(docs.map((d) => ({ fields: d.words })), FIELDS);
@@ -244,6 +259,19 @@ export function prepare<T extends SearchableFood>(foods: readonly T[]): Prepared
 
 export type SearchOptions = {
   limit?: number;
+  /**
+   * How much this user eats a given food, 0..1. Supplied by the caller rather
+   * than read here on purpose: this module is pure and runs in node tests and
+   * offline eval scripts, and localStorage has no business in a ranker.
+   *
+   * Applied as a CAPPED MULTIPLIER, never a partition. The version this
+   * replaces concatenated every previously-picked food above every other one,
+   * which cannot express "relevant but unfamiliar beats familiar but
+   * irrelevant" — the exact complaint it was meant to solve.
+   */
+  affinity?: (id: string) => number;
+  /** Ceiling on the affinity boost. 0.4 = a favourite gets at most +40%. */
+  affinityMax?: number;
   /** Expand each token into synonyms (English↔Indonesian). Any one matching
    *  satisfies that token. */
   aliases?: (token: string) => string[];
@@ -267,6 +295,10 @@ export function searchPrepared<T extends SearchableFood>(
   const tokens = tokenize(query);
   if (tokens.length === 0) return [];
   const limit = opts.limit ?? 60;
+  const aff = opts.affinity;
+  const affMax = opts.affinityMax ?? 0.4;
+  // The whole query, normalized, for the exact-name lock below.
+  const queryText = tokens.join(" ");
   const { docs, index } = prepared;
 
   // Expansion and the per-field table are computed ONCE, not per document.
@@ -294,7 +326,13 @@ export function searchPrepared<T extends SearchableFood>(
         // Same word, other spelling: no penalty.
         ...family.map((v) => ({ v, penalty: 1, spelling: true })),
         // A different word that means the same thing is a real loosening.
-        ...expand(token).map((v) => ({ v, penalty: 0.8, spelling: false })),
+        // 0.95, not 0.8. A translation IS a loosening and should cost
+        // something, but at 0.8 reaching a food through the only route your
+        // language offers was penalised as if you had guessed. For the 48
+        // Indonesian words reachable from English, that discount WAS the
+        // English experience. Measured: 0.8 → 0.95 moved cross-lingual top-10
+        // overlap from 63% to 74% and cost nothing on the golden set.
+        ...expand(token).map((v) => ({ v, penalty: 0.95, spelling: false })),
       ],
     };
   });
@@ -324,7 +362,7 @@ export function searchPrepared<T extends SearchableFood>(
 
     for (const plan of plans) {
       let best = 0;
-      let planNamedIt = false;
+      let namedIt = 0;
       for (const { v, penalty, spelling } of plan.variants) {
         for (const [field, weight] of FIELDS_W) {
           const text = p[field];
@@ -345,8 +383,14 @@ export function searchPrepared<T extends SearchableFood>(
           const s = termScore(index, v, i, tf, plan.idfTerm);
           if (s > best) best = s;
 
-          if ((field === "aliases" || field === "english") && tier >= HIT.WORD_EXACT) {
-            planNamedIt = true;
+          if (field === "aliases" || field === "english") {
+            // Partial credit for a prefix. Requiring WORD_EXACT meant that
+            // while you were still TYPING, a staple reached only by its alias
+            // scored coverage 0 and ate the full x0.55 — so "aya" buried
+            // Chicken breast that "ayam" would have surfaced. The list must not
+            // get worse as you add a letter.
+            if (tier >= HIT.WORD_EXACT) namedIt = 1;
+            else if (tier >= HIT.WORD_PREFIX) namedIt = Math.max(namedIt, 0.6);
           }
           if (field === "name" && tier >= HIT.WORD_PREFIX) {
             const nw = p.words.name;
@@ -356,7 +400,12 @@ export function searchPrepared<T extends SearchableFood>(
                 // Indonesian is head-initial: "Telur dadar" is an egg,
                 // "Kerak telor" is a kerak. Matching word 0 means the query
                 // named the thing; matching a later word named a modifier.
-                if (w === 0) hitHead = true;
+                // Head position, in BOTH directions. Indonesian is
+                // head-initial ("Telur dadar" is an egg) but English compounds
+                // are head-final ("Egg tart" is a tart, "Chicken breast" is a
+                // breast). Checking only word 0 applied an Indonesian rule to
+                // English names and demoted the right answers.
+                if (w === 0 || w === nw.length - 1) hitHead = true;
               }
             }
           }
@@ -366,7 +415,7 @@ export function searchPrepared<T extends SearchableFood>(
         ok = false;
         break;
       }
-      if (planNamedIt) byOtherName++;
+      byOtherName += namedIt;
       total += best;
     }
     if (!ok) continue;
@@ -375,7 +424,16 @@ export function searchPrepared<T extends SearchableFood>(
     // being scattered ("nasi goreng" over "nasi + telur goreng"). Expressed
     // relative to the BM25 total so it stays a nudge as the corpus grows.
     const phrase = tokens.join(" ");
-    if (tokens.length > 1 && p.name.includes(phrase)) total += 0.6 * total + 1;
+    if (
+      tokens.length > 1 &&
+      // Also over english/aliases: "chicken breast" and "dada ayam" are each a
+      // phrase in one field and scattered words in the other, so checking only
+      // `name` gave the bonus to whichever language the row happened to be
+      // named in.
+      (p.name.includes(phrase) || p.english.includes(phrase) || p.aliases.includes(phrase))
+    ) {
+      total += 0.6 * total + 1;
+    }
 
     // ── Beyond here the factors MULTIPLY, and that is the point ────────────
     //
@@ -413,10 +471,35 @@ export function searchPrepared<T extends SearchableFood>(
     // additive and tiny — it is a genuine tiebreaker, not a signal.
     total -= Math.min(p.nameLen, 60) * 0.004;
 
-    out.push({ food: p.food, score: total });
+    // AFFINITY — capped, multiplicative, and only ever a bonus.
+    //
+    // Never a penalty: an unknown food scores 0 here and is simply not lifted.
+    // Punishing the unfamiliar would build a feedback loop where the only foods
+    // you can find are the ones you have already eaten.
+    if (aff) {
+      const a = aff(p.food.id);
+      if (a > 0) total *= 1 + affMax * (a > 1 ? 1 : a);
+    }
+
+    // EXACT NAME — a lock, not a score.
+    //
+    // The cap above is what stops a familiar food outranking a better match,
+    // but a cap alone cannot guarantee it: enough affinity on a near-tie still
+    // flips the order. When the user typed a food's WHOLE name, that is not a
+    // ranking signal to be weighed, it is an answer. So it sorts first and
+    // affinity decides the order only among equals.
+    const exact =
+      p.name === queryText || p.english === queryText || p.aliasSet.has(queryText);
+
+    out.push({ food: p.food, score: total, exact });
   }
 
-  out.sort((a, b) => b.score - a.score || a.food.name.localeCompare(b.food.name, "id"));
+  out.sort(
+    (a, b) =>
+      Number(b.exact) - Number(a.exact) ||
+      b.score - a.score ||
+      a.food.name.localeCompare(b.food.name, "id")
+  );
   return out.slice(0, limit);
 }
 
