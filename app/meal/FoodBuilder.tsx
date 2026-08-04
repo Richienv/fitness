@@ -24,6 +24,7 @@ import { loadCatalogue, clearCatalogueCache } from "@/lib/foodCatalogue";
 import { prepare as prepareSearch, searchPrepared } from "@/lib/foodSearch";
 import { buildDictionary, parseDish } from "@/lib/dishParse";
 import { RACIK_EXAMPLES } from "@/lib/racikExamples";
+import RacikSheet, { type RacikPart } from "./RacikSheet";
 import {
   recordFoodPick,
   getFoodPicks,
@@ -1457,19 +1458,48 @@ export default function FoodBuilder({
   }, [q, dishDict, bIng]);
 
   /** Add every detected part at its default household portion. */
-  const addRacik = () => {
-    if (!racik) return;
-    haptic("success");
+  /** The parsed plate, costed per 100g so the sheet can price any portion. */
+  const racikParts: RacikPart[] = useMemo(() => {
+    if (!racik) return [];
+    return racik.foods.map((f) => {
+      const perUnit = baseGrams(f) || 100;
+      const grams = f.portionG && f.portionG > 0 ? f.portionG : perUnit;
+      // Macros on BuilderFood are per ONE unit, and a unit is `perUnit` grams.
+      const s = 100 / perUnit;
+      return {
+        id: f.id,
+        name: f.name,
+        grams,
+        per100: {
+          kcal: f.kcal * s,
+          protein: f.protein * s,
+          carbs: f.carbs * s,
+          fat: f.fat * s,
+        },
+      };
+    });
+  }, [racik]);
+
+  // Opening the composer no longer commits anything. The old addRacik dropped
+  // every parsed part straight onto the tray at its default portion — so a
+  // misread part (and the parser does misread) went in silently, and a person
+  // tracking protein got a single kcal number after the fact. Now the sheet
+  // shows each part with its own macros first.
+  const [racikOpen, setRacikOpen] = useState(false);
+
+  const commitRacik = (chosen: { id: string; grams: number }[]) => {
     setSelection((sel) => {
       const next = { ...sel };
-      for (const f of racik.foods) {
-        const perUnit = baseGrams(f);
-        const grams = f.portionG && f.portionG > 0 ? f.portionG : perUnit;
-        next[f.id] = Math.round((grams / perUnit) * 1000) / 1000;
+      for (const c of chosen) {
+        const f = bIng(c.id);
+        if (!f) continue;
+        const perUnit = baseGrams(f) || 100;
+        next[c.id] = Math.round((c.grams / perUnit) * 1000) / 1000;
       }
       return next;
     });
     setAddTick((t) => t + 1);
+    setRacikOpen(false);
     setQuery("");
   };
 
@@ -3123,7 +3153,10 @@ export default function FoodBuilder({
               {racik ? (
                 <button
                   type="button"
-                  onClick={addRacik}
+                  onClick={() => {
+                    haptic("tap");
+                    setRacikOpen(true);
+                  }}
                   style={{
                     width: "100%",
                     marginBottom: 10,
@@ -3165,7 +3198,7 @@ export default function FoodBuilder({
                         return n + (f.kcal * g) / per;
                       }, 0)
                     )}{" "}
-                    kkal · tap untuk tambah semua
+                    kkal · tap untuk atur porsi
                     {racik.unmatched.length > 0 ? ` · nggak kenal: ${racik.unmatched.join(", ")}` : ""}
                   </span>
                 </button>
@@ -3333,8 +3366,38 @@ export default function FoodBuilder({
               padding: 6,
               borderRadius: 18,
               background: "rgba(255,255,255,.06)",
+              // The search field was a grey box on a black page and people did
+              // not see it. It is the way into a 4,575-food library, so it gets
+              // a lit border — brighter while empty, calming down once you are
+              // typing and it has your attention anyway.
+              border: q
+                ? "1px solid rgba(255,150,120,.35)"
+                : "1.5px solid rgba(255,138,82,.75)",
+              boxShadow: q
+                ? "none"
+                : "0 0 0 3px rgba(238,60,48,.10), 0 0 22px rgba(238,60,48,.30)",
+              animation: q ? "none" : "fbSearchGlow 2.8s ease-in-out infinite",
+              transition: "border-color .25s, box-shadow .25s",
             }}
           >
+            {/* A magnifier, so the field reads as search rather than as a
+                text box that happens to be at the bottom of the screen. */}
+            <span
+              aria-hidden="true"
+              style={{
+                flexShrink: 0,
+                marginLeft: 8,
+                display: "grid",
+                placeItems: "center",
+                color: q ? "#8a837d" : "#ff9a80",
+                transition: "color .25s",
+              }}
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                <circle cx="11" cy="11" r="6.4" stroke="currentColor" strokeWidth="2" />
+                <path d="m16 16 4.2 4.2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </span>
             <input
               ref={searchRef}
               type="text"
@@ -3349,6 +3412,10 @@ export default function FoodBuilder({
                 minWidth: 0,
                 boxSizing: "border-box",
                 padding: "9px 2px",
+                // Centred while empty so the invitation sits in the middle of
+                // the bar; left-aligned once there is text, because reading a
+                // centred, growing string is horrible.
+                textAlign: q ? "left" : "center",
                 fontFamily: SANS,
                 fontWeight: 600,
                 fontSize: 16, // ≥16 avoids iOS focus zoom
@@ -4454,6 +4521,17 @@ export default function FoodBuilder({
             </div>
           </div>
         </div>
+      ) : null}
+
+      {/* The composer. Mounted last so it sits above every other sheet. */}
+      {racikOpen && racikParts.length > 0 ? (
+        <RacikSheet
+          query={q}
+          parts={racikParts}
+          mealLabel={BLABEL[meal] ?? "MAKAN"}
+          onCancel={() => setRacikOpen(false)}
+          onConfirm={commitRacik}
+        />
       ) : null}
     </>
   );

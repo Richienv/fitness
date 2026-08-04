@@ -8465,3 +8465,54 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
     to   { opacity: 1; transform: translateX(-50%); }
   }
 }
+
+/* ============================================================
+ * RACIK sheet — the portion slider
+ * ============================================================ */
+/* A native range styled to match the fire theme. The thumb is deliberately
+   large: this is dragged with a thumb on a phone, not a mouse. */
+.racik-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 26px;
+  background: transparent;
+  cursor: pointer;
+}
+.racik-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.racik-range::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.racik-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 24px;
+  height: 24px;
+  margin-top: -9px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #ff9d5c, #ee3c30);
+  border: 1px solid rgba(255, 190, 160, 0.75);
+  box-shadow: 0 2px 8px rgba(238, 60, 48, 0.5);
+}
+.racik-range::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #ff9d5c, #ee3c30);
+  border: 1px solid rgba(255, 190, 160, 0.75);
+}
+
+/* The empty search field breathes, so the eye finds it on a black page. */
+@keyframes fbSearchGlow {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(238,60,48,.08), 0 0 18px rgba(238,60,48,.24); }
+  50%      { box-shadow: 0 0 0 4px rgba(238,60,48,.14), 0 0 30px rgba(238,60,48,.42); }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes fbSearchGlow {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(238,60,48,.10), 0 0 22px rgba(238,60,48,.30); }
+  }
+}
