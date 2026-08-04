@@ -128,11 +128,27 @@ async function main() {
     // Rows with an empty searchText haven't been indexed yet (new column, or a
     // ranking-logic change). Rows whose note carries an English name but whose
     // nameEn is still null need the bilingual backfill. Either forces a re-seed.
+    // Count only what a re-seed can actually FIX.
+    //
+    // This previously counted `nameEn: null AND note contains "conf:"`, which
+    // looked right and was a deadlock: 68 of the 3,228 conf-tagged rows have a
+    // note whose first segment is empty, so extractNameEn() returns null for
+    // them and no amount of seeding will ever set nameEn. missingIndex was
+    // therefore permanently >= 68, the `missingIndex === 0` skip could never be
+    // true, and EVERY build re-seeded all 4,434 rows. On Vercel that exceeded
+    // the 45-minute build limit, so the deploy died before writing the
+    // completion marker — which made the next build re-seed too. Production sat
+    // seven merges behind for two days on the back of this one predicate.
+    //
+    // Compare against how many rows SHOULD have an English name instead.
+    const expectedNameEn = parsed.reduce(
+      (n, { rows }) => n + rows.filter((r) => extractNameEn(r) !== null).length,
+      0
+    );
+    const haveNameEn = await db.food.count({ where: { NOT: { nameEn: null } } });
     missingIndex =
       (await db.food.count({ where: { searchText: "" } })) +
-      (await db.food.count({
-        where: { nameEn: null, note: { contains: "conf:" } },
-      }));
+      Math.max(0, expectedNameEn - haveNameEn);
   } catch {
     console.log("ℹ  Food DB not reachable (no DATABASE_URL?) — skipping seed.");
     return;
@@ -155,6 +171,11 @@ async function main() {
     );
   }
 
+  const pending: {
+    sourceCode: string;
+    data: Omit<Prisma.FoodUncheckedCreateInput, "sourceCode">;
+    row: FoodRow;
+  }[] = [];
   const counts: Record<string, number> = {};
   let copperClamped = 0;
   let atwaterFlags = 0;
@@ -219,14 +240,55 @@ async function main() {
         ...nutrientData,
       };
 
-      const food = await db.food.upsert({
-        where: { sourceCode },
-        create: { sourceCode, ...data },
-        update: data,
-      });
-
-      await seedServings(food.id, row);
+      pending.push({ sourceCode, data, row });
     }
+  }
+
+  // Write in bounded-concurrency batches, with a wall-clock budget.
+  //
+  // This was `for (const row of rows) await upsert(row)` — 4,434 sequential
+  // round-trips to a remote Neon instance. At a 300-600ms round-trip that is
+  // 20-45 minutes of a build doing nothing but waiting, which is precisely the
+  // Vercel timeout. Batching is the same work with the latency overlapped.
+  //
+  // The budget is the backstop that matters: seeding is a data migration, and a
+  // data migration must never be able to hang a deploy. If it runs long we stop
+  // cleanly and let `next build` proceed — the rows already written are
+  // committed, the upserts are idempotent, and the next deploy continues from
+  // where this one stopped.
+  const BATCH = 16;
+  const BUDGET_MS = Number(process.env.SEED_BUDGET_MS ?? 5 * 60 * 1000);
+  const startedAt = Date.now();
+  let wrote = 0;
+  let ranOut = false;
+
+  for (let i = 0; i < pending.length; i += BATCH) {
+    if (Date.now() - startedAt > BUDGET_MS) {
+      ranOut = true;
+      break;
+    }
+    await Promise.all(
+      pending.slice(i, i + BATCH).map(async ({ sourceCode, data, row }) => {
+        const food = await db.food.upsert({
+          where: { sourceCode },
+          create: { sourceCode, ...data },
+          update: data,
+        });
+        await seedServings(food.id, row);
+      })
+    );
+    wrote += Math.min(BATCH, pending.length - i);
+  }
+
+  const secs = ((Date.now() - startedAt) / 1000).toFixed(1);
+  if (ranOut) {
+    console.warn(
+      `⚠  Seed budget of ${BUDGET_MS}ms spent after ${wrote}/${pending.length} rows (${secs}s). ` +
+        `Stopping so the build can finish; the next deploy resumes. ` +
+        `Raise SEED_BUDGET_MS to allow longer.`
+    );
+  } else {
+    console.log(`✓ Seeded ${wrote} foods in ${secs}s.`);
   }
 
   // ─── pg_trgm + GIN index (best-effort) ────────────────────────────────────
