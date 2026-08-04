@@ -31,6 +31,20 @@ export type Ingredient = {
   aliases?: string;
 } & Macros;
 
+/**
+ * Search prior for the curated staples.
+ *
+ * These 141 rows are the app's own shortlist — hand-picked, with real serving
+ * units ("1 egg", "1 breast (250g)") that a logger can actually tap. Catalogue
+ * rows carry a computed popularity of 50-90; these carried NOTHING, so the
+ * foods the whole app is built around ranked below every TKPI row that merely
+ * shared a word. Measured: "ayam" put Chicken breast at 179 of 4,575.
+ *
+ * Set above the catalogue's top of range so a staple wins a genuine tie, but
+ * it is scaled to a ±8% multiplier in the ranker — a prior, never an override.
+ */
+export const STAPLE_POPULARITY = 120;
+
 export const INGREDIENTS: Ingredient[] = [
   // Proteins
   { id: "egg",          name: "Whole egg",        zh: "鸡蛋",     pinyin: "jī dàn",       unit: "1 egg",           group: "protein", favorite: true, kcal: 70,  protein: 6,  fat: 5,  carbs: 0.5 , aliases: "telur telor telur ayam" },

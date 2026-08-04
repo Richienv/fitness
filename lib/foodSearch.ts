@@ -17,16 +17,20 @@
 //     "Ayam goreng tepung saus padang", because the extra words are things the
 //     user did not ask for.
 
-import { buildIndex, termScore, type Bm25Field, type Bm25Index } from "./bm25.ts";
-import { collapseReduplication, indonesianAliases } from "./indonesian.ts";
+import { buildIndex, idf, termScore, type Bm25Field, type Bm25Index } from "./bm25.ts";
+import {
+  collapseReduplication,
+  indonesianAliases,
+  spellingVariants,
+} from "./indonesian.ts";
 
 export type SearchableFood = {
   id: string;
   name: string;
   englishName?: string;
-  /** Other names the food is sold under. Weighted just under the English name:
-   *  a real alias ("Terang Bulan") is as good an answer as the English gloss,
-   *  but it is not what the row is called, so an exact name match still wins. */
+  /** Other names the food is sold under, space-separated. Weighted just under
+   *  the canonical name — see FIELD_WEIGHT. For the English-named staples this
+   *  field holds their Indonesian names, which is how most users reach them. */
   aliases?: string;
   foodGroup?: string;
   cuisine?: string;
@@ -146,7 +150,13 @@ function scoreTokenWords(token: string, field: string, words: string[]): number 
 
 /** Field weights. A hit on the Indonesian name counts for more than the same
  *  hit on a food-group label, which is often generic ("Masakan Nusantara"). */
-const FIELD_WEIGHT = { name: 1, english: 0.75, aliases: 0.7, group: 0.35, cuisine: 0.35 } as const;
+// Aliases sit almost level with the name, not well below it. For the curated
+// staples the alias IS the Indonesian name — "Chicken breast" carries "ayam
+// dada", and in an app used entirely in Bahasa that is the primary name, not a
+// secondary one. Discounting it to 0.7 gave every catalogue row named "Ayam …"
+// a 2x lexical head start over the staple a user actually taps. Kept a hair
+// under 1 so a canonical-name match still edges an alias match on a true tie.
+const FIELD_WEIGHT = { name: 1, english: 0.75, aliases: 0.95, group: 0.35, cuisine: 0.35 } as const;
 
 /**
  * How much of a term occurrence a match is WORTH, by how it matched.
@@ -264,14 +274,30 @@ export function searchPrepared<T extends SearchableFood>(
   // foods called indonesianAliases() 12,000 times and rebuilt a five-entry
   // array 15,000 times — per keystroke.
   const expand = opts.aliases ?? indonesianAliases;
-  const plans = tokens.map((token) => ({
-    token,
-    // An alias match is real but weaker than the word the user typed.
-    variants: [
-      { v: token, penalty: 1 },
-      ...expand(token).map((v) => ({ v, penalty: 0.8 })),
-    ],
-  }));
+  const plans = tokens.map((token) => {
+    // Spelling variants of the same word are ONE term, so they share one IDF —
+    // the most common spelling's. Without this the rarer orthography keeps its
+    // rarity bonus and wins: for "telor", the six rows that happen to spell it
+    // that way outrank the row literally named "Telur". Lucene calls this a
+    // SynonymQuery; the effect is that how a word is spelled stops being
+    // evidence about what the user meant.
+    const spellings = spellingVariants(token);
+    const family = [token, ...spellings];
+    let idfTerm = token;
+    for (const v of spellings) {
+      if (idf(index, v) < idf(index, idfTerm)) idfTerm = v;
+    }
+    return {
+      token,
+      idfTerm,
+      variants: [
+        // Same word, other spelling: no penalty.
+        ...family.map((v) => ({ v, penalty: 1, spelling: true })),
+        // A different word that means the same thing is a real loosening.
+        ...expand(token).map((v) => ({ v, penalty: 0.8, spelling: false })),
+      ],
+    };
+  });
   const FIELDS_W = [
     ["name", FIELD_WEIGHT.name],
     ["english", FIELD_WEIGHT.english],
@@ -285,29 +311,62 @@ export function searchPrepared<T extends SearchableFood>(
     const p = docs[i];
     let total = 0;
     let ok = true;
+    // Which words of the NAME the query accounted for, and whether it reached
+    // the head. Both are per-document, so they're gathered during scoring.
+    const explained = new Set<number>();
+    let hitHead = false;
+    // Tokens satisfied by an exact hit on an alias or the English name. The
+    // staples are English-named ("Chicken breast") and carry their Indonesian
+    // names as aliases, so for "ayam" there is no name word to explain — and
+    // judging them on name coverage alone buries the 141 foods the app is
+    // built around. An exact alias hit means "this IS the thing you asked for".
+    let byOtherName = 0;
 
     for (const plan of plans) {
       let best = 0;
-      for (const { v, penalty } of plan.variants) {
+      let planNamedIt = false;
+      for (const { v, penalty, spelling } of plan.variants) {
         for (const [field, weight] of FIELDS_W) {
           const text = p[field];
           if (!text) continue;
           const tier = scoreTokenWords(v, text, p.words[field]);
-          // A synonym may match, but only EXACTLY. Expansion is already a
+          // A SYNONYM may match, but only exactly. Expansion is already a
           // loosening; letting the expanded word also match by prefix or by
           // typo compounds two guesses. "telur" expands to "egg", and a prefix
           // hit then puts Eggplant above the actual eggs.
-          if (v !== plan.token && tier < HIT.WORD_EXACT) continue;
+          //
+          // A SPELLING variant is exempt: it is the same word, so it earns the
+          // same prefix and fuzzy treatment the typed form gets. Otherwise
+          // typing "telor" would stop matching "Telur dadar" by prefix.
+          if (!spelling && tier < HIT.WORD_EXACT) continue;
           const tf = tierToTf(tier) * weight * penalty;
           if (tf <= 0) continue;
-          const s = termScore(index, v, i, tf, plan.token);
+          // Every variant is scored under the family's shared IDF.
+          const s = termScore(index, v, i, tf, plan.idfTerm);
           if (s > best) best = s;
+
+          if ((field === "aliases" || field === "english") && tier >= HIT.WORD_EXACT) {
+            planNamedIt = true;
+          }
+          if (field === "name" && tier >= HIT.WORD_PREFIX) {
+            const nw = p.words.name;
+            for (let w = 0; w < nw.length; w++) {
+              if (nw[w] === v || nw[w].startsWith(v)) {
+                explained.add(w);
+                // Indonesian is head-initial: "Telur dadar" is an egg,
+                // "Kerak telor" is a kerak. Matching word 0 means the query
+                // named the thing; matching a later word named a modifier.
+                if (w === 0) hitHead = true;
+              }
+            }
+          }
         }
       }
       if (best <= 0) {
         ok = false;
         break;
       }
+      if (planNamedIt) byOtherName++;
       total += best;
     }
     if (!ok) continue;
@@ -318,10 +377,40 @@ export function searchPrepared<T extends SearchableFood>(
     const phrase = tokens.join(" ");
     if (tokens.length > 1 && p.name.includes(phrase)) total += 0.6 * total + 1;
 
-    // Popularity is a tiebreaker, never a driver.
-    total += Math.min(p.popularity, 200) * 0.0015;
+    // ── Beyond here the factors MULTIPLY, and that is the point ────────────
+    //
+    // These used to be additive: popularity could move a result by at most
+    // 0.30 and name length by 0.24, against a BM25 total that sits around 3.9
+    // for every match. Measured over the golden set, every score landed
+    // between 3.4 and 4.3 — the "tiebreakers" were rounding error and the
+    // ranking was, in effect, IDF alone. Scaling the lexical score instead
+    // makes them able to reorder without ever overriding a failed AND.
 
-    // Prefer the shorter name among equals: fewer unasked-for words.
+    // COVERAGE: how much of the name the query actually explains.
+    //
+    // "telur" explains all of "Telur" and one word in three of "Telur penyu,
+    // segar". Without this they score the same, because only matched terms
+    // contribute to BM25 and b=0.3 barely penalises the extra words. This is
+    // the single feature that separates a staple from an exotic long-tail row
+    // that merely contains the word.
+    const nameWords = p.words.name.length || 1;
+    const coverage = Math.max(
+      Math.min(1, explained.size / nameWords),
+      byOtherName / tokens.length
+    );
+    total *= 0.55 + 0.45 * coverage;
+
+    // HEAD: did the query name the dish, or one of its modifiers? Only asked
+    // of documents the query reached BY NAME — an alias hit has no word order
+    // to be wrong about.
+    if (!hitHead && explained.size > 0) total *= 0.82;
+
+    // POPULARITY as a prior on the same multiplicative scale. Still gentle —
+    // ±8% — but now it can actually break a tie instead of vanishing.
+    total *= 0.92 + 0.16 * Math.min(1, p.popularity / 120);
+
+    // Prefer the shorter name among equals: fewer unasked-for words. Kept
+    // additive and tiny — it is a genuine tiebreaker, not a signal.
     total -= Math.min(p.nameLen, 60) * 0.004;
 
     out.push({ food: p.food, score: total });

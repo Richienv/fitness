@@ -4,17 +4,18 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "node scripts/check-server-imports.mjs && npx tsx scripts/validate-pack.ts data/*.csv && prisma generate && (prisma db push --skip-generate || echo 'db push skipped — run npm run db:push manually') && (npx tsx scripts/seed-foods.ts || echo 'food seed skipped') && next build",
+    "build": "node scripts/check-server-imports.mjs && npx tsx scripts/validate-pack.ts data/*.csv && prisma generate && (prisma db push --skip-generate || echo 'db push skipped \u2014 run npm run db:push manually') && (npx tsx scripts/seed-foods.ts || echo 'food seed skipped') && next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --experimental-strip-types --test lib/*.test.ts lib/suggest/*.test.ts",
+    "test": "node --experimental-strip-types --test lib/*.test.ts lib/suggest/*.test.ts scripts/searchEval.test.ts",
     "test:foods": "node --experimental-strip-types --test scripts/seed-foods.test.ts",
     "seed:foods": "tsx scripts/seed-foods.ts",
     "validate:foods": "tsx scripts/validate-pack.ts data/*.csv",
     "check:server-imports": "node scripts/check-server-imports.mjs",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push",
+    "eval:search": "tsx scripts/searchEval.ts"
   },
   "dependencies": {
     "@capacitor/app": "^7.1.2",
