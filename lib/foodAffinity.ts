@@ -44,6 +44,19 @@ const SLOT_PRIOR = 4;
 /** The most affinity can move a result: +40%. */
 export const AFF_MAX = 0.4;
 
+/** The most an ignored result can be pushed DOWN: 15%. Deliberately smaller
+ *  than AFF_MAX — being shown something is far weaker evidence than choosing
+ *  it, and a search result you scrolled past may simply not have been on
+ *  screen. Position bias is real and uncorrected here, so the signal is kept
+ *  timid on purpose. */
+const SUPP_MAX = 0.15;
+/** No suppression until a food has been ignored this many times more than it
+ *  has been taken. Below that it is noise. */
+const SUPP_MIN = 8;
+const SUPP_K = 8;
+/** Cap on the impressions store. */
+const MAX_SHOWN = 400;
+
 const KEY = "richie.foodaffinity.v1";
 /** 300, not the old 60. A year of eating is a few hundred distinct foods, and
  *  the whole point is to remember the monthly ones. ~2.5 KiB against a 1 MiB
@@ -69,9 +82,13 @@ type Store = {
   foods: Record<string, AffinityRow>;
   /** Co-occurrence: "a|b" (ids sorted) → decayed count of shared days. */
   pairs: Record<string, number>;
+  /** id → how many times it has been SHOWN in a result list and not chosen.
+   *  See suppression() — this is the only signal that can express "you have
+   *  put this in front of me twenty times and I have never once wanted it". */
+  shown?: Record<string, number>;
 };
 
-const EMPTY: Store = { foods: {}, pairs: {} };
+const EMPTY: Store = { foods: {}, pairs: {}, shown: {} };
 
 function read(): Store {
   if (typeof window === "undefined") return EMPTY;
@@ -79,7 +96,7 @@ function read(): Store {
     const raw = window.localStorage.getItem(scopedKey(KEY));
     if (!raw) return EMPTY;
     const p = JSON.parse(raw) as Store;
-    return p && p.foods ? { foods: p.foods, pairs: p.pairs ?? {} } : EMPTY;
+    return p && p.foods ? { foods: p.foods, pairs: p.pairs ?? {}, shown: p.shown ?? {} } : EMPTY;
   } catch {
     return EMPTY;
   }
@@ -162,6 +179,26 @@ function currentNs(r: AffinityRow, now: number): number {
   return decay(r.ns, Math.max(0, (now - r.last) / DAY), H_SLOW);
 }
 
+/**
+ * Record that these ids were SHOWN to the user. Call when a query settles, not
+ * per keystroke — every prefix of "telur" would otherwise count as five
+ * separate impressions of the same list.
+ */
+export function recordImpressions(ids: string[], at = Date.now()): void {
+  if (typeof window === "undefined" || ids.length === 0) return;
+  const s = read();
+  const shown = s.shown ?? (s.shown = {});
+  for (const id of ids) shown[id] = (shown[id] ?? 0) + 1;
+
+  const keys = Object.keys(shown);
+  if (keys.length > MAX_SHOWN) {
+    const keep = new Set(keys.sort((a, b) => shown[b] - shown[a]).slice(0, MAX_SHOWN));
+    for (const k of keys) if (!keep.has(k)) delete shown[k];
+  }
+  write(s);
+  void at;
+}
+
 export type AffinityContext = {
   now?: number;
   slot?: Slot;
@@ -219,6 +256,36 @@ export function makeScorer(s: Store, ctx: AffinityContext = {}): (id: string) =>
     }
 
     return clamp01(use * (A_BASE + W_SLOT * slotFit + W_COOC * coocFit));
+  };
+}
+
+/**
+ * How much to push DOWN a food the user keeps being shown and keeps ignoring.
+ * Returns 0..1, applied by the caller as `total *= 1 - SUPP_MAX * s`.
+ *
+ * This is the direct answer to "telor balado is still showing even though the
+ * user never picked it": affinity can only lift what you DO eat, and cannot
+ * say anything about a food you have never touched. Being repeatedly offered
+ * something and never taking it is the only evidence that distinguishes
+ * "unknown" from "not for me".
+ *
+ * Netted against picks, so a food you eat weekly is never suppressed for also
+ * being shown often.
+ */
+export function suppressionScorer(): (id: string) => number {
+  return makeSuppressor(read());
+}
+
+export function makeSuppressor(s: Store): (id: string) => number {
+  const shown = s.shown;
+  if (!shown) return () => 0;
+  return (id: string): number => {
+    const n = shown[id];
+    if (!n) return 0;
+    const taken = s.foods[id]?.ns ?? 0;
+    const ignored = n - 3 * taken;
+    if (ignored <= SUPP_MIN) return 0;
+    return sat(ignored - SUPP_MIN, SUPP_K);
   };
 }
 

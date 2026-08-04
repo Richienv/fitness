@@ -28,7 +28,13 @@ import {
   getFoodPicks,
   type FoodPick,
 } from "@/lib/foodPicks";
-import { affinityScorer, migrateFromPicks, recordAffinity } from "@/lib/foodAffinity";
+import {
+  affinityScorer,
+  migrateFromPicks,
+  recordAffinity,
+  recordImpressions,
+  suppressionScorer,
+} from "@/lib/foodAffinity";
 import {
   getFoodGroups,
   addFoodToGroup,
@@ -1331,6 +1337,7 @@ export default function FoodBuilder({
     migrateFromPicks(getFoodPicks());
     return affinityScorer({ plate: platedIds });
   }, [platedIds]);
+  const suppression = useMemo(() => suppressionScorer(), [platedIds]);
 
   const searchPool = useMemo(
     () => prepareSearch(merged.concat(allFoods ?? [])),
@@ -1356,10 +1363,12 @@ export default function FoodBuilder({
   const RANK_LIMIT = 400;
   const SHOW_LIMIT = 60;
   const searchFlatRaw: BuilderFood[] = q
-    ? searchPrepared(searchPool, q, { limit: RANK_LIMIT, affinity: affinity })
+    ? searchPrepared(searchPool, q, { limit: RANK_LIMIT, affinity, suppression })
         .map((r) => r.food)
         .concat(
-          searchPrepared(prepareSearch(dbResults), q, { limit: 30, affinity }).map((r) => r.food)
+          searchPrepared(prepareSearch(dbResults), q, { limit: 30, affinity, suppression }).map(
+            (r) => r.food
+          )
         )
     : [];
   const searchFlat: BuilderFood[] = (() => {
@@ -1384,6 +1393,26 @@ export default function FoodBuilder({
     }
     return out.slice(0, SHOW_LIMIT);
   })();
+  // Record what the user was actually SHOWN, once the query settles.
+  //
+  // Debounced hard on purpose: typing "telur" fires five renders, and counting
+  // each as its own impression would make a food look ignored five times for
+  // one glance. 900ms is roughly "stopped typing and looked".
+  const shownRef = useRef<string>("");
+  useEffect(() => {
+    if (!q || searchFlat.length === 0) return;
+    const t = window.setTimeout(() => {
+      // Only the rows plausibly on screen. Counting rank 50 as "shown and
+      // declined" would be a lie about what the user ever saw.
+      const key = `${q}|${searchFlat.length}`;
+      if (shownRef.current === key) return;
+      shownRef.current = key;
+      recordImpressions(searchFlat.slice(0, 8).map((f) => f.id));
+    }, 900);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, searchFlat.length]);
+
   // ── RACIK: read a typed plate as its parts ────────────────────────────
   //
   // "nasi ayam goreng sambal" is not one food and never will be one row, but

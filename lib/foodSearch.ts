@@ -113,9 +113,39 @@ const HIT = {
   NONE: 0,
 } as const;
 
+/**
+ * A 26-bit "which letters does this word contain" mask, for skipping edit
+ * distance without computing it.
+ *
+ * The fuzzy tier was costing 20ms of a 24ms query: a miss runs Damerau over
+ * every word of every field of every one of 4,575 rows, which is ~70,000
+ * dynamic-programming tables per token. Almost all of them are hopeless.
+ *
+ * The filter is exact, not a heuristic. Every letter present in one word and
+ * absent from the other needs at least one edit to account for it, so
+ *   popcount(a & ~b) > budget  ⇒  distance > budget
+ * and the pair can be rejected without the DP. Words are masked once in
+ * prepare(); the query token is masked once per search.
+ */
+function letterMask(w: string): number {
+  let m = 0;
+  for (let i = 0; i < w.length; i++) {
+    const c = w.charCodeAt(i) - 97; // 'a'
+    if (c >= 0 && c < 26) m |= 1 << c;
+  }
+  return m;
+}
+
+function popcount(n: number): number {
+  n = n - ((n >> 1) & 0x55555555);
+  n = (n & 0x33333333) + ((n >> 2) & 0x33333333);
+  return (((n + (n >> 4)) & 0x0f0f0f0f) * 0x01010101) >> 24;
+}
+
 /** Best match of one token against one field. Public + tested. */
 export function scoreToken(token: string, field: string): number {
-  return scoreTokenWords(token, field, field ? field.split(" ") : []);
+  const words = field ? field.split(" ") : [];
+  return scoreTokenWords(token, field, words, words.map(letterMask), letterMask(token));
 }
 
 /**
@@ -125,7 +155,13 @@ export function scoreToken(token: string, field: string): number {
  * on every keystroke — five fields x ~3000 docs x each query variant. The words
  * never change, so they are computed once in prepare() instead.
  */
-function scoreTokenWords(token: string, field: string, words: string[]): number {
+function scoreTokenWords(
+  token: string,
+  field: string,
+  words: string[],
+  masks: number[],
+  tokenMask: number
+): number {
   if (!field) return HIT.NONE;
   if (field === token) return HIT.EXACT;
   if (field.startsWith(token + " ")) return HIT.PREFIX_FIELD;
@@ -141,7 +177,13 @@ function scoreTokenWords(token: string, field: string, words: string[]): number 
 
   const budget = typoBudget(token);
   if (budget > 0) {
-    for (const w of words) {
+    for (let i = 0; i < words.length; i++) {
+      const w = words[i];
+      // Cheap exact rejections before the O(n*m) table. Length first, then the
+      // letter-set bound described above.
+      if (Math.abs(w.length - token.length) > budget) continue;
+      const m = masks[i];
+      if (popcount(tokenMask & ~m) > budget || popcount(m & ~tokenMask) > budget) continue;
       if (editDistance(token, w, budget) <= budget) return HIT.FUZZY;
     }
   }
@@ -201,6 +243,9 @@ type Doc<T> = {
   cuisine: string;
   /** The same four fields pre-split into words — see scoreTokenWords. */
   words: Record<string, string[]>;
+  /** Per-word letter masks, parallel to `words`. Built once so the fuzzy tier
+   *  can reject a candidate without running Damerau over it. */
+  masks: Record<string, number[]>;
   popularity: number;
   nameLen: number;
   /** Each alias as a WHOLE name, for the exact-name lock. The aliases field is
@@ -243,6 +288,13 @@ export function prepare<T extends SearchableFood>(foods: readonly T[]): Prepared
         group: f.foodGroup ? normalize(f.foodGroup).split(" ") : [],
         cuisine: f.cuisine ? normalize(f.cuisine).split(" ") : [],
       },
+      masks: {
+        name: (name ? name.split(" ") : []).map(letterMask),
+        english: (f.englishName ? normalize(f.englishName).split(" ") : []).map(letterMask),
+        aliases: (f.aliases ? normalize(f.aliases).split(" ") : []).map(letterMask),
+        group: (f.foodGroup ? normalize(f.foodGroup).split(" ") : []).map(letterMask),
+        cuisine: (f.cuisine ? normalize(f.cuisine).split(" ") : []).map(letterMask),
+      },
       popularity: f.popularity ?? 0,
       nameLen: name.length,
       aliasSet: new Set(
@@ -272,6 +324,17 @@ export type SearchOptions = {
   affinity?: (id: string) => number;
   /** Ceiling on the affinity boost. 0.4 = a favourite gets at most +40%. */
   affinityMax?: number;
+  /**
+   * How much this user has been shown a food and declined it, 0..1. Applied as
+   * a small demotion. Affinity can only lift what you DO eat and can say
+   * nothing about a food you have never touched; this is the only signal that
+   * separates "you have not met this yet" from "you keep saying no".
+   */
+  suppression?: (id: string) => number;
+  /** Ceiling on that demotion. Deliberately smaller than affinityMax: an
+   *  impression is far weaker evidence than a choice, and position bias is
+   *  uncorrected here. */
+  suppressionMax?: number;
   /** Expand each token into synonyms (English↔Indonesian). Any one matching
    *  satisfies that token. */
   aliases?: (token: string) => string[];
@@ -297,6 +360,8 @@ export function searchPrepared<T extends SearchableFood>(
   const limit = opts.limit ?? 60;
   const aff = opts.affinity;
   const affMax = opts.affinityMax ?? 0.4;
+  const supp = opts.suppression;
+  const suppMax = opts.suppressionMax ?? 0.15;
   // The whole query, normalized, for the exact-name lock below.
   const queryText = tokens.join(" ");
   const { docs, index } = prepared;
@@ -324,7 +389,7 @@ export function searchPrepared<T extends SearchableFood>(
       idfTerm,
       variants: [
         // Same word, other spelling: no penalty.
-        ...family.map((v) => ({ v, penalty: 1, spelling: true })),
+        ...family.map((v) => ({ v, penalty: 1, spelling: true, mask: letterMask(v) })),
         // A different word that means the same thing is a real loosening.
         // 0.95, not 0.8. A translation IS a loosening and should cost
         // something, but at 0.8 reaching a food through the only route your
@@ -332,7 +397,7 @@ export function searchPrepared<T extends SearchableFood>(
         // Indonesian words reachable from English, that discount WAS the
         // English experience. Measured: 0.8 → 0.95 moved cross-lingual top-10
         // overlap from 63% to 74% and cost nothing on the golden set.
-        ...expand(token).map((v) => ({ v, penalty: 0.95, spelling: false })),
+        ...expand(token).map((v) => ({ v, penalty: 0.95, spelling: false, mask: letterMask(v) })),
       ],
     };
   });
@@ -363,11 +428,11 @@ export function searchPrepared<T extends SearchableFood>(
     for (const plan of plans) {
       let best = 0;
       let namedIt = 0;
-      for (const { v, penalty, spelling } of plan.variants) {
+      for (const { v, penalty, spelling, mask: vMask } of plan.variants) {
         for (const [field, weight] of FIELDS_W) {
           const text = p[field];
           if (!text) continue;
-          const tier = scoreTokenWords(v, text, p.words[field]);
+          const tier = scoreTokenWords(v, text, p.words[field], p.masks[field], vMask);
           // A SYNONYM may match, but only exactly. Expansion is already a
           // loosening; letting the expanded word also match by prefix or by
           // typo compounds two guesses. "telur" expands to "egg", and a prefix
@@ -479,6 +544,16 @@ export function searchPrepared<T extends SearchableFood>(
     if (aff) {
       const a = aff(p.food.id);
       if (a > 0) total *= 1 + affMax * (a > 1 ? 1 : a);
+    }
+
+    // SUPPRESSION — the mirror of affinity, and much quieter.
+    //
+    // Never applied to an exact-name match: if you typed the whole name, you
+    // want that food, and how often you ignored it in some other list is
+    // irrelevant.
+    if (supp) {
+      const sv = supp(p.food.id);
+      if (sv > 0) total *= 1 - suppMax * (sv > 1 ? 1 : sv);
     }
 
     // EXACT NAME — a lock, not a score.
