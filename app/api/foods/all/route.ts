@@ -34,9 +34,10 @@ interface Row {
   fat_g: Prisma.Decimal | null;
   carb_g: Prisma.Decimal | null;
   sugar_g: Prisma.Decimal | null;
+  popularity: Prisma.Decimal | number | null;
 }
 
-const num = (x: Prisma.Decimal | null): number | null =>
+const num = (x: Prisma.Decimal | number | null): number | null =>
   x == null ? null : Number(x.toString());
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -59,7 +60,7 @@ export async function GET() {
     const rows = await db.$queryRaw<Row[]>(Prisma.sql`
       SELECT f."sourceCode", f.name, f."nameEn", f.aliases, f."foodGroup", f.cuisine,
              f."portionGCooked",
-             f.energy_kcal, f.protein_g, f.fat_g, f.carb_g, f.sugar_g
+             f.energy_kcal, f.protein_g, f.fat_g, f.carb_g, f.sugar_g, f.popularity
       FROM "Food" f
       WHERE f.energy_kcal IS NOT NULL
       ORDER BY LEAST(COALESCE(f.popularity, 0), 200) DESC, f.name ASC;
@@ -82,6 +83,11 @@ export async function GET() {
       fat_g: num(r.fat_g),
       carb_g: num(r.carb_g),
       sugar_g: num(r.sugar_g),
+      // Ordered on in the SQL above and then thrown away — so the ranker's and
+      // the picker's popularity prior was flat for every catalogue row in the
+      // running app, while the offline eval (which builds its own pool) saw the
+      // real values. Ship it.
+      popularity: num(r.popularity),
     }));
 
     cache = { at: Date.now(), foods };
