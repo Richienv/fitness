@@ -21,16 +21,20 @@ mainland networks. Keep Vercel available until the trial has passed.
    | Start command | `npm run start -- --hostname 0.0.0.0` |
    | Health check path | `/install` |
 
-3. Set `DATABASE_URL` and `AUTH_SECRET` to the existing Vercel production values.
-   Enter them directly in Render's environment settings; never put them in Git.
-   This keeps the existing accounts and server-synced data. The new origin will
-   require a fresh login. Browser-only data and the installed PWA do not transfer
-   automatically between origins.
+3. Set `DATABASE_URL` to the existing Vercel production value. Enter it directly
+   in Render's environment settings; never put it in Git. The Blueprint generates
+   a new `AUTH_SECRET` automatically. For a manually configured Web Service,
+   generate one with `openssl rand -base64 32` and add it as `AUTH_SECRET`.
+   Existing accounts and server-synced data stay in the same database. The new
+   origin requires a fresh login. Browser-only data and the installed PWA do not
+   transfer automatically between origins. Widget tokens are specific to each
+   deployment's signing secret; generate new ones from the new address if used.
 4. Add `BLOB_READ_WRITE_TOKEN` if meal-photo uploads are used. For the Hermes bot
    integration, also copy `R2_FIT_API_KEY` and `HERMES_OWNER_EMAIL` and update the
    bot's configured app URL when ready.
 5. Deploy and use the actual URL assigned by Render. The requested service name
    does not guarantee `r2-fit-access-trial.onrender.com` is available.
+   Keep Auto-Deploy off during this trial; trigger later deployments manually.
 
 `build:app` validates the food pack, generates Prisma's client, and compiles
 Next.js. It does **not** push database schema changes or seed food records. The
