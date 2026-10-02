@@ -81,3 +81,62 @@ test("it is total: odd input never throws", () => {
 test("nameKey collapses the 'estimasi' suffix so duplicates meet", () => {
   assert.equal(nameKey("Ayam Pop Padang (estimasi)"), nameKey("Ayam pop padang"));
 });
+
+// ── Found by auditing the 30 worst misfiles in the real pool ──────────────────
+
+test("a multi-word English dish is its own base, not its last word", () => {
+  // The head-final rule read these as cheese, chips, wrap-less chicken…
+  const cases: [string, string][] = [
+    ["Mac And Cheese", "makaroni"],
+    ["Fish and Chips", "fish and chips"],
+    ["Hotdog Sosis Roti", "hotdog"],
+    ["Onion Ring Resto", "onion ring"],
+    ["Banana Split", "banana split"],
+    ["Greek Yogurt Buah", "yogurt"],
+    ["Coca-Cola", "cola"],
+  ];
+  for (const [name, base] of cases) assert.equal(parseFood(name).base, base, name);
+});
+
+test("a finished-product noun beats a trailing flavour or filling", () => {
+  assert.equal(parseFood("Chicken Caesar Wrap").base, "wrap");
+  assert.equal(parseFood("Biscotti Almond").base, "biscotti");
+  assert.equal(parseFood("Cheese Stick Pastry").base, "cheese stick");
+  assert.equal(parseFood("Cream Puff Matcha").base, "cream puff");
+  assert.deepEqual(parseFood("Cream Puff Matcha").facets.flavour, ["matcha"]);
+});
+
+test("a compound stays together instead of becoming a filling plus stray colours", () => {
+  const p = parseFood("Bubur Kacang Ijo Ketan Hitam Burjo");
+  assert.equal(p.base, "bubur");
+  assert.deepEqual(p.terms, ["kacang hijau", "ketan hitam"]);
+  // …and the filling vocabulary did NOT claim "kacang" out of it.
+  assert.deepEqual(p.facets.isi, []);
+  const q = parseFood("Sayur Kacang Merah Santan");
+  assert.deepEqual(q.terms, ["kacang merah"]);
+});
+
+test("spellings people type fold onto one word", () => {
+  assert.equal(parseFood("Kacang Ijo").terms[0], "hijau");
+  assert.equal(parseFood("Sego Sambel").base, "nasi");
+  assert.equal(parseFood("Mi Goreng").base, "mie");
+  assert.deepEqual(parseFood("Roti Coklat").facets.flavour, ["cokelat"]);
+});
+
+test("'masakan' (TKPI for cooked) is the same state as 'matang'", () => {
+  assert.deepEqual(parseFood("Telur ayam, masakan").facets.state, ["matang"]);
+});
+
+test("egg preparations are read as cooking methods", () => {
+  for (const [name, prep] of [["Telur dadar", "dadar"], ["Telur ceplok", "ceplok"], ["Telur orak-arik", "orak arik"]]) {
+    const p = parseFood(name);
+    assert.equal(p.base, "telur", name);
+    assert.deepEqual(p.facets.prep, [prep], name);
+  }
+});
+
+test("terms exclude parenthetical notes, so a note can never become a variety", () => {
+  const p = parseFood("Nasi Putih (1 porsi)");
+  assert.ok(!p.terms.includes("1 porsi"));
+  assert.ok(p.rest.includes("1 porsi"));
+});

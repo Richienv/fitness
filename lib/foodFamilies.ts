@@ -45,7 +45,14 @@ export type Family<T> = {
   /** True when the first word is a dish ("soto", "mie"): the next axis is
    *  what's IN it, not how it was cooked. */
   isDish: boolean;
+  /** Overrides the default question order where the data says people think of
+   *  it differently ("nasi apa?" before "dimasak apa?"). */
+  axisOrder?: FacetAxis[];
 };
+
+/** The questions of a family, in the order they are asked. */
+export const orderFor = <T,>(family: Pick<Family<T>, "isDish" | "axisOrder">): FacetAxis[] =>
+  family.axisOrder ?? (family.isDish ? DISH_AXIS_ORDER : AXIS_ORDER);
 
 export type FamilyIndex<T> = {
   families: Map<string, Family<T>>;
@@ -63,6 +70,61 @@ function better<T extends SearchableFood>(a: T, b: T): T {
 }
 
 const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+/** Words that are left over after parsing but name nothing: sizes, filler,
+ *  numbers' units. They would otherwise top the "Macam" row of every family. */
+const NOT_A_VARIETY = new Set([
+  "bagian", "komplit", "lengkap", "isi", "tanpa", "dengan", "dan", "di", "ke", "dari", "yang",
+  "pakai", "plus", "porsi", "pcs", "pack", "butir", "slice", "estimasi", "besar", "kecil",
+  "sedang", "rasa", "bumbu", "regular", "plain", "biasa", "paket", "tambah", "mini", "jumbo",
+  "extra", "special", "spesial", "premium", "classic", "original",
+  // Brand and outlet words that recur in the pool but name no kind of food.
+  "kita", "cerita", "var", "abadi", "gung", "pasar", "mantan", "kenangan",
+]);
+
+/**
+ * How lopsided a question may be before it stops being one. "Dimasak?" with the
+ * answer "none of these" for three rows in four asks the user to hunt for the
+ * minority, so it is skipped. The variety row is the exception: most nasi is
+ * simply nasi, and "Macam: Biasa · Kuning · Uduk · Liwet" is exactly the right
+ * question even though the named kinds are a minority.
+ */
+export const dominatedAt = (axis: FacetAxis): number => (axis === "ragam" ? 0.9 : 0.75);
+
+/** A variety must be shared by this many foods of the family to be a chip. */
+const VARIETY_MIN_FOODS = 2;
+/** And only the most common ones become chips; the long tail is "Lainnya". */
+const VARIETY_MAX_VALUES = 9;
+
+/**
+ * The "Macam" axis: the named variety inside one base — nasi KUNING / UDUK /
+ * LIWET, telur PUYUH / BEBEK, ikan KEMBUNG / PATIN. No vocabulary can list these
+ * (the census found 1,200+ distinct words), but the data already says which
+ * ones are real: a word that several foods of the same family share is a
+ * variety, and one that appears once is a brand or a typo. So the axis is
+ * DERIVED from the family's own leftover words instead of being typed in.
+ */
+function assignVarieties<T>(fam: Family<T>): void {
+  const df = new Map<string, number>();
+  for (const l of fam.leaves) {
+    for (const t of new Set(l.parsed.terms)) {
+      if (t.length < 3 || /\d/.test(t) || NOT_A_VARIETY.has(t)) continue;
+      df.set(t, (df.get(t) ?? 0) + 1);
+    }
+  }
+  const keep = new Set(
+    [...df]
+      .filter(([, n]) => n >= VARIETY_MIN_FOODS)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, VARIETY_MAX_VALUES)
+      .map(([t]) => t)
+  );
+  if (keep.size === 0) return;
+  fam.leaves = fam.leaves.map((l) => {
+    const ragam = [...new Set(l.parsed.terms.filter((t) => keep.has(t)))];
+    return ragam.length === 0 ? l : { ...l, parsed: { ...l.parsed, facets: { ...l.parsed.facets, ragam } } };
+  });
+}
 
 export function buildFamilies<T extends SearchableFood>(foods: readonly T[]): FamilyIndex<T> {
   const families = new Map<string, Family<T>>();
@@ -103,6 +165,7 @@ export function buildFamilies<T extends SearchableFood>(foods: readonly T[]): Fa
   }
 
   for (const fam of families.values()) {
+    assignVarieties(fam);
     for (const leaf of fam.leaves) byId.set(leaf.food.id, { family: fam.base, leaf });
   }
   for (const leaf of unplaced) byId.set(leaf.food.id, { family: "", leaf });
@@ -160,7 +223,7 @@ export function refine<T>(family: Family<T>, picks: Picks = {}): Step<T> {
   let axis: FacetAxis | null = null;
   let options: Option[] = [];
 
-  const order = family.isDish ? DISH_AXIS_ORDER : AXIS_ORDER;
+  const order = orderFor(family);
   for (const a of order) {
     if (picks[a]) continue; // already decided
     const counts = new Map<string, number>();
@@ -180,7 +243,7 @@ export function refine<T>(family: Family<T>, picks: Picks = {}): Step<T> {
     // let the next axis (or the row list) do the narrowing instead. Measured on
     // "sapi": 35 of 37 rows carry no cooking method, so "Dimasak?" was two chips
     // and a giant "Lainnya".
-    if (uncovered / leaves.length > 0.75) continue;
+    if (uncovered / leaves.length > dominatedAt(a)) continue;
     axis = a;
     options = [...counts]
       .map(([value, count]) => ({ value, label: cap(value), count }))
@@ -193,7 +256,7 @@ export function refine<T>(family: Family<T>, picks: Picks = {}): Step<T> {
   // nothing left over. "Ayam goreng" for {prep: goreng}; not "Ayam Goreng Sabana".
   const canonical =
     leaves.find((l) => {
-      if (l.parsed.rest.length > 0) return false;
+      if (l.parsed.rest.some((w) => !l.parsed.facets.ragam.includes(w))) return false;
       for (const a of order) {
         const have = l.parsed.facets[a];
         const want = picks[a];

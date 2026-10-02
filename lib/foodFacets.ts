@@ -28,23 +28,24 @@
 
 import { normalize } from "./foodSearch.ts";
 
-export type FacetAxis = "jenis" | "isi" | "prep" | "cut" | "flavour" | "style" | "state" | "where";
+export type FacetAxis = "jenis" | "ragam" | "isi" | "prep" | "cut" | "flavour" | "style" | "state" | "where";
 
 /** The order axes are ASKED in. Cooking method first: it moves calories most
  *  (goreng vs rebus) and is the question people expect after the base. */
-export const AXIS_ORDER: FacetAxis[] = ["jenis", "prep", "cut", "style", "flavour", "where", "state"];
+export const AXIS_ORDER: FacetAxis[] = ["jenis", "prep", "cut", "ragam", "style", "flavour", "where", "state"];
 
 /** Dish families (soto, mie, nasi …) ask what is IN it before how it was made:
  *  "mie apa?" comes before "dimasak apa?". */
-export const DISH_AXIS_ORDER: FacetAxis[] = ["jenis", "isi", "prep", "cut", "style", "flavour", "where", "state"];
+export const DISH_AXIS_ORDER: FacetAxis[] = ["jenis", "isi", "prep", "ragam", "cut", "style", "flavour", "where", "state"];
 
 export const AXIS_LABEL: Record<FacetAxis, string> = {
   jenis: "Jenis",
+  ragam: "Macam",
   isi: "Isi",
   prep: "Dimasak",
   cut: "Bagian",
   style: "Gaya",
-  flavour: "Bumbu",
+  flavour: "Rasa",
   where: "Asal",
   state: "Kondisi",
 };
@@ -60,6 +61,11 @@ export const VOCAB: Record<FacetAxis, string[]> = {
   // Never read from a name: "jenis" is assigned when several bases are merged
   // into one tile (ikan + udang + cumi), so the base itself becomes a choice.
   jenis: [],
+  // Never read from a name either: "ragam" is the named variety INSIDE one base
+  // (nasi kuning · nasi uduk, telur puyuh · telur bebek). It is derived from the
+  // words the rest of the vocabulary left over, keeping only those that several
+  // foods share — see assignVarieties in foodFamilies.ts.
+  ragam: [],
   // What is IN a dish. Only meaningful after a dish head ("soto ayam"); the
   // classifier still reads it elsewhere ("Nugget Ayam Goreng"), where it is
   // simply a facet the family does not split on.
@@ -74,6 +80,7 @@ export const VOCAB: Record<FacetAxis, string[]> = {
   prep: [
     "goreng", "bakar", "rebus", "kukus", "panggang", "geprek", "penyet", "tumis",
     "pepes", "asap", "tim", "presto", "ungkep", "sangrai", "bacem", "rica rica",
+    "dadar", "ceplok", "orak arik", "suwir", "cincang", "tumbuk", "giling", "parut",
     "fried", "grilled", "boiled", "steamed", "roasted", "baked",
   ],
   cut: [
@@ -91,15 +98,22 @@ export const VOCAB: Record<FacetAxis, string[]> = {
     "sambal", "lada hitam", "saus tiram", "saus padang", "asam manis", "mentega",
     "keju", "mozzarella", "bumbu kuning", "bumbu bali", "bumbu rujak", "bumbu kacang",
     "kuah", "santan", "rica", "cabai hijau", "teriyaki", "barbeque", "bbq",
+    // Sweet flavours: the real split inside susu, es, roti, kue and kopi.
+    "cokelat", "vanila", "stroberi", "matcha", "pandan", "durian", "mocha", "karamel",
+    "tiramisu", "srikaya", "gula aren", "gula merah", "red velvet", "blueberry", "hazelnut",
   ],
   where: [
     "padang", "sunda", "jawa", "bali", "betawi", "manado", "makassar", "bandung",
     "surabaya", "klaten", "kalasan", "warteg", "warung", "resto", "restoran",
-    "kantin", "kemasan", "korea", "hainan", "cina",
+    "kantin", "kemasan", "korea", "hainan", "cina", "medan", "bogor", "aceh", "banjar",
+    "kudus", "lamongan", "pekalongan", "madura", "sukabumi", "pasundan", "burjo",
+    "warmindo", "bungkus", "kotak", "kentucky", "church texas", "mcd", "solo",
+    "semarang", "lombok", "palembang", "cirebon", "malang", "jakarta", "yogyakarta",
   ],
   state: [
     "mentah", "segar", "kering", "matang", "instan", "beku", "frozen", "raw",
-    "fresh", "dried", "kaleng", "asin",
+    "fresh", "dried", "kaleng", "asin", "masakan", "bubuk", "cup", "botol", "uht",
+    "setengah matang",
   ],
 };
 
@@ -132,6 +146,8 @@ const BASE_ALIASES: Record<string, string> = {
   mushroom: "jamur", tomato: "tomat", soup: "sop", sauce: "saus", yogurt: "yogurt",
   juice: "jus", water: "air", butter: "mentega", cake: "kue", bun: "bakpao",
   porridge: "bubur", congee: "bubur", dumplings: "pangsit", sandwich: "sandwich",
+  crisps: "keripik", crisp: "keripik", chips: "keripik", chip: "keripik",
+  cookie: "kukis", cookies: "kukis",
 };
 
 /** Words that must NEVER be read as a facet on their own, with the reason. The
@@ -151,10 +167,13 @@ export type Parsed = {
   /** What is left after the base and facets — the part that distinguishes
    *  this row ("Sabana", "D'Besto", "Resto"). Kept for display, never guessed at. */
   rest: string[];
+  /** `rest` without parenthetical notes: the words (and compounds) that name a
+   *  variety. A variety axis is built from these, never from a note. */
+  terms: string[];
 };
 
 const emptyFacets = (): Record<FacetAxis, string[]> => ({
-  jenis: [], isi: [], prep: [], cut: [], style: [], flavour: [], where: [], state: [],
+  jenis: [], ragam: [], isi: [], prep: [], cut: [], style: [], flavour: [], where: [], state: [],
 });
 
 // Phrase index: longest first, so multi-word entries win over their parts.
@@ -171,7 +190,26 @@ const ENGLISH_TO_ID: Record<string, string> = {
   leg: "paha", fresh: "segar", dried: "kering", raw: "mentah", frozen: "beku",
   crispy: "crispy", spicy: "pedas", bbq: "barbeque", crispi: "crispy", krispi: "crispy",
   kriuk: "crispy", filet: "fillet", chicken: "ayam", beef: "sapi", fish: "ikan", egg: "telur", shrimp: "udang",
+  // TKPI writes "masakan" for cooked; it is the same state as "matang".
+  masakan: "matang",
+  coklat: "cokelat", chocolate: "cokelat", vanilla: "vanila", strawberry: "stroberi",
+  caramel: "karamel", cheese: "keju",
 };
+
+/** Spellings people actually type, folded before anything is read. */
+const SPELLING: Record<string, string> = {
+  ijo: "hijau", coklat: "cokelat", sambel: "sambal", sego: "nasi", mi: "mie", telor: "telur",
+};
+
+/** English nouns that name a finished product. When one is present it is the
+ *  base even if a flavour or filling noun trails it: "Biscotti Almond" is a
+ *  biscotti, "Chicken Caesar Wrap" a wrap, and the head-final rule alone would
+ *  call them an almond and a wrap-less chicken. */
+const ENGLISH_PRODUCT_HEADS = new Set([
+  "biscotti", "cookie", "cookies", "kukis", "pastry", "wrap", "bowl", "puff", "crisps", "crisp",
+  "brownie", "brownies", "muffin", "cupcake", "donut", "bagel", "waffle", "pancake", "pizza",
+  "burger", "sandwich", "salad", "pasta", "steak", "soup", "cake", "pie", "tart",
+]);
 
 const canonFacet = (canon: string) => ENGLISH_TO_ID[canon] ?? canon;
 
@@ -197,6 +235,11 @@ const ENGLISH_WORDS = new Set([
   "yogurt","tofu","tempeh","banana","apple","bar","powder","scoop","steak","slice","mince","jerky",
   "chips","burger","sandwich","salad","pepper","bean","beans","oyster","drop","cream","cake","roll",
   "seeds","seed","nuts","protein","breast","thigh","wing","fillet","porridge","congee","dumplings","bun",
+  "wrap","bowl","ring","rings","split","puff","stick","pastry","cookie","cookies","crisps","crisp","onion",
+  "almond","orange","melon","caesar","mac","and","cheese","dog","hot","ice","mashed","gravy","sub","cola",
+  "biscotti","profiterole","roll","french","fries","nugget","nuggets","wings","strips","popcorn",
+  "kukis","brownie","brownies","muffin","cupcake","donut","bagel","waffle","pancake","pizza","pasta",
+  "pie","tart","mister","greek",
 ]);
 
 const isEnglishName = (words: string[]): boolean => {
@@ -216,6 +259,50 @@ const ENGLISH_PHRASES: Record<string, string> = {
   "bok choy": "pakcoy",
 };
 
+/** Names where the dish is a multi-word English phrase. The head-final rule
+ *  would read "Mac and Cheese" as cheese and "Fish and Chips" as chips; these
+ *  are one dish each, found by auditing the 30 worst misfiles in the real pool.
+ *  Matched anywhere in the name, longest first; the rest of the words still
+ *  become facets. */
+const PHRASE_BASES: [phrase: string, base: string][] = [
+  ["macaroni and cheese", "makaroni"],
+  ["mac and cheese", "makaroni"],
+  ["mac n cheese", "makaroni"],
+  ["fish and chips", "fish and chips"],
+  ["hot dog", "hotdog"],
+  ["hotdog", "hotdog"],
+  ["onion rings", "onion ring"],
+  ["onion ring", "onion ring"],
+  ["banana split", "banana split"],
+  ["cream puff", "cream puff"],
+  ["cheese stick", "cheese stick"],
+  ["roll cake", "roll cake"],
+  ["rice bowl", "rice bowl"],
+  ["beef bowl", "rice bowl"],
+  ["french fries", "kentang goreng"],
+  ["coca cola", "cola"],
+  ["mashed potato", "kentang"],
+  ["sub sandwich", "sandwich"],
+  ["melon orange", "melon"],
+  ["greek yogurt", "yogurt"],
+  ["pop ice", "pop ice"],
+  ["caesar wrap", "wrap"],
+  ["chicken wrap", "wrap"],
+].sort((a, b) => b[0].split(" ").length - a[0].split(" ").length) as [string, string][];
+
+/** Two words that name ONE thing. When the first would otherwise be read as a
+ *  facet or a base ("kacang" as an ingredient, "ketan" as a base), the pair is
+ *  kept together as a single variety instead: "Bubur Kacang Ijo Ketan Hitam" is
+ *  a bubur of kacang ijo and ketan hitam, not a bubur with kacang and some
+ *  stray colours. */
+const COLLOCATIONS = [
+  "kacang ijo", "kacang hijau", "kacang merah", "kacang tanah", "kacang panjang", "kacang kedelai",
+  "kacang polong", "kacang mete", "kacang almond",
+  "ketan hitam", "ketan putih", "beras ketan", "beras merah", "beras putih", "beras hitam",
+  "jeruk bali", "jeruk nipis", "jeruk manis", "jeruk peras", "kopi susu", "kental manis",
+  "ubi jalar", "ubi ungu", "ubi cilembu", "daun singkong", "daun pepaya", "gula pasir",
+  "es krim", "es campur", "es teler", "es cendol", "es dawet", "es doger",
+].sort((a, b) => b.split(" ").length - a.split(" ").length);
 // Words that can sit at the FRONT of a name without being the base: they name a
 // part, a method, a state or a place, and the real base follows ("Dada ayam",
 // "Kulit ayam crispy", "Putih telur", "Goreng ... "). If nothing follows, they
@@ -243,24 +330,48 @@ export function parseFood(name: string): Parsed {
   const core = normalize(name.replace(paren, " "));
   const words = core.split(" ").filter(Boolean);
   const facets = emptyFacets();
-  if (words.length === 0) return { base: "", baseKind: "unknown", facets, rest: notes };
+  if (words.length === 0) return { base: "", baseKind: "unknown", facets, terms: [], rest: notes };
 
   // Reduplication: "gado gado" is one word, written twice.
   for (let i = words.length - 1; i > 0; i--) if (words[i] === words[i - 1]) words.splice(i, 1);
+  for (let i = 0; i < words.length; i++) words[i] = SPELLING[words[i]] ?? words[i];
 
   // 0) A phrase that means one thing.
   const joined = words.join(" ");
   for (const [phrase, base] of Object.entries(ENGLISH_PHRASES)) {
-    if (joined === phrase) return { base, baseKind: "english", facets, rest: notes };
+    if (joined === phrase) return { base, baseKind: "english", facets, terms: [], rest: notes };
+  }
+
+  // A multi-word English dish ("mac and cheese") is its own base wherever it sits
+  // in the name; the head-final rule would pick its last word.
+  let phraseAt = -1;
+  let phraseLen = 0;
+  let phraseBase = "";
+  for (const [phrase, base] of PHRASE_BASES) {
+    const pw = phrase.split(" ");
+    for (let i = 0; i + pw.length <= words.length; i++) {
+      if (pw.every((w, k) => words[i + k] === w)) {
+        phraseAt = i;
+        phraseLen = pw.length;
+        phraseBase = base;
+        break;
+      }
+    }
+    if (phraseAt >= 0) break;
   }
 
   // 1) The base.
   let baseIdx: number;
   let kind: Parsed["baseKind"];
-  if (isEnglishName(words)) {
-    // Head-final: the LAST word that is not a facet or a bare modifier.
-    let i = words.length - 1;
-    while (i > 0 && (FRONT_SKIPPABLE.has(words[i]) || words[i] === "scoop" || words[i] === "slice")) i--;
+  if (phraseAt >= 0) {
+    baseIdx = phraseAt;
+    kind = "english";
+  } else if (isEnglishName(words)) {
+    // A finished-product noun wins wherever it sits; otherwise head-final: the
+    // LAST word that is not a facet or a bare modifier.
+    const product = words.map((w, k) => (ENGLISH_PRODUCT_HEADS.has(w) ? k : -1)).filter((k) => k >= 0);
+    let i = product.length > 0 ? product[product.length - 1] : words.length - 1;
+    while (product.length === 0 && i > 0 && (FRONT_SKIPPABLE.has(words[i]) || words[i] === "scoop" || words[i] === "slice")) i--;
     baseIdx = i;
     kind = "english";
   } else {
@@ -271,12 +382,28 @@ export function parseFood(name: string): Parsed {
     kind = DISH_HEADS.has(words[baseIdx]) ? "dish" : BASE_ALIASES[words[baseIdx]] ? "english" : "head";
   }
   const baseWord = words[baseIdx];
-  const base = BASE_ALIASES[baseWord] ?? baseWord;
+  const base = phraseAt >= 0 ? phraseBase : BASE_ALIASES[baseWord] ?? baseWord;
 
-  // 2) Facets: read from every OTHER word, longest phrase first, so "paha atas"
-  //    is one cut and not "paha" plus a stray "atas".
   const used = new Array<boolean>(words.length).fill(false);
   used[baseIdx] = true;
+  for (let k = 0; k < phraseLen; k++) used[phraseAt + k] = true;
+
+  // 2) Compounds that must stay together. "Bubur Kacang Ijo Ketan Hitam" holds two
+  //    things, kacang hijau and ketan hitam; read word by word it holds a
+  //    "kacang" filling and three stray colours.
+  const compounds: string[] = [];
+  for (const phrase of COLLOCATIONS) {
+    const pw = phrase.split(" ");
+    for (let i = 0; i + pw.length <= words.length; i++) {
+      if (used.slice(i, i + pw.length).some(Boolean)) continue;
+      if (!pw.every((w, k) => words[i + k] === w)) continue;
+      for (let k = 0; k < pw.length; k++) used[i + k] = true;
+      compounds.push(phrase);
+    }
+  }
+
+  // 3) Facets: read from every OTHER word, longest phrase first, so "paha atas"
+  //    is one cut and not "paha" plus a stray "atas".
   for (const e of ENTRIES) {
     for (let i = 0; i + e.words.length <= words.length; i++) {
       if (used.slice(i, i + e.words.length).some(Boolean)) continue;
@@ -290,7 +417,9 @@ export function parseFood(name: string): Parsed {
     }
   }
 
-  return { base, baseKind: kind, facets, rest: [...words.filter((_, i) => !used[i]), ...notes] };
+  const terms = [...words.filter((_, i) => !used[i]), ...compounds];
+
+  return { base, baseKind: kind, facets, terms, rest: [...terms, ...notes] };
 }
 
 /** A stable key for "the same food spelled the same way", used to collapse the

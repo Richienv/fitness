@@ -57,7 +57,7 @@ import {
   type FoodGroup,
   type CustomFoodDef,
 } from "@/lib/foodGroups";
-import { CUISINES, CUISINE_BY_KEY, cuisineOf, type CuisineKey } from "@/lib/cuisine";
+import { CUISINE_BY_KEY, type CuisineKey } from "@/lib/cuisine";
 import { getDaily } from "@/lib/store";
 import { TARGETS, todayKey } from "@/lib/targets";
 import {
@@ -65,9 +65,6 @@ import {
   parseSatuan,
   satuanLine,
   baseGrams,
-  resolveSatuan,
-  nearestStep,
-  PORTION_STEPS,
 } from "@/lib/satuan";
 import { modsFor, modDelta, modSummary, type FoodMod } from "@/lib/foodMods";
 import { STAPLE_POPULARITY } from "@/lib/ingredients";
@@ -89,13 +86,6 @@ const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
 const MONO = "var(--font-dm-mono), 'JetBrains Mono', monospace";
 const FIRE = "linear-gradient(180deg,#ff8a52,#ee3c30 55%,#c01f12)";
 const ZH = "'Noto Serif SC',serif";
-const FIRE_TEXT: CSSProperties = {
-  background: "linear-gradient(100deg,#ff8a3d,#ee2f1f)",
-  WebkitBackgroundClip: "text",
-  backgroundClip: "text",
-  WebkitTextFillColor: "transparent",
-};
-
 const BLABEL: Record<string, string> = {
   breakfast: "SARAPAN",
   lunch: "SIANG",
@@ -109,17 +99,6 @@ type MealT = "breakfast" | "lunch" | "snack" | "dinner";
 const MEAL_TO_SLOT = { breakfast: 0, lunch: 1, dinner: 2, snack: 3 } as const;
 const MEAL_KEYS: MealT[] = ["breakfast", "lunch", "snack", "dinner"];
 
-
-// Sort modes. "semua" is the default and shows the whole library immediately —
-// it replaced the old "relevan" ranked-only mode AND the separate staples list.
-// "group" buckets by cuisine instead of re-ordering.
-type SortMode = "semua" | "group" | "kcalAsc" | "name";
-const SORT_OPTS: { key: SortMode; label: string }[] = [
-  { key: "semua", label: "SEMUA" },
-  { key: "group", label: "GROUP" },
-  { key: "kcalAsc", label: "KALORI ↑" },
-  { key: "name", label: "A–Z" },
-];
 
 // Common shape shared by library ingredients, session custom foods and
 // custom-group foods. All optional fields default to absent.
@@ -398,8 +377,6 @@ const CAT_BUCKET: Record<string, Cat> = {
   extra: { label: "EKSTRA", color: "#eab308" },
   drink: { label: "MINUM", color: "#b28bf0" },
 };
-const CAT_FALLBACK: Cat = { label: "LAIN", color: "#8a837d" };
-
 /** The curated staples, with the popularity prior the eval harness has always
  *  given them and the app never did — so the 141 foods the app is built around
  *  were ranked as if nobody had ever eaten them. */
@@ -444,11 +421,6 @@ const GROUP_TO_BUCKET: Record<string, keyof typeof CAT_BUCKET> = {
   custom: "protein",
 };
 
-function catFor(f: BuilderFood): Cat {
-  const key = (f.foodGroup && GROUP_TO_BUCKET[f.foodGroup]) || GROUP_TO_BUCKET[f.group];
-  return (key && CAT_BUCKET[key]) || CAT_FALLBACK;
-}
-
 /** The bucket key itself ("protein" / "drink" / …) — decides which add-ons a
  *  food is offered in the portion sheet, and feeds the suggestion rules. */
 function catKeyFor(f: BuilderFood): string {
@@ -457,48 +429,7 @@ function catKeyFor(f: BuilderFood): string {
   );
 }
 
-/** Hex + 2-hex-digit alpha suffix (e.g. "#ff6a4c" + "1f" ≈ 12% opacity),
- * exactly the tinting trick the reference uses for chip/icon backgrounds. */
-function alpha(hex: string, suffix: string): string {
-  return hex + suffix;
-}
-
 // ─── Small helpers ──────────────────────────────────────────────────────────
-
-/** "1527" → "1.527" (Indonesian thousands separator, like the reference). */
-function fmtCount(n: number): string {
-  return n.toLocaleString("id-ID");
-}
-
-function prefersReducedMotion(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
-/** Ease a number up to its target for the "count-up" hero number. */
-function useCountUp(target: number): number {
-  const [v, setV] = useState(0);
-  useEffect(() => {
-    if (prefersReducedMotion() || target <= 0) {
-      setV(target);
-      return;
-    }
-    let raf = 0;
-    let cur = 0;
-    const tick = () => {
-      cur = cur + (target - cur) * 0.14;
-      if (Math.abs(target - cur) < 1) {
-        setV(target);
-        return;
-      }
-      setV(Math.round(cur));
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target]);
-  return v;
-}
 
 // Exact 8-ember composition from the reference (left%, size px, delay s,
 // duration s, bottom%, color, glow color).
@@ -512,25 +443,6 @@ const EMBERS: [number, number, number, number, number, string, string][] = [
   [76, 4, 3.6, 8.5, 8, "#ffd25a", "#ff8a3d"],
   [88, 6, 4.2, 7.8, 7, "#ff9a80", "#ee3c30"],
 ];
-
-// −/+ pill buttons inside the running tray.
-const trayBtn = (plus: boolean): CSSProperties => ({
-  width: 32,
-  height: 32,
-  flex: "none",
-  borderRadius: 999,
-  fontSize: 17,
-  lineHeight: 1,
-  cursor: "pointer",
-  color: plus ? "#fff" : "#f1ede9",
-  background: plus
-    ? "linear-gradient(180deg,#ff8a52,#ee3c30 60%,#c01f12)"
-    : "rgba(255,255,255,.06)",
-  border: plus
-    ? "1px solid rgba(255,150,120,.5)"
-    : "1px solid rgba(255,255,255,.12)",
-  boxShadow: plus ? "inset 0 1px 1px rgba(255,225,205,.5)" : "none",
-});
 
 export default function FoodBuilder({
   meal,
@@ -563,8 +475,6 @@ export default function FoodBuilder({
   const flashTimer = useRef<number | null>(null);
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [query, setQuery] = useState("");
-  // Search-result ordering + optional cuisine grouping (Padang / Chinese / …).
-  const [sortMode, setSortMode] = useState<SortMode>("semua");
   const [overrides, setOverrides] = useState<Record<string, MacroPatch>>({});
   const [customFoods, setCustomFoods] = useState<CustomFoodDef[]>([]);
   const [groups, setGroups] = useState<FoodGroup[]>([]);
@@ -573,9 +483,6 @@ export default function FoodBuilder({
   });
   // Browse-all lives behind the floating ⋯ button (search is the hero).
   const [browseOpen, setBrowseOpen] = useState(false);
-  // Which empty-state cell is lit. Purely visual state — the cell's action
-  // fires on the way in; tapping the lit cell again just turns it back off.
-  const [entryCell, setEntryCell] = useState<string | null>(null);
   // Reveals delete controls on the saved-menu rows (behind EDIT MENU).
   const [menuManage, setMenuManage] = useState(false);
   // The portion sheet. Nothing reaches the tray until TAMBAH is pressed, so a
@@ -619,8 +526,6 @@ export default function FoodBuilder({
   // The user's remembered foods (staples), for the "SERING DIPAKAI" quick row
   // and for floating their picks to the top of search.
   const [picks, setPicks] = useState<FoodPick[]>([]);
-  // Shared library size for the empty-state hero count.
-  const [libCount, setLibCount] = useState<number | null>(null);
   // Saved meal templates ("Sarapan biasa") + the name-it sheet.
   const [templates, setTemplates] = useState<MealTemplate[]>([]);
   const [namingTemplate, setNamingTemplate] = useState<{ name: string; emoji: string } | null>(null);
@@ -660,26 +565,6 @@ export default function FoodBuilder({
     }
     setConsumedToday({ kcal, protein, carbs, fat });
   }, [dateKey]);
-
-  // Library size — the public health endpoint reports the shared Food count.
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/hermes/health")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (cancelled) return;
-        const n = data?.data?.foodCount;
-        if (typeof n === "number" && n > 0) {
-          setLibCount(n + INGREDIENTS.length);
-        } else {
-          setLibCount(INGREDIENTS.length);
-        }
-      })
-      .catch(() => setLibCount(INGREDIENTS.length));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Live search against the shared food DB (TKPI + custom + libraries).
   // Debounced; per-100g values map to a "100 g" unit so the qty math and the
@@ -864,65 +749,6 @@ export default function FoodBuilder({
     return overrides[id] ? { ...base, ...overrides[id] } : base;
   };
 
-  // ---------- selection ----------
-  /** Quantity for the FIRST tap on a food. Prefer its real household portion
-   *  (e.g. Nasi Goreng → 300 g = qty 3.0) so one tap logs a believable plate;
-   *  the old behaviour added `step`, which for DB foods meant 10 g and took
-   *  ~30 taps to reach a portion. Nudges after that still use `step`. */
-  const firstQty = (ing: BuilderFood | null): number => {
-    const st = (ing && ing.step) || 1;
-    if (!ing) return st;
-    const gpu = ing.gramsPerUnit;
-    const portion = ing.portionG;
-    if (gpu && portion && portion > 0) {
-      return Math.round((portion / gpu) * 1000) / 1000;
-    }
-    return st;
-  };
-
-  const bAdd = (id: string) => {
-    haptic("tap");
-    const ing = bIng(id);
-    setSelection((sel) => {
-      const cur = sel[id] || 0;
-      const inc = cur > 0 ? (ing && ing.step) || 1 : firstQty(ing);
-      return { ...sel, [id]: Math.round((cur + inc) * 1000) / 1000 };
-    });
-    setJustId(id);
-    setAddTick((t) => t + 1);
-  };
-  // Adding straight from the search list: drop it in the tray, then clear the
-  // box and re-focus it so the next food is one search away — no manual delete.
-  // Flash a quick "✓ ditambah" so the add is unmistakable.
-  const bAddFromSearch = (id: string) => {
-    const ing = bIng(id);
-    bAdd(id);
-    // Remember this pick so it floats to the top next time + fuels "SERING".
-    if (ing) {
-      recordFoodPick({
-        id: ing.id,
-        name: ing.name,
-        kcal: ing.kcal,
-        protein: ing.protein,
-        fat: ing.fat,
-        carbs: ing.carbs,
-        unit: ing.unit,
-        gramsPerUnit: ing.gramsPerUnit,
-        step: ing.step,
-      });
-      // Same event, richer store: decayed counters + meal slot + what else is
-      // on the tray. recordFoodPick stays for the "usual" shortlist UI.
-      recordAffinity(ing.id, platedIds);
-      recordAffinity(ing.id, platedIds);
-    setPicks(getFoodPicks());
-    }
-    setQuery("");
-    setAddedFlash((f) => ({ name: ing?.name ?? "Makanan", tick: (f?.tick ?? 0) + 1 }));
-    if (flashTimer.current) clearTimeout(flashTimer.current);
-    flashTimer.current = window.setTimeout(() => setAddedFlash(null), 1400);
-    // Keep the keyboard up so typing the next item is instant.
-    setTimeout(() => searchRef.current?.focus(), 0);
-  };
   /** Open the portion sheet for a food. Seeds grams from what's already in the
    *  tray, or from the food's default household portion. */
   const openPortionSheet = (id: string) => {
@@ -950,6 +776,36 @@ export default function FoodBuilder({
   };
 
   /**
+   * Teach the predictor. EVERY route that puts food on the tray — the portion
+   * sheet, a saved menu, the RACIK composer — ends here, so "what's next" learns
+   * from all of them and not only the one that happened to be built first.
+   * File the pick under the meal the user CHOSE, not the wall clock: logging
+   * yesterday's dinner at 9am is a dinner, and the hour-based slot disagreed
+   * with the app's own meal logic for 11 of 24 hours.
+   */
+  const learnPick = (foods: Pick<BuilderFood, "id" | "name" | "kcal" | "protein" | "fat" | "carbs" | "unit" | "gramsPerUnit" | "step">[]) => {
+    const withThisMeal = [...platedIds];
+    for (const f of foods) {
+      recordFoodPick({
+        id: f.id,
+        name: f.name,
+        kcal: f.kcal,
+        protein: f.protein,
+        fat: f.fat,
+        carbs: f.carbs,
+        unit: f.unit,
+        gramsPerUnit: f.gramsPerUnit,
+        step: f.step,
+      });
+      recordAffinity(f.id, withThisMeal, Date.now(), MEAL_TO_SLOT[activeMeal]);
+      // Foods added together in one go are eaten together: each one is part of
+      // the plate for the next.
+      if (!withThisMeal.includes(f.id)) withThisMeal.push(f.id);
+    }
+    setPicks(getFoodPicks());
+  };
+
+  /**
    * Put a food on the tray at a chosen amount. The ONE path in: the portion
    * sheet's TAMBAH, the family picker, and anything that follows calls this, so
    * the arithmetic and the learning cannot drift between them.
@@ -967,22 +823,7 @@ export default function FoodBuilder({
     setEntryMods((m) => ({ ...m, [id]: mods }));
     setJustId(id);
     setAddTick((t) => t + 1);
-    recordFoodPick({
-      id: ing.id,
-      name: ing.name,
-      kcal: ing.kcal,
-      protein: ing.protein,
-      fat: ing.fat,
-      carbs: ing.carbs,
-      unit: ing.unit,
-      gramsPerUnit: ing.gramsPerUnit,
-      step: ing.step,
-    });
-    // File the pick under the meal the user CHOSE, not the wall clock: logging
-    // yesterday's dinner at 9am is a dinner, and the hour-based slot disagreed
-    // with the app's own meal logic for 11 of 24 hours.
-    recordAffinity(ing.id, platedIds, Date.now(), MEAL_TO_SLOT[activeMeal]);
-    setPicks(getFoodPicks());
+    learnPick([ing]);
     setQuery("");
     setAddedFlash((f) => ({ name: ing.name, tick: (f?.tick ?? 0) + 1 }));
     if (flashTimer.current) clearTimeout(flashTimer.current);
@@ -1002,26 +843,12 @@ export default function FoodBuilder({
 
   const toggleReveal = (id: string) =>
     setRevealed((r) => ({ ...r, [id]: !r[id] }));
-  const bSub = (id: string) => {
-    const ing = bIng(id);
-    const st = (ing && ing.step) || 1;
-    setSelection((sel) => {
-      const after = Math.round(((sel[id] || 0) - st) * 1000) / 1000;
-      const next = { ...sel };
-      if (after <= 0) delete next[id];
-      else next[id] = after;
-      return next;
-    });
-  };
   const bRemove = (id: string) =>
     setSelection((sel) => {
       const next = { ...sel };
       delete next[id];
       return next;
     });
-  const toggleSection = (key: string) =>
-    setCollapsed((c) => ({ ...c, [key]: !c[key] }));
-
   // ---------- meal templates ----------
 
   /** Snapshot the current tray so the template replays without a search. */
@@ -1091,6 +918,7 @@ export default function FoodBuilder({
       }
       return next;
     });
+    learnPick(t.items);
     markTemplateUsed(t.id);
     setTemplates(getMealTemplates());
     setJustId(t.items[t.items.length - 1]?.id ?? null);
@@ -1679,6 +1507,7 @@ export default function FoodBuilder({
   const [racikOpen, setRacikOpen] = useState(false);
 
   const commitRacik = (chosen: { id: string; grams: number }[]) => {
+    learnPick(chosen.map((c) => bIng(c.id)).filter((f): f is BuilderFood => !!f));
     setSelection((sel) => {
       const next = { ...sel };
       for (const c of chosen) {
@@ -1694,100 +1523,11 @@ export default function FoodBuilder({
     setQuery("");
   };
 
-  // Apply the chosen sort. "relevan" keeps the incoming (ranked / most-used)
-  // order as-is.
-  const applySort = (list: BuilderFood[]): BuilderFood[] => {
-    if (sortMode === "semua" || sortMode === "group") return list;
-    const arr = [...list];
-    if (sortMode === "kcalAsc") arr.sort((a, b) => a.kcal - b.kcal);
-    else if (sortMode === "name") arr.sort((a, b) => a.name.localeCompare(b.name, "id"));
-    return arr;
-  };
-
-  // Cuisine buckets (Padang / Chinese / Jepang / …) in display order, non-empty
-  // only, preserving the incoming order within each bucket.
-  const bucketByCuisine = (list: BuilderFood[]) => {
-    const by = new Map<CuisineKey, BuilderFood[]>();
-    for (const f of list) {
-      const k = f.cuisine ?? cuisineOf(f.name);
-      (by.get(k) ?? by.set(k, []).get(k)!).push(f);
-    }
-    return CUISINES.map((c) => ({
-      key: c.key,
-      label: c.label,
-      emoji: c.emoji,
-      items: by.get(c.key) ?? [],
-    })).filter((g) => g.items.length > 0);
-  };
-
-  const groupCuisine = sortMode === "group";
-  const sortedSearch = applySort(searchFlat);
-  const searchResultCount = sortedSearch.length;
-  const cuisineGroups = groupCuisine ? bucketByCuisine(sortedSearch) : [];
-
-  // Shared sort + group-by-cuisine toolbar (used above search results AND the
-  // "SERING DIPAKAI" staples list so it's always discoverable).
-  // One segmented control: SEMUA · GROUP · KALORI ↑ · A–Z. GROUP is a mode
-  // here rather than a separate ◱ MASAKAN toggle, so there is exactly one
-  // thing selected at a time and no two-dimensional state to reason about.
-  const sortGroupToolbar = (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(4,1fr)",
-        gap: 3,
-        padding: 3,
-        borderRadius: 12,
-        background: "rgba(255,255,255,.03)",
-        marginBottom: 12,
-      }}
-    >
-      {SORT_OPTS.map((o) => {
-        const on = sortMode === o.key;
-        return (
-          <button
-            key={o.key}
-            type="button"
-            onClick={() => {
-              haptic("tap");
-              setSortMode(o.key);
-            }}
-            style={{
-              fontFamily: MONO,
-              fontSize: 8.5,
-              letterSpacing: ".08em",
-              fontWeight: on ? 700 : 400,
-              padding: "9px 4px",
-              borderRadius: 9,
-              cursor: "pointer",
-              border: "none",
-              color: on ? "#fff" : "#8a837d",
-              background: on ? FIRE : "transparent",
-              textShadow: on ? "0 1px 2px rgba(120,15,5,.5)" : "none",
-            }}
-          >
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-
-  // Staples for "SERING DIPAKAI", with the same sort/grouping applied.
-  const pickFoods = picks.map(pickToFood);
-  const sortedPicks = applySort(pickFoods);
-  const pickCuisineGroups = groupCuisine ? bucketByCuisine(sortedPicks) : [];
-
+  const searchResultCount = searchFlat.length;
   // Browse mode: sort/group with no query → the WHOLE library (capped for perf).
   // With SEMUA as the default, an empty query always means "browse the
   // library" — there is no separate staples screen to fall back to.
   const browsing = !q;
-  const BROWSE_CAP = 500;
-  const browseSorted = browsing ? applySort(allFoods ?? []) : [];
-  const browseTruncated = browseSorted.length > BROWSE_CAP;
-  const browseList = browseSorted.slice(0, BROWSE_CAP);
-  const browseCuisineGroups = groupCuisine ? bucketByCuisine(browseList) : [];
-
   // Browse-all sections (behind ⋯): favorites, each custom library group and
   // the whole local catalogue — no step scoping anymore.
   type Section = {
@@ -1949,24 +1689,7 @@ export default function FoodBuilder({
     })
     .filter((x): x is NonNullable<typeof x> => !!x);
 
-  const shownLibCount = useCountUp(libCount ?? 0);
   const emptyState = !q && count === 0 && !browseOpen;
-
-  // The four ways into the app from an empty screen. Each one goes somewhere
-  // real — this replaces the library count, which was a number you couldn't
-  // act on.
-  const entryCells: { key: string; label: string; go: () => void }[] = [
-    { key: "library", label: "LIBRARY", go: () => setBrowseOpen(true) },
-    { key: "menu", label: "EDIT MENU", go: () => setMenuManage(true) },
-    { key: "warung", label: "WARUNG", go: () => setNewGroup({ name: "", emoji: "" }) },
-    {
-      key: "impor",
-      label: "IMPOR",
-      go: () => {
-        if (typeof window !== "undefined") window.location.href = "/meal/import";
-      },
-    },
-  ];
 
   // ---------- search-result row (reference bCard(): icon tile + category ----
   // chip + serving/kcal + add — no hanzi/edit clutter, that's for browse only.
@@ -2050,56 +1773,6 @@ export default function FoodBuilder({
     );
   };
 
-  // Render cuisine-bucketed result rows (shared by search / staples / browse).
-  // GROUP mode. Each heading is a button — tap to collapse the bucket. No flag
-  // emoji: the cuisine name already says it, and five flags in a column read
-  // as decoration.
-  const renderCuisineGroups = (
-    groups: { key: CuisineKey; label: string; emoji: string; items: BuilderFood[] }[]
-  ) => (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      {groups.map((g) => {
-        const open = !collapsed[`cuisine:${g.key}`];
-        return (
-          <div key={g.key}>
-            <button
-              type="button"
-              onClick={() => {
-                haptic("tap");
-                toggleSection(`cuisine:${g.key}`);
-              }}
-              aria-expanded={open}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                width: "100%",
-                padding: "8px 2px",
-                border: "none",
-                background: "transparent",
-                cursor: "pointer",
-                fontFamily: MONO,
-                fontSize: 9.5,
-                letterSpacing: ".14em",
-                color: "#e8e4e0",
-                textAlign: "left",
-              }}
-            >
-              <span style={{ color: "#6a6660", width: 10 }}>{open ? "▾" : "▸"}</span>
-              <span>{g.label}</span>
-              <span style={{ color: "#6a6660" }}>{g.items.length}</span>
-            </button>
-            {open ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                {g.items.map(renderResultRow)}
-              </div>
-            ) : null}
-          </div>
-        );
-      })}
-    </div>
-  );
-
   // ---------- browse row (reference: detailed card with hanzi reveal + edit,
   // used only inside the collapsed "browse-all" library, not search results) --
   const renderBrowseRow = (raw: BuilderFood) => {
@@ -2115,7 +1788,7 @@ export default function FoodBuilder({
     return (
       <div
         key={id}
-        onClick={() => bAdd(id)}
+        onClick={() => openPortionSheet(id)}
         style={{
           borderRadius: 14,
           padding: "13px 14px",
@@ -2239,7 +1912,7 @@ export default function FoodBuilder({
             type="button"
             onClick={(ev) => {
               ev.stopPropagation();
-              bAdd(id);
+              openPortionSheet(id);
             }}
             style={{
               width: 30,
@@ -3214,7 +2887,10 @@ export default function FoodBuilder({
               onUsual={openPortionSheet}
               onMore={() => setBrowseOpen(true)}
               onImport={() => {
-                if (typeof window !== "undefined") window.location.href = "/meal/import";
+                if (typeof window === "undefined") return;
+                // Leaving the page drops whatever is on the tray.
+                if (count > 0 && !window.confirm("Makanan di tray akan hilang kalau kamu pindah ke Impor. Lanjut?")) return;
+                window.location.href = "/meal/import";
               }}
               onGroup={() => setNewGroup({ name: "", emoji: "" })}
             />
@@ -3301,13 +2977,9 @@ export default function FoodBuilder({
               ) : null}
 
 
-              {groupCuisine ? (
-                renderCuisineGroups(cuisineGroups)
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                  {sortedSearch.map(renderResultRow)}
-                </div>
-              )}
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {searchFlat.map(renderResultRow)}
+              </div>
               {searchResultCount === 0 && searching ? (
                 <div
                   style={{
@@ -4373,7 +4045,7 @@ export default function FoodBuilder({
         <RacikSheet
           query={q}
           parts={racikParts}
-          mealLabel={BLABEL[meal] ?? "MAKAN"}
+          mealLabel={BLABEL[activeMeal] ?? "MAKAN"}
           onCancel={() => setRacikOpen(false)}
           onConfirm={commitRacik}
         />

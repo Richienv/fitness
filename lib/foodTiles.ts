@@ -17,9 +17,11 @@
 // there is no way to select an empty combination, and no "ayam bakar dada"
 // button when that row does not exist.
 
-import { AXIS_ORDER, DISH_AXIS_ORDER, type FacetAxis } from "./foodFacets.ts";
+import type { FacetAxis } from "./foodFacets.ts";
 import {
   NONE,
+  dominatedAt,
+  orderFor,
   type Family,
   type FamilyIndex,
   type Leaf,
@@ -34,6 +36,8 @@ export type TileDef = {
   emoji: string;
   /** Bases merged into this tile, as produced by parseFood (Indonesian, normalised). */
   bases: string[];
+  /** Question order where the default is wrong for this food. */
+  axes?: FacetAxis[];
 };
 
 /** The tiles a new user sees, in the order a new user sees them. Order is the
@@ -43,7 +47,12 @@ export const TILE_DEFS: TileDef[] = [
   // put a "Jenis: Ayam | Bebek" row on the food people log most — an extra
   // decision for the 90% case in exchange for the 3%. Merge only things that
   // are genuinely different kinds (ikan / udang / cumi), never to save a tile.
-  { id: "nasi", label: "Nasi", emoji: "🍚", bases: ["nasi"] },
+  // Nasi asks "nasi apa?" (kuning, uduk, liwet) before "dimasak apa?": the named
+  // varieties are how people say it, and goreng is one answer among them.
+  {
+    id: "nasi", label: "Nasi", emoji: "🍚", bases: ["nasi"],
+    axes: ["jenis", "ragam", "prep", "isi", "cut", "style", "flavour", "where", "state"],
+  },
   { id: "ayam", label: "Ayam", emoji: "🍗", bases: ["ayam"] },
   { id: "telur", label: "Telur", emoji: "🥚", bases: ["telur"] },
   { id: "ikan", label: "Ikan & Seafood", emoji: "🐟", bases: ["ikan", "udang", "cumi", "kepiting", "kerang", "lele", "salmon", "tuna", "teri", "tongkol", "bandeng"] },
@@ -71,7 +80,7 @@ export type Tile<T> = {
 };
 
 /** Merge several families into one, tagging each leaf with its base as `jenis`. */
-function merge<T>(id: string, label: string, parts: Family<T>[]): Family<T> {
+function merge<T>(id: string, label: string, parts: Family<T>[], axisOrder?: FacetAxis[]): Family<T> {
   const multi = parts.length > 1;
   const leaves: Leaf<T>[] = [];
   const duplicates = new Map<string, T[]>();
@@ -89,6 +98,7 @@ function merge<T>(id: string, label: string, parts: Family<T>[]): Family<T> {
     leaves,
     duplicates,
     isDish: parts.some((f) => f.isDish),
+    axisOrder,
   };
 }
 
@@ -106,7 +116,7 @@ export function buildTiles<T extends SearchableFood>(
     const parts = d.bases.map((b) => index.families.get(b)).filter((f): f is Family<T> => !!f);
     if (parts.length === 0) return;
     for (const f of parts) claimed.add(f.base);
-    out.push({ id: d.id, label: d.label, emoji: d.emoji, family: merge(d.id, d.label, parts), curated: i });
+    out.push({ id: d.id, label: d.label, emoji: d.emoji, family: merge(d.id, d.label, parts, d.axes), curated: i });
   });
   for (const f of index.families.values()) {
     if (claimed.has(f.base) || f.leaves.length < minAuto) continue;
@@ -141,12 +151,9 @@ export type FacetRow = {
   selected: string | null;
 };
 
-/** Never a question whose answer is "none of these" for three rows in four. */
-const DOMINATED = 0.75;
-
 /** Every row the sheet should show for the current picks. */
 export function facetRows<T>(family: Family<T>, picks: Picks): FacetRow[] {
-  const order = family.isDish ? DISH_AXIS_ORDER : AXIS_ORDER;
+  const order = orderFor(family);
   const rows: FacetRow[] = [];
   for (const axis of order) {
     const pool = family.leaves.filter((l) => matchesAll(l, picks, axis));
@@ -161,7 +168,7 @@ export function facetRows<T>(family: Family<T>, picks: Picks): FacetRow[] {
     const answers = counts.size + (uncovered > 0 ? 1 : 0);
     const selected = picks[axis] ?? null;
     if (answers < 2 && !selected) continue;
-    if (!selected && uncovered / pool.length > DOMINATED) continue;
+    if (!selected && uncovered / pool.length > dominatedAt(axis)) continue;
     const options: Option[] = [...counts]
       .map(([value, count]) => ({ value, label: cap(value), count }))
       .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "id"));
@@ -170,8 +177,10 @@ export function facetRows<T>(family: Family<T>, picks: Picks): FacetRow[] {
     // beside it instead of being scrolled out of view. On the main axes
     // (what / how cooked) the catch-all stays last, as "Lainnya".
     if (uncovered > 0 && counts.size > 0) {
-      const none: Option = { value: NONE, label: axis === "prep" || axis === "jenis" || axis === "isi" ? "Lainnya" : "Umum", count: uncovered };
-      if (axis === "prep" || axis === "jenis" || axis === "isi") options.push(none);
+      const main = axis === "prep" || axis === "jenis" || axis === "isi";
+      // "Biasa" for a variety: most nasi is just nasi, and that is a real answer.
+      const none: Option = { value: NONE, label: main ? "Lainnya" : axis === "ragam" ? "Biasa" : "Umum", count: uncovered };
+      if (main) options.push(none);
       else options.unshift(none);
     }
     // A row that is SELECTED must always offer its selected chip, or there is no
@@ -182,7 +191,7 @@ export function facetRows<T>(family: Family<T>, picks: Picks): FacetRow[] {
       const backing = pool.filter((l) => matchesPick(l, axis, selected)).length;
       options.push({
         value: selected,
-        label: selected === NONE ? (axis === "prep" ? "Lainnya" : "Umum") : cap(selected),
+        label: selected === NONE ? (axis === "prep" || axis === "jenis" || axis === "isi" ? "Lainnya" : axis === "ragam" ? "Biasa" : "Umum") : cap(selected),
         count: backing,
       });
     }
@@ -201,7 +210,7 @@ export function facetRows<T>(family: Family<T>, picks: Picks): FacetRow[] {
  */
 export function picksOf<T>(family: Family<T>, leaf: Leaf<T>): Picks {
   const picks: Picks = {};
-  const order = family.isDish ? DISH_AXIS_ORDER : AXIS_ORDER;
+  const order = orderFor(family);
   for (const axis of order) {
     const have = leaf.parsed.facets[axis];
     if (have.length === 1) picks[axis] = have[0];
@@ -226,7 +235,7 @@ export function applyPick<T>(family: Family<T>, picks: Picks, axis: FacetAxis, v
   if (leavesFor(family, next).length > 0) return next;
   // Conflict: keep the tapped pick, shed the others until something exists.
   const keep: Picks = { [axis]: value };
-  const order = family.isDish ? DISH_AXIS_ORDER : AXIS_ORDER;
+  const order = orderFor(family);
   for (const a of order) {
     if (a === axis || !next[a]) continue;
     const trial: Picks = { ...keep, [a]: next[a] };
@@ -238,10 +247,10 @@ export function applyPick<T>(family: Family<T>, picks: Picks, axis: FacetAxis, v
 /** The plain version of a food: its facets are exactly the picks and nothing is
  *  left over. "Ayam goreng", not "Ayam Goreng Sabana". */
 export function canonicalLeaf<T>(family: Family<T>, picks: Picks): Leaf<T> | null {
-  const order = family.isDish ? DISH_AXIS_ORDER : AXIS_ORDER;
+  const order = orderFor(family);
   return (
     leavesFor(family, picks).find((l) => {
-      if (l.parsed.rest.length > 0) return false;
+      if (l.parsed.rest.some((w) => !l.parsed.facets.ragam.includes(w))) return false;
       for (const a of order) {
         // `jenis` only says WHICH base a merged tile's leaf came from.
         if (a === "jenis") continue;

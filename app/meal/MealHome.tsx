@@ -50,13 +50,6 @@ type EditDraft = (QuickLogEntry | Omit<QuickLogEntry, "id">) & { id?: string };
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
 const MONO = "var(--font-dm-mono), 'JetBrains Mono', monospace";
 const FIRE = "linear-gradient(180deg,#ff8a52,#ee3c30 55%,#c01f12)";
-const FIRE_TEXT: CSSProperties = {
-  background: "linear-gradient(100deg,#ff8a3d,#ee2f1f)",
-  WebkitBackgroundClip: "text",
-  backgroundClip: "text",
-  WebkitTextFillColor: "transparent",
-};
-
 const EMPTY_MACROS: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
 const round1 = (x: number) => Math.round(x * 10) / 10;
 const DAILY_SUGAR_TARGET_G = 50;
