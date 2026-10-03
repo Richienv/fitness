@@ -14,14 +14,24 @@ await mkdir(path.join(root, "runtime"), { recursive: true });
 const sdk = path.dirname(
   fileURLToPath(import.meta.resolve("@paddleocr/paddleocr-js")),
 );
+const sdkPackage = JSON.parse(
+  await readFile(path.join(sdk, "..", "package.json"), "utf8"),
+);
+if (sdkPackage.version !== "0.4.2")
+  throw new Error(
+    "Revalidate the worker-only OpenCV exclusion before updating PaddleOCR.",
+  );
 await build({
   entryPoints: [path.join(sdk, "index.mjs")],
-  outfile: path.join(root, "sdk.mjs"),
+  outfile: path.join(root, "worker-client-v2.mjs"),
   bundle: true,
   format: "esm",
   platform: "browser",
   minify: true,
   external: ["fs", "path", "crypto"],
+  alias: {
+    "@techstark/opencv-js": path.resolve("scripts/ocr-worker-only-cv.mjs"),
+  },
   define: { "process.env.NODE_ENV": '"production"' },
   logLevel: "warning",
 });

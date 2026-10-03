@@ -37,7 +37,7 @@ import { prettyFoodName } from "@/lib/foodDisplayName";
 import { loadCatalogue, clearCatalogueCache } from "@/lib/foodCatalogue";
 import { prepare as prepareSearch, searchPrepared } from "@/lib/foodSearch";
 import RecipeComposer from "./RecipeComposer";
-import BarcodePanel from "./BarcodePanel";
+import NutritionLabelPanel from "./NutritionLabelPanel";
 import ManualFoodSheet from "./ManualFoodSheet";
 import { scaleNutritionExtras } from "@/lib/nutritionLabel";
 import SearchField from "./SearchField";
@@ -366,7 +366,7 @@ export default function FoodBuilder({
   onClose,
   onSaved,
   startInRacik = false,
-  startInBarcode = false,
+  startInLabel = false,
 }: {
   meal: MealT;
   dateKey: string;
@@ -377,7 +377,7 @@ export default function FoodBuilder({
    *  its parts, but only if you guessed that typing several foods at once was
    *  a thing — nothing in the UI said so. */
   startInRacik?: boolean;
-  startInBarcode?: boolean;
+  startInLabel?: boolean;
 }) {
   // The meal time is auto-picked from the clock (see MealHome), but stays
   // changeable here via the header chip in case you're logging for another slot.
@@ -397,7 +397,7 @@ export default function FoodBuilder({
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [query, setQuery] = useState("");
   const [recipeOpen, setRecipeOpen] = useState(startInRacik);
-  const [barcodeOpen, setBarcodeOpen] = useState(startInBarcode);
+  const [labelOpen, setLabelOpen] = useState(startInLabel);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualGroup, setManualGroup] = useState<string | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -1049,7 +1049,7 @@ export default function FoodBuilder({
         : [added],
     );
     setRecipeOpen(false);
-    setBarcodeOpen(false);
+    setLabelOpen(false);
     setManualOpen(false);
     setManualGroup(null);
     setQuery("");
@@ -1664,7 +1664,7 @@ export default function FoodBuilder({
         className="food-builder"
         style={{
           visibility:
-            recipeOpen || barcodeOpen || manualOpen ? "hidden" : "visible",
+            recipeOpen || labelOpen || manualOpen ? "hidden" : "visible",
         }}
         role="dialog"
         aria-modal="true"
@@ -1672,7 +1672,7 @@ export default function FoodBuilder({
         inert={
           !!sheet ||
           recipeOpen ||
-          barcodeOpen ||
+          labelOpen ||
           manualOpen ||
           !!editing ||
           !!namingTemplate ||
@@ -1739,10 +1739,10 @@ export default function FoodBuilder({
             </button>
             <button
               className="soft-button"
-              onClick={() => setBarcodeOpen(true)}
+              onClick={() => setLabelOpen(true)}
             >
-              <Icon name="barcode" />
-              Scan barcode
+              <Icon name="scan" />
+              Scan label nutrisi
             </button>
             <button className="text-button" onClick={() => openNewFood(null)}>
               Tambah manual
@@ -1948,9 +1948,9 @@ export default function FoodBuilder({
           onAdd={addComputedFood}
         />
       )}
-      {barcodeOpen && (
-        <BarcodePanel
-          onClose={() => setBarcodeOpen(false)}
+      {labelOpen && (
+        <NutritionLabelPanel
+          onClose={() => setLabelOpen(false)}
           onAdd={addComputedFood}
         />
       )}

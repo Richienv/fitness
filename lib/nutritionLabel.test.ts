@@ -6,6 +6,9 @@ import {
   labelFingerprint,
   scaleNutritionExtras,
   sodiumToSalt,
+  labelConfidenceFromOcr,
+  confirmLabelRead,
+  withLabelConfidenceWarnings,
 } from "./nutritionLabel.ts";
 const example = `营养成分表\n项目 每100克 NRV%\n能量 2228千焦 27%\n蛋白质 8.2克 14%\n脂肪 28.6克 48%\n-饱和脂肪 16.0克 80%\n-反式脂肪酸 0克\n碳水化合物 60.6克 20%\n-糖 18.0克\n钠 251毫克 13%`;
 test("Chinese example converts kJ, ignores NRV and separates fat subtypes", () => {
@@ -23,6 +26,66 @@ test("Chinese example converts kJ, ignores NRV and separates fat subtypes", () =
   assert.equal(n.values.salt, null);
   assert.equal(sodiumToSalt(251), 0.6275);
   assert.deepEqual(n.warnings, []);
+});
+test("a single complete reading needs high confidence and no consistency warning", () => {
+  const good = parseNutritionLabel(example);
+  assert.equal(labelCanAutoCapture(good, 96, 1), true);
+  assert.equal(labelCanAutoCapture(good, 91, 1), false);
+  assert.equal(
+    labelCanAutoCapture(
+      parseNutritionLabel(example.replace("每100克", "每100时")),
+      99,
+      1,
+    ),
+    false,
+  );
+  const wrongEnergy = parseNutritionLabel(
+    example.replace("2228千焦", "2228千卡"),
+  );
+  assert.ok(wrongEnergy.warnings.some((w) => w.includes("Energi")));
+  assert.equal(labelCanAutoCapture(wrongEnergy, 99, 1), false);
+});
+test("missing optional rows do not reset stable core readings; conflicting extras stay unknown", () => {
+  const a = parseNutritionLabel(example);
+  const missingSugar = parseNutritionLabel(example.replace("-糖 18.0克", ""));
+  assert.equal(labelFingerprint(a), labelFingerprint(missingSugar));
+  assert.equal(confirmLabelRead(a, missingSugar).values.sugar, null);
+  const differentSugar = confirmLabelRead(
+    a,
+    parseNutritionLabel(example.replace("-糖 18.0克", "-糖 8.0克")),
+  );
+  assert.equal(differentSugar.values.sugar, null);
+  assert.ok(differentSugar.warnings.some((w) => w.includes("Gula")));
+});
+test("confidence follows core label and amount cells, ignoring NRV and unrelated print", () => {
+  const cell = (text: string, score: number, x: number, y: number) => ({
+    text,
+    score,
+    poly: [
+      [x, y],
+      [x + 80, y],
+      [x + 80, y + 18],
+      [x, y + 18],
+    ],
+  });
+  const items = [
+    cell("每100克", 0.99, 120, 0),
+    cell("蛋白质", 0.98, 0, 50),
+    cell("8.2克", 0.95, 120, 50),
+    cell("14%", 0.55, 240, 50),
+    cell("包装文字", 0.51, 0, 100),
+  ];
+  const n = parseNutritionLabel("每100克\n蛋白质 8.2克 14%\n包装文字");
+  assert.equal(labelConfidenceFromOcr(items, n), 95);
+  items[2].score = 0.61;
+  assert.equal(labelConfidenceFromOcr(items, n), 61);
+  const warned = withLabelConfidenceWarnings(items, n);
+  assert.ok(
+    warned.warnings.some(
+      (w) => w.includes("Protein") && w.includes("kurang jelas"),
+    ),
+  );
+  assert.equal(warned.values.protein, 8.2);
 });
 test("full width numbers and spaced OCR Chinese labels remain readable", () => {
   const n = parseNutritionLabel(
