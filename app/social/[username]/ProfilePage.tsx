@@ -225,8 +225,8 @@ export default function ProfilePage({ username }: { username: string }) {
                           </div>
                         )}
                       </div>
-                      {/* photo slot — proof of the meal */}
-                      <button
+                      {/* Existing photos remain viewable; there is no upload prompt. */}
+                      {m.photoUrl && <button
                         type="button"
                         onClick={() => m.photoUrl && setPhoto(m.photoUrl)}
                         aria-label="Foto makanan"
@@ -241,7 +241,7 @@ export default function ProfilePage({ username }: { username: string }) {
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={m.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                         ) : null}
-                      </button>
+                      </button>}
                     </div>
                   </div>
                 ))}

@@ -29,7 +29,7 @@ mainland networks. Keep Vercel available until the trial has passed.
    origin requires a fresh login. Browser-only data and the installed PWA do not
    transfer automatically between origins. Widget tokens are specific to each
    deployment's signing secret; generate new ones from the new address if used.
-4. Add `BLOB_READ_WRITE_TOKEN` if meal-photo uploads are used. For the Hermes bot
+4. For the Hermes bot
    integration, also copy `R2_FIT_API_KEY` and `HERMES_OWNER_EMAIL` and update the
    bot's configured app URL when ready.
 5. Deploy and use the actual URL assigned by Render. The requested service name
@@ -54,13 +54,13 @@ With the VPN off, test on both Hangzhou Wi-Fi and mobile data:
 1. Open `/install` and `/login`, then sign in with an existing account.
 2. Confirm existing records load, search for `telur`, and log then remove a test
    meal to confirm writes and sync work.
-3. If used, check meal-photo upload and display, exercise demo images, and sharing.
+3. Check exercise demo images and sharing if used. Photo capture and uploads have been removed.
 4. Install the new address as a PWA and confirm reopening and offline fallback.
 5. Repeat after at least 15 minutes idle to check the cold start is acceptable.
 
 The optional YouTube exercise links still require a network that reaches
-YouTube. Exercise demo images come from jsDelivr, and meal photos use Vercel
-Blob; test these separately from the app shell and core logging.
+YouTube. Exercise demo images come from jsDelivr. Historical photos may still
+use Vercel Blob; new photo capture and uploads are removed.
 
 ## Free-plan limits
 

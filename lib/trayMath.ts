@@ -21,7 +21,7 @@
 // bowl is 100 g is how 380 became 950. For those foods the honest portion is a
 // count of units — ¼, ½, 1, 2 bowls — and grams are not shown at all.
 
-import { gramsFromUnit } from "./satuan.ts";
+import { gramsFromUnit, satuanLine } from "./satuan.ts";
 import { modDelta } from "./foodMods.ts";
 
 export type FoodLike = {
@@ -82,6 +82,16 @@ export function itemMacros(food: FoodLike, qty: number, mods: readonly string[] 
     protein: Math.max(0, food.protein * qty + d.p),
     carbs: Math.max(0, food.carbs * qty + d.c),
     fat: Math.max(0, food.fat * qty + d.f),
+  };
+}
+
+/** Search, suggestions and the sheet price the SAME default serving. */
+export function servingPreview(food: FoodLike, serving: { label: string; portionG: number }): { model: PortionModel; qty: number; macros: Macros; description: string } {
+  const model = portionModel(food, serving.portionG);
+  const qty = model.defaultG / model.unitG;
+  return {
+    model, qty, macros: itemMacros(food, qty),
+    description: model.mode === "units" ? (food.unit || "1 porsi") : satuanLine(serving.label, model.defaultG),
   };
 }
 

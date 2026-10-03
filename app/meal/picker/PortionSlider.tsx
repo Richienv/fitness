@@ -51,8 +51,8 @@ export default function PortionSlider({ grams, onChange, portionG, unit = "porsi
   const pg = portionG > 0 ? portionG : 100;
   // Counted units run higher than a gram range does: you eat 4 eggs, not 1.4 of
   // a notional 250 g.
-  const min = unitsOnly ? Math.round(pg * 0.25) : Math.max(5, Math.round(pg * 0.15));
-  const max = unitsOnly ? Math.round(pg * 6) : Math.max(Math.round(pg * 3.4), 150);
+  const min = unitsOnly ? Math.round(pg * 0.25) : 1;
+  const max = Math.max(grams, unitsOnly ? Math.round(pg * 6) : Math.max(Math.round(pg * 3.4), 150));
 
   const stops = useMemo(
     () => PORTION_STEPS.map((s) => ({ ...s, g: Math.round(pg * s.mult) })).filter((s) => s.g >= min && s.g <= max),
@@ -98,7 +98,6 @@ export default function PortionSlider({ grams, onChange, portionG, unit = "porsi
 
   const mult = clamped / pg;
   const readout = atStop ? `${fmtMult(atStop.mult)} ${unit}` : `≈ ${fmtMult(Math.round(mult * 4) / 4)} ${unit}`;
-  const tickLeft = (g: number) => `calc(${THUMB / 2}px + (100% - ${THUMB}px) * ${frac(g)})`;
 
   const nudgeBtn = (dir: 1 | -1, label: string): React.ReactNode => (
     <button
@@ -110,8 +109,8 @@ export default function PortionSlider({ grams, onChange, portionG, unit = "porsi
       }}
       style={{
         flexShrink: 0,
-        width: 38,
-        height: 38,
+        width: 44,
+        height: 44,
         borderRadius: 12,
         fontFamily: SANS,
         fontWeight: 800,
@@ -129,6 +128,17 @@ export default function PortionSlider({ grams, onChange, portionG, unit = "porsi
 
   return (
     <div>
+      <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, margin: "12px 0" }}>
+        <span style={{ fontFamily: SANS, fontSize: 13, color: "#b6aea7" }}>{unitsOnly ? `Jumlah ${unit}` : "Berat (gram)"}</span>
+        <input type="number" aria-label={unitsOnly ? `Jumlah ${unit}` : "Berat dalam gram"}
+          min={unitsOnly ? 0.25 : 1} max={unitsOnly ? 30 : 3000} step={unitsOnly ? 0.25 : 1}
+          inputMode="decimal" value={unitsOnly ? grams / pg : grams}
+          onChange={(e) => {
+            const v = e.target.valueAsNumber;
+            if (Number.isFinite(v) && v > 0) onChange(Math.min(3000, unitsOnly ? v * pg : v));
+          }}
+          style={{ width: 92, minHeight: 44, padding: "8px 10px", borderRadius: 10, border: "1px solid rgba(255,255,255,.2)", background: "rgba(255,255,255,.06)", color: "#fff", fontFamily: SANS, fontSize: 16, textAlign: "right" }} />
+      </label>
       {/* readout */}
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 8 }}>
         <span
@@ -183,8 +193,14 @@ export default function PortionSlider({ grams, onChange, portionG, unit = "porsi
             value={clamped}
             aria-label={unitsOnly ? `Porsi dalam ${unit}` : "Porsi dalam gram"}
             aria-valuetext={unitsOnly ? `${fmtMult(Math.round((clamped / pg) * 4) / 4)} ${unit}` : `${Math.round(clamped)} gram, ${readout}`}
-            onChange={(e) => onChange(snap(Number(e.target.value)))}
-            style={{ width: "100%", display: "block", position: "relative", zIndex: 2 }}
+            onChange={(e) => onChange(unitsOnly ? Math.round(Number(e.target.value) / 25) * 25 : snap(Number(e.target.value)))}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowLeft" || e.key === "ArrowDown" || e.key === "ArrowRight" || e.key === "ArrowUp") {
+                e.preventDefault();
+                nudge(e.key === "ArrowRight" || e.key === "ArrowUp" ? 1 : -1);
+              }
+            }}
+            style={{ width: "100%", minHeight: 44, display: "block", position: "relative", zIndex: 2 }}
           />
           {/* the filled part of the track */}
           <div
@@ -209,7 +225,7 @@ export default function PortionSlider({ grams, onChange, portionG, unit = "porsi
       </div>
 
       {/* ticks: the household portions */}
-      <div style={{ position: "relative", height: 26, margin: "2px 48px 0" }}>
+      <div className="mk-rail" style={{ display: "flex", overflowX: "auto", gap: 6, marginTop: 8 }}>
         {stops.map((s) => {
           const on = atStop?.g === s.g;
           return (
@@ -220,19 +236,18 @@ export default function PortionSlider({ grams, onChange, portionG, unit = "porsi
                 haptic("tap");
                 onChange(s.g);
               }}
-              aria-label={`${s.label} ${unit}, ${s.g} gram`}
+              aria-label={unitsOnly ? `${s.label} ${unit}` : `${s.label} ${unit}, ${s.g} gram`}
+              aria-pressed={on}
               style={{
-                position: "absolute",
-                left: tickLeft(s.g),
-                top: 0,
-                transform: "translateX(-50%)",
-                padding: "2px 5px",
+                flex: "1 0 44px",
+                minHeight: 44,
+                padding: "6px 8px",
                 borderRadius: 7,
                 cursor: "pointer",
                 background: on ? "rgba(238,60,48,.18)" : "transparent",
                 border: "none",
                 fontFamily: MONO,
-                fontSize: 10.5,
+                fontSize: 13,
                 color: on ? "#ffb99e" : "#7c746e",
                 transition: "color .2s, background .2s",
               }}

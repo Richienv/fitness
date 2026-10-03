@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "node scripts/check-server-imports.mjs && npx tsx scripts/validate-pack.ts data/*.csv && prisma generate && (prisma db push --skip-generate || echo 'db push skipped \u2014 run npm run db:push manually') && (npx tsx scripts/seed-foods.ts || echo 'food seed skipped') && next build",
+    "build": "node scripts/check-server-imports.mjs && npx tsx scripts/validate-pack.ts data/*.csv && prisma generate && (prisma db push --skip-generate || echo 'db push skipped — run npm run db:push manually') && (npx tsx scripts/seed-foods.ts || echo 'food seed skipped') && next build",
     "build:app": "node scripts/check-server-imports.mjs && tsx scripts/validate-pack.ts data/*.csv && prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
@@ -28,7 +28,6 @@
     "@capacitor/status-bar": "^7.0.6",
     "@prisma/client": "^6.0.0",
     "@types/bcryptjs": "^2.4.6",
-    "@vercel/blob": "^2.6.1",
     "bcryptjs": "^3.0.3",
     "next": "^16.0.0",
     "next-auth": "^5.0.0-beta.31",

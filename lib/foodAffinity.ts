@@ -88,17 +88,38 @@ type Store = {
   shown?: Record<string, number>;
 };
 
-const EMPTY: Store = { foods: {}, pairs: {}, shown: {} };
+const emptyStore = (): Store => ({ foods: {}, pairs: {}, shown: {} });
+
+/** Discard damaged rows individually and always return a fresh store. */
+export function normalizeAffinity(raw: unknown): Store {
+  const out = emptyStore();
+  if (!raw || typeof raw !== "object") return out;
+  const p = raw as Store;
+  if (p.foods && typeof p.foods === "object" && !Array.isArray(p.foods)) {
+    for (const [id, row] of Object.entries(p.foods)) {
+      if (!row || !Array.isArray(row.sl) || row.sl.length !== 4) continue;
+      if (![row.nf, row.ns, row.last, ...row.sl].every((n) => Number.isFinite(n) && n >= 0)) continue;
+      out.foods[id] = { nf: row.nf, ns: row.ns, last: row.last, sl: [...row.sl] as AffinityRow["sl"] };
+    }
+  }
+  for (const key of ["pairs", "shown"] as const) {
+    const rows = p[key];
+    if (!rows || typeof rows !== "object" || Array.isArray(rows)) continue;
+    for (const [id, count] of Object.entries(rows)) {
+      if (Number.isFinite(count) && count >= 0) out[key]![id] = count;
+    }
+  }
+  return out;
+}
 
 function read(): Store {
-  if (typeof window === "undefined") return EMPTY;
+  if (typeof window === "undefined") return emptyStore();
   try {
     const raw = window.localStorage.getItem(scopedKey(KEY));
-    if (!raw) return EMPTY;
-    const p = JSON.parse(raw) as Store;
-    return p && p.foods ? { foods: p.foods, pairs: p.pairs ?? {}, shown: p.shown ?? {} } : EMPTY;
+    if (!raw) return emptyStore();
+    return normalizeAffinity(JSON.parse(raw));
   } catch {
-    return EMPTY;
+    return emptyStore();
   }
 }
 

@@ -17,6 +17,7 @@ import { NONE } from "@/lib/foodFamilies";
 import { AXIS_LABEL } from "@/lib/foodFacets";
 import type { FacetRow } from "@/lib/foodTiles";
 import { haptic } from "@/lib/haptics";
+import { stableOptionOrder } from "@/lib/foodPicker";
 
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
 const MONO = "var(--font-dm-mono), 'JetBrains Mono', monospace";
@@ -37,12 +38,11 @@ function Row({
     <div className="pk-row-in" style={{ animationDelay: `${delay}ms`, marginBottom: 12 }}>
       <div
         style={{
-          fontFamily: MONO,
-          fontSize: 9,
-          letterSpacing: ".16em",
-          color: "#7c746e",
+          fontFamily: SANS,
+          fontSize: 13,
+          fontWeight: 600,
+          color: "#b6aea7",
           margin: "0 0 6px 2px",
-          textTransform: "uppercase",
         }}
       >
         {label}
@@ -64,6 +64,9 @@ function Chips({
   ariaLabel: string;
 }) {
   const scroller = useRef<HTMLDivElement | null>(null);
+  const order = useRef<string[]>([]);
+  const stable = stableOptionOrder(items, order.current, (it) => it.value);
+  order.current = stable.order;
 
   // Bring the selected chip into view whenever it changes — but never for the
   // "Umum" default. Scrolling to it dragged the row to its end and hid the real
@@ -71,25 +74,34 @@ function Chips({
   useEffect(() => {
     if (selected === NONE) return;
     const el = scroller.current?.querySelector<HTMLElement>('[data-on="1"]');
-    el?.scrollIntoView({ inline: "nearest", block: "nearest", behavior: "smooth" });
+    if (el && scroller.current) {
+      const rail = scroller.current;
+      rail.scrollTo({ left: el.offsetLeft - rail.offsetLeft - (rail.clientWidth - el.clientWidth) / 2,
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    }
   }, [selected]);
 
   return (
+    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+    <button type="button" className="picker-rail-arrow" aria-label={`Pilihan sebelumnya: ${ariaLabel}`}
+      onClick={() => scroller.current?.scrollBy({ left: -180, behavior: "auto" })}>‹</button>
     <div
       ref={scroller}
-      role="listbox"
+      role="group"
       aria-label={ariaLabel}
       className="mk-rail"
       style={{
         display: "flex",
         gap: 7,
         overflowX: "auto",
-        margin: "0 -18px",
-        padding: "2px 18px 4px",
+        flex: 1,
+        minWidth: 0,
+        position: "relative",
+        padding: "2px 0 4px",
         scrollSnapType: "x proximity",
       }}
     >
-      {items.map((it, i) => {
+      {stable.options.map((it, i) => {
         const on = it.value === selected;
         // "Umum" being selected means NO choice was made. It must not light up
         // like one: five fire-coloured "Umum" chips sent the eye to the things
@@ -99,19 +111,27 @@ function Chips({
           <button
             key={it.value}
             type="button"
-            role="option"
-            aria-selected={on}
+            aria-pressed={on}
             data-on={on ? "1" : "0"}
             className="pk-chip-in"
             onClick={() => {
               haptic("tap");
               onTap(it.value);
             }}
+            onKeyDown={(e) => {
+              if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+              e.preventDefault();
+              const buttons = Array.from(scroller.current?.querySelectorAll<HTMLButtonElement>("button") ?? []);
+              const target = e.key === "Home" ? 0 : e.key === "End" ? buttons.length - 1 : Math.max(0, Math.min(buttons.length - 1, i + (e.key === "ArrowRight" ? 1 : -1)));
+              buttons[target]?.focus();
+            }}
             style={{
               flexShrink: 0,
               scrollSnapAlign: "center",
               animationDelay: `${Math.min(i, 8) * 28}ms`,
               padding: "10px 15px",
+              minHeight: 44,
+              minWidth: 44,
               borderRadius: 13,
               cursor: "pointer",
               textAlign: "left",
@@ -145,6 +165,9 @@ function Chips({
         );
       })}
     </div>
+    <button type="button" className="picker-rail-arrow" aria-label={`Pilihan berikutnya: ${ariaLabel}`}
+      onClick={() => scroller.current?.scrollBy({ left: 180, behavior: "auto" })}>›</button>
+    </div>
   );
 }
 
@@ -173,8 +196,7 @@ export default function FacetRows({
   const more = rows.slice(PRIMARY);
   // A real (non-default) choice hiding behind the fold must not be hidden: if
   // the user has refined past the first two rows, show where they are.
-  const hiddenChoice = more.some((r) => r.selected && r.selected !== NONE);
-  const expanded = open || hiddenChoice;
+  const expanded = open;
   const moreNames = [...more.map((r) => AXIS_LABEL[r.axis]), ...(hasVariants ? ["Versi"] : [])];
 
   if (rows.length === 0 && !hasVariants) return null;
@@ -202,6 +224,7 @@ export default function FacetRows({
           }}
           style={{
             width: "100%",
+            minHeight: 44,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -212,12 +235,11 @@ export default function FacetRows({
             background: "rgba(255,255,255,.04)",
             border: "1px dashed rgba(255,255,255,.16)",
             color: "#9a938d",
-            fontFamily: MONO,
-            fontSize: 10,
-            letterSpacing: ".1em",
+            fontFamily: SANS,
+            fontSize: 12,
           }}
         >
-          <span>{expanded ? "LEBIH RINGKAS" : `LEBIH SPESIFIK · ${moreNames.join(" · ").toUpperCase()}`}</span>
+          <span>{expanded ? "Lebih ringkas" : `Lebih spesifik (${moreNames.join(", ")})`}</span>
           <span aria-hidden="true" style={{ transform: expanded ? "rotate(180deg)" : "none", transition: "transform .22s" }}>
             ▾
           </span>

@@ -15,7 +15,7 @@
 // Tiles tilt toward your finger while pressed. That is press feedback, not
 // information, so it is small (≤6°), CSS-only, and off under reduced motion.
 
-import { memo, useRef, type CSSProperties } from "react";
+import { memo, useRef, useState, type CSSProperties } from "react";
 import { haptic } from "@/lib/haptics";
 import type { Tile } from "@/lib/foodTiles";
 
@@ -56,7 +56,7 @@ function TileButton({ t, i, onOpen }: { t: TileView; i: number; onOpen: (id: str
     padding: "13px 12px 12px",
     borderRadius: 17,
     cursor: "pointer",
-    minHeight: 92,
+    minHeight: 84,
     color: "#f1ede9",
     background: t.personal
       ? "linear-gradient(160deg, rgba(238,60,48,.14), rgba(255,255,255,.04) 60%)"
@@ -118,7 +118,7 @@ function TileButton({ t, i, onOpen }: { t: TileView; i: number; onOpen: (id: str
           display: "block",
           marginTop: 8,
           fontFamily: MONO,
-          fontSize: 9,
+          fontSize: 11,
           letterSpacing: ".04em",
           color: t.personal ? "#ffb99e" : "#8a837d",
           lineHeight: 1.35,
@@ -155,12 +155,13 @@ function PickerHome({
   onImport: () => void;
   onGroup: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
   return (
-    <div style={{ marginTop: 14 }}>
+    <div className="picker-home" style={{ marginTop: 14 }}>
       {usual.length > 0 ? (
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: ".16em", color: "#7c746e", margin: "0 0 7px 2px" }}>
-            SEKARANG · {mealLabel}
+          <div style={{ fontFamily: SANS, fontSize: 13, fontWeight: 600, color: "#b6aea7", margin: "0 0 7px 2px" }}>
+            Pilihan cepat · {mealLabel.toLowerCase()}
           </div>
           <div
             className="mk-rail"
@@ -190,7 +191,7 @@ function PickerHome({
                 <span style={{ display: "block", fontFamily: SANS, fontWeight: 800, fontSize: 13.5, lineHeight: 1.1 }}>
                   {u.name}
                 </span>
-                <span style={{ display: "block", fontFamily: MONO, fontSize: 9.5, color: "#ffb99e", marginTop: 4 }}>
+                <span style={{ display: "block", fontFamily: MONO, fontSize: 11, color: "#ffb99e", marginTop: 4 }}>
                   {Math.round(u.kcal)} kkal
                 </span>
               </button>
@@ -203,7 +204,7 @@ function PickerHome({
         <div style={{ textAlign: "center", padding: "26px 12px" }}>
           <div style={{ fontFamily: SANS, fontWeight: 700, fontSize: 13.5, color: "#e8e4e0" }}>{error}</div>
           <div style={{ fontFamily: MONO, fontSize: 9, color: "#6a6660", marginTop: 6 }}>
-            Kamu masih bisa cari lewat kolom di bawah.
+            Kategori dasar tetap tersedia. Cari atau coba muat lagi.
           </div>
           <button
             type="button"
@@ -224,13 +225,16 @@ function PickerHome({
             COBA LAGI
           </button>
         </div>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
-          {tiles.map((t, i) => (
+      ) : null}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
+          {(expanded ? tiles : tiles.slice(0, 6)).map((t, i) => (
             <TileButton key={t.id} t={t} i={i} onOpen={onTile} />
           ))}
         </div>
-      )}
+      {tiles.length > 6 && <button type="button" aria-expanded={expanded} onClick={() => setExpanded((v) => !v)}
+        className="picker-secondary" style={{ width: "100%", marginTop: 10 }}>
+        {expanded ? "Ringkas kategori" : "Kategori lainnya"}
+      </button>}
 
       {loading && !error ? (
         <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: ".12em", color: "#7c736e", textAlign: "center", marginTop: 14 }}>
@@ -255,9 +259,10 @@ function PickerHome({
               background: "none",
               border: "none",
               cursor: "pointer",
-              padding: "6px 2px",
+              padding: "8px 2px",
+              minHeight: 44,
               fontFamily: MONO,
-              fontSize: 10,
+              fontSize: 12,
               letterSpacing: ".1em",
               color: "#8a837d",
               textDecoration: "underline",

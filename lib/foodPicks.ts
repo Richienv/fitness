@@ -4,7 +4,7 @@
 // top next time and the builder can suggest their staples for one-tap logging.
 // Local-first (per-user via scopedKey), mirrors lib/store conventions.
 
-import { scopedKey } from "./userScope";
+import { scopedKey } from "./userScope.ts";
 
 export type FoodPick = {
   id: string;
@@ -23,11 +23,31 @@ export type FoodPick = {
 const KEY = "richie.foodpicks.v1";
 const MAX = 60; // cap the store; prune the least useful beyond this
 
+/** Storage is untrusted: a malformed entry must not break the picker. */
+export function normalizeFoodPicks(raw: unknown): Record<string, FoodPick> {
+  const out: Record<string, FoodPick> = {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+  for (const entry of Object.values(raw)) {
+    if (!entry || typeof entry !== "object") continue;
+    const p = entry as FoodPick;
+    if (typeof p.id !== "string" || !p.id || typeof p.name !== "string" || !p.name.trim()) continue;
+    if (![p.kcal, p.protein, p.fat, p.carbs, p.count, p.last].every((n) => Number.isFinite(n) && n >= 0) || p.count <= 0) continue;
+    out[p.id] = {
+      id: p.id, name: p.name, kcal: p.kcal, protein: p.protein, fat: p.fat,
+      carbs: p.carbs, count: p.count, last: p.last,
+      unit: typeof p.unit === "string" ? p.unit : undefined,
+      gramsPerUnit: Number.isFinite(p.gramsPerUnit) && p.gramsPerUnit! > 0 ? p.gramsPerUnit : undefined,
+      step: Number.isFinite(p.step) && p.step! > 0 ? p.step : undefined,
+    };
+  }
+  return out;
+}
+
 function read(): Record<string, FoodPick> {
   if (typeof window === "undefined") return {};
   try {
     const raw = window.localStorage.getItem(scopedKey(KEY));
-    return raw ? (JSON.parse(raw) as Record<string, FoodPick>) : {};
+    return raw ? normalizeFoodPicks(JSON.parse(raw)) : {};
   } catch {
     return {};
   }

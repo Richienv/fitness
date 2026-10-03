@@ -13,8 +13,7 @@
 // Presentational on purpose: no storage, no add-path logic. FoodBuilder owns
 // what "add" means; this owns how it looks while you decide.
 
-import type { ReactNode } from "react";
-import { useAnimatedNumber } from "@/lib/useAnimatedNumber";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useSheetBack } from "@/lib/backSheet";
 import Plate3D from "./Plate3D";
 import PortionSlider from "./PortionSlider";
@@ -78,7 +77,14 @@ export default function PortionSheet({
   const carbs = Math.max(0, per100.carbs * k + d.c);
   const fat = Math.max(0, per100.fat * k + d.f);
 
-  const shownKcal = Math.round(useAnimatedNumber(kcal, 380));
+  // Never animate through calorie values that disagree with confirmation.
+  const shownKcal = Math.round(kcal);
+  const dialog = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    dialog.current?.focus({ preventScroll: true });
+    return () => opener?.focus({ preventScroll: true });
+  }, []);
 
   return (
     <div
@@ -95,8 +101,21 @@ export default function PortionSheet({
       }}
     >
       <div
+        ref={dialog}
         role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
         aria-label={`Atur porsi ${name}`}
+        className="picker-dialog"
+        onKeyDown={(e) => {
+          if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onCancel(); }
+          if (e.key !== "Tab") return;
+          const nodes = Array.from(dialog.current?.querySelectorAll<HTMLElement>("button:not([disabled]), input:not([disabled]), summary, [tabindex='0']") ?? [])
+            .filter((el) => el.getClientRects().length > 0);
+          const first = nodes[0]; const last = nodes[nodes.length - 1];
+          if (e.shiftKey && (document.activeElement === first || document.activeElement === dialog.current)) { e.preventDefault(); last?.focus(); }
+          else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+        }}
         onClick={(e) => e.stopPropagation()}
         style={{
           width: "100%",
@@ -137,7 +156,7 @@ export default function PortionSheet({
               {name}
             </div>
             <div style={{ fontFamily: MONO, fontSize: 10, color: "#8a837d", marginTop: 5 }}>
-              {Math.round(protein)}p · {Math.round(carbs)}c · {Math.round(fat)}f
+              Protein {Math.round(protein)} g · Karbo {Math.round(carbs)} g · Lemak {Math.round(fat)} g
               {estimated ? <span style={{ color: "#b88a5a" }}> · ESTIMASI</span> : null}
             </div>
           </div>
@@ -162,6 +181,10 @@ export default function PortionSheet({
 
         {top}
 
+        <PortionSlider grams={grams} onChange={onGrams} portionG={portionG} unit={unit} unitsOnly={unitsOnly} />
+
+        <details className="picker-details">
+        <summary>Bandingkan dengan sisa makro hari ini</summary>
         <Plate3D
           grams={grams}
           macros={{ protein, carbs, fat }}
@@ -170,11 +193,11 @@ export default function PortionSheet({
           height={228}
           nominal={unitsOnly}
         />
-
-        <PortionSlider grams={grams} onChange={onGrams} portionG={portionG} unit={unit} unitsOnly={unitsOnly} />
+        </details>
 
         {addons ? (
-          <>
+          <details className="picker-details">
+            <summary>Tambahan</summary>
             <div
               style={{
                 fontFamily: MONO,
@@ -184,10 +207,9 @@ export default function PortionSheet({
                 margin: "16px 0 8px 2px",
               }}
             >
-              TAMBAHAN
             </div>
             {addons}
-          </>
+          </details>
         ) : null}
 
         </div>
@@ -219,11 +241,12 @@ export default function PortionSheet({
               background: "rgba(255,255,255,.04)",
             }}
           >
-            BATAL
+            Batal
           </button>
           <button
             type="button"
             onClick={onConfirm}
+            disabled={!Number.isFinite(grams) || grams <= 0}
             style={{
               flex: 1,
               padding: 15,
@@ -239,7 +262,7 @@ export default function PortionSheet({
               textShadow: "0 1px 2px rgba(120,15,5,.5)",
             }}
           >
-            TAMBAH · {shownKcal} KKAL
+            Tambah · {Math.round(kcal)} kkal
           </button>
         </div>
       </div>

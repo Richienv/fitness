@@ -32,6 +32,9 @@ export type RacikPart = {
   grams: number;
   /** Per-100g macros, so any gram amount can be costed. */
   per100: { kcal: number; protein: number; carbs: number; fat: number };
+  /** No known weight: `grams` is an internal unit count ×100, never shown as g. */
+  unitsOnly?: boolean;
+  unit?: string;
 };
 
 type Row = RacikPart & { grams: number; on: boolean };
@@ -198,8 +201,8 @@ export default function RacikSheet({
                     onClick={() => toggle(r.id)}
                     style={{
                       flexShrink: 0,
-                      width: 24,
-                      height: 24,
+                      width: 44,
+                      height: 44,
                       borderRadius: 8,
                       display: "grid",
                       placeItems: "center",
@@ -256,7 +259,7 @@ export default function RacikSheet({
                       textAlign: "right",
                     }}
                   >
-                    {r.grams} g
+                    {r.unitsOnly ? `${r.grams / 100} ${r.unit || "porsi"}` : `${r.grams} g`}
                   </div>
                 </div>
 
@@ -265,15 +268,16 @@ export default function RacikSheet({
                 {r.on ? (
                   <input
                     type="range"
-                    min={10}
-                    max={Math.max(300, Math.round(r.grams * 2.5))}
-                    step={5}
+                    min={r.unitsOnly ? 25 : 10}
+                    max={r.unitsOnly ? Math.max(600, r.grams) : Math.max(300, Math.round(r.grams * 2.5))}
+                    step={r.unitsOnly ? 25 : 5}
                     value={r.grams}
-                    aria-label={`Porsi ${r.name} dalam gram`}
+                    aria-label={`Porsi ${r.name} dalam ${r.unitsOnly ? r.unit || "porsi" : "gram"}`}
+                    aria-valuetext={r.unitsOnly ? `${r.grams / 100} ${r.unit || "porsi"}` : `${r.grams} gram`}
                     onChange={(e) => setGrams(r.id, Number(e.target.value))}
                     onPointerUp={() => haptic("tap")}
                     className="racik-range"
-                    style={{ width: "100%", marginTop: 10 }}
+                    style={{ width: "100%", minHeight: 44, marginTop: 10 }}
                   />
                 ) : null}
               </div>

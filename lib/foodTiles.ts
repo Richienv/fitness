@@ -156,7 +156,16 @@ export function facetRows<T>(family: Family<T>, picks: Picks): FacetRow[] {
   const order = orderFor(family);
   const rows: FacetRow[] = [];
   for (const axis of order) {
-    const pool = family.leaves.filter((l) => matchesAll(l, picks, axis));
+    let pool = family.leaves.filter((l) => matchesAll(l, picks, axis));
+    // A usual combination may leave only one preparation (crispy + thigh).
+    // Keep primary choices reachable: changing one sheds incompatible picks
+    // through applyPick, instead of locking the user into their old habit.
+    const primary = axis === "jenis" || axis === "prep" || axis === "cut" || axis === "ragam";
+    const answersIn = (leaves: Leaf<T>[]) => {
+      const values = new Set(leaves.flatMap((l) => l.parsed.facets[axis].length ? l.parsed.facets[axis] : [NONE]));
+      return values.size;
+    };
+    if (primary && answersIn(pool) < 2 && answersIn(family.leaves) >= 2) pool = family.leaves;
     if (pool.length === 0) continue;
     const counts = new Map<string, number>();
     let uncovered = 0;
@@ -168,7 +177,7 @@ export function facetRows<T>(family: Family<T>, picks: Picks): FacetRow[] {
     const answers = counts.size + (uncovered > 0 ? 1 : 0);
     const selected = picks[axis] ?? null;
     if (answers < 2 && !selected) continue;
-    if (!selected && uncovered / pool.length > dominatedAt(axis)) continue;
+    if ((!selected || selected === NONE) && uncovered / pool.length > dominatedAt(axis)) continue;
     const options: Option[] = [...counts]
       .map(([value, count]) => ({ value, label: cap(value), count }))
       .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "id"));

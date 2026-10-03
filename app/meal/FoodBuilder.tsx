@@ -28,14 +28,16 @@ import RacikSheet, { type RacikPart } from "./RacikSheet";
 import PortionSheet from "./picker/PortionSheet";
 import PickerHome, { type TileView, type UsualChip } from "./picker/PickerHome";
 import FacetRows, { type VariantChip } from "./picker/FacetRows";
-import { buildFamilies, NONE, type Picks } from "@/lib/foodFamilies";
-import { applyPick, buildTiles, canonicalLeaf, facetRows, leavesFor, picksOf, type Tile } from "@/lib/foodTiles";
+import { buildFamilies, type Family, type Picks } from "@/lib/foodFamilies";
+import { applyPick, buildTiles, canonicalLeaf, facetRows, leavesFor } from "@/lib/foodTiles";
 import { makePredictor } from "@/lib/foodPredict";
+import { openingChoice } from "@/lib/foodPicker";
 import {
   gramsToSave,
   itemMacros,
   portionModel,
   qtyFromGrams,
+  servingPreview,
 } from "@/lib/trayMath";
 import {
   recordFoodPick,
@@ -48,7 +50,6 @@ import {
   recordAffinity,
   recordImpressions,
   suppressionScorer,
-  topAffinity,
 } from "@/lib/foodAffinity";
 import {
   getFoodGroups,
@@ -63,7 +64,6 @@ import { TARGETS, todayKey } from "@/lib/targets";
 import {
   satuanFor,
   parseSatuan,
-  satuanLine,
   baseGrams,
 } from "@/lib/satuan";
 import { modsFor, modDelta, modSummary, type FoodMod } from "@/lib/foodMods";
@@ -216,150 +216,16 @@ const dockBtn: CSSProperties = {
   border: "none",
 };
 
-// ─── TAMBAHAN wheel geometry ────────────────────────────────────────────────
-/** Row height + gap. The wheel maths is all in multiples of this. */
-const WHEEL_PITCH = 51;
-/** Viewport height of the drum. */
-const WHEEL_H = 172;
-
-/**
- * The infinite add-on drum.
- *
- * The option list is rendered three times over and the scroll position wraps
- * at the seams — when you drift into the first copy it jumps forward one set,
- * and vice versa — so head meets tail forever without ever hitting an end.
- * Each row is then rotated and scaled by its distance from the centre line,
- * which is what makes it read as a physical wheel rather than a list.
- */
-function ModWheel({
-  mods,
-  active,
-  onToggle,
-}: {
-  mods: FoodMod[];
-  active: string[];
-  onToggle: (key: string) => void;
-}) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const [scrollY, setScrollY] = useState(0);
-  const raf = useRef(0);
-  const seeded = useRef(false);
-
-  // Start in the middle copy so there's a full set of rows in both directions.
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || seeded.current || mods.length === 0) return;
-    seeded.current = true;
-    const id = requestAnimationFrame(() => {
-      const one = el.scrollHeight / 3;
-      el.scrollTop = one;
-      setScrollY(one);
-    });
-    return () => cancelAnimationFrame(id);
-  }, [mods.length]);
-
-  useEffect(() => () => cancelAnimationFrame(raf.current), []);
-
-  const onScroll = () => {
-    const el = ref.current;
-    if (!el) return;
-    const one = el.scrollHeight / 3;
-    // Snap back by one set at the seams. Done on the element directly (not via
-    // state) so the correction lands in the same frame and never flickers.
-    if (el.scrollTop < one * 0.5) el.scrollTop += one;
-    else if (el.scrollTop > one * 1.5) el.scrollTop -= one;
-    if (raf.current) return;
-    raf.current = requestAnimationFrame(() => {
-      raf.current = 0;
-      setScrollY(el.scrollTop);
-    });
-  };
-
-  const tripled = [...mods, ...mods, ...mods];
-
-  return (
-    <div style={{ position: "relative", perspective: 520 }}>
-      <div
-        ref={ref}
-        onScroll={onScroll}
-        style={{
-          height: WHEEL_H,
-          overflowY: "auto",
-          scrollbarWidth: "none",
-          // Fade the rows out as they approach the rim.
-          maskImage:
-            "linear-gradient(180deg,transparent,#000 26%,#000 74%,transparent)",
-          WebkitMaskImage:
-            "linear-gradient(180deg,transparent,#000 26%,#000 74%,transparent)",
-          transformStyle: "preserve-3d",
-        }}
-        className="mk-rail"
-      >
-        {tripled.map((m, i) => {
-          const on = active.includes(m.key);
-          const rowCentre = i * WHEEL_PITCH + WHEEL_PITCH / 2;
-          const d = Math.max(
-            -3.2,
-            Math.min(3.2, (rowCentre - (scrollY + WHEEL_H / 2)) / WHEEL_PITCH)
-          );
-          const ad = Math.abs(d);
-          return (
-            <button
-              key={`${m.key}-${i}`}
-              type="button"
-              onClick={() => onToggle(m.key)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                width: "100%",
-                height: WHEEL_PITCH - 7,
-                marginBottom: 7,
-                padding: "0 13px",
-                borderRadius: 12,
-                border: "none",
-                cursor: "pointer",
-                textAlign: "left",
-                background: on ? "#f1ede9" : "rgba(255,255,255,.04)",
-                color: on ? "#141110" : "#cfc8c2",
-                transform: `rotateX(${(-d * 19).toFixed(1)}deg) scale(${(1 - ad * 0.055).toFixed(3)})`,
-                opacity: Math.max(0.12, 1 - ad * 0.3),
-              }}
-            >
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <span
-                  style={{
-                    display: "block",
-                    fontFamily: SANS,
-                    fontWeight: 700,
-                    fontSize: 13,
-                    lineHeight: 1.2,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {m.label}
-                </span>
-                <span
-                  style={{
-                    display: "block",
-                    fontFamily: MONO,
-                    fontSize: 8.5,
-                    marginTop: 3,
-                    color: on ? "#5a534f" : "#7c736e",
-                  }}
-                >
-                  {m.note}
-                </span>
-              </span>
-              <span style={{ flex: "none", fontSize: 13, opacity: on ? 1 : 0 }}>✓</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
+/** Add-ons are explicit toggles; scrolling never selects or duplicates them. */
+function AddonChoices({ mods, active, onToggle }: { mods: FoodMod[]; active: string[]; onToggle: (key: string) => void }) {
+  return <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 8, paddingBottom: 8 }}>
+    {mods.map((m) => <button key={m.key} type="button" aria-pressed={active.includes(m.key)} onClick={() => onToggle(m.key)}
+      style={{ minHeight: 58, minWidth: 44, padding: "10px 12px", borderRadius: 12, border: "1px solid rgba(255,255,255,.16)",
+        cursor: "pointer", textAlign: "left", color: active.includes(m.key) ? "#fff" : "#cfc8c2", background: active.includes(m.key) ? "rgba(238,60,48,.24)" : "rgba(255,255,255,.04)" }}>
+      <span style={{ display: "block", fontFamily: SANS, fontWeight: 600, fontSize: 13 }}>{m.label}</span>
+      <span style={{ display: "block", fontFamily: SANS, fontSize: 11, marginTop: 4, color: "#aaa29b" }}>{m.note}</span>
+    </button>)}
+  </div>;
 }
 
 // ─── Category chips ─────────────────────────────────────────────────────────
@@ -493,7 +359,7 @@ export default function FoodBuilder({
     mods: string[];
     /** Set when the sheet was opened from a family tile: which tile, and which
      *  chips are lit. Absent for a plain search hit, which has no siblings to show. */
-    fam?: { tileId: string; picks: Picks };
+    fam?: { tileId: string; picks: Picks; family: Family<BuilderFood> };
   } | null>(null);
   // Add-ons chosen per tray entry, so "ayam goreng · extra minyak" survives a
   // portion edit and shows on the tray row.
@@ -510,10 +376,6 @@ export default function FoodBuilder({
   const [suggestTargets, setSuggestTargets] = useState({ kcal: 2200, protein: 175 });
   // `now` is captured once so the engine's output can't change mid-render.
   const [now] = useState(() => new Date());
-  // Meal photo attached to this entry, as a blob/object URL for preview.
-  const [photo, setPhoto] = useState<string | null>(null);
-  const [photoViewer, setPhotoViewer] = useState(false);
-  const photoInputRef = useRef<HTMLInputElement | null>(null);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [newGroup, setNewGroup] = useState<{ name: string; emoji: string } | null>(null);
   // DB food-composition search results, plus a session cache so a picked DB
@@ -526,6 +388,9 @@ export default function FoodBuilder({
   // The user's remembered foods (staples), for the "SERING DIPAKAI" quick row
   // and for floating their picks to the top of search.
   const [picks, setPicks] = useState<FoodPick[]>([]);
+  // A session snapshot: confirmed additions teach the NEXT session, without
+  // moving tiles under the user's finger during this one.
+  const [pickerHistory, setPickerHistory] = useState<FoodPick[]>([]);
   // Saved meal templates ("Sarapan biasa") + the name-it sheet.
   const [templates, setTemplates] = useState<MealTemplate[]>([]);
   const [namingTemplate, setNamingTemplate] = useState<{ name: string; emoji: string } | null>(null);
@@ -681,7 +546,9 @@ export default function FoodBuilder({
       setAllFoods(mapped);
       setDbCache((c) => {
         const next = { ...c };
-        for (const m of mapped) if (!next[m.id]) next[m.id] = m;
+        // Current catalogue rows supersede old pick snapshots (including their
+        // real serving weight). History remembers ids, not obsolete nutrition.
+        for (const m of mapped) next[m.id] = { ...next[m.id], ...m };
         return next;
       });
     });
@@ -712,6 +579,7 @@ export default function FoodBuilder({
   // add/display even before any search this session.
   useEffect(() => {
     const p = getFoodPicks();
+    setPickerHistory(p);
     if (p.length === 0) return;
     setPicks(p);
     setDbCache((c) => {
@@ -837,7 +705,7 @@ export default function FoodBuilder({
   const confirmPortionSheet = () => {
     const sh = sheet;
     if (!sh) return;
-    commitFood(sh.id, sh.grams, sh.mods);
+    commitFood(sh.id, sh.grams, sh.mods, { refocus: query.trim().length > 0 });
     setSheet(null);
   };
 
@@ -869,6 +737,7 @@ export default function FoodBuilder({
         protein: ing.protein,
         fat: ing.fat,
         carbs: ing.carbs,
+        mods: [...(entryMods[id] ?? [])],
       });
     }
     return out;
@@ -919,6 +788,11 @@ export default function FoodBuilder({
       return next;
     });
     learnPick(t.items);
+    setEntryMods((prev) => {
+      const next = { ...prev };
+      for (const it of t.items) next[it.id] = Array.isArray(it.mods) ? it.mods.filter((m) => typeof m === "string") : [];
+      return next;
+    });
     markTemplateUsed(t.id);
     setTemplates(getMealTemplates());
     setJustId(t.items[t.items.length - 1]?.id ?? null);
@@ -936,10 +810,6 @@ export default function FoodBuilder({
   // Hardware/browser back mirrors the UI: close an inner sheet first, then
   // the browse layer, and only then leave the builder.
   useSheetBack(true, () => {
-    if (photoViewer) {
-      setPhotoViewer(false);
-      return true;
-    }
     if (sheet) {
       setSheet(null);
       return true;
@@ -1262,7 +1132,11 @@ export default function FoodBuilder({
     [customFoods, groups, allFoods, overrides]
   );
   const tiles = useMemo(() => buildTiles(familyIndex), [familyIndex]);
-  const predictor = useMemo(() => makePredictor({ affinity }), [affinity]);
+  const predictor = useMemo(() => makePredictor({
+    affinity: affinityScorer({ slot: MEAL_TO_SLOT[activeMeal], now: now.getTime() }),
+    history: pickerHistory,
+    now: now.getTime(),
+  }), [activeMeal, pickerHistory, now]);
 
   // Tiles in the order THIS person wants them: habit first, then the curated
   // cold-start order. A single stray pick must not reorder the screen, so a tile
@@ -1271,11 +1145,13 @@ export default function FoodBuilder({
     const scored = tiles.map((t) => {
       const ev = predictor.evidence(t.family as never);
       const personal = ev >= 0.5;
-      const prior = t.curated === Infinity ? 0.2 : 1.5 - t.curated * 0.07;
+      const home = ["nasi", "ayam", "daging", "ikan", "telur", "sayur"];
+      const homeRank = home.indexOf(t.id);
+      const prior = homeRank >= 0 ? 2 - homeRank * 0.07 : t.curated === Infinity ? 0.2 : 1 - t.curated * 0.02;
       return { t, personal, score: personal ? 3 + ev : prior };
     });
-    scored.sort((a, b) => b.score - a.score);
-    return scored.slice(0, 14).map(({ t, personal }) => {
+    scored.sort((a, b) => b.score - a.score || a.t.curated - b.t.curated || a.t.id.localeCompare(b.t.id));
+    return scored.filter(({ t, personal }) => Number.isFinite(t.curated) || personal).map(({ t, personal }) => {
       const best = personal ? predictor.orderLeaves(t.family.leaves)[0] : null;
       return {
         id: t.id,
@@ -1292,12 +1168,12 @@ export default function FoodBuilder({
   // hydrate differently from the HTML it was sent.
   const [usual, setUsual] = useState<{ title: string; chips: UsualChip[] }>({ title: "FAVORIT", chips: [] });
   useEffect(() => {
-    const habit = topAffinity(6, { slot: MEAL_TO_SLOT[activeMeal], plate: platedIds })
-      .map((x) => bIng(x.id))
-      .filter((f): f is BuilderFood => !!f);
-    const chosen = habit.length >= 3 ? habit : (INGREDIENTS as BuilderFood[]).filter((f) => f.favorite).slice(0, 6);
+    const habit = predictor.orderLeaves([...familyIndex.families.values()].flatMap((f) => f.leaves))
+      .filter((l) => predictor.foodEvidence(l.food.id) > 0).slice(0, 6)
+      .map((l) => l.food);
+    const chosen = habit.length > 0 ? habit : STAPLES.filter((f) => f.favorite).slice(0, 4);
     setUsual({
-      title: habit.length >= 3 ? `SEKARANG · ${BLABEL[activeMeal]}` : "FAVORIT",
+      title: habit.length > 0 ? BLABEL[activeMeal] : "FAVORIT",
       chips: chosen.map((f) => ({
         id: f.id,
         name: f.name,
@@ -1305,32 +1181,15 @@ export default function FoodBuilder({
       })),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeMeal, platedIds, picks, allFoods]);
-
-  /** The food a tile opens on. One decision is made for the user — the biggest
-   *  bucket of the FIRST question — and nothing past it, so "ayam" opens on a
-   *  plain "Ayam goreng" and not on whichever cut happens to have the most rows. */
-  const defaultLeafFor = (tile: Tile<BuilderFood>, picksIn: Picks = {}) => {
-    let p = picksIn;
-    if (Object.keys(p).length === 0) {
-      const first = facetRows(tile.family, p)[0];
-      if (first) {
-        const ordered = predictor.orderOptions(tile.family, first.axis, first.options, p);
-        const top = ordered.find((o) => o.value !== NONE) ?? ordered[0];
-        if (top) p = applyPick(tile.family, p, first.axis, top.value);
-      }
-    }
-    const left = leavesFor(tile.family, p);
-    const leaf = canonicalLeaf(tile.family, p) ?? predictor.orderLeaves(left)[0] ?? tile.family.leaves[0];
-    return { leaf, picks: leaf ? picksOf(tile.family, leaf) : p };
-  };
+  }, [activeMeal, predictor, familyIndex]);
 
   /** Open the portion sheet from a tile, already sitting on a real food. */
   const openTile = (tileId: string) => {
     const tile = tiles.find((t) => t.id === tileId);
     if (!tile) return;
-    const { leaf, picks: p } = defaultLeafFor(tile);
-    if (!leaf) return;
+    const choice = openingChoice(tile.family, predictor);
+    if (!choice) return;
+    const { leaf, picks: p } = choice;
     haptic("tap");
     const ing = bIng(leaf.food.id);
     if (!ing) return;
@@ -1340,7 +1199,7 @@ export default function FoodBuilder({
       id: ing.id,
       grams: Math.round(model.mode === "grams" && usualG && usualG > 0 ? usualG : model.defaultG),
       mods: [],
-      fam: { tileId, picks: p },
+      fam: { tileId, picks: p, family: tile.family },
     });
   };
 
@@ -1358,17 +1217,17 @@ export default function FoodBuilder({
         const mFrom = portionModel(from, satuanFor(from).portionG);
         if (mFrom.mode === mTo.mode && mFrom.defaultG > 0) grams = Math.round(mTo.defaultG * (prev.grams / mFrom.defaultG));
       }
-      return { id: to.id, grams, mods: prev.mods, fam: { tileId, picks: picksNext } };
+      const availableMods = new Set(modsFor(catKeyFor(to)).map((m) => m.key));
+      return { id: to.id, grams, mods: prev.mods.filter((m) => availableMods.has(m)), fam: { tileId, picks: picksNext, family: prev.fam!.family } };
     });
   };
 
   const pickFacet = (axis: Parameters<typeof applyPick>[2], value: string) => {
     const fam = sheet?.fam;
-    const tile = fam && tiles.find((t) => t.id === fam.tileId);
-    if (!fam || !tile) return;
-    const next = applyPick(tile.family, fam.picks, axis, value);
-    const left = leavesFor(tile.family, next);
-    const leaf = canonicalLeaf(tile.family, next) ?? predictor.orderLeaves(left)[0];
+    if (!fam) return;
+    const next = applyPick(fam.family, fam.picks, axis, value);
+    const left = predictor.orderLeaves(leavesFor(fam.family, next));
+    const leaf = left.find((l) => predictor.foodEvidence(l.food.id) > 0) ?? canonicalLeaf(fam.family, next) ?? left[0];
     if (leaf) moveSheetTo(leaf.food as BuilderFood, next, fam.tileId);
   };
 
@@ -1481,14 +1340,17 @@ export default function FoodBuilder({
   const racikParts: RacikPart[] = useMemo(() => {
     if (!racik) return [];
     return racik.foods.map((f) => {
-      const perUnit = baseGrams(f) || 100;
-      const grams = f.portionG && f.portionG > 0 ? f.portionG : perUnit;
+      const model = portionModel(f, satuanFor(f).portionG);
+      const perUnit = model.unitG;
+      const grams = model.defaultG;
       // Macros on BuilderFood are per ONE unit, and a unit is `perUnit` grams.
       const s = 100 / perUnit;
       return {
         id: f.id,
         name: f.name,
         grams,
+        unitsOnly: model.mode === "units",
+        unit: parseSatuan(f.unit).noun,
         per100: {
           kcal: f.kcal * s,
           protein: f.protein * s,
@@ -1513,7 +1375,7 @@ export default function FoodBuilder({
       for (const c of chosen) {
         const f = bIng(c.id);
         if (!f) continue;
-        const perUnit = baseGrams(f) || 100;
+        const perUnit = portionModel(f, satuanFor(f).portionG).unitG;
         next[c.id] = Math.round((c.grams / perUnit) * 1000) / 1000;
       }
       return next;
@@ -1684,7 +1546,7 @@ export default function FoodBuilder({
         conf: s.confidence,
         reason: s.reason,
         signals: s.signals,
-        kcal: Math.round((f.kcal * portionG) / baseGrams(f)),
+        kcal: Math.round(servingPreview(f, satuanFor(f)).macros.kcal),
       };
     })
     .filter((x): x is NonNullable<typeof x> => !!x);
@@ -1699,9 +1561,8 @@ export default function FoodBuilder({
     const inCart = (selection[id] || 0) > 0;
     // Calories for ONE household portion, not per 100 g — "195 kkal" has to
     // mean the plate in front of you or the number is worse than useless.
-    const { label, portionG } = satuanFor(ing);
-    const perUnit = baseGrams(ing);
-    const portionKcal = Math.round((ing.kcal * portionG) / perUnit);
+    const preview = servingPreview(ing, satuanFor(ing));
+    const portionKcal = Math.round(preview.macros.kcal);
     return (
       <div
         key={id}
@@ -1744,7 +1605,7 @@ export default function FoodBuilder({
               whiteSpace: "nowrap",
             }}
           >
-            {satuanLine(label, portionG)} · {portionKcal} kkal
+            {preview.description} · {portionKcal} kkal
           </div>
         </div>
         <button
@@ -1755,8 +1616,8 @@ export default function FoodBuilder({
             openPortionSheet(id);
           }}
           style={{
-            width: 34,
-            height: 34,
+            width: 44,
+            height: 44,
             flex: "none",
             borderRadius: 10,
             fontSize: 19,
@@ -2236,7 +2097,7 @@ export default function FoodBuilder({
         >
           {/* ── RUNNING TRAY ──
               Neutral card. Big white kcal with p/c/f directly below it, and a
-              camera button where the macro block used to sit. Rows carry no
+              editable macro summary. Rows carry no
               steppers and no ✕ — you change a portion by typing grams, and
               clearing the field removes the item. */}
           {count > 0 ? (
@@ -2295,38 +2156,6 @@ export default function FoodBuilder({
                   </div>
                 </div>
 
-                {/* Proof of the plate. No photo → straight to the camera;
-                    a photo → the button IS the thumbnail, tapping opens it. */}
-                <button
-                  type="button"
-                  aria-label={photo ? "Lihat foto" : "Foto makanan"}
-                  onClick={() => {
-                    haptic("tap");
-                    if (photo) setPhotoViewer(true);
-                    else photoInputRef.current?.click();
-                  }}
-                  style={{
-                    flex: "none",
-                    width: 44,
-                    height: 44,
-                    borderRadius: 14,
-                    display: "grid",
-                    placeItems: "center",
-                    fontSize: 16,
-                    cursor: "pointer",
-                    border: "none",
-                    padding: 0,
-                    color: "#6a6660",
-                    // A background-image div, never an <img src> bound to a
-                    // template hole — a stale/empty src renders a broken-image
-                    // icon, this just renders nothing.
-                    background: photo
-                      ? `center / cover no-repeat url(${JSON.stringify(photo)})`
-                      : "rgba(255,255,255,.06)",
-                  }}
-                >
-                  {photo ? "" : "FOTO"}
-                </button>
               </div>
 
               <div
@@ -2340,7 +2169,9 @@ export default function FoodBuilder({
                 }}
               >
                 {traySelected.map(({ id, ing, qty }) => {
-                  const perUnit = baseGrams(ing);
+                  const model = portionModel(ing, satuanFor(ing).portionG);
+                  const perUnit = model.unitG;
+                  const unitsOnly = model.mode === "units";
                   const grams = Math.round(perUnit * qty);
                   const delta = modDelta(entryMods[id] ?? []);
                   const kcal = Math.max(0, Math.round(ing.kcal * qty + delta.kcal));
@@ -2372,6 +2203,7 @@ export default function FoodBuilder({
                           background: "none",
                           border: "none",
                           padding: 0,
+                          minHeight: 44,
                           cursor: "pointer",
                         }}
                       >
@@ -2413,8 +2245,8 @@ export default function FoodBuilder({
                         <input
                           type="text"
                           inputMode="decimal"
-                          aria-label={`Gram ${ing.name}`}
-                          value={String(grams)}
+                          aria-label={unitsOnly ? `Jumlah porsi ${ing.name}` : `Gram ${ing.name}`}
+                          value={String(unitsOnly ? qty : grams)}
                           onChange={(ev) => {
                             const raw = ev.target.value.replace(/[^\d.]/g, "");
                             const g = parseFloat(raw);
@@ -2424,11 +2256,12 @@ export default function FoodBuilder({
                             }
                             setSelection((sel) => ({
                               ...sel,
-                              [id]: Math.round((Math.min(3000, g) / perUnit) * 1000) / 1000,
+                              [id]: unitsOnly ? Math.min(30, g) : Math.round((Math.min(3000, g) / perUnit) * 1000) / 1000,
                             }));
                           }}
                           style={{
                             width: 46,
+                            minHeight: 44,
                             textAlign: "right",
                             fontFamily: MONO,
                             fontSize: 16, // ≥16 avoids iOS focus zoom
@@ -2439,7 +2272,7 @@ export default function FoodBuilder({
                             padding: 0,
                           }}
                         />
-                        <span style={{ fontFamily: MONO, fontSize: 10, color: "#6a6660" }}>g</span>
+                        <span style={{ fontFamily: MONO, fontSize: 10, color: "#6a6660" }}>{unitsOnly ? "porsi" : "g"}</span>
                       </span>
                     </div>
                   );
@@ -2964,11 +2797,7 @@ export default function FoodBuilder({
                     }}
                   >
                     {Math.round(
-                      racik.foods.reduce((n, f) => {
-                        const per = baseGrams(f);
-                        const g = f.portionG && f.portionG > 0 ? f.portionG : per;
-                        return n + (f.kcal * g) / per;
-                      }, 0)
+                      racik.foods.reduce((n, f) => n + servingPreview(f, satuanFor(f)).macros.kcal, 0)
                     )}{" "}
                     kkal · tap untuk atur porsi
                     {racik.unmatched.length > 0 ? ` · nggak kenal: ${racik.unmatched.join(", ")}` : ""}
@@ -3220,109 +3049,6 @@ export default function FoodBuilder({
         </div>
       </div>
 
-      {/* the camera behind the tray's 44px button */}
-      <input
-        ref={photoInputRef}
-        type="file"
-        accept="image/*"
-        onChange={(ev) => {
-          const file = ev.target.files?.[0];
-          ev.target.value = "";
-          if (!file) return;
-          setPhoto((prev) => {
-            if (prev) URL.revokeObjectURL(prev);
-            return URL.createObjectURL(file);
-          });
-          haptic("success");
-        }}
-        style={{ display: "none" }}
-      />
-
-      {/* full-screen photo viewer */}
-      {photoViewer && photo ? (
-        <div
-          onClick={() => setPhotoViewer(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 280,
-            background: "rgba(0,0,0,.94)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 20,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "100%",
-              maxWidth: 420,
-              aspectRatio: "3 / 4",
-              borderRadius: 18,
-              background: `center / cover no-repeat url(${JSON.stringify(photo)})`,
-            }}
-          />
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              position: "absolute",
-              bottom: "calc(30px + env(safe-area-inset-bottom))",
-              left: 0,
-              right: 0,
-              display: "flex",
-              justifyContent: "center",
-              gap: 9,
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => {
-                setPhotoViewer(false);
-                photoInputRef.current?.click();
-              }}
-              style={{
-                padding: "12px 18px",
-                borderRadius: 999,
-                border: "none",
-                cursor: "pointer",
-                fontFamily: MONO,
-                fontSize: 10.5,
-                letterSpacing: ".1em",
-                color: "#e8e4e0",
-                background: "rgba(255,255,255,.1)",
-              }}
-            >
-              FOTO ULANG
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPhoto((prev) => {
-                  if (prev) URL.revokeObjectURL(prev);
-                  return null;
-                });
-                setPhotoViewer(false);
-                haptic("warn");
-              }}
-              style={{
-                padding: "12px 18px",
-                borderRadius: 999,
-                border: "none",
-                cursor: "pointer",
-                fontFamily: MONO,
-                fontSize: 10.5,
-                letterSpacing: ".1em",
-                color: "#e8e4e0",
-                background: "rgba(255,255,255,.1)",
-              }}
-            >
-              HAPUS
-            </button>
-          </div>
-        </div>
-      ) : null}
-
       {/* ── PORTION SHEET — the only way into the tray ──
           Tapping a row opens this instead of adding straight away, so the
           portion and any add-ons are decided before anything is committed. */}
@@ -3374,10 +3100,13 @@ export default function FoodBuilder({
             estimated={/estimasi/i.test(ing.name)}
             top={(() => {
               const fam = sheet.fam;
-              const tile = fam && tiles.find((t) => t.id === fam.tileId);
-              if (!fam || !tile) return null;
-              const rows = facetRows(tile.family, fam.picks);
-              const left = predictor.orderLeaves(leavesFor(tile.family, fam.picks));
+              if (!fam) return null;
+              const rows = facetRows(fam.family, fam.picks).map((r) => {
+                const context = { ...fam.picks };
+                delete context[r.axis];
+                return { ...r, options: predictor.orderOptions(fam.family, r.axis, r.options, context) };
+              });
+              const left = predictor.orderLeaves(leavesFor(fam.family, fam.picks));
               const variants: VariantChip[] =
                 left.length > 1
                   ? left.slice(0, 12).map((l) => {
@@ -3405,7 +3134,7 @@ export default function FoodBuilder({
             })()}
             addons={
               available.length > 0 ? (
-                <ModWheel
+                <AddonChoices
                   mods={available}
                   active={sheet.mods}
                   onToggle={(key) => {
@@ -3714,7 +3443,7 @@ export default function FoodBuilder({
                       onClick={() => r.onStep(-1)}
                       style={{
                         width: 40,
-                        height: 42,
+                        height: 44,
                         borderRadius: 13,
                         fontSize: 17,
                         color: "#f1ede9",
@@ -3736,7 +3465,7 @@ export default function FoodBuilder({
                       onFocus={(ev) => ev.currentTarget.select()}
                       style={{
                         width: 76,
-                        height: 42,
+                        height: 44,
                         boxSizing: "border-box",
                         textAlign: "center",
                         fontFamily: SANS,
@@ -3754,7 +3483,7 @@ export default function FoodBuilder({
                       onClick={() => r.onStep(1)}
                       style={{
                         width: 40,
-                        height: 42,
+                        height: 44,
                         borderRadius: 13,
                         fontSize: 17,
                         color: "#fff",

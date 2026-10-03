@@ -9,6 +9,7 @@ import {
   portionModel,
   qtyFromGrams,
   trayTotals,
+  servingPreview,
 } from "./trayMath.ts";
 import { modDelta, FOOD_MODS } from "./foodMods.ts";
 
@@ -25,6 +26,23 @@ const byId = (id: string) => {
   assert.ok(f, `staple ${id} not found`);
   return f;
 };
+
+test("search preview prices noodle soup as one bowl, without invented grams", () => {
+  const f = byId("noodle-soup");
+  const preview = servingPreview(f, satuanFor(f));
+  assert.equal(preview.macros.kcal, 380);
+  assert.equal(preview.qty, 1);
+  assert.doesNotMatch(preview.description, /\d+\s*g\b/);
+});
+
+test("search previews keep the same serving as the sheet for all 14 corrected staples", () => {
+  for (const id of WAS_MISPRICED) {
+    const f = byId(id);
+    const preview = servingPreview(f, satuanFor(f));
+    if (preview.model.mode === "units") assert.equal(preview.macros.kcal, f.kcal, id);
+    assert.equal(preview.macros.kcal, itemMacros(f, preview.model.defaultG / preview.model.unitG).kcal, id);
+  }
+});
 
 /** kcal at the sheet's DEFAULT portion, the way the new sheet computes it. */
 function defaultKcal(id: string): number {
