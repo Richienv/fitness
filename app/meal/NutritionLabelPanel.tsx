@@ -358,9 +358,14 @@ export default function NutritionLabelPanel({
           <i />
           <i />
         </div>
-        <span className="label-position-hint">
-          Judul tabel di bagian atas bingkai
-        </span>
+        <div className="label-camera-hints">
+          <span className="label-position-hint">
+            Judul tabel di bagian atas bingkai
+          </span>
+          <span className="label-camera-label">
+            Angka + satuan di tengah · baris bawah ikut masuk
+          </span>
+        </div>
         {!running && (
           <div className="label-table-example" aria-hidden="true">
             <strong lang="zh">营养成分表</strong>
@@ -385,13 +390,10 @@ export default function NutritionLabelPanel({
             <small>Contoh posisi tabel</small>
           </div>
         )}
-        <span className="label-camera-label">
-          Angka + satuan di tengah · baris bawah ikut masuk
-        </span>
+        <p role="status" className="label-camera-status">
+          <span>{error || status}</span>
+        </p>
       </div>
-      <p role="status" className="barcode-status">
-        {error || status}
-      </p>
       {!!error && !running && !busy && (
         <button
           className="secondary-button"
