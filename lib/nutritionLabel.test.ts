@@ -7,6 +7,7 @@ import {
   scaleNutritionExtras,
   sodiumToSalt,
   labelConfidenceFromOcr,
+  labelTextFromOcr,
   confirmLabelRead,
   withLabelConfidenceWarnings,
 } from "./nutritionLabel.ts";
@@ -77,6 +78,17 @@ test("confidence follows core label and amount cells, ignoring NRV and unrelated
   ];
   const n = parseNutritionLabel("每100克\n蛋白质 8.2克 14%\n包装文字");
   assert.equal(labelConfidenceFromOcr(items, n), 95);
+  for (const damaged of ["1496", "480%0"]) {
+    items[3].text = damaged;
+    const damagedLabel = parseNutritionLabel(labelTextFromOcr(items));
+    assert.equal(labelConfidenceFromOcr(items, damagedLabel), 95);
+    assert.ok(
+      !withLabelConfidenceWarnings(items, damagedLabel).warnings.some(
+        (w) => w.includes("Protein") && w.includes("kurang jelas"),
+      ),
+    );
+  }
+  items[3].text = "14%";
   items[2].score = 0.61;
   assert.equal(labelConfidenceFromOcr(items, n), 61);
   const warned = withLabelConfidenceWarnings(items, n);

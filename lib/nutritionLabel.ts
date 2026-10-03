@@ -290,31 +290,50 @@ export function labelTextFromOcr(items: LabelOcrItem[]): string {
     .map((r) => r.text)
     .join("\n");
 }
+function nutrientCellScores(
+  row: ReturnType<typeof labelRowsFromOcr>[number],
+  key: LabelKey,
+) {
+  const pattern = aliases.find(([name]) => name === key)![1];
+  return row.cells
+    .filter((cell) => {
+      const text = cell.text.normalize("NFKC").replace(/\s/g, "");
+      // Score the nutrient name and explicit amount unit, never the NRV column.
+      // A damaged percent sign can turn NRV into "1496" or "480%0".
+      return (
+        pattern.test(text) ||
+        /\d(?:[.,]\d+)?(?:千焦耳?|千卡|大卡|kcal|kJ|毫克|mg|微克|μg|ug|克|g)(?![a-z])/i.test(
+          text,
+        )
+      );
+    })
+    .map((cell) => cell.score);
+}
 /** Use the weakest relevant label/amount cell, rather than unrelated packaging text. */
 export function labelConfidenceFromOcr(
   items: LabelOcrItem[],
   label: NutritionLabel,
 ): number {
-  const evidence = ["kcal", "protein", "carbs", "fat"].flatMap((k) =>
-    label.evidence[k as LabelKey] ? [label.evidence[k as LabelKey]!] : [],
-  );
-  const scores = labelRowsFromOcr(items)
-    .filter(
-      (r) =>
-        evidence.includes(r.text.normalize("NFKC").trim()) ||
-        (!!label.basis &&
-          /(?:每|per)\s*(?:\d|份|serving)/i.test(r.text.normalize("NFKC"))),
-    )
-    .flatMap((r) =>
-      r.cells
-        .filter(
-          (c) =>
-            !/^(?:NRV.*|\d+(?:[.,]\d+)?\s*%)$/i.test(
-              c.text.normalize("NFKC").trim(),
-            ),
-        )
-        .map((c) => c.score),
+  const rows = labelRowsFromOcr(items);
+  const scores = ["kcal", "protein", "carbs", "fat"].flatMap((k) => {
+    const key = k as LabelKey;
+    const row = rows.find(
+      (r) => r.text.normalize("NFKC").trim() === label.evidence[key],
     );
+    return row ? nutrientCellScores(row, key) : [];
+  });
+  if (label.basis)
+    for (const row of rows.filter((r) =>
+      /(?:每|per)\s*(?:\d|份|serving)/i.test(r.text.normalize("NFKC")),
+    )) {
+      scores.push(
+        ...row.cells
+          .filter((c) =>
+            /每|per|^(?:克|g|毫升|ml)$/i.test(c.text.normalize("NFKC").trim()),
+          )
+          .map((c) => c.score),
+      );
+    }
   return scores.length ? Math.min(...scores) * 100 : 0;
 }
 export function withLabelConfidenceWarnings(
@@ -326,15 +345,7 @@ export function withLabelConfidenceWarnings(
     const row = rows.find(
       (r) => r.text.normalize("NFKC").trim() === label.evidence[key],
     );
-    const scores =
-      row?.cells
-        .filter(
-          (c) =>
-            !/^(?:NRV.*|\d+(?:[.,]\d+)?\s*%)$/i.test(
-              c.text.normalize("NFKC").trim(),
-            ),
-        )
-        .map((c) => c.score) ?? [];
+    const scores = row ? nutrientCellScores(row, key) : [];
     return scores.length && Math.min(...scores) < 0.8;
   });
   return unclear.length

@@ -116,6 +116,7 @@ export async function createNutritionOcr(
   if (entry.idle) clearTimeout(entry.idle);
   entry.idle = null;
   let alive = true;
+  let readyReported = false;
   const release = async () => {
     if (!alive) return;
     alive = false;
@@ -138,7 +139,10 @@ export async function createNutritionOcr(
         void engine.destroy();
         throw e;
       }
-      if (alive) progress("ready", 100);
+      if (alive && !readyReported) {
+        readyReported = true;
+        progress("ready", 100);
+      }
     };
     return {
       initialize,
@@ -174,6 +178,8 @@ export function labelImage(
   canvas.height = Math.round(region.height * scale);
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Gambar belum bisa diproses. Coba lagi.");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(
     source,
     region.x,
