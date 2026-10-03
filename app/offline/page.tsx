@@ -18,9 +18,8 @@ export default function OfflinePage() {
         placeItems: "center",
         padding: "24px",
         textAlign: "center",
-        background:
-          "radial-gradient(720px 520px at 50% -10%, #17100f, #0a0809 55%, #070608)",
-        color: "#f1ede9",
+        background: "var(--bg)",
+        color: "var(--text)",
       }}
     >
       <div style={{ maxWidth: 320 }}>
@@ -35,9 +34,9 @@ export default function OfflinePage() {
             fontFamily: SANS,
             fontWeight: 800,
             fontSize: 20,
-            color: "#faf1ea",
-            background: "linear-gradient(180deg,#241614,#0d0a0b)",
-            border: "1px solid rgba(255,255,255,.08)",
+            color: "var(--accent)",
+            background: "#e5eddd",
+            border: "1px solid var(--border)",
           }}
         >
           R2
@@ -58,7 +57,7 @@ export default function OfflinePage() {
             fontFamily: SANS,
             fontSize: 13.5,
             lineHeight: 1.55,
-            color: "#a9a29c",
+            color: "var(--muted)",
             marginTop: 10,
           }}
         >
@@ -79,18 +78,18 @@ export default function OfflinePage() {
             fontSize: 13,
             color: "#fff",
             textDecoration: "none",
-            background: "linear-gradient(180deg,#ff8a52,#ee3c30 55%,#c01f12)",
-            border: "1px solid rgba(255,150,120,.6)",
+            background: "var(--accent)",
+            border: "1px solid var(--accent)",
           }}
         >
-          COBA LAGI
+          Coba lagi
         </a>
         <div
           style={{
             fontFamily: MONO,
             fontSize: 10,
             letterSpacing: ".1em",
-            color: "#6a6660",
+            color: "var(--muted)",
             marginTop: 16,
           }}
         >

@@ -2,6 +2,7 @@
 
 import type { MealType } from "./presets";
 import { macrosFor, getIngredient, type Macros } from "./ingredients";
+import { coerceServerItems } from "./mealRecords";
 import { scopedKey } from "./userScope";
 import { contributeFood } from "./foodContribute";
 
@@ -9,6 +10,8 @@ export type CustomMealItem = {
   custom: true;
   name: string;
   grams: number;
+  /** Original consumed amount for ml or portions without a known gram weight. */
+  portionLabel?: string;
   kcal: number;
   protein: number;
   fat: number;
@@ -81,14 +84,18 @@ export function getQuickLogIds(): string[] {
     const raw = window.localStorage.getItem(scopedKey(QUICKLOG_KEY));
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed.filter((x): x is string => typeof x === "string");
+    if (Array.isArray(parsed))
+      return parsed.filter((x): x is string => typeof x === "string");
   } catch {}
   return [];
 }
 
 export function setQuickLogIds(ids: string[]): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(scopedKey(QUICKLOG_KEY), JSON.stringify(ids.slice(0, QUICKLOG_MAX)));
+  window.localStorage.setItem(
+    scopedKey(QUICKLOG_KEY),
+    JSON.stringify(ids.slice(0, QUICKLOG_MAX)),
+  );
 }
 
 export type IngredientOverride = {
@@ -112,7 +119,7 @@ function sumItemsMacros(items: MealItem[]): Macros & { sugar: number } {
         ? { kcal: it.kcal, protein: it.protein, fat: it.fat, carbs: it.carbs }
         : macrosFor(it.id, it.qty);
       const sugar = isCustomItem(it)
-        ? it.sugar ?? 0
+        ? (it.sugar ?? 0)
         : (getIngredient(it.id)?.sugar ?? 0) * it.qty;
       return {
         kcal: acc.kcal + m.kcal,
@@ -122,7 +129,7 @@ function sumItemsMacros(items: MealItem[]): Macros & { sugar: number } {
         sugar: acc.sugar + sugar,
       };
     },
-    { kcal: 0, protein: 0, fat: 0, carbs: 0, sugar: 0 }
+    { kcal: 0, protein: 0, fat: 0, carbs: 0, sugar: 0 },
   );
 }
 
@@ -187,7 +194,9 @@ export function saveMeal(log: Omit<MealLog, "id" | "loggedAt">): MealLog {
   const now = Date.now();
   const items = stampItems(log.items, now);
   const all = getAllMeals();
-  const existing = all.find((m) => m.date === log.date && m.mealType === log.mealType);
+  const existing = all.find(
+    (m) => m.date === log.date && m.mealType === log.mealType,
+  );
   if (existing) {
     existing.items = [...existing.items, ...items];
     existing.loggedAt = now;
@@ -219,7 +228,11 @@ export function updateMealItems(id: string, items: MealItem[]): void {
   }
   // Preserve each item's original addedAt through edits; backfill only genuinely
   // new items (an edit spreads the original object, so its stamp survives).
-  all[idx] = { ...all[idx], items: stampItems(items, Date.now()), loggedAt: Date.now() };
+  all[idx] = {
+    ...all[idx],
+    items: stampItems(items, Date.now()),
+    loggedAt: Date.now(),
+  };
   write(MEALS_KEY, all);
   postMeal(all[idx]);
 }
@@ -227,7 +240,7 @@ export function updateMealItems(id: string, items: MealItem[]): void {
 export function deleteMeal(id: string): void {
   write(
     MEALS_KEY,
-    getAllMeals().filter((m) => m.id !== id)
+    getAllMeals().filter((m) => m.id !== id),
   );
   deleteMealRemote(id);
 }
@@ -259,7 +272,8 @@ export async function pushLocalMealsToDb(): Promise<{ pushed: number } | null> {
 export async function syncMealsToDbOnce(): Promise<{ synced: number } | null> {
   if (typeof window === "undefined") return null;
   try {
-    if (window.localStorage.getItem(scopedKey(MEALS_SYNCED_KEY)) === "1") return null;
+    if (window.localStorage.getItem(scopedKey(MEALS_SYNCED_KEY)) === "1")
+      return null;
     const all = getAllMeals();
     if (all.length === 0) {
       window.localStorage.setItem(scopedKey(MEALS_SYNCED_KEY), "1");
@@ -303,44 +317,6 @@ function addSeen(key: string, ids: string[]): void {
   write(key, Array.from(seen));
 }
 
-/** Server items written by older Hermes builds lack the MealItem shape —
- * coerce anything with a name+kcal into a CustomMealItem the UI can render. */
-function coerceServerItems(raw: unknown): MealItem[] {
-  if (!Array.isArray(raw)) return [];
-  const out: MealItem[] = [];
-  for (const it of raw) {
-    if (!it || typeof it !== "object") continue;
-    const o = it as Record<string, unknown>;
-    const at = typeof o.addedAt === "number" && isFinite(o.addedAt) ? { addedAt: o.addedAt } : {};
-    if (o.custom === true && typeof o.name === "string") {
-      out.push({
-        custom: true,
-        name: o.name,
-        grams: typeof o.grams === "number" ? o.grams : 100,
-        kcal: typeof o.kcal === "number" ? o.kcal : 0,
-        protein: typeof o.protein === "number" ? o.protein : 0,
-        fat: typeof o.fat === "number" ? o.fat : 0,
-        carbs: typeof o.carbs === "number" ? o.carbs : 0,
-        ...at,
-      });
-    } else if (typeof o.id === "string" && typeof o.qty === "number") {
-      out.push({ id: o.id, qty: o.qty, ...at });
-    } else if (typeof o.name === "string" && typeof o.kcal === "number") {
-      out.push({
-        custom: true,
-        name: o.name,
-        grams: 100,
-        kcal: o.kcal,
-        protein: typeof o.protein === "number" ? o.protein : 0,
-        fat: typeof o.fat === "number" ? o.fat : 0,
-        carbs: typeof o.carbs === "number" ? o.carbs : 0,
-        ...at,
-      });
-    }
-  }
-  return out;
-}
-
 /** Import server meal rows not seen before. Returns number imported. */
 export function mergeServerMeals(rows: ServerMealRow[]): number {
   if (typeof window === "undefined") return 0;
@@ -348,7 +324,10 @@ export function mergeServerMeals(rows: ServerMealRow[]): number {
   const all = getAllMeals();
   const localIds = new Set(all.map((m) => m.id));
   // Everything already local was either created here or imported earlier.
-  addSeen(SEEN_MEALS_KEY, all.map((m) => m.id));
+  addSeen(
+    SEEN_MEALS_KEY,
+    all.map((m) => m.id),
+  );
 
   const importedIds: string[] = [];
   let added = 0;
@@ -358,7 +337,7 @@ export function mergeServerMeals(rows: ServerMealRow[]): number {
     importedIds.push(row.id);
     if (items.length === 0) continue;
     const existing = all.find(
-      (m) => m.date === row.date && m.mealType === row.mealType
+      (m) => m.date === row.date && m.mealType === row.mealType,
     );
     if (existing) {
       existing.items = [...existing.items, ...items];
@@ -397,7 +376,10 @@ export function mergeServerFoods(rows: ServerFoodRow[]): number {
   const all = getCustomFoods();
   const localIds = new Set(all.map((f) => f.id));
   const localNames = new Set(all.map((f) => f.name.trim().toLowerCase()));
-  addSeen(SEEN_FOODS_KEY, all.map((f) => f.id));
+  addSeen(
+    SEEN_FOODS_KEY,
+    all.map((f) => f.id),
+  );
 
   const importedIds: string[] = [];
   let added = 0;
@@ -428,10 +410,13 @@ export function mergeServerFoods(rows: ServerFoodRow[]): number {
 }
 
 /** One-shot push of pre-existing local custom foods into the shared library. */
-export async function syncCustomFoodsToDbOnce(): Promise<{ synced: number } | null> {
+export async function syncCustomFoodsToDbOnce(): Promise<{
+  synced: number;
+} | null> {
   if (typeof window === "undefined") return null;
   try {
-    if (window.localStorage.getItem(scopedKey(FOODS_SYNCED_KEY)) === "1") return null;
+    if (window.localStorage.getItem(scopedKey(FOODS_SYNCED_KEY)) === "1")
+      return null;
     const all = getCustomFoods();
     let synced = 0;
     for (const f of all) {
@@ -452,7 +437,7 @@ export async function syncCustomFoodsToDbOnce(): Promise<{ synced: number } | nu
 export function clearMealsForDate(date: string): void {
   write(
     MEALS_KEY,
-    getAllMeals().filter((m) => m.date !== date)
+    getAllMeals().filter((m) => m.date !== date),
   );
 }
 
@@ -552,12 +537,16 @@ export function saveCustomFood(name: string, per100g: Per100g): CustomFood {
 export function deleteCustomFood(id: string): void {
   write(
     CUSTOM_KEY,
-    getCustomFoods().filter((f) => f.id !== id)
+    getCustomFoods().filter((f) => f.id !== id),
   );
   deleteFoodRemote(id);
 }
 
-export function updateCustomFood(id: string, name: string, per100g: Per100g): void {
+export function updateCustomFood(
+  id: string,
+  name: string,
+  per100g: Per100g,
+): void {
   const all = getCustomFoods();
   const idx = all.findIndex((f) => f.id === id);
   if (idx === -1) return;
@@ -571,7 +560,10 @@ export function getIngredientOverrides(): Record<string, IngredientOverride> {
   return read<Record<string, IngredientOverride>>(OVERRIDES_KEY, {});
 }
 
-export function saveIngredientOverride(id: string, patch: IngredientOverride): void {
+export function saveIngredientOverride(
+  id: string,
+  patch: IngredientOverride,
+): void {
   const all = getIngredientOverrides();
   all[id] = patch;
   write(OVERRIDES_KEY, all);
@@ -583,7 +575,10 @@ export function resetIngredientOverride(id: string): void {
   write(OVERRIDES_KEY, all);
 }
 
-export function scaleByGrams(per100g: Per100g, grams: number): {
+export function scaleByGrams(
+  per100g: Per100g,
+  grams: number,
+): {
   kcal: number;
   protein: number;
   fat: number;

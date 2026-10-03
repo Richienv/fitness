@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import "./friendly.css";
 import BottomNav from "./BottomNav";
 import ServerSync from "./ServerSync";
 import ToastStack from "./Toast";
@@ -44,11 +45,16 @@ export const metadata: Metadata = {
   appleWebApp: {
     title: "R2·FIT",
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
   },
   // Stops iOS from turning "2200 kkal" or a date into a blue phone-number link
   // once the app is running full-screen from the home screen.
-  formatDetection: { telephone: false, date: false, address: false, email: false },
+  formatDetection: {
+    telephone: false,
+    date: false,
+    address: false,
+    email: false,
+  },
   openGraph: {
     type: "website",
     url: SITE_URL,
@@ -75,12 +81,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  themeColor: "#070608",
+  themeColor: "#f7f8f3",
   // Required for `env(safe-area-inset-*)` to report anything but 0 — the app
   // already has 55 of those, and without cover they were all no-ops. It also
-  // pairs with statusBarStyle: "black-translucent": the status bar draws over
+  // pairs with statusBarStyle: "default": the status bar draws over
   // the page, so the top inset is what keeps the header clear of the notch.
   viewportFit: "cover",
   // Lets `100dvh` shrink while the on-screen keyboard is open so bottom-sheet
@@ -98,7 +102,7 @@ export default async function RootLayout({
   const userId = session?.user?.id ?? null;
 
   return (
-    <html lang="en" className={`${jakarta.variable} ${jetbrains.variable}`}>
+    <html lang="id" className={`${jakarta.variable} ${jetbrains.variable}`}>
       <head>
         {/* next/font serves the fonts from this app's own origin. */}
         {/* Chrome fires beforeinstallprompt as soon as it decides the site is

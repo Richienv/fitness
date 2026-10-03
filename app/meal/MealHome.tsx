@@ -11,6 +11,7 @@ import {
   type ReactNode,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { foodLabel } from "@/lib/foodLabel";
 import { getIngredient, macrosFor, type Macros } from "@/lib/ingredients";
 import { useSoftRefresh } from "@/lib/useSoftRefresh";
 import { useVTNavigate } from "@/lib/navigate";
@@ -40,6 +41,9 @@ import { haptic } from "@/lib/haptics";
 import { toast } from "../Toast";
 import DatePicker from "./DatePicker";
 import FoodBuilder from "./FoodBuilder";
+import Icon from "../ui/Icon";
+import NutritionSummary from "./NutritionSummary";
+import MorningScene from "./MorningScene";
 import { useSheetBack } from "@/lib/backSheet";
 
 /** A blank editor draft; may or may not carry an id (edit vs. add). */
@@ -47,8 +51,8 @@ type EditDraft = (QuickLogEntry | Omit<QuickLogEntry, "id">) & { id?: string };
 
 // ---- shared style tokens (canonical from app/page.tsx) ----
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
-const MONO = "var(--font-dm-mono), 'JetBrains Mono', monospace";
-const FIRE = "linear-gradient(180deg,#ff8a52,#ee3c30 55%,#c01f12)";
+const MONO = "var(--font-dm-sans), sans-serif";
+const FIRE = "var(--accent)";
 const EMPTY_MACROS: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
 const round1 = (x: number) => Math.round(x * 10) / 10;
 const DAILY_SUGAR_TARGET_G = 50;
@@ -57,10 +61,28 @@ const DAILY_SUGAR_TARGET_G = 50;
  *  this width so the card's right edge is as straight as its left one. */
 const KCAL_COL = 58;
 
-const ID_DAYS = ["MINGGU", "SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU"];
+const ID_DAYS = [
+  "MINGGU",
+  "SENIN",
+  "SELASA",
+  "RABU",
+  "KAMIS",
+  "JUMAT",
+  "SABTU",
+];
 const ID_MON = [
-  "JANUARI", "FEBRUARI", "MARET", "APRIL", "MEI", "JUNI",
-  "JULI", "AGUSTUS", "SEPTEMBER", "OKTOBER", "NOVEMBER", "DESEMBER",
+  "JANUARI",
+  "FEBRUARI",
+  "MARET",
+  "APRIL",
+  "MEI",
+  "JUNI",
+  "JULI",
+  "AGUSTUS",
+  "SEPTEMBER",
+  "OKTOBER",
+  "NOVEMBER",
+  "DESEMBER",
 ];
 
 /** "KAMIS · 24 JULI 2026" — the header line under the wordmark. */
@@ -121,7 +143,8 @@ function SwipeRow({
     if (!s) return;
     const ddx = e.clientX - s.x;
     const ddy = e.clientY - s.y;
-    if (!s.drag && Math.abs(ddx) > 8 && Math.abs(ddx) > Math.abs(ddy)) s.drag = true;
+    if (!s.drag && Math.abs(ddx) > 8 && Math.abs(ddx) > Math.abs(ddy))
+      s.drag = true;
     if (s.drag) setDx(damp(ddx));
   };
   const up = () => {
@@ -153,7 +176,7 @@ function SwipeRow({
           padding: "0 14px",
           borderRadius: 12,
           background: `linear-gradient(90deg,rgba(238,60,48,${0.06 + prog * 0.24}),rgba(238,60,48,${0.02 + prog * 0.08}))`,
-          color: "#ff9a80",
+          color: "var(--text)",
           fontFamily: MONO,
           fontSize: 10.5,
           letterSpacing: ".12em",
@@ -199,7 +222,7 @@ function SwipeRow({
           willChange: "transform",
           // Rows sit *inside* a slot card, so they carry no card chrome of their
           // own — only the swipe background behind them reads as a surface.
-          background: dragging || dx !== 0 ? "#0d0b0c" : "transparent",
+          background: dragging || dx !== 0 ? "var(--surface)" : "transparent",
         }}
       >
         {children}
@@ -240,23 +263,26 @@ const ADDONS: { id: string; label: string }[] = [
 ];
 
 function sumMealMacros(meal: MealLog): Macros {
-  return meal.items.reduce<Macros>((acc, it) => {
-    if (isCustomItem(it)) {
+  return meal.items.reduce<Macros>(
+    (acc, it) => {
+      if (isCustomItem(it)) {
+        return {
+          kcal: acc.kcal + it.kcal,
+          protein: acc.protein + it.protein,
+          carbs: acc.carbs + it.carbs,
+          fat: acc.fat + it.fat,
+        };
+      }
+      const m = macrosFor(it.id, it.qty);
       return {
-        kcal: acc.kcal + it.kcal,
-        protein: acc.protein + it.protein,
-        carbs: acc.carbs + it.carbs,
-        fat: acc.fat + it.fat,
+        kcal: acc.kcal + m.kcal,
+        protein: acc.protein + m.protein,
+        carbs: acc.carbs + m.carbs,
+        fat: acc.fat + m.fat,
       };
-    }
-    const m = macrosFor(it.id, it.qty);
-    return {
-      kcal: acc.kcal + m.kcal,
-      protein: acc.protein + m.protein,
-      carbs: acc.carbs + m.carbs,
-      fat: acc.fat + m.fat,
-    };
-  }, { ...EMPTY_MACROS });
+    },
+    { ...EMPTY_MACROS },
+  );
 }
 
 function sumMealSugar(meal: MealLog): number {
@@ -276,31 +302,6 @@ function addMacros(a: Macros, b: Macros): Macros {
   };
 }
 
-/** Ease a number up to its target so bars "count up" like the reference. */
-function useCountUp(target: number, active: boolean): number {
-  const [v, setV] = useState(0);
-  useEffect(() => {
-    if (!active) {
-      setV(target);
-      return;
-    }
-    let raf = 0;
-    let cur = 0;
-    const tick = () => {
-      cur = cur + (target - cur) * 0.16;
-      if (Math.abs(target - cur) < 0.4) {
-        setV(target);
-        return;
-      }
-      setV(cur);
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, active]);
-  return v;
-}
-
 function toggleStyle(active: boolean): CSSProperties {
   return {
     flex: 1,
@@ -312,9 +313,9 @@ function toggleStyle(active: boolean): CSSProperties {
     cursor: "pointer",
     border: active
       ? "1px solid rgba(255,150,120,.6)"
-      : "1px solid rgba(255,255,255,.1)",
-    background: active ? FIRE : "rgba(255,255,255,.03)",
-    color: active ? "#fff" : "#7c736e",
+      : "1px solid rgba(84,119,93,.1)",
+    background: active ? FIRE : "rgba(84,119,93,.03)",
+    color: active ? "var(--text)" : "#7c736e",
     boxShadow: active
       ? "inset 0 1.5px 1px rgba(255,225,205,.6),0 6px 16px rgba(238,60,48,.35)"
       : "none",
@@ -333,7 +334,7 @@ function segStyle(active: boolean): CSSProperties {
     fontWeight: active ? 700 : 400,
     letterSpacing: ".1em",
     cursor: "pointer",
-    color: active ? "#fff" : "#7c736e",
+    color: active ? "var(--text)" : "#7c736e",
     background: active ? FIRE : "transparent",
     border: active ? "1px solid rgba(255,150,120,.5)" : "1px solid transparent",
     textShadow: active ? "0 1px 2px rgba(120,15,5,.5)" : "none",
@@ -351,9 +352,9 @@ function manageIconStyle(disabled: boolean): CSSProperties {
     fontSize: 13,
     lineHeight: 1,
     cursor: disabled ? "default" : "pointer",
-    color: disabled ? "#4a4642" : "#c9c2bc",
-    background: "rgba(255,255,255,.04)",
-    border: "1px solid rgba(255,255,255,.1)",
+    color: disabled ? "#4a4642" : "var(--text)",
+    background: "rgba(84,119,93,.04)",
+    border: "1px solid rgba(84,119,93,.1)",
     opacity: disabled ? 0.4 : 1,
   };
 }
@@ -374,9 +375,9 @@ const editInputStyle: CSSProperties = {
   borderRadius: 12,
   fontFamily: SANS,
   fontSize: 16, // ≥16 avoids iOS focus zoom
-  color: "#f1ede9",
-  background: "rgba(255,255,255,.04)",
-  border: "1px solid rgba(255,255,255,.12)",
+  color: "var(--text)",
+  background: "rgba(84,119,93,.04)",
+  border: "1px solid rgba(84,119,93,.12)",
   outline: "none",
   boxSizing: "border-box",
 };
@@ -411,119 +412,6 @@ function NumField({
 
 /** One macro line beside the ring: label, value / target, and a 6px bar.
  *  `cap` marks a ceiling (gula) — past it the bar and the number go red. */
-function MiniBar({
-  label,
-  value,
-  target,
-  grad,
-  cap,
-  animate,
-}: {
-  label: string;
-  value: number;
-  target: number;
-  grad: string;
-  cap: boolean;
-  animate: boolean;
-}) {
-  const shown = useCountUp(value, animate);
-  const pct = Math.max(0, Math.min(100, target ? (shown / target) * 100 : 0));
-  const over = cap && value > target;
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: ".14em", color: "#7c736e" }}>
-          {label}
-        </span>
-        <span style={{ fontFamily: MONO, fontSize: 10, color: over ? "#ee3c30" : "#f1ede9" }}>
-          {`${Math.round(shown)}g`}
-          <span style={{ color: "#5a524e" }}>{` / ${Math.round(target)}g`}</span>
-        </span>
-      </div>
-      <div
-        style={{
-          height: 6,
-          marginTop: 5,
-          background: "#161011",
-          borderRadius: 4,
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            height: "100%",
-            width: `${pct}%`,
-            borderRadius: 4,
-            background: over ? "linear-gradient(90deg,#ff5a3c,#ee2f1f)" : grad,
-            transition: "width .6s cubic-bezier(.22,.61,.36,1)",
-          }}
-        />
-      </div>
-    </div>
-  );
-}
-
-/** The hero ring — what's LEFT to eat, because that's the number that decides
- *  the next meal. Consumed / target sits underneath as context. */
-function CalorieRing({ kcal, target, animate }: { kcal: number; target: number; animate: boolean }) {
-  const pct = target > 0 ? Math.min(1, kcal / target) : 0;
-  const offset = Math.round(452 * (1 - pct));
-  const sisa = Math.max(0, target - Math.round(kcal));
-  return (
-    <div style={{ position: "relative", width: 132, height: 132, flex: "none" }}>
-      <svg viewBox="0 0 160 160" style={{ width: 132, height: 132, transform: "rotate(-90deg)" }}>
-        <circle cx="80" cy="80" r="72" fill="none" stroke="#1c1614" strokeWidth="13" />
-        <circle
-          cx="80"
-          cy="80"
-          r="72"
-          fill="none"
-          stroke="url(#mk-ring)"
-          strokeWidth="13"
-          strokeLinecap="round"
-          strokeDasharray="452"
-          strokeDashoffset={offset}
-          style={{
-            transition: "stroke-dashoffset .7s cubic-bezier(.22,.61,.36,1)",
-            animation: animate ? "mk-ringdraw 1.1s cubic-bezier(.22,.61,.36,1)" : "none",
-          }}
-        />
-        <defs>
-          <linearGradient id="mk-ring" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#ffb454" />
-            <stop offset="1" stopColor="#ee2f1f" />
-          </linearGradient>
-        </defs>
-      </svg>
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <span style={{ fontSize: 30, fontWeight: 800, color: "#ffe9d6", lineHeight: 1 }}>
-          {sisa.toLocaleString("id-ID")}
-        </span>
-        <span
-          style={{
-            fontFamily: MONO,
-            fontSize: 7.5,
-            letterSpacing: ".1em",
-            color: "#5a524e",
-            marginTop: 3,
-          }}
-        >
-          {Math.round(kcal).toLocaleString("id-ID")} / {Math.round(target).toLocaleString("id-ID")}
-        </span>
-      </div>
-    </div>
-  );
-}
-
 /** One food inside a slot card. */
 type SlotItem = {
   key: string;
@@ -551,20 +439,31 @@ type Slot = {
  *  width, so it sometimes wraps. Each amount is glued to its label with a
  *  non-breaking space: a wrap can then only happen at a "·", which moves
  *  "0g gula" down as one piece instead of stranding the word on its own. */
-function macroLine(protein: number, carbs: number, fat: number, sugar: number): string {
+function macroLine(
+  protein: number,
+  carbs: number,
+  fat: number,
+  sugar: number | null | undefined,
+): string {
   return (
     `${Math.round(protein)}g protein · ${Math.round(carbs)}g karbo` +
-    ` · ${Math.round(fat)}g lemak · ${Math.round(sugar)}g gula`
+    ` · ${Math.round(fat)}g lemak` +
+    (sugar == null ? " · gula belum tersedia" : ` · ${Math.round(sugar)}g gula`)
   );
 }
 
-function describeItem(it: MealItem): { name: string; detail: string; kcal: number } {
+function describeItem(it: MealItem): {
+  name: string;
+  detail: string;
+  kcal: number;
+} {
   if (isCustomItem(it)) {
-    const portion = it.grams > 0 ? `${Math.round(it.grams)} g` : "1 porsi";
+    const portion =
+      it.grams > 0 ? `${Math.round(it.grams)} g` : it.portionLabel || "1 porsi";
     return {
       name: it.name,
       kcal: it.kcal,
-      detail: `${portion} · ${macroLine(it.protein, it.carbs, it.fat, it.sugar ?? 0)}`,
+      detail: `${portion} · ${macroLine(it.protein, it.carbs, it.fat, it.sugar)}`,
     };
   }
   const ing = getIngredient(it.id);
@@ -572,9 +471,9 @@ function describeItem(it: MealItem): { name: string; detail: string; kcal: numbe
   const portion = ing?.gramsPerUnit
     ? `${Math.round(ing.gramsPerUnit * it.qty)} g`
     : `${round1(it.qty)}×`;
-  const sugar = (ing?.sugar ?? 0) * it.qty;
+  const sugar = ing?.sugar == null ? null : ing.sugar * it.qty;
   return {
-    name: ing?.name ?? it.id,
+    name: ing ? foodLabel(ing) : it.id,
     kcal: m.kcal,
     detail: `${portion} · ${macroLine(m.protein, m.carbs, m.fat, sugar)}`,
   };
@@ -612,9 +511,12 @@ export default function MealHome({
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
   const [lockRatio, setLockRatio] = useState(true);
   const [loaded, setLoaded] = useState(false);
-  const [builderMeal, setBuilderMeal] = useState<MealType | null>(initialBuilder ?? null);
+  const [builderMeal, setBuilderMeal] = useState<MealType | null>(
+    initialBuilder ?? null,
+  );
   /** Same builder, opened straight into the ingredient composer. */
   const [racikMeal, setRacikMeal] = useState<MealType | null>(null);
+  const [barcodeMeal, setBarcodeMeal] = useState<MealType | null>(null);
   // Which slot the clock is in right now. Resolved after mount so the server
   // render and the first client render agree.
   const [nowSlot, setNowSlot] = useState<MealType | null>(null);
@@ -676,17 +578,20 @@ export default function MealHome({
 
   const dayMeals = useMemo(
     () => allMeals.filter((m) => m.date === activeDate),
-    [allMeals, activeDate]
+    [allMeals, activeDate],
   );
 
   const totals = useMemo<Macros>(
-    () => dayMeals.reduce((a, m) => addMacros(a, sumMealMacros(m)), { ...EMPTY_MACROS }),
-    [dayMeals]
+    () =>
+      dayMeals.reduce((a, m) => addMacros(a, sumMealMacros(m)), {
+        ...EMPTY_MACROS,
+      }),
+    [dayMeals],
   );
 
   const sugarTotal = useMemo(
     () => dayMeals.reduce((acc, m) => acc + sumMealSugar(m), 0),
-    [dayMeals]
+    [dayMeals],
   );
 
   // The day as four slots rather than one flat stream, so an empty SNACK is as
@@ -716,7 +621,14 @@ export default function MealHome({
         });
       }
       items.sort((a, b) => a.at - b.at);
-      return { key: def.key, label: def.label, window: def.window, items, kcal, lastAt };
+      return {
+        key: def.key,
+        label: def.label,
+        window: def.window,
+        items,
+        kcal,
+        lastAt,
+      };
     });
   }, [dayMeals]);
 
@@ -733,7 +645,7 @@ export default function MealHome({
       toast(`Dihapus · ${name}`, "success");
       reloadFromStore();
     },
-    [dayMeals, reloadFromStore]
+    [dayMeals, reloadFromStore],
   );
 
   // Close the confirmation with its exit animation, then optionally delete once
@@ -749,7 +661,7 @@ export default function MealHome({
         if (confirm && p) deleteLoggedItem(p.mealId, p.itemIndex, p.name);
       }, 230);
     },
-    [pendingDelete, deleteClosing, deleteLoggedItem]
+    [pendingDelete, deleteClosing, deleteLoggedItem],
   );
 
   const target = gymDay ? TARGETS.gymDay : TARGETS.restDay;
@@ -778,515 +690,183 @@ export default function MealHome({
       toast(`✓ ${e.label} · +${Math.round(e.kcal)} kkal`, "success");
       reloadFromStore();
     },
-    [activeDate, reloadFromStore]
+    [activeDate, reloadFromStore],
   );
 
-  const macros = [
-    {
-      label: "PROTEIN",
-      value: totals.protein,
-      target: target.protein,
-      grad: "linear-gradient(90deg,#6ff0a4,#22c55e)",
-      cap: false,
-    },
-    {
-      label: "KARBO",
-      value: totals.carbs,
-      target: target.carbs,
-      grad: "linear-gradient(90deg,#5ac8f5,#229ed9)",
-      cap: false,
-    },
-    {
-      label: "LEMAK",
-      value: totals.fat,
-      target: target.fat,
-      grad: "linear-gradient(90deg,#ffd25a,#eab308)",
-      cap: false,
-    },
-    {
-      label: "GULA",
-      value: sugarTotal,
-      target: DAILY_SUGAR_TARGET_G,
-      grad: "linear-gradient(90deg,#ff8a72,#ee3c30)",
-      cap: true,
-    },
-  ];
-
+  const mealNames: Record<MealType, string> = {
+    breakfast: "Sarapan",
+    lunch: "Makan siang",
+    snack: "Camilan",
+    dinner: "Makan malam",
+  };
   return (
-    <main
-      // No page-rise here. Its animation resolves `transform` to an identity
-      // matrix rather than `none`, which makes this element a containing block
-      // — and every position:fixed child (FoodBuilder's full-screen overlay,
-      // the delete dialog, DatePicker) then sizes to the page instead of the
-      // viewport. The entrance flourish isn't worth that.
-      style={{
-        maxWidth: 460,
-        margin: "0 auto",
-        minHeight: "100dvh",
-        position: "relative",
-        fontFamily: SANS,
-        background:
-          "radial-gradient(1100px 700px at 50% -8%, #17100f 0%, #0a0809 42%, #050406 100%)",
-      }}
-    >
-      {/* Bottom padding clears the nav AND the FAB (which tops out 148px up),
-          so the last slot card is never partly hidden behind the ＋. */}
-      {/* 170px cleared the bottom nav but not the RACIK pill, which is fixed
-          above it — the last slot's "+ Catat" button ended up underneath it,
-          two tap targets on the same pixels. 230px lets the last card scroll
-          clear of both. */}
-      <div style={{ padding: "calc(16px + env(safe-area-inset-top)) 18px 230px" }}>
-        {/* header — wordmark + date, with the day type as a compact segment */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-          <div style={{ minWidth: 0 }}>
-            <h1
-              style={{
-                fontSize: 26,
-                fontWeight: 800,
-                letterSpacing: ".3px",
-                color: "#f1ede9",
-                lineHeight: 1,
-              }}
-            >
-              Makan<span style={{ color: "#ee3c30" }}>.</span>
-            </h1>
-            <button
-              type="button"
-              onClick={() => setPickerOpen(true)}
-              aria-label="Pilih tanggal"
-              style={{
-                display: "block",
-                marginTop: 6,
-                padding: 0,
-                border: "none",
-                background: "transparent",
-                textAlign: "left",
-                cursor: "pointer",
-                fontFamily: MONO,
-                fontSize: 10,
-                letterSpacing: ".15em",
-                color: "#f1ede9",
-              }}
-            >
-              {dateLine}
+    <main className="friendly-page meal-page">
+      <header className="page-top">
+        <div>
+          <p className="eyebrow">Catatan harian</p>
+          <h1>Makan</h1>
+        </div>
+        <button className="soft-button" onClick={() => setPickerOpen(true)}>
+          {activeDate === todayStr ? "Hari ini" : activeDate}
+          <Icon name="sun" size={18} />
+        </button>
+      </header>
+      <p className="quiet date-caption">
+        {dateLine.toLocaleLowerCase("id-ID")}
+      </p>
+      <section className="daily-nutrition">
+        <div className="row-between">
+          <h2>Nutrisi hari ini</h2>
+          <div className="segment">
+            <button aria-pressed={gymDay} onClick={() => toggleGym(true)}>
+              Latihan
             </button>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              gap: 6,
-              flex: "none",
-              padding: 3,
-              borderRadius: 12,
-              background: "rgba(255,255,255,.05)",
-              border: "1px solid rgba(255,255,255,.09)",
-            }}
-          >
-            <button type="button" className="tap-press" onClick={() => toggleGym(true)} style={segStyle(gymDay)}>
-              GYM
-            </button>
-            <button type="button" className="tap-press" onClick={() => toggleGym(false)} style={segStyle(!gymDay)}>
-              REST
+            <button aria-pressed={!gymDay} onClick={() => toggleGym(false)}>
+              Istirahat
             </button>
           </div>
         </div>
-
-        {/* hero — sisa kalori + the four macros */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 18,
-            marginTop: 18,
-            padding: 18,
-            borderRadius: 22,
-            background: "rgba(255,255,255,.035)",
-            border: "1px solid rgba(255,255,255,.09)",
-          }}
+        <NutritionSummary values={totals} />
+        <div className="calorie-budget">
+          <div className="row-between">
+            <span>
+              {Math.max(
+                0,
+                Math.round(target.kcal - totals.kcal),
+              ).toLocaleString("id-ID")}{" "}
+              kkal tersisa
+            </span>
+            <span>Target {target.kcal.toLocaleString("id-ID")}</span>
+          </div>
+          <progress
+            value={Math.min(totals.kcal, target.kcal)}
+            max={target.kcal}
+            aria-label="Kalori dari target harian"
+          />
+        </div>
+        <details className="nutrition-targets">
+          <summary>Target dan detail nutrisi</summary>
+          <p>
+            Protein {round1(totals.protein)} / {target.protein} g · Karbohidrat{" "}
+            {round1(totals.carbs)} / {target.carbs} g · Lemak{" "}
+            {round1(totals.fat)} / {target.fat} g · Gula tercatat{" "}
+            {round1(sugarTotal)} g
+          </p>
+        </details>
+      </section>
+      <div className="food-actions">
+        <button
+          className="primary-button"
+          onClick={() => setBuilderMeal(nowSlot ?? inferMealType())}
         >
-          <CalorieRing kcal={totals.kcal} target={target.kcal} animate={loaded} />
-          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-            {macros.map((m) => (
-              <MiniBar key={m.label} {...m} animate={loaded} />
-            ))}
-          </div>
-        </div>
-
-        {/* quick rail — always visible, one tap logs */}
-        <div
-          className="mk-rail"
-          style={{
-            display: "flex",
-            gap: 8,
-            overflowX: "auto",
-            margin: "22px -18px 0",
-            padding: "2px 18px 4px",
-          }}
+          <Icon name="search" />
+          Cari makanan
+        </button>
+        <button
+          className="secondary-button"
+          onClick={() => setRacikMeal(nowSlot ?? inferMealType())}
         >
-          {quickEntries.map((e) => {
-            const [first, ...rest] = e.label.split(" ");
-            return (
-              <button
-                key={e.id}
-                type="button"
-                className="tap-press"
-                onClick={() => logQuick(e)}
-                style={{
-                  flex: "none",
-                  width: 104,
-                  padding: "11px 13px",
-                  borderRadius: 15,
-                  textAlign: "left",
-                  cursor: "pointer",
-                  background:
-                    "linear-gradient(180deg,rgba(255,255,255,.05),transparent 60%),#0d0b0c",
-                  border: "1px solid rgba(255,255,255,.1)",
-                }}
-              >
-                <span
-                  style={{
-                    display: "block",
-                    fontFamily: SANS,
-                    fontSize: 12.5,
-                    fontWeight: 700,
-                    lineHeight: 1.25,
-                    color: "#f1ede9",
-                  }}
-                >
-                  {first}
-                  <br />
-                  {rest.join(" ") || " "}
-                </span>
-              </button>
-            );
-          })}
-
-          {/* one-tap add-ons — these open the confirm step instead of logging
-              straight away, so they carry a fire edge to read as different */}
-          {ADDONS.map((a) => {
-            const preset = PRESETS.find((p) => p.id === a.id);
-            if (!preset) return null;
-            const href = `/meal/confirm?preset=${preset.id}&date=${activeDate}`;
-            const [first, ...rest] = a.label.split(" ");
-            return (
-              <Link
-                key={a.id}
-                href={href}
-                className="tap-press"
-                onClick={(ev) => {
-                  ev.preventDefault();
-                  vtNavigate(href, { haptic: null });
-                }}
-                style={{
-                  flex: "none",
-                  width: 104,
-                  padding: "11px 13px",
-                  borderRadius: 15,
-                  textDecoration: "none",
-                  cursor: "pointer",
-                  background:
-                    "linear-gradient(180deg,rgba(255,138,60,.1),rgba(255,138,60,.02) 55%),#0d0b0c",
-                  border: "1px solid rgba(255,138,60,.32)",
-                }}
-              >
-                <span
-                  style={{
-                    display: "block",
-                    fontFamily: SANS,
-                    fontSize: 12.5,
-                    fontWeight: 700,
-                    lineHeight: 1.25,
-                    color: "#f1ede9",
-                  }}
-                >
-                  {first}
-                  <br />
-                  {rest.join(" ") || " "}
-                </span>
-              </Link>
-            );
-          })}
-
-          <button
-            type="button"
-            className="tap-press"
-            onClick={() => {
-              haptic("tap");
-              setManageOpen(true);
-            }}
-            aria-label="Atur catat cepat"
-            style={{
-              flex: "none",
-              width: 60,
-              borderRadius: 15,
-              cursor: "pointer",
-              fontFamily: MONO,
-              fontSize: 9.5,
-              letterSpacing: ".1em",
-              color: "#7c736e",
-              background: "rgba(255,255,255,.03)",
-              border: "1px dashed rgba(255,255,255,.14)",
-            }}
-          >
-            ✎<br />ATUR
-          </button>
-        </div>
-
-        {/* the day, as four slots */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 22 }}>
-          {slots.map((s) => {
-            const empty = s.items.length === 0;
-            // Only an empty slot glows: once it's logged there's nothing to nag about.
-            const isNow = s.key === nowSlot && empty;
-            return (
-              <div
-                key={s.key}
-                style={{
-                  padding: "15px 16px",
-                  borderRadius: 18,
-                  background: isNow
-                    ? "linear-gradient(180deg,rgba(238,60,48,.1),transparent 70%),#0d0b0c"
-                    : "rgba(255,255,255,.035)",
-                  border: isNow
-                    ? "1px solid rgba(255,150,120,.4)"
-                    : "1px solid rgba(255,255,255,.09)",
-                  opacity: empty && !isNow ? 0.72 : 1,
-                  animation: isNow ? "wo-cardglow 2.8s ease-in-out infinite" : "none",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <span
-                      style={{
-                        display: "block",
-                        fontFamily: MONO,
-                        fontSize: 10,
-                        fontWeight: 500,
-                        letterSpacing: ".2em",
-                        color: empty ? "#7c736e" : "#f1ede9",
-                      }}
-                    >
-                      {s.label}
-                    </span>
-                    <span
-                      style={{
-                        display: "block",
-                        fontFamily: MONO,
-                        fontSize: 9,
-                        color: "#7c736e",
-                        marginTop: 4,
-                      }}
-                    >
-                      {empty
-                        ? s.window
-                        : `${s.items.length} item · ${fmtTime(s.lastAt ?? Date.now())}`}
-                    </span>
-                  </span>
-
-                  <span style={{ flex: "none", width: KCAL_COL, textAlign: "right" }}>
-                    <span
-                      style={{
-                        display: "block",
-                        fontFamily: MONO,
-                        fontSize: empty ? 13 : 18,
-                        fontWeight: 700,
-                        lineHeight: 1,
-                        color: empty ? "#5a524e" : "#f1ede9",
-                      }}
-                    >
-                      {empty ? "—" : Math.round(s.kcal)}
-                    </span>
-                    <span
-                      style={{
-                        display: "block",
-                        fontFamily: MONO,
-                        fontSize: 7.5,
-                        letterSpacing: ".18em",
-                        color: "#6a6660",
-                        marginTop: 3,
-                      }}
-                    >
-                      KKAL
-                    </span>
-                  </span>
-                </div>
-
-                {!empty && (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 7,
-                      marginTop: 12,
-                      paddingTop: 12,
-                      borderTop: "1px solid rgba(255,255,255,.07)",
-                    }}
-                  >
-                    {s.items.map((it) => (
-                      <SwipeRow
-                        key={it.key}
-                        onTap={() => {
-                          haptic("tap");
-                          setBuilderMeal(s.key);
-                        }}
-                        onRequestDelete={() => {
-                          haptic("tap");
-                          setPendingDelete({
-                            mealId: it.mealId,
-                            itemIndex: it.itemIndex,
-                            name: it.name,
-                          });
-                        }}
-                      >
-                        <span style={{ flex: 1, minWidth: 0 }}>
-                          <span
-                            style={{
-                              display: "block",
-                              fontFamily: SANS,
-                              fontSize: 13.5,
-                              fontWeight: 700,
-                              color: "#f1ede9",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {it.name}
-                          </span>
-                          <span
-                            style={{
-                              display: "block",
-                              fontFamily: MONO,
-                              fontSize: 8.5,
-                              lineHeight: 1.5,
-                              color: "#8a837d",
-                              marginTop: 3,
-                            }}
-                          >
-                            {it.detail}
-                          </span>
-                        </span>
-                        <span style={{ flex: "none", width: KCAL_COL, textAlign: "right" }}>
-                          <span
-                            style={{
-                              display: "block",
-                              fontFamily: MONO,
-                              fontSize: 13,
-                              fontWeight: 700,
-                              color: "#f1ede9",
-                              lineHeight: 1,
-                            }}
-                          >
-                            {Math.round(it.kcal)}
-                          </span>
-                          <span
-                            style={{
-                              display: "block",
-                              fontFamily: MONO,
-                              fontSize: 8.5,
-                              color: "#6a6660",
-                              marginTop: 3,
-                            }}
-                          >
-                            {fmtTime(it.at)}
-                          </span>
-                        </span>
-                      </SwipeRow>
-                    ))}
-                  </div>
-                )}
-
-                {empty && (
-                  <button
-                    type="button"
-                    className="tap-press"
-                    onClick={() => {
-                      haptic("tap");
-                      setBuilderMeal(s.key);
-                    }}
-                    // This is the primary action of the whole page and it was
-                    // drawn as a dashed ghost — 9.5px grey type on a 3%-white
-                    // fill, fainter than the section labels around it. The
-                    // slot you are actually in gets the solid fire treatment;
-                    // the others stay quiet but legible, so the eye still
-                    // lands on "now" first.
-                    style={{
-                      width: "100%",
-                      marginTop: 11,
-                      padding: isNow ? "14px 12px" : "12px 11px",
-                      borderRadius: 13,
-                      cursor: "pointer",
-                      fontFamily: SANS,
-                      fontWeight: 800,
-                      fontSize: isNow ? 14 : 13,
-                      letterSpacing: "-.01em",
-                      color: isNow ? "#fff" : "#cfc8c2",
-                      background: isNow ? FIRE : "rgba(255,255,255,.07)",
-                      border: isNow
-                        ? "1px solid rgba(255,150,120,.6)"
-                        : "1px solid rgba(255,255,255,.13)",
-                      boxShadow: isNow
-                        ? "inset 0 1.5px 1px rgba(255,225,205,.55), 0 8px 20px rgba(238,60,48,.32)"
-                        : "none",
-                      textShadow: isNow ? "0 1px 2px rgba(120,15,5,.45)" : "none",
-                    }}
-                  >
-                    ＋ Catat {s.label.toLowerCase()}
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
+          <Icon name="pot" />
+          Racik masakan
+        </button>
+        <button
+          className="secondary-button"
+          onClick={() => setBarcodeMeal(nowSlot ?? inferMealType())}
+        >
+          <Icon name="barcode" />
+          Scan barcode
+        </button>
       </div>
-
-      {/* RACIK FAB — "susun makanan sendiri".
-          This used to be a second "+" that opened exactly what the CATAT
-          buttons open, so it was a duplicate of the primary action wearing the
-          loudest styling on the page. It now opens the composer instead: type
-          a plate the catalogue has no single row for — "mie kuning ikan
-          cakalang sambal" — and get it back as its parts, each with its own
-          calories. That feature already existed and was unreachable unless you
-          happened to type more than one word into search. */}
-      <button
-        type="button"
-        aria-label="Racik makanan sendiri"
-        className="tap-press"
-        onClick={() => {
-          haptic("tap");
-          setRacikMeal(inferMealType());
-        }}
-        style={{
-          position: "fixed",
-          // Hugs the 460px column on wide screens, the screen edge on phones.
-          right: "max(14px, calc(50vw - 216px))",
-          bottom: "calc(96px + env(safe-area-inset-bottom))",
-          zIndex: 44,
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 7,
-          height: 48,
-          padding: "0 16px",
-          borderRadius: 999,
-          fontFamily: SANS,
-          fontWeight: 800,
-          fontSize: 13.5,
-          letterSpacing: "-.01em",
-          lineHeight: 1,
-          color: "#fff",
-          cursor: "pointer",
-          background: FIRE,
-          border: "1px solid rgba(255,150,120,.6)",
-          boxShadow:
-            "inset 0 1.5px 1px rgba(255,225,205,.55), 0 10px 26px rgba(238,60,48,.42)",
-          textShadow: "0 1px 2px rgba(120,15,5,.45)",
-          animation: "wo-firepulse 2.6s ease-in-out infinite",
-        }}
-      >
-        <span style={{ fontSize: 19, lineHeight: 1, marginTop: -1 }}>🍜</span>
-        RACIK
-      </button>
-
+      <div className="meal-slots">
+        {slots.map((s) => (
+          <section
+            key={s.key}
+            className={`meal-slot ${s.key === "breakfast" ? "breakfast-slot" : ""}${s.key === nowSlot && activeDate === todayStr ? " current" : ""}`}
+          >
+            {s.key === "breakfast" && <MorningScene />}
+            <header className="row-between">
+              <div>
+                <h2>{mealNames[s.key]}</h2>
+                <p className="quiet">
+                  {s.window}
+                  {s.key === nowSlot && activeDate === todayStr
+                    ? " · Sekarang"
+                    : ""}
+                </p>
+              </div>
+              <span className="slot-kcal">
+                {Math.round(s.kcal)} <small>kkal</small>
+              </span>
+            </header>
+            {s.items.length ? (
+              s.items.map((it) => (
+                <div className="logged-food" key={it.key}>
+                  <button
+                    className="logged-food-main"
+                    onClick={() => setBuilderMeal(s.key)}
+                  >
+                    <strong>{it.name}</strong>
+                    <small>{it.detail}</small>
+                  </button>
+                  <span>{Math.round(it.kcal)} kkal</span>
+                  <button
+                    className="icon-button"
+                    aria-label={`Hapus ${it.name}`}
+                    onClick={() =>
+                      setPendingDelete({
+                        mealId: it.mealId,
+                        itemIndex: it.itemIndex,
+                        name: it.name,
+                      })
+                    }
+                  >
+                    <Icon name="close" />
+                  </button>
+                </div>
+              ))
+            ) : (
+              <p className="empty-note">Belum ada makanan dicatat.</p>
+            )}
+            <button className="slot-add" onClick={() => setBuilderMeal(s.key)}>
+              <Icon name="plus" />
+              Catat {mealNames[s.key].toLowerCase()}
+            </button>
+          </section>
+        ))}
+      </div>
+      <details className="quick-log">
+        <summary>Menu cepat tersimpan ({quickEntries.length})</summary>
+        <div className="quick-log-grid">
+          {quickEntries.map((e) => (
+            <button
+              className="soft-button"
+              key={e.id}
+              onClick={() => logQuick(e)}
+            >
+              <span>
+                {e.label}
+                <small>{Math.round(e.kcal)} kkal</small>
+              </span>
+              <Icon name="plus" />
+            </button>
+          ))}
+        </div>
+        <button className="text-button" onClick={() => setManageOpen(true)}>
+          Kelola menu cepat
+        </button>
+      </details>
+      {barcodeMeal && (
+        <FoodBuilder
+          meal={barcodeMeal}
+          dateKey={activeDate}
+          startInBarcode
+          onClose={() => setBarcodeMeal(null)}
+          onSaved={() => {
+            setBarcodeMeal(null);
+            reloadFromStore();
+          }}
+        />
+      )}
       {builderMeal && (
         <FoodBuilder
           meal={builderMeal}
@@ -1311,8 +891,6 @@ export default function MealHome({
           }}
         />
       )}
-
-
 
       {/* delete confirmation — nothing is removed on the swipe itself; the
           user must confirm here, so an accidental slide can't wipe a food. */}
@@ -1344,9 +922,9 @@ export default function MealHome({
               maxWidth: 360,
               borderRadius: 24,
               padding: "24px 22px 20px",
-              background: "linear-gradient(180deg,#161011,#0c0a0b 60%)",
-              border: "1px solid rgba(255,255,255,.12)",
-              boxShadow: "0 30px 70px rgba(0,0,0,.62), 0 2px 0 rgba(255,255,255,.05) inset",
+              background: "var(--surface)",
+              border: "1px solid rgba(84,119,93,.12)",
+              boxShadow: "none",
               transformOrigin: "center bottom",
               willChange: "transform, opacity",
               animation: deleteClosing
@@ -1375,7 +953,7 @@ export default function MealHome({
                 fontFamily: SANS,
                 fontWeight: 800,
                 fontSize: 17,
-                color: "#f5f2ef",
+                color: "var(--text)",
                 textAlign: "center",
               }}
             >
@@ -1386,7 +964,7 @@ export default function MealHome({
                 fontFamily: SANS,
                 fontWeight: 700,
                 fontSize: 14,
-                color: "#ff9a80",
+                color: "var(--text)",
                 textAlign: "center",
                 marginTop: 6,
                 overflow: "hidden",
@@ -1421,10 +999,10 @@ export default function MealHome({
                   fontFamily: MONO,
                   fontSize: 12,
                   letterSpacing: ".1em",
-                  color: "#cfc8c2",
+                  color: "var(--text)",
                   cursor: "pointer",
-                  background: "rgba(255,255,255,.05)",
-                  border: "1px solid rgba(255,255,255,.14)",
+                  background: "rgba(84,119,93,.05)",
+                  border: "1px solid rgba(84,119,93,.14)",
                 }}
               >
                 BATAL
@@ -1441,9 +1019,9 @@ export default function MealHome({
                   fontSize: 12,
                   letterSpacing: ".1em",
                   fontWeight: 700,
-                  color: "#fff",
+                  color: "var(--text)",
                   cursor: "pointer",
-                  background: "linear-gradient(180deg,#ee5140,#c01f12)",
+                  background: "var(--surface)",
                   border: "1px solid rgba(255,150,120,.5)",
                 }}
               >
@@ -1476,22 +1054,44 @@ export default function MealHome({
               margin: "0 auto",
               borderRadius: "26px 26px 0 0",
               padding: "22px 20px calc(30px + env(safe-area-inset-bottom))",
-              background: "linear-gradient(180deg,#161011,#0c0a0b 60%)",
-              borderTop: "1px solid rgba(255,255,255,.1)",
-              boxShadow: "0 -20px 50px rgba(0,0,0,.6)",
+              background: "var(--surface)",
+              borderTop: "1px solid rgba(84,119,93,.1)",
+              boxShadow: "none",
               animation: "sheetCardIn .44s var(--ease-ios) both",
               maxHeight: "80dvh",
               overflowY: "auto",
             }}
           >
-            <div style={{ fontFamily: SANS, fontWeight: 800, fontSize: 18, color: "#f5f2ef" }}>
+            <div
+              style={{
+                fontFamily: SANS,
+                fontWeight: 800,
+                fontSize: 18,
+                color: "var(--text)",
+              }}
+            >
               ATUR CATAT CEPAT
             </div>
-            <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: ".06em", color: "#7c736e", marginTop: 5 }}>
+            <div
+              style={{
+                fontFamily: MONO,
+                fontSize: 10,
+                letterSpacing: ".06em",
+                color: "#7c736e",
+                marginTop: 5,
+              }}
+            >
               Yang muncul di baris atas — tambah, ubah, atau hapus
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 16 }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                marginTop: 16,
+              }}
+            >
               {quickEntries.map((e, i) => (
                 <div
                   key={e.id}
@@ -1501,8 +1101,9 @@ export default function MealHome({
                     gap: 8,
                     padding: "10px 12px",
                     borderRadius: 13,
-                    background: "linear-gradient(180deg,rgba(255,255,255,.04),transparent 40%),#0d0b0c",
-                    border: "1px solid rgba(255,255,255,.09)",
+                    background:
+                      "linear-gradient(180deg,rgba(84,119,93,.04),transparent 40%),#0d0b0c",
+                    border: "1px solid rgba(84,119,93,.09)",
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -1511,7 +1112,7 @@ export default function MealHome({
                         fontFamily: SANS,
                         fontWeight: 700,
                         fontSize: 13,
-                        color: "#f1ede9",
+                        color: "var(--text)",
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
@@ -1519,7 +1120,15 @@ export default function MealHome({
                     >
                       {e.label}
                     </div>
-                    <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: ".08em", color: "#8a837d", marginTop: 2 }}>
+                    <div
+                      style={{
+                        fontFamily: MONO,
+                        fontSize: 9,
+                        letterSpacing: ".08em",
+                        color: "#8a837d",
+                        marginTop: 2,
+                      }}
+                    >
                       {MEAL_ID_LABEL[e.mealType]} · {Math.round(e.kcal)} kkal
                     </div>
                   </div>
@@ -1564,7 +1173,14 @@ export default function MealHome({
             <button
               type="button"
               onClick={() =>
-                setEditDraft({ label: "", mealType: "snack", kcal: 0, protein: 0, carbs: 0, fat: 0 })
+                setEditDraft({
+                  label: "",
+                  mealType: "snack",
+                  kcal: 0,
+                  protein: 0,
+                  carbs: 0,
+                  fat: 0,
+                })
               }
               style={{
                 width: "100%",
@@ -1574,11 +1190,11 @@ export default function MealHome({
                 fontFamily: MONO,
                 fontSize: 12,
                 letterSpacing: ".08em",
-                color: "#fff",
+                color: "var(--text)",
                 cursor: "pointer",
                 background: FIRE,
                 border: "1px solid rgba(255,150,120,.6)",
-                boxShadow: "inset 0 1.5px 1px rgba(255,225,205,.6),0 6px 16px rgba(238,60,48,.35)",
+                boxShadow: "none",
               }}
             >
               ＋ TAMBAH
@@ -1596,8 +1212,8 @@ export default function MealHome({
                 letterSpacing: ".1em",
                 color: "#9a938d",
                 cursor: "pointer",
-                background: "rgba(255,255,255,.03)",
-                border: "1px solid rgba(255,255,255,.1)",
+                background: "rgba(84,119,93,.03)",
+                border: "1px solid rgba(84,119,93,.1)",
               }}
             >
               TUTUP
@@ -1628,15 +1244,22 @@ export default function MealHome({
               margin: "0 auto",
               borderRadius: "26px 26px 0 0",
               padding: "22px 20px calc(30px + env(safe-area-inset-bottom))",
-              background: "linear-gradient(180deg,#161011,#0c0a0b 60%)",
-              borderTop: "1px solid rgba(255,255,255,.1)",
-              boxShadow: "0 -20px 50px rgba(0,0,0,.6)",
+              background: "var(--surface)",
+              borderTop: "1px solid rgba(84,119,93,.1)",
+              boxShadow: "none",
               animation: "sheetCardIn .44s var(--ease-ios) both",
               maxHeight: "88dvh",
               overflowY: "auto",
             }}
           >
-            <div style={{ fontFamily: SANS, fontWeight: 800, fontSize: 18, color: "#f5f2ef" }}>
+            <div
+              style={{
+                fontFamily: SANS,
+                fontWeight: 800,
+                fontSize: 18,
+                color: "var(--text)",
+              }}
+            >
               {editDraft.id ? "UBAH ENTRI" : "ENTRI BARU"}
             </div>
 
@@ -1644,23 +1267,27 @@ export default function MealHome({
             <input
               type="text"
               value={editDraft.label}
-              onChange={(ev) => setEditDraft({ ...editDraft, label: ev.target.value })}
+              onChange={(ev) =>
+                setEditDraft({ ...editDraft, label: ev.target.value })
+              }
               placeholder="mis. Oatmeal + Pisang"
               style={editInputStyle}
             />
 
             <label style={editLabelStyle}>WAKTU</label>
             <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-              {(["breakfast", "lunch", "snack", "dinner"] as const).map((mt) => (
-                <button
-                  key={mt}
-                  type="button"
-                  onClick={() => setEditDraft({ ...editDraft, mealType: mt })}
-                  style={toggleStyle(editDraft.mealType === mt)}
-                >
-                  {MEAL_ID_LABEL[mt]}
-                </button>
-              ))}
+              {(["breakfast", "lunch", "snack", "dinner"] as const).map(
+                (mt) => (
+                  <button
+                    key={mt}
+                    type="button"
+                    onClick={() => setEditDraft({ ...editDraft, mealType: mt })}
+                    style={toggleStyle(editDraft.mealType === mt)}
+                  >
+                    {MEAL_ID_LABEL[mt]}
+                  </button>
+                ),
+              )}
             </div>
 
             <div
@@ -1684,17 +1311,24 @@ export default function MealHome({
                   padding: "6px 11px",
                   borderRadius: 10,
                   cursor: "pointer",
-                  color: lockRatio ? "#fff" : "#9a938d",
-                  background: lockRatio ? FIRE : "rgba(255,255,255,.04)",
+                  color: lockRatio ? "var(--text)" : "#9a938d",
+                  background: lockRatio ? FIRE : "rgba(84,119,93,.04)",
                   border: lockRatio
                     ? "1px solid rgba(255,150,120,.6)"
-                    : "1px solid rgba(255,255,255,.12)",
+                    : "1px solid rgba(84,119,93,.12)",
                 }}
               >
                 {lockRatio ? "KUNCI RASIO" : "BEBAS"}
               </button>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 8 }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 10,
+                marginTop: 8,
+              }}
+            >
               <NumField
                 label="PORSI (g)"
                 value={editDraft.baseGrams ?? 0}
@@ -1775,8 +1409,8 @@ export default function MealHome({
                   letterSpacing: ".1em",
                   color: "#9a938d",
                   cursor: "pointer",
-                  background: "rgba(255,255,255,.03)",
-                  border: "1px solid rgba(255,255,255,.1)",
+                  background: "rgba(84,119,93,.03)",
+                  border: "1px solid rgba(84,119,93,.1)",
                 }}
               >
                 BATAL
@@ -1818,11 +1452,11 @@ export default function MealHome({
                   fontFamily: MONO,
                   fontSize: 11,
                   letterSpacing: ".1em",
-                  color: "#fff",
+                  color: "var(--text)",
                   cursor: "pointer",
                   background: FIRE,
                   border: "1px solid rgba(255,150,120,.6)",
-                  boxShadow: "inset 0 1.5px 1px rgba(255,225,205,.6),0 6px 16px rgba(238,60,48,.35)",
+                  boxShadow: "none",
                 }}
               >
                 SIMPAN ✓
