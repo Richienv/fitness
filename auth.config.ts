@@ -29,7 +29,7 @@ export const authConfig = {
     // protected page are redirected to /login; signed-in users on the auth
     // pages are bounced home.
     authorized({ auth, request: { nextUrl } }) {
-      const isLoggedIn = !!auth?.user;
+      const isLoggedIn = !!auth?.user?.id;
       const p = nextUrl.pathname;
       const isAuthPage = p === "/login" || p === "/register";
       if (isAuthPage) {
