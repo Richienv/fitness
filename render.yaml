@@ -1,0 +1,20 @@
+# A free trial deployment alongside Vercel, using the existing database.
+services:
+  - type: web
+    name: r2-fit-access-trial
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci --include=dev && npm run build:app
+    startCommand: npm run start -- --hostname 0.0.0.0
+    healthCheckPath: /install
+    autoDeployTrigger: "off"
+    envVars:
+      - key: NODE_VERSION
+        value: 22.23.1
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: AUTH_SECRET
+        generateValue: true

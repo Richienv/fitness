@@ -28,7 +28,11 @@ const jetbrains = JetBrains_Mono({
   variable: "--font-dm-mono",
 });
 
-const SITE_URL = "https://r2-fit.vercel.app";
+const SITE_URL = (
+  process.env.APP_URL ||
+  process.env.RENDER_EXTERNAL_URL ||
+  "https://r2-fit.vercel.app"
+).replace(/\/+$/, "");
 const OG_IMAGE = `${SITE_URL}/api/og?days=75&v=2`;
 
 export const metadata: Metadata = {
@@ -96,13 +100,7 @@ export default async function RootLayout({
   return (
     <html lang="en" className={`${jakarta.variable} ${jetbrains.variable}`}>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        {/* Also loaded under canonical names for <canvas> share-card rendering */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
-          rel="stylesheet"
-        />
+        {/* next/font serves the fonts from this app's own origin. */}
         {/* Chrome fires beforeinstallprompt as soon as it decides the site is
             installable, which is usually BEFORE React hydrates — so a listener
             added in an effect misses it and /install falls back to "open the ⋮

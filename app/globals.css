@@ -8516,3 +8516,73 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
     0%, 100% { box-shadow: 0 0 0 3px rgba(238,60,48,.10), 0 0 22px rgba(238,60,48,.30); }
   }
 }
+
+/* ============================================================
+ * Quick picker — Plate3D
+ * ============================================================ */
+/* A barely-there roll so the plate reads as an object in space. It sits on a
+   wrapper, never on the board: a running animation replaces inline transform. */
+@keyframes pk-sway {
+  0%, 100% { transform: rotateZ(-1.6deg); }
+  50%      { transform: rotateZ(1.6deg); }
+}
+.pk-sway { animation: pk-sway 9s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .pk-sway { animation: none; }
+}
+
+/* The number pops when the slider lands on a household portion — the detent you
+   can see, because iOS Safari gives us no way to make you feel one. */
+@keyframes pk-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.16); }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes pk-pop { 0%, 100% { transform: none; } }
+}
+
+/* ============================================================
+ * Quick picker — entrances
+ * ============================================================ */
+/* Tiles rise in with a stagger; chips pop in; refinement rows slide down when a
+   choice makes a new question relevant. All transform + opacity only. */
+@keyframes pk-tile-in {
+  from { opacity: 0; transform: translateY(14px) scale(.96); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes pk-chip-in {
+  from { opacity: 0; transform: translateX(8px) scale(.94); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes pk-row-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+.pk-tile-in { animation: pk-tile-in .42s cubic-bezier(.16,1,.3,1) both; }
+.pk-chip-in { animation: pk-chip-in .32s cubic-bezier(.16,1,.3,1) both; }
+.pk-row-in  { animation: pk-row-in .3s cubic-bezier(.16,1,.3,1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .pk-tile-in, .pk-chip-in, .pk-row-in { animation: none; }
+}
+
+/* The picker uses the app's existing fire accent, with quieter secondary controls. */
+.picker-secondary, .picker-rail-arrow {
+  min-height: 44px; min-width: 44px; border: 1px solid rgba(255,255,255,.14);
+  border-radius: 12px; background: rgba(255,255,255,.04); color: #cfc8c2;
+  cursor: pointer; font: 600 13px var(--font-dm-sans), sans-serif;
+}
+.picker-rail-arrow { border: none; background: transparent; font-size: 24px; }
+.picker-home button:focus-visible, .picker-dialog button:focus-visible,
+.picker-dialog input:focus-visible, .picker-dialog summary:focus-visible {
+  outline: 2px solid #ffb99e; outline-offset: 3px;
+}
+.picker-dialog:focus { outline: none; }
+.picker-details { border-top: 1px solid rgba(255,255,255,.1); margin-top: 12px; }
+.picker-details summary { min-height: 44px; display: flex; align-items: center;
+  cursor: pointer; font: 600 13px var(--font-dm-sans), sans-serif; color: #cfc8c2; }
+.picker-details summary::after { content: "+"; margin-left: auto; font-size: 18px; }
+.picker-details[open] summary::after { content: "−"; }
+@media (prefers-reduced-motion: reduce) {
+  .picker-home *, .picker-dialog * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}

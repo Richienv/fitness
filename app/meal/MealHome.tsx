@@ -26,7 +26,6 @@ import {
   type MealItem,
   type MealLog,
 } from "@/lib/store";
-import { uploadMealPhoto } from "@/lib/mealPhoto";
 import {
   addQuickLogEntry,
   deleteQuickLogEntry,
@@ -50,13 +49,6 @@ type EditDraft = (QuickLogEntry | Omit<QuickLogEntry, "id">) & { id?: string };
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
 const MONO = "var(--font-dm-mono), 'JetBrains Mono', monospace";
 const FIRE = "linear-gradient(180deg,#ff8a52,#ee3c30 55%,#c01f12)";
-const FIRE_TEXT: CSSProperties = {
-  background: "linear-gradient(100deg,#ff8a3d,#ee2f1f)",
-  WebkitBackgroundClip: "text",
-  backgroundClip: "text",
-  WebkitTextFillColor: "transparent",
-};
-
 const EMPTY_MACROS: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
 const round1 = (x: number) => Math.round(x * 10) / 10;
 const DAILY_SUGAR_TARGET_G = 50;
@@ -547,8 +539,6 @@ type Slot = {
   key: MealType;
   label: string;
   window: string;
-  /** The meal row a photo attaches to; null while the slot is empty. */
-  meal: MealLog | null;
   items: SlotItem[];
   kcal: number;
   lastAt: number | null;
@@ -628,10 +618,6 @@ export default function MealHome({
   // Which slot the clock is in right now. Resolved after mount so the server
   // render and the first client render agree.
   const [nowSlot, setNowSlot] = useState<MealType | null>(null);
-  // Full-screen view of a meal photo.
-  const [photoView, setPhotoView] = useState<string | null>(null);
-  // Meal id whose photo is uploading, so its slot can show a spinner.
-  const [uploadingId, setUploadingId] = useState<string | null>(null);
   // Which logged food is pending deletion (drives the confirmation dialog).
   const [pendingDelete, setPendingDelete] = useState<{
     mealId: string;
@@ -642,16 +628,11 @@ export default function MealHome({
   // (backdrop fade + card drop) instead of snapping to nothing.
   const [deleteClosing, setDeleteClosing] = useState(false);
 
-  // One file input serves all four slots; pendingPhotoMeal says which one asked.
-  const fileRef = useRef<HTMLInputElement | null>(null);
-  const pendingPhotoMeal = useRef<string | null>(null);
-
   // Hardware back closes the top-most open sheet instead of leaving the page.
   // (FoodBuilder wires its own step-aware handler internally.)
   useSheetBack(pickerOpen, () => setPickerOpen(false));
   useSheetBack(manageOpen, () => setManageOpen(false));
   useSheetBack(!!editDraft, () => setEditDraft(null));
-  useSheetBack(!!photoView, () => setPhotoView(null));
 
   const reloadFromStore = useCallback(() => {
     dedupeMeals();
@@ -735,9 +716,7 @@ export default function MealHome({
         });
       }
       items.sort((a, b) => a.at - b.at);
-      // Prefer a row that already carries a photo, so re-shooting replaces it.
-      const meal = meals.find((m) => m.photoUrl) ?? meals[0] ?? null;
-      return { key: def.key, label: def.label, window: def.window, meal, items, kcal, lastAt };
+      return { key: def.key, label: def.label, window: def.window, items, kcal, lastAt };
     });
   }, [dayMeals]);
 
@@ -800,41 +779,6 @@ export default function MealHome({
       reloadFromStore();
     },
     [activeDate, reloadFromStore]
-  );
-
-  /** Ask for a picture for this meal. Empty slots have nothing to attach to. */
-  const askForPhoto = useCallback((slot: Slot) => {
-    if (!slot.meal) {
-      haptic("warn");
-      toast("Catat makanannya dulu, baru fotonya", "warn");
-      return;
-    }
-    if (slot.meal.photoUrl) {
-      setPhotoView(slot.meal.photoUrl);
-      return;
-    }
-    pendingPhotoMeal.current = slot.meal.id;
-    fileRef.current?.click();
-  }, []);
-
-  const onPhotoPicked = useCallback(
-    async (file: File | undefined) => {
-      const mealId = pendingPhotoMeal.current;
-      pendingPhotoMeal.current = null;
-      if (!file || !mealId) return;
-      setUploadingId(mealId);
-      const res = await uploadMealPhoto(mealId, file);
-      setUploadingId(null);
-      if (res.ok) {
-        haptic("success");
-        toast("Foto tersimpan", "success");
-        reloadFromStore();
-      } else {
-        haptic("warn");
-        toast(res.message, "warn");
-      }
-    },
-    [reloadFromStore]
   );
 
   const macros = [
@@ -1094,8 +1038,6 @@ export default function MealHome({
             const empty = s.items.length === 0;
             // Only an empty slot glows: once it's logged there's nothing to nag about.
             const isNow = s.key === nowSlot && empty;
-            const photoUrl = s.meal?.photoUrl ?? null;
-            const busy = !!s.meal && uploadingId === s.meal.id;
             return (
               <div
                 key={s.key}
@@ -1113,54 +1055,6 @@ export default function MealHome({
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
-                  <button
-                    type="button"
-                    className="tap-press"
-                    onClick={() => askForPhoto(s)}
-                    aria-label={photoUrl ? `Lihat foto ${s.label}` : `Foto ${s.label}`}
-                    style={{
-                      flex: "none",
-                      width: 44,
-                      height: 44,
-                      borderRadius: 13,
-                      display: "grid",
-                      placeItems: "center",
-                      overflow: "hidden",
-                      fontSize: 16,
-                      cursor: "pointer",
-                      padding: 0,
-                      background: "radial-gradient(circle at 50% 38%,#1c1517,#0b090a)",
-                      border: photoUrl
-                        ? "1px solid rgba(255,150,120,.5)"
-                        : `1px dashed rgba(255,150,120,${empty ? ".22" : ".38"})`,
-                      color: "#6a6660",
-                      opacity: empty ? 0.6 : 1,
-                    }}
-                  >
-                    {busy ? (
-                      <span
-                        aria-hidden="true"
-                        style={{
-                          width: 15,
-                          height: 15,
-                          borderRadius: "50%",
-                          border: "2px solid rgba(255,150,120,.28)",
-                          borderTopColor: "#ff8a5c",
-                          animation: "fbSpin .8s linear infinite",
-                        }}
-                      />
-                    ) : photoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={photoUrl}
-                        alt=""
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                      />
-                    ) : (
-                      "FOTO"
-                    )}
-                  </button>
-
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span
                       style={{
@@ -1346,21 +1240,6 @@ export default function MealHome({
         </div>
       </div>
 
-      {/* the camera input every slot shares */}
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        // No `capture` attribute on purpose: iOS then offers "Ambil Foto" AND
-        // "Pilih dari Album", so a picture taken earlier can still be attached.
-        onChange={(ev) => {
-          const file = ev.target.files?.[0];
-          ev.target.value = ""; // re-picking the same file must still fire
-          void onPhotoPicked(file);
-        }}
-        style={{ display: "none" }}
-      />
-
       {/* RACIK FAB — "susun makanan sendiri".
           This used to be a second "+" that opened exactly what the CATAT
           buttons open, so it was a duplicate of the primary action wearing the
@@ -1433,64 +1312,7 @@ export default function MealHome({
         />
       )}
 
-      {/* meal photo, full size */}
-      {photoView && (
-        <div
-          onClick={() => setPhotoView(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 250,
-            background: "rgba(5,4,6,.92)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 20,
-            animation: "dlgBackdropIn .3s var(--ease-out) both",
-          }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={photoView}
-            alt="Foto makanan"
-            style={{
-              maxWidth: "100%",
-              maxHeight: "82dvh",
-              borderRadius: 18,
-              border: "1px solid rgba(255,255,255,.12)",
-            }}
-          />
-          <button
-            type="button"
-            onClick={(ev) => {
-              ev.stopPropagation();
-              const id = slots.find((s) => s.meal?.photoUrl === photoView)?.meal?.id;
-              setPhotoView(null);
-              if (id) {
-                pendingPhotoMeal.current = id;
-                fileRef.current?.click();
-              }
-            }}
-            style={{
-              position: "absolute",
-              bottom: "calc(34px + env(safe-area-inset-bottom))",
-              left: "50%",
-              transform: "translateX(-50%)",
-              padding: "12px 20px",
-              borderRadius: 999,
-              fontFamily: MONO,
-              fontSize: 11,
-              letterSpacing: ".1em",
-              color: "#fff",
-              cursor: "pointer",
-              background: FIRE,
-              border: "1px solid rgba(255,150,120,.6)",
-            }}
-          >
-            GANTI FOTO
-          </button>
-        </div>
-      )}
+
 
       {/* delete confirmation — nothing is removed on the swipe itself; the
           user must confirm here, so an accidental slide can't wipe a food. */}

@@ -9,7 +9,8 @@
 // renders and logs WITHOUT hitting the food search — it keeps working offline
 // and survives a food being renamed or re-ranked in the shared catalogue.
 
-import { scopedKey } from "./userScope";
+import { scopedKey } from "./userScope.ts";
+import { itemMacros } from "./trayMath.ts";
 
 export type TemplateItem = {
   id: string;
@@ -24,6 +25,8 @@ export type TemplateItem = {
   protein: number;
   fat: number;
   carbs: number;
+  /** Optional for old templates; flat add-ons survive replay. */
+  mods?: string[];
 };
 
 export type MealTemplate = {
@@ -100,5 +103,5 @@ export function markTemplateUsed(id: string): void {
 
 /** Total calories of a template, for the card subtitle. */
 export function templateKcal(t: MealTemplate): number {
-  return Math.round(t.items.reduce((a, i) => a + i.kcal * i.qty, 0));
+  return Math.round(t.items.reduce((a, i) => a + itemMacros(i, i.qty, i.mods).kcal, 0));
 }

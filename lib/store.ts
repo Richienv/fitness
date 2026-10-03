@@ -32,9 +32,7 @@ export type MealLog = {
   mealType: MealType;
   items: MealItem[];
   loggedAt: number;
-  /** Vercel Blob URL of the one photo that covers this meal. Set by
-   *  /api/social/meal-photo; mirrored here so MAKAN can render it without a
-   *  round-trip. Undefined on rows logged before photos existed. */
+  /** Historical photos remain readable after capture was removed. */
   photoUrl?: string | null;
 };
 
@@ -207,35 +205,6 @@ export function saveMeal(log: Omit<MealLog, "id" | "loggedAt">): MealLog {
   write(MEALS_KEY, all);
   postMeal(entry);
   return entry;
-}
-
-/** Push one meal and WAIT for the server to acknowledge it. The photo upload
- *  addresses a meal by id, so a just-created meal has to exist server-side
- *  before the camera round-trip — the fire-and-forget postMeal() can still be
- *  in flight. Returns false if the meal couldn't be persisted. */
-export async function pushMealNow(id: string): Promise<boolean> {
-  if (typeof window === "undefined") return false;
-  const meal = getAllMeals().find((m) => m.id === id);
-  if (!meal) return false;
-  try {
-    const res = await fetch("/api/meals", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(mealPayload(meal)),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-/** Remember the photo the server just stored for this meal. */
-export function setMealPhoto(id: string, photoUrl: string | null): void {
-  const all = getAllMeals();
-  const idx = all.findIndex((m) => m.id === id);
-  if (idx === -1) return;
-  all[idx] = { ...all[idx], photoUrl };
-  write(MEALS_KEY, all);
 }
 
 export function updateMealItems(id: string, items: MealItem[]): void {

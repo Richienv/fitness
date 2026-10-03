@@ -88,17 +88,38 @@ type Store = {
   shown?: Record<string, number>;
 };
 
-const EMPTY: Store = { foods: {}, pairs: {}, shown: {} };
+const emptyStore = (): Store => ({ foods: {}, pairs: {}, shown: {} });
+
+/** Discard damaged rows individually and always return a fresh store. */
+export function normalizeAffinity(raw: unknown): Store {
+  const out = emptyStore();
+  if (!raw || typeof raw !== "object") return out;
+  const p = raw as Store;
+  if (p.foods && typeof p.foods === "object" && !Array.isArray(p.foods)) {
+    for (const [id, row] of Object.entries(p.foods)) {
+      if (!row || !Array.isArray(row.sl) || row.sl.length !== 4) continue;
+      if (![row.nf, row.ns, row.last, ...row.sl].every((n) => Number.isFinite(n) && n >= 0)) continue;
+      out.foods[id] = { nf: row.nf, ns: row.ns, last: row.last, sl: [...row.sl] as AffinityRow["sl"] };
+    }
+  }
+  for (const key of ["pairs", "shown"] as const) {
+    const rows = p[key];
+    if (!rows || typeof rows !== "object" || Array.isArray(rows)) continue;
+    for (const [id, count] of Object.entries(rows)) {
+      if (Number.isFinite(count) && count >= 0) out[key]![id] = count;
+    }
+  }
+  return out;
+}
 
 function read(): Store {
-  if (typeof window === "undefined") return EMPTY;
+  if (typeof window === "undefined") return emptyStore();
   try {
     const raw = window.localStorage.getItem(scopedKey(KEY));
-    if (!raw) return EMPTY;
-    const p = JSON.parse(raw) as Store;
-    return p && p.foods ? { foods: p.foods, pairs: p.pairs ?? {}, shown: p.shown ?? {} } : EMPTY;
+    if (!raw) return emptyStore();
+    return normalizeAffinity(JSON.parse(raw));
   } catch {
-    return EMPTY;
+    return emptyStore();
   }
 }
 
@@ -133,12 +154,21 @@ function pairKey(a: string, b: string): string {
  * Record a pick. `alsoToday` are the other foods already on the plate, which is
  * what makes "nasi goreng usually comes with telur" learnable.
  */
-export function recordAffinity(id: string, alsoToday: string[] = [], at = Date.now()): void {
+export function recordAffinity(
+  id: string,
+  alsoToday: string[] = [],
+  at = Date.now(),
+  /** The meal the user CHOSE (0 breakfast, 1 lunch, 2 dinner, 3 snack). Omit to
+   *  fall back to the wall clock. The clock disagrees with the app's own meal
+   *  logic for 11 of 24 hours — 15:30 is a snack, 10:30 is breakfast, 21:30 is
+   *  dinner — so a pick filed by clock taught the wrong slot. */
+  slotOverride?: Slot
+): void {
   if (typeof window === "undefined" || !id) return;
   const s = read();
   const prev = s.foods[id];
   const days = prev ? Math.max(0, (at - prev.last) / DAY) : 0;
-  const slot = slotOf(new Date(at));
+  const slot = slotOverride ?? slotOf(new Date(at));
 
   const row: AffinityRow = prev
     ? {
@@ -287,6 +317,22 @@ export function makeSuppressor(s: Store): (id: string) => number {
     if (ignored <= SUPP_MIN) return 0;
     return sat(ignored - SUPP_MIN, SUPP_K);
   };
+}
+
+/**
+ * The foods this user most likely wants RIGHT NOW, best first: what they eat,
+ * weighted by the meal slot and what is already on the plate. Empty for a new
+ * user — the caller seeds the cold start from the curated favourites rather than
+ * pretend there is a habit.
+ */
+export function topAffinity(n: number, ctx: AffinityContext = {}): { id: string; score: number }[] {
+  const s = read();
+  const score = makeScorer(s, ctx);
+  return Object.keys(s.foods)
+    .map((id) => ({ id, score: score(id) }))
+    .filter((x) => x.score > 0.05)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, n);
 }
 
 /** Seed the decayed counters from the legacy {count, last} picks store, so an

@@ -30,14 +30,34 @@ export type CatalogueFood = {
   fat_g: number | null;
   carb_g: number | null;
   sugar_g: number | null;
+  /** Seed-time popularity 0–200; the ranker's and the picker's static prior. */
+  popularity?: number | null;
 };
 
-const CACHE_KEY = "richie.foodCatalogue.v1";
+// v2: rows now carry `popularity`. A v1 cache has none, and serving it for a day
+// would leave the prior flat for everyone who already opened the app.
+const CACHE_KEY = "richie.foodCatalogue.v2";
 /** A day. The catalogue only changes on re-seed or JSON import, and a stale
  *  row is far less bad than a spinner. */
 const TTL_MS = 24 * 60 * 60 * 1000;
 
 type Cached = { at: number; foods: CatalogueFood[] };
+
+export function normalizeCatalogueFoods(raw: unknown): CatalogueFood[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((f): f is CatalogueFood => {
+    if (!f || typeof f !== "object" || typeof f.sourceCode !== "string" || !f.sourceCode || typeof f.name !== "string" || !f.name.trim()) return false;
+    return [f.energy_kcal, f.protein_g, f.fat_g, f.carb_g, f.sugar_g].every((v) => v == null || (Number.isFinite(v) && v >= 0));
+  }).map((f) => ({
+    ...f,
+    popularity: Number.isFinite(f.popularity) && f.popularity! >= 0 ? f.popularity : null,
+    portionG: Number.isFinite(f.portionG) && f.portionG! > 0 ? f.portionG : null,
+    aliases: typeof f.aliases === "string" ? f.aliases : null,
+    nameEn: typeof f.nameEn === "string" ? f.nameEn : null,
+    foodGroup: typeof f.foodGroup === "string" ? f.foodGroup : null,
+    cuisine: typeof f.cuisine === "string" ? f.cuisine : null,
+  }));
+}
 
 export function readCachedCatalogue(): CatalogueFood[] | null {
   if (typeof window === "undefined") return null;
@@ -45,9 +65,10 @@ export function readCachedCatalogue(): CatalogueFood[] | null {
     const raw = window.localStorage.getItem(scopedKey(CACHE_KEY));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Cached;
-    if (!parsed || !Array.isArray(parsed.foods) || parsed.foods.length === 0) return null;
+    if (!parsed || !Number.isFinite(parsed.at) || parsed.at <= 0) return null;
     if (Date.now() - parsed.at > TTL_MS) return null;
-    return parsed.foods;
+    const foods = normalizeCatalogueFoods(parsed.foods);
+    return foods.length ? foods : null;
   } catch {
     return null;
   }
@@ -97,7 +118,7 @@ async function fetchCatalogue(): Promise<CatalogueResult> {
       };
     }
     const data = (await res.json()) as { data?: { foods?: CatalogueFood[] } };
-    const foods = data?.data?.foods ?? [];
+    const foods = normalizeCatalogueFoods(data?.data?.foods);
     if (foods.length === 0) {
       return { ok: false, message: "Library kosong — coba lagi nanti." };
     }
