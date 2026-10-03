@@ -2,6 +2,8 @@
 import { useState } from "react";
 import FriendlySheet from "./FriendlySheet";
 import NutritionSummary from "./NutritionSummary";
+import NutritionScanEvidence from "./NutritionScanEvidence";
+import type { NutritionScanEvidence as ScanEvidence } from "@/lib/nutritionReadPipeline";
 import type { RecipeFood } from "@/lib/recipes";
 import {
   LABEL_KEYS,
@@ -33,6 +35,7 @@ export default function ManualFoodSheet({
   initial,
   label,
   preview,
+  scanEvidence,
   onRescan,
 }: {
   onClose: () => void;
@@ -40,6 +43,7 @@ export default function ManualFoodSheet({
   initial?: ManualFoodInitial;
   label?: NutritionLabel;
   preview?: string;
+  scanEvidence?: ScanEvidence;
   onRescan?: () => void;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
@@ -119,7 +123,10 @@ export default function ManualFoodSheet({
             ? "Angka diisi dari label. Periksa porsi acuan dan koreksi angka sebelum menambahkan. Kolom kosong berarti belum terbaca."
             : "Masukkan nutrisi dari label atau sumber yang kamu pakai. Angka berikut untuk satu porsi acuan."}
         </p>
-        {label && (
+        {label && scanEvidence && (
+          <NutritionScanEvidence evidence={scanEvidence} text={label.text} />
+        )}
+        {label && !scanEvidence && (
           <details className="label-evidence">
             <summary>Lihat foto dan teks yang terbaca</summary>
             {preview && <img src={preview} alt="Label nutrisi yang dipindai" />}

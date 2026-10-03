@@ -8,11 +8,12 @@ import {
   type NutritionLabel,
 } from "@/lib/nutritionLabel";
 import { nutritionGuideCrop } from "@/lib/nutritionCamera";
+import { createNutritionOcr, labelImage } from "@/lib/nutritionOcr";
+import { IMAGE_METHODS, type ImagePreset } from "@/lib/nutritionPreprocess";
 import {
-  createNutritionOcr,
-  labelImage,
-  readNutritionLabel,
-} from "@/lib/nutritionOcr";
+  readOptimizedNutritionLabel,
+  type NutritionScanEvidence,
+} from "@/lib/nutritionReadPipeline";
 import type { RecipeFood } from "@/lib/recipes";
 import FriendlySheet from "./FriendlySheet";
 import ManualFoodSheet, { type ManualFoodInitial } from "./ManualFoodSheet";
@@ -27,6 +28,9 @@ export default function NutritionLabelPanel({
 }) {
   const [result, setResult] = useState<NutritionLabel | null>(null);
   const [preview, setPreview] = useState("");
+  const [evidence, setEvidence] = useState<NutritionScanEvidence | undefined>();
+  const [preset, setPreset] = useState<ImagePreset>("auto");
+  const presetRef = useRef<ImagePreset>("auto");
   const [status, setStatus] = useState("Menyiapkan pembaca label…");
   const [error, setError] = useState("");
   const [running, setRunning] = useState(false);
@@ -68,10 +72,15 @@ export default function NutritionLabelPanel({
     return worker.current;
   }, []);
   const accept = useCallback(
-    (label: NutritionLabel, frame: HTMLCanvasElement, confidence: number) => {
+    (
+      label: NutritionLabel,
+      scanEvidence: NutritionScanEvidence,
+      confidence: number,
+    ) => {
       wantsCamera.current = false;
       stopCamera();
-      setPreview(frame.toDataURL("image/jpeg", 0.85));
+      setPreview(scanEvidence.original);
+      setEvidence(scanEvidence);
       setResult({
         ...label,
         warnings: [
@@ -147,11 +156,23 @@ export default function NutritionLabelPanel({
             box.height,
           );
           const frame = labelImage(v, v.videoWidth, v.videoHeight, crop);
-          const read = await readNutritionLabel(
-            reader,
-            frame,
-            qualityNext ? "quality" : "fast",
-          );
+          const read = await readOptimizedNutritionLabel(reader, frame, {
+            preset: presetRef.current,
+            mode: qualityNext ? "quality" : "fast",
+            maxRescues: 1,
+            budgetMs: 2500,
+            cancelled: () => !active.current || generation !== run.current,
+            onProgress: (method) => {
+              if (
+                active.current &&
+                generation === run.current &&
+                method !== "original"
+              )
+                setStatus(
+                  `Memperjelas tulisan… ${IMAGE_METHODS[method]}. Tahan tetap.`,
+                );
+            },
+          });
           if (!active.current || generation !== run.current) return;
           const fingerprint = labelFingerprint(read.label);
           repeats = fingerprint === last ? repeats + 1 : 1;
@@ -171,7 +192,7 @@ export default function NutritionLabelPanel({
             coreCount >= 2 &&
             (read.confidence < 92 || label.warnings.length > 0);
           if (labelCanAutoCapture(label, read.confidence, repeats)) {
-            accept(label, frame, read.confidence);
+            accept(label, read.evidence, read.confidence);
             return;
           }
           setStatus(
@@ -261,9 +282,21 @@ export default function NutritionLabelPanel({
       const frame = labelImage(image, image.naturalWidth, image.naturalHeight);
       const reader = await getWorker();
       if (!active.current || generation !== run.current) return;
-      const read = await readNutritionLabel(reader, frame);
+      const read = await readOptimizedNutritionLabel(reader, frame, {
+        preset: presetRef.current,
+        mode: "quality",
+        cancelled: () => !active.current || generation !== run.current,
+        onProgress: (method) => {
+          if (active.current && generation === run.current)
+            setStatus(
+              method === "original"
+                ? "Membaca gambar asli…"
+                : `Memperjelas tulisan… ${IMAGE_METHODS[method]}.`,
+            );
+        },
+      });
       if (active.current && generation === run.current)
-        accept(read.label, frame, read.confidence);
+        accept(read.label, read.evidence, read.confidence);
     } catch {
       if (active.current && generation === run.current)
         setError(
@@ -283,12 +316,14 @@ export default function NutritionLabelPanel({
       <ManualFoodSheet
         label={result}
         preview={preview}
+        scanEvidence={evidence}
         initial={initial}
         onClose={onClose}
         onAdd={onAdd}
         onRescan={() => {
           setResult(null);
           setPreview("");
+          setEvidence(undefined);
           wantsCamera.current = true;
           setAttempt((n) => n + 1);
         }}
@@ -380,6 +415,40 @@ export default function NutritionLabelPanel({
           }}
         />
       </label>
+      <details className="label-filter-settings">
+        <summary>
+          Perbaikan gambar ·{" "}
+          {preset === "auto" ? "Otomatis" : IMAGE_METHODS[preset]}
+        </summary>
+        <label>
+          Filter gambar
+          <select
+            value={preset}
+            disabled={busy}
+            onChange={(e) => {
+              const next = e.target.value as ImagePreset;
+              presetRef.current = next;
+              setPreset(next);
+              if (running) {
+                stopCamera();
+                wantsCamera.current = true;
+                setAttempt((n) => n + 1);
+              }
+            }}
+          >
+            <option value="auto">Otomatis — bantu jika tulisan sulit</option>
+            {Object.entries(IMAGE_METHODS).map(([value, name]) => (
+              <option value={value} key={value}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p>
+          Gambar asli selalu dibaca lebih dulu. Filter manual dibandingkan
+          dengan hasil asli; angka yang berbeda ditandai untuk diperiksa.
+        </p>
+      </details>
       <p className="label-privacy">
         Foto tetap di perangkat. kJ jadi kkal; NRV% diabaikan.
       </p>
