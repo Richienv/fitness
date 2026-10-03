@@ -516,7 +516,7 @@ export default function MealHome({
   );
   /** Same builder, opened straight into the ingredient composer. */
   const [racikMeal, setRacikMeal] = useState<MealType | null>(null);
-  const [barcodeMeal, setBarcodeMeal] = useState<MealType | null>(null);
+  const [labelMeal, setLabelMeal] = useState<MealType | null>(null);
   // Which slot the clock is in right now. Resolved after mount so the server
   // render and the first client render agree.
   const [nowSlot, setNowSlot] = useState<MealType | null>(null);
@@ -771,10 +771,10 @@ export default function MealHome({
         </button>
         <button
           className="secondary-button"
-          onClick={() => setBarcodeMeal(nowSlot ?? inferMealType())}
+          onClick={() => setLabelMeal(nowSlot ?? inferMealType())}
         >
-          <Icon name="barcode" />
-          Scan barcode
+          <Icon name="scan" />
+          Scan label nutrisi
         </button>
       </div>
       <div className="meal-slots">
@@ -855,14 +855,14 @@ export default function MealHome({
           Kelola menu cepat
         </button>
       </details>
-      {barcodeMeal && (
+      {labelMeal && (
         <FoodBuilder
-          meal={barcodeMeal}
+          meal={labelMeal}
           dateKey={activeDate}
-          startInBarcode
-          onClose={() => setBarcodeMeal(null)}
+          startInLabel
+          onClose={() => setLabelMeal(null)}
           onSaved={() => {
-            setBarcodeMeal(null);
+            setLabelMeal(null);
             reloadFromStore();
           }}
         />

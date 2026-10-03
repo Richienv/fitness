@@ -3,6 +3,7 @@ export type IconName =
   | "search"
   | "pot"
   | "barcode"
+  | "scan"
   | "plus"
   | "close"
   | "arrow"
@@ -13,6 +14,11 @@ export type IconName =
   | "sun"
   | "meal";
 const paths: Record<IconName, React.ReactNode> = {
+  scan: (
+    <>
+      <path d="M3 7V3h4m10 0h4v4M3 17v4h4m10 0h4v-4M7 8h10M7 12h10M7 16h6" />
+    </>
+  ),
   search: (
     <>
       <circle cx="10.5" cy="10.5" r="6.5" />

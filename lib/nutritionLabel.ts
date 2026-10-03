@@ -12,6 +12,18 @@ export const LABEL_KEYS = [
 ] as const;
 export type LabelKey = (typeof LABEL_KEYS)[number];
 export type LabelValues = Record<LabelKey, number | null>;
+const nutrientNames: Record<LabelKey, string> = {
+  kcal: "Kalori",
+  protein: "Protein",
+  carbs: "Karbohidrat",
+  fat: "Lemak",
+  sugar: "Gula",
+  sodium: "Natrium",
+  salt: "Garam",
+  saturatedFat: "Lemak jenuh",
+  transFat: "Lemak trans",
+  fiber: "Serat",
+};
 export type NutritionLabel = {
   values: LabelValues;
   basis: { amount: number; unit: "g" | "ml" | "serving" } | null;
@@ -111,7 +123,9 @@ export function parseNutritionLabel(raw: string): NutritionLabel {
       value = key === "sodium" ? grams * 1000 : grams;
     }
     if (values[key] !== null && Math.abs(values[key]! - value) > 0.01) {
-      warnings.push(`Ada dua angka berbeda untuk ${key}; periksa label.`);
+      warnings.push(
+        `Ada dua angka berbeda untuk ${nutrientNames[key]}; periksa label.`,
+      );
       ambiguous.add(key);
       values[key] = null;
       delete evidence[key];
@@ -148,6 +162,21 @@ export function parseNutritionLabel(raw: string): NutritionLabel {
     warnings.push(
       "Jumlah makro melebihi berat acuan. Periksa titik desimal dan porsi acuan.",
     );
+  if (
+    [values.kcal, values.protein, values.carbs, values.fat].every(
+      (n) => n !== null,
+    )
+  ) {
+    const estimated = values.protein! * 4 + values.carbs! * 4 + values.fat! * 9;
+    // A review hint only: fiber, polyols and alcohol can legitimately differ.
+    if (
+      Math.abs(values.kcal! - estimated) >
+      Math.max(50, Math.max(values.kcal!, estimated) * 0.3)
+    )
+      warnings.push(
+        "Energi jauh berbeda dari jumlah makro. Periksa kJ/kkal dan titik desimal; jangan ubah angka tanpa melihat label.",
+      );
+  }
   const missing = ["kcal", "protein", "carbs", "fat"].filter(
     (k) => values[k as LabelKey] === null,
   );
@@ -167,7 +196,17 @@ export function parseNutritionLabel(raw: string): NutritionLabel {
   };
 }
 export function labelFingerprint(label: NutritionLabel): string {
-  return JSON.stringify([label.basis, label.basisAmountHint, label.values]);
+  // Optional rows blinking in/out should not restart confirmation of the core.
+  return JSON.stringify([
+    label.basis,
+    label.basisAmountHint,
+    [
+      label.values.kcal,
+      label.values.protein,
+      label.values.carbs,
+      label.values.fat,
+    ],
+  ]);
 }
 export function labelCanAutoCapture(
   label: NutritionLabel,
@@ -183,7 +222,13 @@ export function labelCanAutoCapture(
         label.text.replace(/\s/g, ""),
       )) &&
     confidence >= 60 &&
-    ((count === 4 && repeats >= 2) || (count >= 2 && repeats >= 3))
+    ((count === 4 &&
+      !!label.basis &&
+      confidence >= 92 &&
+      label.warnings.length === 0 &&
+      repeats >= 1) ||
+      (count === 4 && repeats >= 2) ||
+      (count >= 2 && repeats >= 3))
   );
 }
 export const sodiumToSalt = (sodiumMg: number) => (sodiumMg * 2.5) / 1000;
@@ -207,7 +252,7 @@ export function scaleNutritionExtras(
 }
 export type LabelOcrItem = { text: string; score: number; poly: number[][] };
 /** Join detected table cells along their actual slanted rows before parsing. */
-export function labelTextFromOcr(items: LabelOcrItem[]): string {
+function labelRowsFromOcr(items: LabelOcrItem[]) {
   const cells = items.filter((i) => i.score >= 0.5 && i.poly.length === 4);
   const slopes = cells
     .map((i) => (i.poly[1][1] - i.poly[0][1]) / (i.poly[1][0] - i.poly[0][0]))
@@ -235,12 +280,95 @@ export function labelTextFromOcr(items: LabelOcrItem[]): string {
     if (row) row.cells.push(cell);
     else rows.push({ y: cell.y, height: cell.height, cells: [cell] });
   }
-  return rows
-    .map((r) =>
-      r.cells
-        .sort((a, b) => a.x - b.x)
-        .map((c) => c.i.text)
-        .join(" "),
-    )
+  return rows.map((r) => {
+    const cells = r.cells.sort((a, b) => a.x - b.x).map((c) => c.i);
+    return { text: cells.map((c) => c.text).join(" "), cells };
+  });
+}
+export function labelTextFromOcr(items: LabelOcrItem[]): string {
+  return labelRowsFromOcr(items)
+    .map((r) => r.text)
     .join("\n");
+}
+/** Use the weakest relevant label/amount cell, rather than unrelated packaging text. */
+export function labelConfidenceFromOcr(
+  items: LabelOcrItem[],
+  label: NutritionLabel,
+): number {
+  const evidence = ["kcal", "protein", "carbs", "fat"].flatMap((k) =>
+    label.evidence[k as LabelKey] ? [label.evidence[k as LabelKey]!] : [],
+  );
+  const scores = labelRowsFromOcr(items)
+    .filter(
+      (r) =>
+        evidence.includes(r.text.normalize("NFKC").trim()) ||
+        (!!label.basis &&
+          /(?:每|per)\s*(?:\d|份|serving)/i.test(r.text.normalize("NFKC"))),
+    )
+    .flatMap((r) =>
+      r.cells
+        .filter(
+          (c) =>
+            !/^(?:NRV.*|\d+(?:[.,]\d+)?\s*%)$/i.test(
+              c.text.normalize("NFKC").trim(),
+            ),
+        )
+        .map((c) => c.score),
+    );
+  return scores.length ? Math.min(...scores) * 100 : 0;
+}
+export function withLabelConfidenceWarnings(
+  items: LabelOcrItem[],
+  label: NutritionLabel,
+): NutritionLabel {
+  const rows = labelRowsFromOcr(items);
+  const unclear = LABEL_KEYS.filter((key) => {
+    const row = rows.find(
+      (r) => r.text.normalize("NFKC").trim() === label.evidence[key],
+    );
+    const scores =
+      row?.cells
+        .filter(
+          (c) =>
+            !/^(?:NRV.*|\d+(?:[.,]\d+)?\s*%)$/i.test(
+              c.text.normalize("NFKC").trim(),
+            ),
+        )
+        .map((c) => c.score) ?? [];
+    return scores.length && Math.min(...scores) < 0.8;
+  });
+  return unclear.length
+    ? {
+        ...label,
+        warnings: [
+          ...label.warnings,
+          `Periksa ${unclear.map((key) => nutrientNames[key]).join(", ")}. Sebagian tulisan kurang jelas; cocokkan dengan foto.`,
+        ],
+      }
+    : label;
+}
+export function confirmLabelRead(
+  previous: NutritionLabel,
+  current: NutritionLabel,
+): NutritionLabel {
+  const result = {
+    ...current,
+    values: { ...current.values },
+    evidence: { ...current.evidence },
+    warnings: [...current.warnings],
+  };
+  for (const key of LABEL_KEYS.filter(
+    (k) => !["kcal", "protein", "carbs", "fat"].includes(k),
+  )) {
+    const a = previous.values[key],
+      b = current.values[key];
+    if (a !== null && b !== null && Math.abs(a - b) > 0.01) {
+      result.values[key] = null;
+      delete result.evidence[key];
+      result.warnings.push(
+        `Angka ${nutrientNames[key]} berubah antar pembacaan. Cocokkan dengan foto sebelum diisi.`,
+      );
+    }
+  }
+  return result;
 }

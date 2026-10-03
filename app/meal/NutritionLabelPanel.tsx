@@ -4,8 +4,10 @@ import type { NutritionOcr } from "@/lib/nutritionOcr";
 import {
   labelCanAutoCapture,
   labelFingerprint,
+  confirmLabelRead,
   type NutritionLabel,
 } from "@/lib/nutritionLabel";
+import { nutritionGuideCrop } from "@/lib/nutritionCamera";
 import {
   createNutritionOcr,
   labelImage,
@@ -32,6 +34,7 @@ export default function NutritionLabelPanel({
   const [manual, setManual] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const video = useRef<HTMLVideoElement>(null);
+  const cameraBox = useRef<HTMLDivElement>(null);
   const stream = useRef<MediaStream | null>(null);
   const worker = useRef<Promise<NutritionOcr> | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -73,7 +76,8 @@ export default function NutritionLabelPanel({
         ...label,
         warnings: [
           ...label.warnings,
-          ...(confidence < 75
+          ...(confidence < 75 &&
+          !label.warnings.some((w) => w.includes("kurang jelas"))
             ? [
                 "Sebagian teks kurang jelas. Periksa angka dengan foto sebelum menambahkan.",
               ]
@@ -120,32 +124,64 @@ export default function NutritionLabelPanel({
       if (!active.current || generation !== run.current) return;
       let last = "",
         repeats = 0;
+      let previous: NutritionLabel | null = null;
+      let qualityNext = false;
       const scan = async () => {
         if (!active.current || generation !== run.current || document.hidden)
           return;
         const v = video.current;
-        if (!v?.videoWidth) {
+        if (!v || v.videoWidth < 160 || v.videoHeight < 160) {
+          setStatus("Menunggu gambar kamera…");
           timer.current = setTimeout(() => void scan(), 500);
           return;
         }
         setStatus("Membaca tabel nutrisi… Tahan kemasan tetap.");
         try {
-          const frame = labelImage(v, v.videoWidth, v.videoHeight);
-          const read = await readNutritionLabel(reader, frame);
+          const box = cameraBox.current?.getBoundingClientRect();
+          if (!box?.width || !box.height)
+            throw new Error("Bingkai kamera belum siap.");
+          const crop = nutritionGuideCrop(
+            v.videoWidth,
+            v.videoHeight,
+            box.width,
+            box.height,
+          );
+          const frame = labelImage(v, v.videoWidth, v.videoHeight, crop);
+          const read = await readNutritionLabel(
+            reader,
+            frame,
+            qualityNext ? "quality" : "fast",
+          );
           if (!active.current || generation !== run.current) return;
           const fingerprint = labelFingerprint(read.label);
           repeats = fingerprint === last ? repeats + 1 : 1;
           last = fingerprint;
-          if (labelCanAutoCapture(read.label, read.confidence, repeats)) {
-            accept(read.label, frame, read.confidence);
+          const label =
+            repeats > 1 && previous
+              ? confirmLabelRead(previous, read.label)
+              : read.label;
+          previous = read.label;
+          const coreCount = [
+            label.values.kcal,
+            label.values.protein,
+            label.values.carbs,
+            label.values.fat,
+          ].filter((n) => n !== null).length;
+          qualityNext =
+            coreCount >= 2 &&
+            (read.confidence < 92 || label.warnings.length > 0);
+          if (labelCanAutoCapture(label, read.confidence, repeats)) {
+            accept(label, frame, read.confidence);
             return;
           }
           setStatus(
-            repeats > 1 && read.label.basis
-              ? "Label terdeteksi. Memastikan angka tetap sama…"
-              : "Dekatkan tabel nutrisi dan kurangi pantulan. Scan terus berjalan.",
+            coreCount === 4
+              ? "Tabel terbaca. Tahan tetap sebentar untuk memastikan angka."
+              : coreCount >= 2
+                ? "Sebagian tabel terbaca. Masukkan judul dan baris paling bawah."
+                : "Dekatkan tabel sampai memenuhi bingkai. Kurangi pantulan cahaya.",
           );
-          timer.current = setTimeout(() => void scan(), 1000);
+          timer.current = setTimeout(() => void scan(), 350);
         } catch {
           if (!active.current || generation !== run.current) return;
           wantsCamera.current = false;
@@ -173,15 +209,25 @@ export default function NutritionLabelPanel({
     }
   }, [accept, getWorker, stopCamera]);
   useEffect(() => {
+    let cancelled = false;
     active.current = true;
+    // Load in parallel with camera permission and positioning, not after a frame.
+    if (!result && !manual)
+      void getWorker()
+        .then((w) => w.initialize())
+        .catch(() => {
+          if (!cancelled && active.current)
+            setError("Pembaca label belum siap. Coba lagi atau isi manual.");
+        });
     if (!result && !manual && wantsCamera.current && !document.hidden)
       void start();
     const visibility = () => {
-      if (document.hidden) stopCamera();
+      if (document.hidden && wantsCamera.current) stopCamera();
       else if (!result && !manual && wantsCamera.current) void start();
     };
     document.addEventListener("visibilitychange", visibility);
     return () => {
+      cancelled = true;
       active.current = false;
       stopCamera();
       document.removeEventListener("visibilitychange", visibility);
@@ -189,7 +235,7 @@ export default function NutritionLabelPanel({
       worker.current = null;
       if (pending) void pending.then((w) => w.terminate()).catch(() => {});
     };
-  }, [attempt, manual, result, start, stopCamera]);
+  }, [attempt, manual, result, start, stopCamera, getWorker]);
   async function selectImage(file: File | undefined) {
     if (!file) return;
     wantsCamera.current = false;
@@ -257,24 +303,61 @@ export default function NutritionLabelPanel({
         onClose();
       }}
     >
-      <p className="quiet">
-        Arahkan kamera ke tabel 营养成分表. Angka ditangkap otomatis saat
-        terbaca stabil, lalu bisa kamu koreksi.
+      <p className="label-intro">
+        Masukkan tabel <span lang="zh">营养成分表</span> utuh. Terbaca otomatis,
+        lalu bisa dikoreksi.
       </p>
-      <div className={`label-camera${running ? " scanning" : ""}`}>
+      <div
+        ref={cameraBox}
+        className={`label-camera${running ? " scanning" : ""}`}
+      >
         <video
           ref={video}
           muted
           playsInline
           aria-label="Pratinjau label nutrisi"
         />
-        <div className="label-guide" aria-hidden="true" />
-        <span className="label-camera-label">营养成分表 · Nutrition</span>
+        <div className="label-guide" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+          <i />
+        </div>
+        <span className="label-position-hint">
+          Judul tabel di bagian atas bingkai
+        </span>
+        {!running && (
+          <div className="label-table-example" aria-hidden="true">
+            <strong lang="zh">营养成分表</strong>
+            <div className="label-example-head">
+              <span lang="zh">项目</span>
+              <span>每100克 / ml</span>
+              <span>NRV%</span>
+            </div>
+            {[
+              ["能量", "kJ"],
+              ["蛋白质", "g"],
+              ["脂肪", "g"],
+              ["碳水化合物", "g"],
+              ["钠", "mg"],
+            ].map(([name, unit]) => (
+              <div className="label-example-row" key={name}>
+                <span lang="zh">{name}</span>
+                <span className="label-example-dots" />
+                <span>{unit}</span>
+              </div>
+            ))}
+            <small>Contoh posisi tabel</small>
+          </div>
+        )}
+        <span className="label-camera-label">
+          Angka + satuan di tengah · baris bawah ikut masuk
+        </span>
       </div>
       <p role="status" className="barcode-status">
         {error || status}
       </p>
-      {!running && !busy && (
+      {!!error && !running && !busy && (
         <button
           className="secondary-button"
           onClick={() => {
@@ -297,9 +380,8 @@ export default function NutritionLabelPanel({
           }}
         />
       </label>
-      <p className="quiet">
-        Foto diproses di perangkat ini. Energi kJ dikonversi ke kkal; persentase
-        NRV diabaikan.
+      <p className="label-privacy">
+        Foto tetap di perangkat. kJ jadi kkal; NRV% diabaikan.
       </p>
       <button
         className="text-button"

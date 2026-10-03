@@ -9,7 +9,8 @@
       "codex/automatic-barcode-scanner": false,
       "codex/barcode-product-data": false,
       "codex/chinese-nutrition-label": false,
-      "codex/ocr-runtime-assets": false
+      "codex/ocr-runtime-assets": false,
+      "codex/faster-label-scanner": false
     }
   }
 }
