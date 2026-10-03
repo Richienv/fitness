@@ -948,13 +948,60 @@ progress::-moz-progress-bar {
   display: none;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
-.barcode-camera.scanning {
-  height: 200px;
+.barcode-camera.scanning,
+.barcode-camera.captured {
+  height: min(38dvh, 280px);
+  background: #18231b;
+  border-style: solid;
+}
+.barcode-camera.captured {
+  height: 150px;
 }
 .barcode-camera.scanning video {
   display: block;
+}
+.barcode-camera img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.barcode-guide {
+  position: absolute;
+  width: 82%;
+  height: 46%;
+  border: 2px solid #e4f0d4;
+  border-radius: 12px;
+  box-shadow: 0 0 0 100vmax #0002;
+  pointer-events: none;
+}
+.barcode-camera-label {
+  position: absolute;
+  bottom: 12px;
+  padding: 5px 10px;
+  border-radius: 20px;
+  color: #fff;
+  background: #18231bcc;
+  font-size: 12px;
+}
+.barcode-status {
+  min-height: 20px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.barcode-manual {
+  margin: 16px 0;
+}
+.barcode-manual summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 10px 0;
+}
+.barcode-manual[open] summary {
+  color: var(--text);
 }
 .barcode-product {
   border-top: 1px solid var(--border);

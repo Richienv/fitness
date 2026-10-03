@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { validBarcode, type BarcodeProduct } from "@/lib/barcode";
 import type { RecipeFood } from "@/lib/recipes";
 import FriendlySheet from "./FriendlySheet";
@@ -20,7 +20,12 @@ export default function BarcodePanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [manual, setManual] = useState(false);
-  const [scanning, setScanning] = useState(false);
+  const [cameraState, setCameraState] = useState<
+    "starting" | "scanning" | "stopped"
+  >("starting");
+  const [snapshot, setSnapshot] = useState("");
+  const [scanHint, setScanHint] = useState("");
+  const scanning = cameraState !== "stopped";
   const video = useRef<HTMLVideoElement>(null);
   const controls = useRef<CameraControls | null>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -29,8 +34,9 @@ export default function BarcodePanel({
   const scanFound = useRef(false);
   const cache = useRef(new Map<string, BarcodeProduct | null>());
   const abort = useRef<AbortController | null>(null);
-  const active = useRef(true);
-  function stopCamera() {
+  const active = useRef(false);
+  const wantsCamera = useRef(true);
+  const stopCamera = useCallback(() => {
     generation.current++;
     controls.current?.stop();
     controls.current = null;
@@ -39,91 +45,87 @@ export default function BarcodePanel({
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
     if (video.current) video.current.srcObject = null;
-    setScanning(false);
-  }
-  useEffect(() => {
-    active.current = true;
-    const hide = () => {
-      if (document.hidden) stopCamera();
-    };
-    document.addEventListener("visibilitychange", hide);
-    return () => {
-      active.current = false;
-      generation.current++;
-      controls.current?.stop();
-      stream.current?.getTracks().forEach((t) => t.stop());
-      if (timer.current) clearTimeout(timer.current);
-      abort.current?.abort();
-      document.removeEventListener("visibilitychange", hide);
-    };
+    if (active.current) setCameraState("stopped");
   }, []);
-  async function lookup(raw: string) {
-    const next = raw.replace(/\s/g, "");
+  function pauseCamera() {
+    wantsCamera.current = false;
     stopCamera();
-    abort.current?.abort();
-    setLoading(false);
-    setCode(next);
-    setError("");
-    setProduct(null);
-    if (!validBarcode(next)) {
-      setError("Masukkan 8–14 angka barcode yang tercetak pada kemasan.");
-      return;
-    }
-    if (!navigator.onLine) {
-      setError(
-        "Koneksi terputus. Sambungkan internet atau tambah makanan manual.",
-      );
-      return;
-    }
-    abort.current?.abort();
-    const controller = new AbortController();
-    abort.current = controller;
-    setLoading(true);
-    try {
-      let found: BarcodeProduct | null;
-      if (cache.current.has(next)) found = cache.current.get(next)!;
-      else {
-        const res = await fetch(`/api/foods/barcode/${next}`, {
-          signal: controller.signal,
-        });
-        const data = await res.json();
-        if (res.status === 404) {
-          found = null;
-        } else if (!res.ok) {
-          throw new Error(
-            data.error || "Database produk belum bisa dihubungi. Coba lagi.",
-          );
-        } else found = data.product;
-        cache.current.set(next, found);
-      }
-      if (!controller.signal.aborted && active.current) {
-        setProduct(found);
-        setAmount(found?.basis === "serving" ? "1" : "100");
-        if (!found)
-          setError(
-            "Produk belum ditemukan. Tambahkan informasi dari label kemasan secara manual.",
-          );
-      }
-    } catch (e) {
-      if (!controller.signal.aborted && active.current)
-        setError(
-          !navigator.onLine
-            ? "Koneksi terputus. Sambungkan internet atau tambah makanan manual."
-            : e instanceof Error
-              ? e.message
-              : "Database produk belum bisa dihubungi. Coba lagi.",
-        );
-    } finally {
-      if (abort.current === controller && active.current) setLoading(false);
-    }
   }
-  async function startCamera() {
+  const lookup = useCallback(
+    async (raw: string) => {
+      wantsCamera.current = false;
+      const next = raw.replace(/\s/g, "");
+      stopCamera();
+      abort.current?.abort();
+      setLoading(false);
+      setCode(next);
+      setError("");
+      setProduct(null);
+      if (!validBarcode(next)) {
+        setError("Masukkan 8–14 angka barcode yang tercetak pada kemasan.");
+        return;
+      }
+      if (!navigator.onLine) {
+        setError(
+          "Koneksi terputus. Sambungkan internet atau tambah makanan manual.",
+        );
+        return;
+      }
+      abort.current?.abort();
+      const controller = new AbortController();
+      abort.current = controller;
+      setLoading(true);
+      try {
+        let found: BarcodeProduct | null;
+        if (cache.current.has(next)) found = cache.current.get(next)!;
+        else {
+          const res = await fetch(`/api/foods/barcode/${next}`, {
+            signal: controller.signal,
+          });
+          const data = await res.json();
+          if (res.status === 404) {
+            found = null;
+          } else if (!res.ok) {
+            throw new Error(
+              data.error || "Database produk belum bisa dihubungi. Coba lagi.",
+            );
+          } else found = data.product;
+          cache.current.set(next, found);
+        }
+        if (!controller.signal.aborted && active.current) {
+          setProduct(found);
+          setAmount(found?.basis === "serving" ? "1" : "100");
+          if (!found)
+            setError(
+              "Produk belum ditemukan. Tambahkan informasi dari label kemasan secara manual.",
+            );
+        }
+      } catch (e) {
+        if (!controller.signal.aborted && active.current)
+          setError(
+            !navigator.onLine
+              ? "Koneksi terputus. Sambungkan internet atau tambah makanan manual."
+              : e instanceof Error
+                ? e.message
+                : "Database produk belum bisa dihubungi. Coba lagi.",
+          );
+      } finally {
+        if (abort.current === controller && active.current) setLoading(false);
+      }
+    },
+    [stopCamera],
+  );
+  const startCamera = useCallback(async () => {
+    wantsCamera.current = true;
     stopCamera();
     abort.current?.abort();
     setLoading(false);
     setError("");
     setProduct(null);
-    setScanning(true);
+    setCode("");
+    setSnapshot("");
+    setScanHint("");
+    setCameraState("starting");
     scanFound.current = false;
     const run = ++generation.current;
     try {
@@ -133,29 +135,96 @@ export default function BarcodePanel({
         );
       const camera = await navigator.mediaDevices.getUserMedia({
         audio: false,
-        video: { facingMode: { ideal: "environment" } },
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
       });
       if (!active.current || run !== generation.current) {
         camera.getTracks().forEach((t) => t.stop());
         return;
       }
       stream.current = camera;
-      const { BrowserMultiFormatOneDReader } = await import("@zxing/browser");
+      const [
+        { BrowserMultiFormatOneDReader },
+        {
+          DecodeHintType,
+          BarcodeFormat,
+          NotFoundException,
+          ChecksumException,
+          FormatException,
+        },
+      ] = await Promise.all([
+        import("@zxing/browser"),
+        import("@zxing/library"),
+      ]);
       if (!active.current || run !== generation.current) {
         camera.getTracks().forEach((t) => t.stop());
         return;
       }
       if (!video.current) throw new Error("Pratinjau kamera tidak tersedia.");
-      const reader = new BrowserMultiFormatOneDReader();
+      const hints = new Map();
+      hints.set(DecodeHintType.TRY_HARDER, true);
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+        BarcodeFormat.EAN_13,
+        BarcodeFormat.EAN_8,
+        BarcodeFormat.UPC_A,
+        BarcodeFormat.UPC_E,
+        BarcodeFormat.CODE_128,
+        BarcodeFormat.ITF,
+      ]);
+      const reader = new BrowserMultiFormatOneDReader(hints, {
+        delayBetweenScanAttempts: 180,
+        delayBetweenScanSuccess: 500,
+      });
       const control = await reader.decodeFromStream(
         camera,
         video.current,
-        (result, _err, c) => {
-          if (!result || scanFound.current || run !== generation.current)
+        (result, err, c) => {
+          if (
+            !active.current ||
+            scanFound.current ||
+            run !== generation.current
+          )
             return;
+          if (
+            err &&
+            !(err instanceof NotFoundException) &&
+            !(err instanceof ChecksumException) &&
+            !(err instanceof FormatException)
+          ) {
+            wantsCamera.current = false;
+            c.stop();
+            stopCamera();
+            setError(
+              "Pemindaian terhenti. Coba kamera lagi atau ketik nomor barcode.",
+            );
+            return;
+          }
+          if (!result) return;
           const read = result.getText();
           if (!validBarcode(read)) return;
           scanFound.current = true;
+          // Freeze this frame before the decoder releases the video stream.
+          // This stays in memory; only the barcode number goes to the lookup API.
+          const preview = video.current;
+          if (preview?.videoWidth && preview.videoHeight) {
+            try {
+              const frame = document.createElement("canvas");
+              frame.width = Math.min(preview.videoWidth, 640);
+              frame.height = Math.round(
+                preview.videoHeight * (frame.width / preview.videoWidth),
+              );
+              const context = frame.getContext("2d");
+              if (context) {
+                context.drawImage(preview, 0, 0, frame.width, frame.height);
+                setSnapshot(frame.toDataURL("image/jpeg", 0.8));
+              }
+            } catch {
+              // A preview failure must not discard a successfully decoded barcode.
+            }
+          }
           c.stop();
           void lookup(read);
         },
@@ -165,14 +234,16 @@ export default function BarcodePanel({
         return;
       }
       controls.current = control;
+      setCameraState("scanning");
       timer.current = setTimeout(() => {
-        stopCamera();
-        setError(
-          "Barcode belum terbaca. Coba kamera lagi dengan kemasan lebih dekat, atau ketik nomornya.",
-        );
-      }, 25000);
+        if (active.current && run === generation.current)
+          setScanHint(
+            "Tambah cahaya dan pastikan seluruh barcode terlihat. Scan tetap berjalan.",
+          );
+      }, 15000);
     } catch (e) {
       if (!active.current || run !== generation.current) return;
+      wantsCamera.current = false;
       stopCamera();
       const name = e instanceof Error ? e.name : "";
       setError(
@@ -187,7 +258,22 @@ export default function BarcodePanel({
                 : "Kamera belum bisa dibuka. Ketik nomor barcode di bawah.",
       );
     }
-  }
+  }, [lookup, stopCamera]);
+  useEffect(() => {
+    active.current = true;
+    if (!manual && wantsCamera.current && !document.hidden) void startCamera();
+    const visibility = () => {
+      if (document.hidden) stopCamera();
+      else if (!manual && wantsCamera.current) void startCamera();
+    };
+    document.addEventListener("visibilitychange", visibility);
+    return () => {
+      active.current = false;
+      stopCamera();
+      abort.current?.abort();
+      document.removeEventListener("visibilitychange", visibility);
+    };
+  }, [manual, startCamera, stopCamera]);
   const basis =
     product?.basis === "serving"
       ? "per sajian"
@@ -225,57 +311,54 @@ export default function BarcodePanel({
     <FriendlySheet
       title="Scan barcode"
       onClose={() => {
-        stopCamera();
+        pauseCamera();
         onClose();
       }}
     >
       <p className="quiet">
-        Cari produk kemasan dari Open Food Facts. Ketersediaan dan kelengkapan
-        data berbeda untuk setiap produk.
+        Arahkan kamera ke barcode. Produk dicari otomatis begitu terbaca.
       </p>
-      <div className={`barcode-camera${scanning ? " scanning" : ""}`}>
+      <div
+        className={`barcode-camera${scanning ? " scanning" : ""}${snapshot ? " captured" : ""}`}
+      >
         <video
           ref={video}
           muted
           playsInline
           aria-label="Pratinjau pemindaian barcode"
         />
-        {!scanning && <Icon name="barcode" size={48} />}
+        {snapshot && (
+          <img src={snapshot} alt={`Barcode ${code} yang terbaca`} />
+        )}
+        {!scanning && !snapshot && <Icon name="barcode" size={48} />}
+        {scanning && <div className="barcode-guide" aria-hidden="true" />}
+        {cameraState === "starting" && (
+          <span className="barcode-camera-label">Menyalakan kamera…</span>
+        )}
+        {snapshot && (
+          <span className="barcode-camera-label">Barcode terbaca</span>
+        )}
       </div>
-      <button
-        className="secondary-button"
-        onClick={() => (scanning ? stopCamera() : void startCamera())}
-      >
-        {scanning ? "Hentikan kamera" : "Buka kamera untuk scan"}
-      </button>
-      <form
-        className="friendly-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void lookup(code);
-        }}
-      >
-        <label>
-          Nomor barcode
-          <input
-            inputMode="numeric"
-            autoComplete="off"
-            value={code}
-            onChange={(e) => {
-              abort.current?.abort();
-              setLoading(false);
-              setError("");
-              setCode(e.target.value.replace(/[^0-9]/g, ""));
-              setProduct(null);
-            }}
-            placeholder="Ketik angka dari kemasan"
-            maxLength={14}
-          />
-        </label>
-        <button className="primary-button" disabled={loading || !code}>
-          {loading ? "Mencari produk…" : "Cari produk"}
+      <p className="barcode-status" role="status" aria-live="polite">
+        {loading
+          ? `Barcode ${code} terbaca. Mencari produk…`
+          : cameraState === "starting"
+            ? "Izinkan kamera jika browser meminta izin."
+            : cameraState === "scanning"
+              ? scanHint || "Scan aktif. Tidak perlu menekan tombol."
+              : code
+                ? `Barcode: ${code}`
+                : "Kamera berhenti."}
+      </p>
+      {!scanning && (
+        <button
+          className="secondary-button"
+          disabled={loading}
+          onClick={() => void startCamera()}
+        >
+          {code ? "Scan barcode lain" : "Coba kamera lagi"}
         </button>
-      </form>
+      )}
       {error && (
         <div className="status-message" role="status">
           {error}
@@ -347,10 +430,51 @@ export default function BarcodePanel({
           </button>
         </section>
       )}
+      <details
+        className="barcode-manual"
+        onToggle={(e) => {
+          if (e.currentTarget.open) pauseCamera();
+        }}
+      >
+        <summary>Ketik nomor barcode</summary>
+        <form
+          className="friendly-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setSnapshot("");
+            void lookup(code);
+          }}
+        >
+          <label>
+            Nomor barcode
+            <input
+              inputMode="numeric"
+              autoComplete="off"
+              value={code}
+              onChange={(e) => {
+                pauseCamera();
+                abort.current?.abort();
+                setLoading(false);
+                setError("");
+                setSnapshot("");
+                setCode(e.target.value.replace(/[^0-9]/g, ""));
+                setProduct(null);
+              }}
+              placeholder="Ketik angka dari kemasan"
+              maxLength={14}
+            />
+          </label>
+          <button className="primary-button" disabled={loading || !code}>
+            {loading ? "Mencari produk…" : "Cari produk"}
+          </button>
+        </form>
+      </details>
       <button
         className="text-button"
         onClick={() => {
-          stopCamera();
+          pauseCamera();
+          abort.current?.abort();
+          setLoading(false);
           setManual(true);
         }}
       >
