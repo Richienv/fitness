@@ -3,7 +3,8 @@
   "framework": "nextjs",
   "git": {
     "deploymentEnabled": {
-      "codex/free-render-trial": false
+      "codex/free-render-trial": false,
+      "codex/patch-release-dependencies": false
     }
   }
 }

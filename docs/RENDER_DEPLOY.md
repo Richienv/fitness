@@ -8,7 +8,7 @@ mainland networks. Keep Vercel available until the trial has passed.
 ## Deploy
 
 1. Sign in to [Render](https://dashboard.render.com/) and connect this repository.
-2. Select the `codex/free-render-trial` branch and create a Blueprint using
+2. Select the `main` branch and create a Blueprint using
    `render.yaml`, or create a Web Service with these settings:
 
    | Setting | Value |

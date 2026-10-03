@@ -57,7 +57,8 @@ export default auth((req) => {
   if (pathname === "/install") return NextResponse.next();
 
   // ---- Page routes: gate by session ----
-  const isLoggedIn = !!req.auth;
+  // Auth configuration errors must never count as a signed-in user.
+  const isLoggedIn = !!req.auth?.user?.id;
   const isAuthPage = pathname === "/login" || pathname === "/register";
   if (isAuthPage) {
     if (isLoggedIn) return NextResponse.redirect(new URL("/", req.nextUrl));
