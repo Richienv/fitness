@@ -11,7 +11,8 @@
       "codex/chinese-nutrition-label": false,
       "codex/ocr-runtime-assets": false,
       "codex/faster-label-scanner": false,
-      "codex/adaptive-label-preprocessing": false
+      "codex/adaptive-label-preprocessing": false,
+      "codex/fixed-camera-status": false
     }
   }
 }
