@@ -31,9 +31,15 @@ const worker = (await readdir(path.join(sdk, "assets"))).find((n) =>
 if (!worker) throw new Error("PaddleOCR worker asset is missing.");
 await copyFile(path.join(sdk, "assets", worker), path.join(root, "worker.js"));
 const ort = path.dirname(fileURLToPath(import.meta.resolve("onnxruntime-web")));
-for (const file of await readdir(ort))
-  if (/^ort-wasm-simd-threaded\.(?:wasm|mjs)$/.test(file))
-    await copyFile(path.join(ort, file), path.join(root, "runtime", file));
+// The official worker bundles ORT's JSEP loader even with backend: "wasm".
+// Ship both loader pairs so a fresh deployment has the worker's required files.
+for (const file of [
+  "ort-wasm-simd-threaded.mjs",
+  "ort-wasm-simd-threaded.wasm",
+  "ort-wasm-simd-threaded.jsep.mjs",
+  "ort-wasm-simd-threaded.jsep.wasm",
+])
+  await copyFile(path.join(ort, file), path.join(root, "runtime", file));
 for (const model of JSON.parse(
   await readFile("scripts/ocr-models.json", "utf8"),
 )) {

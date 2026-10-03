@@ -49,9 +49,13 @@ export default function NutritionLabelPanel({
   }, []);
   const getWorker = useCallback(() => {
     if (!worker.current) {
-      const promise = createNutritionOcr((stage, percent) => {
+      const promise = createNutritionOcr((stage) => {
         if (active.current && stage !== "recognizing text")
-          setStatus(`Menyiapkan pembaca label… ${percent}%`);
+          setStatus(
+            stage === "ready"
+              ? "Membaca tabel nutrisi…"
+              : "Menyiapkan pembaca label… Unduhan pertama bisa lebih lama.",
+          );
       });
       worker.current = promise;
       promise.catch(() => {
@@ -299,7 +303,6 @@ export default function NutritionLabelPanel({
       </p>
       <button
         className="text-button"
-        disabled={busy}
         onClick={() => {
           wantsCamera.current = false;
           stopCamera();
