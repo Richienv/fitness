@@ -8,7 +8,7 @@
     "build:app": "node scripts/check-server-imports.mjs && tsx scripts/validate-pack.ts data/*.csv && prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --experimental-strip-types --test lib/*.test.ts lib/suggest/*.test.ts scripts/searchEval.test.ts scripts/searchAffinity.test.ts scripts/racikExamples.test.ts",
+    "test": "node --experimental-strip-types --test lib/*.test.ts lib/suggest/*.test.ts scripts/searchEval.test.ts scripts/searchAffinity.test.ts scripts/racikExamples.test.ts scripts/foodFamilies.test.ts scripts/foodTiles.test.ts scripts/foodGuard.test.ts",
     "test:foods": "node --experimental-strip-types --test scripts/seed-foods.test.ts",
     "seed:foods": "tsx scripts/seed-foods.ts",
     "validate:foods": "tsx scripts/validate-pack.ts data/*.csv",
@@ -16,7 +16,8 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
-    "eval:search": "tsx scripts/searchEval.ts"
+    "eval:search": "tsx scripts/searchEval.ts",
+    "census:facets": "tsx scripts/facetCensus.ts"
   },
   "dependencies": {
     "@capacitor/app": "^7.1.2",
