@@ -6,7 +6,8 @@
       "codex/free-render-trial": false,
       "codex/patch-release-dependencies": false,
       "codex/friendly-food-tracker": false,
-      "codex/automatic-barcode-scanner": false
+      "codex/automatic-barcode-scanner": false,
+      "codex/barcode-product-data": false
     }
   }
 }

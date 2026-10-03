@@ -52,7 +52,7 @@ export default function BarcodePanel({
     stopCamera();
   }
   const lookup = useCallback(
-    async (raw: string) => {
+    async (raw: string, refresh = false) => {
       wantsCamera.current = false;
       const next = raw.replace(/\s/g, "");
       stopCamera();
@@ -77,11 +77,15 @@ export default function BarcodePanel({
       setLoading(true);
       try {
         let found: BarcodeProduct | null;
-        if (cache.current.has(next)) found = cache.current.get(next)!;
+        if (!refresh && cache.current.has(next))
+          found = cache.current.get(next)!;
         else {
-          const res = await fetch(`/api/foods/barcode/${next}`, {
-            signal: controller.signal,
-          });
+          const res = await fetch(
+            `/api/foods/barcode/${next}${refresh ? "?refresh=1" : ""}`,
+            {
+              signal: controller.signal,
+            },
+          );
           const data = await res.json();
           if (res.status === 404) {
             found = null;
@@ -90,14 +94,15 @@ export default function BarcodePanel({
               data.error || "Database produk belum bisa dihubungi. Coba lagi.",
             );
           } else found = data.product;
-          cache.current.set(next, found);
+          if (found) cache.current.set(next, found);
+          else cache.current.delete(next);
         }
         if (!controller.signal.aborted && active.current) {
           setProduct(found);
           setAmount(found?.basis === "serving" ? "1" : "100");
           if (!found)
             setError(
-              "Produk belum ditemukan. Tambahkan informasi dari label kemasan secara manual.",
+              "Barcode terbaca, tetapi produk ini belum ada di Open Food Facts. Masukkan nutrisi dari label kemasan untuk mencatatnya.",
             );
         }
       } catch (e) {
@@ -341,7 +346,7 @@ export default function BarcodePanel({
       </div>
       <p className="barcode-status" role="status" aria-live="polite">
         {loading
-          ? `Barcode ${code} terbaca. Mencari produk…`
+          ? `${snapshot ? `Barcode ${code} terbaca. ` : ""}Mencari informasi produk…`
           : cameraState === "starting"
             ? "Izinkan kamera jika browser meminta izin."
             : cameraState === "scanning"
@@ -362,11 +367,26 @@ export default function BarcodePanel({
       {error && (
         <div className="status-message" role="status">
           {error}
+          {validBarcode(code) && (
+            <button
+              className="text-button"
+              disabled={loading}
+              onClick={() => void lookup(code, true)}
+            >
+              Coba cari produk lagi
+            </button>
+          )}
         </div>
       )}
       {product && (
         <section className="barcode-product">
           <h3>{product.name}</h3>
+          {product.nameMissing && (
+            <p className="quiet">
+              Nama produk belum tersedia di database. Nutrisi yang tersedia
+              tetap ditampilkan.
+            </p>
+          )}
           {product.brand && <p>{product.brand}</p>}
           <p className="quiet">
             Sumber:{" "}
@@ -399,8 +419,8 @@ export default function BarcodePanel({
           />
           {!complete && (
             <p className="status-message">
-              Data nutrisi belum lengkap. Lengkapi dari label kemasan sebelum
-              mencatat.
+              Produk ditemukan, tetapi data nutrisi belum lengkap di Open Food
+              Facts. Lengkapi dari label kemasan sebelum mencatat.
             </p>
           )}
           <button
@@ -478,7 +498,7 @@ export default function BarcodePanel({
           setManual(true);
         }}
       >
-        Tambah makanan manual
+        {code ? "Lengkapi dari label kemasan" : "Tambah makanan manual"}
       </button>
     </FriendlySheet>
   );

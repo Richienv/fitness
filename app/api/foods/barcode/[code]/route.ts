@@ -10,7 +10,7 @@ const cache = new Map<string, { at: number; product: BarcodeProduct | null }>();
 const pending = new Map<string, Promise<BarcodeProduct | null>>();
 let requests: number[] = [];
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ code: string }> },
 ) {
   if (!(await getUserId()))
@@ -23,9 +23,10 @@ export async function GET(
     );
   try {
     const now = Date.now();
-    const saved = cache.get(code);
+    const refresh = new URL(req.url).searchParams.get("refresh") === "1";
+    const saved = refresh ? undefined : cache.get(code);
     let product: BarcodeProduct | null;
-    if (saved && now - saved.at < (saved.product ? 86400000 : 3600000))
+    if (saved && now - saved.at < (saved.product ? 86400000 : 300000))
       product = saved.product;
     else {
       let lookup = pending.get(code);
@@ -42,12 +43,14 @@ export async function GET(
         requests.push(now);
         lookup = (async () => {
           const response = await fetch(
-            `https://world.openfoodfacts.org/api/v3/product/${code}.json?fields=code,product_name,product_name_id,product_name_en,brands,quantity,serving_size,nutriments`,
+            `https://world.openfoodfacts.org/api/v3/product/${code}.json?fields=code,product_name,product_name_id,product_name_en,product_name_zh,product_name_zh_cn,product_name_zh_tw,generic_name,generic_name_id,generic_name_en,generic_name_zh,abbreviated_product_name,brands,quantity,product_quantity_unit,nutrition_data_per,serving_size,nutriments`,
             {
               headers: {
                 "User-Agent": "R2Fit/1.0 (https://github.com/Richienv/fitness)",
               },
-              next: { revalidate: 86400 },
+              ...(refresh
+                ? { cache: "no-store" as const }
+                : { next: { revalidate: 86400 } }),
               signal: AbortSignal.timeout(12000),
             },
           );
@@ -64,7 +67,10 @@ export async function GET(
     return product
       ? NextResponse.json({ product })
       : NextResponse.json(
-          { error: "Produk belum ditemukan." },
+          {
+            error:
+              "Barcode terbaca, tetapi produk ini belum ada di Open Food Facts.",
+          },
           { status: 404 },
         );
   } catch {
