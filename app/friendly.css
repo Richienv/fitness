@@ -1287,3 +1287,17 @@ progress::-moz-progress-bar {
   outline: 3px solid #7c9f81;
   outline-offset: 2px;
 }
+
+/* Nutrition label reader and review */
+.friendly-form select {min-height:46px;padding:11px 12px;border:1px solid #cad5c5;border-radius:11px;background:#fff;font-size:16px;width:100%;}
+.label-camera {position:relative;aspect-ratio:4/3;background:#edf1e7;border-radius:18px;overflow:hidden;margin-top:16px;}
+.label-camera video {width:100%;height:100%;object-fit:contain;}
+.label-guide {position:absolute;inset:8%;border:2px solid var(--accent);border-radius:12px;pointer-events:none;}
+.label-camera-label {position:absolute;bottom:12px;left:16px;background:rgba(255,255,255,.9);padding:6px 10px;border-radius:8px;font-size:12px;}
+.label-upload {display:block;text-align:center;cursor:pointer;margin:12px 0;}
+.label-upload input {position:absolute;opacity:0;width:1px;height:1px;overflow:hidden;}
+.label-upload:focus-within {outline:2px solid var(--accent);outline-offset:3px;}
+.label-evidence img {max-width:100%;max-height:340px;object-fit:contain;border-radius:12px;}
+.label-evidence pre {font:12px/1.5 monospace;white-space:pre-wrap;overflow-wrap:anywhere;}
+.label-extra summary,.label-evidence summary {cursor:pointer;padding:10px 0;font-weight:600;font-size:13px;}
+.label-extra .form-columns {margin-top:10px;}

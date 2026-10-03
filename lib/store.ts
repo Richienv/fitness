@@ -5,8 +5,9 @@ import { macrosFor, getIngredient, type Macros } from "./ingredients";
 import { coerceServerItems } from "./mealRecords";
 import { scopedKey } from "./userScope";
 import { contributeFood } from "./foodContribute";
+import type { NutritionExtras } from "./nutritionLabel";
 
-export type CustomMealItem = {
+export type CustomMealItem = NutritionExtras & {
   custom: true;
   name: string;
   grams: number;

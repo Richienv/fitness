@@ -1,4 +1,5 @@
 "use client";
+import { scaleNutritionExtras } from "@/lib/nutritionLabel";
 import { useEffect, useMemo, useState } from "react";
 import {
   getRecipes,
@@ -114,7 +115,12 @@ export default function RecipeComposer({
         carbs: each.carbs,
         fat: each.fat,
         ...(each.grams !== null ? { gramsPerUnit: each.grams } : {}),
-        ...(each.sugar === null ? {} : { sugar: each.sugar }),
+        ...scaleNutritionExtras(
+          Object.fromEntries(
+            Object.entries(each).filter(([, v]) => v !== null),
+          ),
+          1,
+        ),
       },
       parts.map((p) => p.food),
     );
