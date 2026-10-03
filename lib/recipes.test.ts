@@ -102,3 +102,48 @@ test("recipe carries unknown sugar and declared household weights honestly", () 
   assert.equal(n.grams, 200);
   assert.equal(n.sugar, null);
 });
+test("recipe retains known label extras and leaves incomplete mixtures unknown", () => {
+  const parts = [
+    {
+      food: {
+        id: "label",
+        name: "Label",
+        unit: "100g",
+        gramsPerUnit: 100,
+        kcal: 533,
+        protein: 8.2,
+        carbs: 60.6,
+        fat: 28.6,
+        sodium: 251,
+        sugar: 18,
+        saturatedFat: 16,
+        transFat: 0,
+      },
+      quantity: 30,
+      estimated: false,
+    },
+  ];
+  const n = recipeNutrition(parts, 2);
+  assert.equal(n.sodium, 37.65);
+  assert.equal(n.saturatedFat, 2.4);
+  assert.equal(n.transFat, 0);
+  assert.equal(n.salt, null);
+  const mixed = recipeNutrition([
+    ...parts,
+    {
+      food: {
+        id: "plain",
+        name: "Plain",
+        unit: "100g",
+        gramsPerUnit: 100,
+        kcal: 100,
+        protein: 1,
+        carbs: 20,
+        fat: 1,
+      },
+      quantity: 100,
+      estimated: false,
+    },
+  ]);
+  assert.equal(mixed.sodium, null);
+});

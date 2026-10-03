@@ -39,6 +39,7 @@ import { prepare as prepareSearch, searchPrepared } from "@/lib/foodSearch";
 import RecipeComposer from "./RecipeComposer";
 import BarcodePanel from "./BarcodePanel";
 import ManualFoodSheet from "./ManualFoodSheet";
+import { scaleNutritionExtras } from "@/lib/nutritionLabel";
 import SearchField from "./SearchField";
 import NutritionSummary from "./NutritionSummary";
 import Icon from "../ui/Icon";
@@ -119,7 +120,7 @@ const MEAL_KEYS: MealT[] = ["breakfast", "lunch", "snack", "dinner"];
 
 // Common shape shared by library ingredients, session custom foods and
 // custom-group foods. All optional fields default to absent.
-type BuilderFood = {
+type BuilderFood = import("@/lib/nutritionLabel").NutritionExtras & {
   id: string;
   name: string;
   unit: string;
@@ -984,7 +985,7 @@ export default function FoodBuilder({
           protein: m.protein,
           fat: m.fat,
           carbs: m.carbs,
-          ...(ing.sugar != null ? { sugar: ing.sugar * qty } : {}),
+          ...scaleNutritionExtras(ing, qty),
         };
         items.push(item);
       }

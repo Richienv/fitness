@@ -6,6 +6,10 @@ import FriendlySheet from "./FriendlySheet";
 import ManualFoodSheet from "./ManualFoodSheet";
 import NutritionSummary from "./NutritionSummary";
 import Icon from "../ui/Icon";
+import dynamic from "next/dynamic";
+const NutritionLabelPanel = dynamic(() => import("./NutritionLabelPanel"), {
+  ssr: false,
+});
 type CameraControls = { stop: () => void };
 export default function BarcodePanel({
   onClose,
@@ -20,6 +24,7 @@ export default function BarcodePanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [manual, setManual] = useState(false);
+  const [labelScan, setLabelScan] = useState(false);
   const [cameraState, setCameraState] = useState<
     "starting" | "scanning" | "stopped"
   >("starting");
@@ -102,7 +107,7 @@ export default function BarcodePanel({
           setAmount(found?.basis === "serving" ? "1" : "100");
           if (!found)
             setError(
-              "Barcode terbaca, tetapi produk ini belum ada di Open Food Facts. Masukkan nutrisi dari label kemasan untuk mencatatnya.",
+              "Barcode terbaca, tetapi produk ini belum ada di Open Food Facts. Scan label nutrisi atau isi manual untuk mencatatnya.",
             );
         }
       } catch (e) {
@@ -266,10 +271,11 @@ export default function BarcodePanel({
   }, [lookup, stopCamera]);
   useEffect(() => {
     active.current = true;
-    if (!manual && wantsCamera.current && !document.hidden) void startCamera();
+    if (!manual && !labelScan && wantsCamera.current && !document.hidden)
+      void startCamera();
     const visibility = () => {
       if (document.hidden) stopCamera();
-      else if (!manual && wantsCamera.current) void startCamera();
+      else if (!manual && !labelScan && wantsCamera.current) void startCamera();
     };
     document.addEventListener("visibilitychange", visibility);
     return () => {
@@ -278,7 +284,7 @@ export default function BarcodePanel({
       abort.current?.abort();
       document.removeEventListener("visibilitychange", visibility);
     };
-  }, [manual, startCamera, stopCamera]);
+  }, [manual, labelScan, startCamera, stopCamera]);
   const basis =
     product?.basis === "serving"
       ? "per sajian"
@@ -293,6 +299,16 @@ export default function BarcodePanel({
   };
   const complete = product && Object.values(nutrition).every((v) => v !== null);
   const valid = complete && quantity > 0 && Number.isFinite(quantity);
+  if (labelScan)
+    return (
+      <NutritionLabelPanel
+        onClose={() => setLabelScan(false)}
+        onAdd={onAdd}
+        initial={
+          product && !product.nameMissing ? { name: product.name } : undefined
+        }
+      />
+    );
   if (manual)
     return (
       <ManualFoodSheet
@@ -323,6 +339,17 @@ export default function BarcodePanel({
       <p className="quiet">
         Arahkan kamera ke barcode. Produk dicari otomatis begitu terbaca.
       </p>
+      <button
+        className="secondary-button"
+        onClick={() => {
+          pauseCamera();
+          abort.current?.abort();
+          setLoading(false);
+          setLabelScan(true);
+        }}
+      >
+        Scan label nutrisi
+      </button>
       <div
         className={`barcode-camera${scanning ? " scanning" : ""}${snapshot ? " captured" : ""}`}
       >
@@ -420,7 +447,7 @@ export default function BarcodePanel({
           {!complete && (
             <p className="status-message">
               Produk ditemukan, tetapi data nutrisi belum lengkap di Open Food
-              Facts. Lengkapi dari label kemasan sebelum mencatat.
+              Facts. Scan label nutrisi untuk melengkapi sebelum mencatat.
             </p>
           )}
           <button
@@ -498,7 +525,7 @@ export default function BarcodePanel({
           setManual(true);
         }}
       >
-        {code ? "Lengkapi dari label kemasan" : "Tambah makanan manual"}
+        {code ? "Isi nutrisi manual" : "Tambah makanan manual"}
       </button>
     </FriendlySheet>
   );

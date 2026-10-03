@@ -1,4 +1,5 @@
 import type { MealItem } from "./store.ts";
+import { scaleNutritionExtras } from "./nutritionLabel.ts";
 
 /** Server items written by older Hermes builds lack the MealItem shape —
  * coerce anything with a name+kcal into a CustomMealItem the UI can render. */
@@ -24,16 +25,7 @@ export function coerceServerItems(raw: unknown): MealItem[] {
         ...(typeof o.portionLabel === "string"
           ? { portionLabel: o.portionLabel }
           : {}),
-        ...(typeof o.sugar === "number" &&
-        Number.isFinite(o.sugar) &&
-        o.sugar >= 0
-          ? { sugar: o.sugar }
-          : {}),
-        ...(typeof o.sodium === "number" &&
-        Number.isFinite(o.sodium) &&
-        o.sodium >= 0
-          ? { sodium: o.sodium }
-          : {}),
+        ...scaleNutritionExtras(o, 1),
         ...at,
       });
     } else if (typeof o.id === "string" && typeof o.qty === "number") {
@@ -50,16 +42,7 @@ export function coerceServerItems(raw: unknown): MealItem[] {
         ...(typeof o.portionLabel === "string"
           ? { portionLabel: o.portionLabel }
           : {}),
-        ...(typeof o.sugar === "number" &&
-        Number.isFinite(o.sugar) &&
-        o.sugar >= 0
-          ? { sugar: o.sugar }
-          : {}),
-        ...(typeof o.sodium === "number" &&
-        Number.isFinite(o.sodium) &&
-        o.sodium >= 0
-          ? { sodium: o.sodium }
-          : {}),
+        ...scaleNutritionExtras(o, 1),
         ...at,
       });
     }

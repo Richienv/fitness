@@ -1,6 +1,7 @@
 import { gramBasis } from "./trayMath.ts";
 import { scopedKey } from "./userScope.ts";
-export type RecipeFood = {
+import type { NutritionExtras } from "./nutritionLabel.ts";
+export type RecipeFood = NutritionExtras & {
   id: string;
   name: string;
   unit: string;
@@ -31,6 +32,11 @@ export function recipeNutrition(parts: RecipePart[], servings = 1) {
     carbs: 0,
     fat: 0,
     sugar: 0 as number | null,
+    sodium: 0 as number | null,
+    salt: 0 as number | null,
+    saturatedFat: 0 as number | null,
+    transFat: 0 as number | null,
+    fiber: 0 as number | null,
     grams: 0 as number | null,
   };
   for (const { food, quantity } of parts) {
@@ -42,6 +48,16 @@ export function recipeNutrition(parts: RecipePart[], servings = 1) {
       n[key] += food[key] * multiplier;
     if (food.sugar == null) n.sugar = null;
     else if (n.sugar !== null) n.sugar += food.sugar * multiplier;
+    for (const key of [
+      "sodium",
+      "salt",
+      "saturatedFat",
+      "transFat",
+      "fiber",
+    ] as const) {
+      if (food[key] == null) n[key] = null;
+      else if (n[key] !== null) n[key]! += food[key]! * multiplier;
+    }
     if (weight && n.grams !== null) n.grams += quantity;
     else n.grams = null;
   }
@@ -49,6 +65,11 @@ export function recipeNutrition(parts: RecipePart[], servings = 1) {
   return {
     ...n,
     sugar: n.sugar === null ? null : n.sugar / divisor,
+    sodium: n.sodium === null ? null : n.sodium / divisor,
+    salt: n.salt === null ? null : n.salt / divisor,
+    saturatedFat: n.saturatedFat === null ? null : n.saturatedFat / divisor,
+    transFat: n.transFat === null ? null : n.transFat / divisor,
+    fiber: n.fiber === null ? null : n.fiber / divisor,
     kcal: n.kcal / divisor,
     protein: n.protein / divisor,
     carbs: n.carbs / divisor,

@@ -34,3 +34,32 @@ test("server meal import retains documented zero sugar without accepting invalid
   assert.equal("sugar" in items[0] ? items[0].sugar : null, 0);
   assert.equal("sodium" in items[0], false);
 });
+test("label nutrition survives server reload including declared zero trans fat", () => {
+  const [item] = coerceServerItems([
+    {
+      custom: true,
+      name: "Label test",
+      grams: 30,
+      kcal: 159.75,
+      protein: 2.46,
+      carbs: 18.18,
+      fat: 8.58,
+      sugar: 5.4,
+      sodium: 75.3,
+      saturatedFat: 4.8,
+      transFat: 0,
+      salt: 0.18825,
+      fiber: NaN,
+    },
+  ]);
+  assert.deepEqual(
+    Object.fromEntries(
+      ["sugar", "sodium", "saturatedFat", "transFat", "salt"].map((k) => [
+        k,
+        (item as unknown as Record<string, unknown>)[k],
+      ]),
+    ),
+    { sugar: 5.4, sodium: 75.3, saturatedFat: 4.8, transFat: 0, salt: 0.18825 },
+  );
+  assert.equal("fiber" in item, false);
+});

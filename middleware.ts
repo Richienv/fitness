@@ -73,8 +73,9 @@ export default auth((req) => {
 // Run on pages + /api, but skip Next internals and static asset files.
 export const config = {
   matcher: [
+    // OCR contains public JS/WASM/model assets, never user images or records.
     // sw.js is listed by name: the extension list below stops at static image
     // types, and a service worker that 302s to /login never installs.
-    "/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon.png|sw.js|manifest.webmanifest|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|txt|json)).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon.png|ocr/|sw.js|manifest.webmanifest|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|txt|json)).*)",
   ],
 };
