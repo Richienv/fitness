@@ -20,8 +20,8 @@ import { haptic } from "@/lib/haptics";
 import { stableOptionOrder } from "@/lib/foodPicker";
 
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
-const MONO = "var(--font-dm-mono), 'JetBrains Mono', monospace";
-const FIRE = "linear-gradient(180deg,#ff8a52,#ee3c30 55%,#c01f12)";
+const MONO = "var(--font-dm-sans), sans-serif";
+const FIRE = "var(--accent)";
 
 export type VariantChip = { id: string; label: string; kcal: number };
 
@@ -35,7 +35,10 @@ function Row({
   delay: number;
 }) {
   return (
-    <div className="pk-row-in" style={{ animationDelay: `${delay}ms`, marginBottom: 12 }}>
+    <div
+      className="pk-row-in"
+      style={{ animationDelay: `${delay}ms`, marginBottom: 12 }}
+    >
       <div
         style={{
           fontFamily: SANS,
@@ -76,97 +79,155 @@ function Chips({
     const el = scroller.current?.querySelector<HTMLElement>('[data-on="1"]');
     if (el && scroller.current) {
       const rail = scroller.current;
-      rail.scrollTo({ left: el.offsetLeft - rail.offsetLeft - (rail.clientWidth - el.clientWidth) / 2,
-        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      rail.scrollTo({
+        left:
+          el.offsetLeft -
+          rail.offsetLeft -
+          (rail.clientWidth - el.clientWidth) / 2,
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+      });
     }
   }, [selected]);
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-    <button type="button" className="picker-rail-arrow" aria-label={`Pilihan sebelumnya: ${ariaLabel}`}
-      onClick={() => scroller.current?.scrollBy({ left: -180, behavior: "auto" })}>‹</button>
-    <div
-      ref={scroller}
-      role="group"
-      aria-label={ariaLabel}
-      className="mk-rail"
-      style={{
-        display: "flex",
-        gap: 7,
-        overflowX: "auto",
-        flex: 1,
-        minWidth: 0,
-        position: "relative",
-        padding: "2px 0 4px",
-        scrollSnapType: "x proximity",
-      }}
-    >
-      {stable.options.map((it, i) => {
-        const on = it.value === selected;
-        // "Umum" being selected means NO choice was made. It must not light up
-        // like one: five fire-coloured "Umum" chips sent the eye to the things
-        // that matter least.
-        const quiet = on && it.value === NONE;
-        return (
-          <button
-            key={it.value}
-            type="button"
-            aria-pressed={on}
-            data-on={on ? "1" : "0"}
-            className="pk-chip-in"
-            onClick={() => {
-              haptic("tap");
-              onTap(it.value);
-            }}
-            onKeyDown={(e) => {
-              if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
-              e.preventDefault();
-              const buttons = Array.from(scroller.current?.querySelectorAll<HTMLButtonElement>("button") ?? []);
-              const target = e.key === "Home" ? 0 : e.key === "End" ? buttons.length - 1 : Math.max(0, Math.min(buttons.length - 1, i + (e.key === "ArrowRight" ? 1 : -1)));
-              buttons[target]?.focus();
-            }}
-            style={{
-              flexShrink: 0,
-              scrollSnapAlign: "center",
-              animationDelay: `${Math.min(i, 8) * 28}ms`,
-              padding: "10px 15px",
-              minHeight: 44,
-              minWidth: 44,
-              borderRadius: 13,
-              cursor: "pointer",
-              textAlign: "left",
-              fontFamily: SANS,
-              fontWeight: on ? 800 : 600,
-              fontSize: 14,
-              lineHeight: 1.1,
-              color: quiet ? "#cfc8c2" : on ? "#fff" : "#d6cfc9",
-              background: quiet ? "rgba(255,255,255,.1)" : on ? FIRE : "rgba(255,255,255,.06)",
-              border: quiet
-                ? "1px solid rgba(255,255,255,.28)"
-                : on
-                  ? "1px solid rgba(255,150,120,.65)"
-                  : "1px solid rgba(255,255,255,.11)",
-              boxShadow:
-                on && !quiet
-                  ? "inset 0 1.5px 1px rgba(255,225,205,.5), 0 6px 16px rgba(238,60,48,.3)"
-                  : "none",
-              textShadow: on && !quiet ? "0 1px 2px rgba(120,15,5,.45)" : "none",
-              transform: on && !quiet ? "translateY(-1px)" : "none",
-              transition: "background .18s, box-shadow .18s, transform .18s, color .18s",
-            }}
-          >
-            {it.label}
-            {it.sub ? (
-              <span style={{ display: "block", fontFamily: MONO, fontWeight: 400, fontSize: 9.5, marginTop: 3, opacity: 0.72 }}>
-                {it.sub}
-              </span>
-            ) : null}
-          </button>
-        );
-      })}
-    </div>
-    <button type="button" className="picker-rail-arrow" aria-label={`Pilihan berikutnya: ${ariaLabel}`}
-      onClick={() => scroller.current?.scrollBy({ left: 180, behavior: "auto" })}>›</button>
+      <button
+        type="button"
+        className="picker-rail-arrow"
+        aria-label={`Pilihan sebelumnya: ${ariaLabel}`}
+        onClick={() =>
+          scroller.current?.scrollBy({ left: -180, behavior: "auto" })
+        }
+      >
+        ‹
+      </button>
+      <div
+        ref={scroller}
+        role="group"
+        aria-label={ariaLabel}
+        className="mk-rail"
+        style={{
+          display: "flex",
+          gap: 7,
+          overflowX: "auto",
+          flex: 1,
+          minWidth: 0,
+          position: "relative",
+          padding: "2px 0 4px",
+          scrollSnapType: "x proximity",
+        }}
+      >
+        {stable.options.map((it, i) => {
+          const on = it.value === selected;
+          // "Umum" being selected means NO choice was made. It must not light up
+          // like one: five fire-coloured "Umum" chips sent the eye to the things
+          // that matter least.
+          const quiet = on && it.value === NONE;
+          return (
+            <button
+              key={it.value}
+              type="button"
+              aria-pressed={on}
+              data-on={on ? "1" : "0"}
+              className="pk-chip-in"
+              onClick={() => {
+                haptic("tap");
+                onTap(it.value);
+              }}
+              onKeyDown={(e) => {
+                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key))
+                  return;
+                e.preventDefault();
+                const buttons = Array.from(
+                  scroller.current?.querySelectorAll<HTMLButtonElement>(
+                    "button",
+                  ) ?? [],
+                );
+                const target =
+                  e.key === "Home"
+                    ? 0
+                    : e.key === "End"
+                      ? buttons.length - 1
+                      : Math.max(
+                          0,
+                          Math.min(
+                            buttons.length - 1,
+                            i + (e.key === "ArrowRight" ? 1 : -1),
+                          ),
+                        );
+                buttons[target]?.focus();
+              }}
+              style={{
+                flexShrink: 0,
+                scrollSnapAlign: "center",
+                animationDelay: `${Math.min(i, 8) * 28}ms`,
+                padding: "10px 15px",
+                minHeight: 44,
+                minWidth: 44,
+                borderRadius: 13,
+                cursor: "pointer",
+                textAlign: "left",
+                fontFamily: SANS,
+                fontWeight: on ? 800 : 600,
+                fontSize: 14,
+                lineHeight: 1.1,
+                color: quiet
+                  ? "var(--text)"
+                  : on
+                    ? "var(--text)"
+                    : "var(--text)",
+                background: quiet
+                  ? "rgba(84,119,93,.1)"
+                  : on
+                    ? FIRE
+                    : "rgba(84,119,93,.06)",
+                border: quiet
+                  ? "1px solid rgba(84,119,93,.28)"
+                  : on
+                    ? "1px solid rgba(255,150,120,.65)"
+                    : "1px solid rgba(84,119,93,.11)",
+                boxShadow:
+                  on && !quiet
+                    ? "inset 0 1.5px 1px rgba(255,225,205,.5), 0 6px 16px rgba(238,60,48,.3)"
+                    : "none",
+                textShadow:
+                  on && !quiet ? "0 1px 2px rgba(120,15,5,.45)" : "none",
+                transform: on && !quiet ? "translateY(-1px)" : "none",
+                transition:
+                  "background .18s, box-shadow .18s, transform .18s, color .18s",
+              }}
+            >
+              {it.label}
+              {it.sub ? (
+                <span
+                  style={{
+                    display: "block",
+                    fontFamily: MONO,
+                    fontWeight: 400,
+                    fontSize: 9.5,
+                    marginTop: 3,
+                    opacity: 0.72,
+                  }}
+                >
+                  {it.sub}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        className="picker-rail-arrow"
+        aria-label={`Pilihan berikutnya: ${ariaLabel}`}
+        onClick={() =>
+          scroller.current?.scrollBy({ left: 180, behavior: "auto" })
+        }
+      >
+        ›
+      </button>
     </div>
   );
 }
@@ -197,7 +258,10 @@ export default function FacetRows({
   // A real (non-default) choice hiding behind the fold must not be hidden: if
   // the user has refined past the first two rows, show where they are.
   const expanded = open;
-  const moreNames = [...more.map((r) => AXIS_LABEL[r.axis]), ...(hasVariants ? ["Versi"] : [])];
+  const moreNames = [
+    ...more.map((r) => AXIS_LABEL[r.axis]),
+    ...(hasVariants ? ["Versi"] : []),
+  ];
 
   if (rows.length === 0 && !hasVariants) return null;
 
@@ -232,15 +296,25 @@ export default function FacetRows({
             marginBottom: expanded ? 10 : 2,
             borderRadius: 12,
             cursor: "pointer",
-            background: "rgba(255,255,255,.04)",
-            border: "1px dashed rgba(255,255,255,.16)",
+            background: "rgba(84,119,93,.04)",
+            border: "1px dashed rgba(84,119,93,.16)",
             color: "#9a938d",
             fontFamily: SANS,
             fontSize: 12,
           }}
         >
-          <span>{expanded ? "Lebih ringkas" : `Lebih spesifik (${moreNames.join(", ")})`}</span>
-          <span aria-hidden="true" style={{ transform: expanded ? "rotate(180deg)" : "none", transition: "transform .22s" }}>
+          <span>
+            {expanded
+              ? "Lebih ringkas"
+              : `Lebih spesifik (${moreNames.join(", ")})`}
+          </span>
+          <span
+            aria-hidden="true"
+            style={{
+              transform: expanded ? "rotate(180deg)" : "none",
+              transition: "transform .22s",
+            }}
+          >
             ▾
           </span>
         </button>
@@ -254,7 +328,10 @@ export default function FacetRows({
                 ariaLabel={AXIS_LABEL[r.axis]}
                 selected={r.selected}
                 onTap={(v) => onPick(r.axis, v)}
-                items={r.options.map((o) => ({ value: o.value, label: o.label }))}
+                items={r.options.map((o) => ({
+                  value: o.value,
+                  label: o.label,
+                }))}
               />
             </Row>
           ))}
@@ -264,7 +341,11 @@ export default function FacetRows({
                 ariaLabel="Versi"
                 selected={variantId ?? null}
                 onTap={(v) => onVariant?.(v)}
-                items={variants!.map((v) => ({ value: v.id, label: v.label, sub: `${Math.round(v.kcal)} kkal` }))}
+                items={variants!.map((v) => ({
+                  value: v.id,
+                  label: v.label,
+                  sub: `${Math.round(v.kcal)} kkal`,
+                }))}
               />
             </Row>
           ) : null}

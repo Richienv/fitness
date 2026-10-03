@@ -4,7 +4,8 @@
   "git": {
     "deploymentEnabled": {
       "codex/free-render-trial": false,
-      "codex/patch-release-dependencies": false
+      "codex/patch-release-dependencies": false,
+      "codex/friendly-food-tracker": false
     }
   }
 }

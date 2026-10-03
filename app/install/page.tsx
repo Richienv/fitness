@@ -12,26 +12,42 @@ import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { detectPlatform, type Platform } from "@/lib/install";
 
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
-const MONO = "var(--font-dm-mono), 'JetBrains Mono', monospace";
-const FIRE = "linear-gradient(180deg,#ff8a52,#ee3c30 55%,#c01f12)";
+const MONO = "var(--font-dm-sans), sans-serif";
+const FIRE = "var(--accent)";
 
 const card: CSSProperties = {
   borderRadius: 16,
   padding: 16,
-  background: "#0c0a0b",
-  border: "1px solid rgba(255,255,255,.08)",
-  boxShadow: "inset 0 1px 0 rgba(255,255,255,.06)",
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  boxShadow: "0 3px 12px rgba(40,53,43,.06)",
 };
 
 /** The iOS Share glyph, so "tap this button" points at something recognisable. */
 function ShareGlyph() {
   return (
-    <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"
-      style={{ verticalAlign: "-3px", margin: "0 2px" }}>
-      <path d="M12 3.2 8.6 6.6M12 3.2l3.4 3.4M12 3.2v11"
-        stroke="#4da3ff" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      <path d="M7 10.2H5.6A1.6 1.6 0 0 0 4 11.8v7.4a1.6 1.6 0 0 0 1.6 1.6h12.8a1.6 1.6 0 0 0 1.6-1.6v-7.4a1.6 1.6 0 0 0-1.6-1.6H17"
-        stroke="#4da3ff" strokeWidth="1.9" strokeLinecap="round" fill="none" />
+    <svg
+      viewBox="0 0 24 24"
+      width="17"
+      height="17"
+      aria-hidden="true"
+      style={{ verticalAlign: "-3px", margin: "0 2px" }}
+    >
+      <path
+        d="M12 3.2 8.6 6.6M12 3.2l3.4 3.4M12 3.2v11"
+        stroke="#4da3ff"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <path
+        d="M7 10.2H5.6A1.6 1.6 0 0 0 4 11.8v7.4a1.6 1.6 0 0 0 1.6 1.6h12.8a1.6 1.6 0 0 0 1.6-1.6v-7.4a1.6 1.6 0 0 0-1.6-1.6H17"
+        stroke="#4da3ff"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        fill="none"
+      />
     </svg>
   );
 }
@@ -40,7 +56,16 @@ function Steps({ items }: { items: React.ReactNode[] }) {
   return (
     <ol style={{ margin: 0, paddingLeft: 20 }}>
       {items.map((s, i) => (
-        <li key={i} style={{ fontFamily: SANS, fontSize: 14, lineHeight: 1.6, color: "#ded8d2", marginBottom: 9 }}>
+        <li
+          key={i}
+          style={{
+            fontFamily: SANS,
+            fontSize: 14,
+            lineHeight: 1.6,
+            color: "var(--text)",
+            marginBottom: 9,
+          }}
+        >
           {s}
         </li>
       ))}
@@ -105,8 +130,8 @@ export default function InstallPage() {
         minHeight: "100dvh",
         padding:
           "calc(22px + env(safe-area-inset-top)) 20px calc(120px + env(safe-area-inset-bottom))",
-        background: "radial-gradient(900px 600px at 50% -10%, #1a1211, #0a0809 52%, #070608)",
-        color: "#f1ede9",
+        background: "var(--bg)",
+        color: "var(--text)",
       }}
     >
       <div
@@ -119,10 +144,10 @@ export default function InstallPage() {
           fontFamily: SANS,
           fontWeight: 800,
           fontSize: 23,
-          color: "#faf1ea",
-          background: "linear-gradient(180deg,#241614,#0d0a0b)",
-          border: "1px solid rgba(255,255,255,.09)",
-          boxShadow: "0 10px 26px rgba(0,0,0,.5)",
+          color: "var(--text)",
+          background: "var(--surface2)",
+          border: "1px solid var(--border)",
+          boxShadow: "0 3px 12px rgba(40,53,43,.06)",
         }}
       >
         R2
@@ -144,24 +169,52 @@ export default function InstallPage() {
           fontFamily: MONO,
           fontSize: 10,
           letterSpacing: ".12em",
-          color: "#7c736e",
+          color: "var(--muted)",
           marginTop: 6,
         }}
       >
-        DI HOME SCREEN · GRATIS · NGGAK LEWAT APP STORE
+        Di layar utama · gratis
       </div>
 
-      <p style={{ fontFamily: SANS, fontSize: 14, lineHeight: 1.6, color: "#b8b1ab", margin: "16px 0 20px" }}>
+      <p
+        style={{
+          fontFamily: SANS,
+          fontSize: 14,
+          lineHeight: 1.6,
+          color: "var(--muted)",
+          margin: "16px 0 20px",
+        }}
+      >
         Nggak perlu App Store, nggak perlu install apa-apa dulu. Habis dipasang,
-        R2·FIT punya ikon sendiri dan kebuka full screen — persis kayak app biasa.
+        R2·FIT punya ikon sendiri dan kebuka full screen — persis kayak app
+        biasa.
       </p>
 
       {platform === "unknown" ? (
-        <div style={{ ...card, fontFamily: MONO, fontSize: 11, color: "#8a837d" }}>Ngecek device…</div>
+        <div
+          style={{
+            ...card,
+            fontFamily: MONO,
+            fontSize: 11,
+            color: "var(--muted)",
+          }}
+        >
+          Ngecek device…
+        </div>
       ) : platform === "installed" ? (
         <div style={card}>
-          <div style={{ fontFamily: SANS, fontWeight: 800, fontSize: 16 }}>✓ Udah kepasang</div>
-          <p style={{ fontFamily: SANS, fontSize: 13.5, lineHeight: 1.55, color: "#a9a29c", margin: "8px 0 0" }}>
+          <div style={{ fontFamily: SANS, fontWeight: 800, fontSize: 16 }}>
+            ✓ Udah kepasang
+          </div>
+          <p
+            style={{
+              fontFamily: SANS,
+              fontSize: 13.5,
+              lineHeight: 1.55,
+              color: "var(--muted)",
+              margin: "8px 0 0",
+            }}
+          >
             Kamu lagi buka R2·FIT dari home screen. Nggak ada yang perlu
             dilakuin lagi.
           </p>
@@ -178,7 +231,7 @@ export default function InstallPage() {
               color: "#fff",
               textDecoration: "none",
               background: FIRE,
-              border: "1px solid rgba(255,150,120,.6)",
+              border: "1px solid var(--border)",
             }}
           >
             MULAI →
@@ -186,10 +239,26 @@ export default function InstallPage() {
         </div>
       ) : platform === "ios-other" ? (
         <div style={card}>
-          <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: ".14em", color: "#6a6660", marginBottom: 10 }}>
+          <div
+            style={{
+              fontFamily: MONO,
+              fontSize: 11,
+              letterSpacing: ".14em",
+              color: "var(--muted)",
+              marginBottom: 10,
+            }}
+          >
             // BUKA DI SAFARI DULU
           </div>
-          <p style={{ fontFamily: SANS, fontSize: 14, lineHeight: 1.6, color: "#ded8d2", margin: 0 }}>
+          <p
+            style={{
+              fontFamily: SANS,
+              fontSize: 14,
+              lineHeight: 1.6,
+              color: "var(--text)",
+              margin: 0,
+            }}
+          >
             Di iPhone, cuma <b>Safari</b> yang bisa pasang app ke home screen.
             Chrome bikin bookmark doang — tetep kebuka di browser.
           </p>
@@ -206,18 +275,34 @@ export default function InstallPage() {
               color: "#fff",
               cursor: "pointer",
               background: FIRE,
-              border: "1px solid rgba(255,150,120,.6)",
+              border: "1px solid var(--border)",
             }}
           >
             {copied ? "✓ LINK TERSALIN" : "SALIN LINK"}
           </button>
-          <p style={{ fontFamily: MONO, fontSize: 10, lineHeight: 1.5, color: "#7c736e", margin: "12px 0 0" }}>
+          <p
+            style={{
+              fontFamily: MONO,
+              fontSize: 10,
+              lineHeight: 1.5,
+              color: "var(--muted)",
+              margin: "12px 0 0",
+            }}
+          >
             Buka Safari, tempel link-nya, terus balik ke halaman ini.
           </p>
         </div>
       ) : platform === "ios-safari" ? (
         <div style={card}>
-          <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: ".14em", color: "#6a6660", marginBottom: 12 }}>
+          <div
+            style={{
+              fontFamily: MONO,
+              fontSize: 11,
+              letterSpacing: ".14em",
+              color: "var(--muted)",
+              marginBottom: 12,
+            }}
+          >
             // IPHONE · 3 LANGKAH
           </div>
           <Steps
@@ -241,25 +326,42 @@ export default function InstallPage() {
               padding: 12,
               borderRadius: 10,
               background: "rgba(255,138,82,.07)",
-              border: "1px solid rgba(255,138,82,.22)",
+              border: "1px solid var(--border)",
               fontFamily: SANS,
               fontSize: 12.5,
               lineHeight: 1.55,
               color: "#e8c2ad",
             }}
           >
-            Habis dipasang, kamu perlu <b>login sekali lagi</b> di dalam app-nya.
-            iOS misahin data app home screen dari Safari — itu normal, bukan bug.
+            Habis dipasang, kamu perlu <b>login sekali lagi</b> di dalam
+            app-nya. iOS misahin data app home screen dari Safari — itu normal,
+            bukan bug.
           </div>
         </div>
       ) : platform === "android" ? (
         <div style={card}>
-          <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: ".14em", color: "#6a6660", marginBottom: 12 }}>
+          <div
+            style={{
+              fontFamily: MONO,
+              fontSize: 11,
+              letterSpacing: ".14em",
+              color: "var(--muted)",
+              marginBottom: 12,
+            }}
+          >
             // ANDROID
           </div>
           {deferred ? (
             <>
-              <p style={{ fontFamily: SANS, fontSize: 14, lineHeight: 1.6, color: "#ded8d2", margin: 0 }}>
+              <p
+                style={{
+                  fontFamily: SANS,
+                  fontSize: 14,
+                  lineHeight: 1.6,
+                  color: "var(--text)",
+                  margin: 0,
+                }}
+              >
                 Tinggal satu tap.
               </p>
               <button
@@ -275,7 +377,7 @@ export default function InstallPage() {
                   color: "#fff",
                   cursor: "pointer",
                   background: FIRE,
-                  border: "1px solid rgba(255,150,120,.6)",
+                  border: "1px solid var(--border)",
                 }}
               >
                 PASANG SEKARANG
@@ -299,7 +401,15 @@ export default function InstallPage() {
         </div>
       ) : (
         <div style={card}>
-          <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: ".14em", color: "#6a6660", marginBottom: 12 }}>
+          <div
+            style={{
+              fontFamily: MONO,
+              fontSize: 11,
+              letterSpacing: ".14em",
+              color: "var(--muted)",
+              marginBottom: 12,
+            }}
+          >
             // DESKTOP
           </div>
           {deferred ? (
@@ -315,13 +425,21 @@ export default function InstallPage() {
                 color: "#fff",
                 cursor: "pointer",
                 background: FIRE,
-                border: "1px solid rgba(255,150,120,.6)",
+                border: "1px solid var(--border)",
               }}
             >
               PASANG SEKARANG
             </button>
           ) : (
-            <p style={{ fontFamily: SANS, fontSize: 14, lineHeight: 1.6, color: "#ded8d2", margin: 0 }}>
+            <p
+              style={{
+                fontFamily: SANS,
+                fontSize: 14,
+                lineHeight: 1.6,
+                color: "var(--text)",
+                margin: 0,
+              }}
+            >
               Di Chrome/Edge, klik ikon <b>install</b> di ujung kanan address
               bar. R2·FIT ini paling enak dipakai di HP — buka link ini di
               iPhone atau Android kamu.
@@ -334,10 +452,26 @@ export default function InstallPage() {
           second app at all. WidgetKit needs a native build; Scriptable is
           how you get a real home-screen widget without one. */}
       <div style={{ ...card, marginTop: 12 }}>
-        <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: ".14em", color: "#6a6660", marginBottom: 10 }}>
+        <div
+          style={{
+            fontFamily: MONO,
+            fontSize: 11,
+            letterSpacing: ".14em",
+            color: "var(--muted)",
+            marginBottom: 10,
+          }}
+        >
           // WIDGET KALORI (OPSIONAL)
         </div>
-        <p style={{ fontFamily: SANS, fontSize: 13.5, lineHeight: 1.55, color: "#cfc8c2", margin: 0 }}>
+        <p
+          style={{
+            fontFamily: SANS,
+            fontSize: 13.5,
+            lineHeight: 1.55,
+            color: "#cfc8c2",
+            margin: 0,
+          }}
+        >
           Mau kalori hari ini kelihatan langsung di home screen tanpa buka app?
           Bisa, lewat app gratis <b>Scriptable</b>. Setelah login, buka{" "}
           <b>Settings → iPhone Widget</b>.
@@ -355,7 +489,7 @@ export default function InstallPage() {
           borderRadius: 13,
           cursor: "pointer",
           background: "rgba(255,255,255,.04)",
-          border: "1px solid rgba(255,255,255,.1)",
+          border: "1px solid var(--border)",
         }}
       >
         <span
@@ -374,8 +508,8 @@ export default function InstallPage() {
             display: "block",
             marginTop: 5,
             fontFamily: MONO,
-            fontSize: 9.5,
-            color: "#6a6660",
+            fontSize: 11,
+            color: "var(--muted)",
             wordBreak: "break-all",
           }}
         >
@@ -386,7 +520,13 @@ export default function InstallPage() {
       <div style={{ textAlign: "center", marginTop: 18 }}>
         <Link
           href="/"
-          style={{ fontFamily: MONO, fontSize: 11, letterSpacing: ".1em", color: "#7c736e", textDecoration: "none" }}
+          style={{
+            fontFamily: MONO,
+            fontSize: 11,
+            letterSpacing: ".1em",
+            color: "var(--muted)",
+            textDecoration: "none",
+          }}
         >
           LANGSUNG BUKA DI BROWSER →
         </Link>

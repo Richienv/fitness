@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Icon from "./ui/Icon";
 import { haptic } from "@/lib/haptics";
 import { useVTNavigate } from "@/lib/navigate";
 
@@ -128,7 +129,12 @@ function StatsIcon({ active }: IconProps) {
 //
 // Three columns also happen to put an icon dead centre, which four never could.
 
-type Tab = { href: string; label: string; match: (p: string) => boolean; Icon: (p: IconProps) => React.ReactElement };
+type Tab = {
+  href: string;
+  label: string;
+  match: (p: string) => boolean;
+  Icon: (p: IconProps) => React.ReactElement;
+};
 
 const TABS: Tab[] = [
   {
@@ -139,11 +145,26 @@ const TABS: Tab[] = [
       p === "/" ||
       p.startsWith("/sleep") ||
       p.startsWith("/settings") ||
-      p.startsWith("/meal") ||
       p.startsWith("/workout"),
   },
-  { href: "/social", label: "Teman", Icon: FriendsIcon, match: (p) => p.startsWith("/social") },
-  { href: "/dashboard", label: "Statistik", Icon: StatsIcon, match: (p) => p.startsWith("/dashboard") },
+  {
+    href: "/meal",
+    label: "Makan",
+    Icon: () => <Icon name="meal" size={23} />,
+    match: (p) => p.startsWith("/meal"),
+  },
+  {
+    href: "/social",
+    label: "Teman",
+    Icon: FriendsIcon,
+    match: (p) => p.startsWith("/social"),
+  },
+  {
+    href: "/dashboard",
+    label: "Statistik",
+    Icon: StatsIcon,
+    match: (p) => p.startsWith("/dashboard"),
+  },
 ];
 
 export default function BottomNav() {
@@ -161,26 +182,14 @@ export default function BottomNav() {
     vtNavigate(href);
   }
 
+  if (pathname === "/login" || pathname === "/register") return null;
+
   return (
     <nav
       className="bottom-nav"
-      aria-label="Primary"
+      aria-label="Navigasi utama"
       style={{ viewTransitionName: "bottom-nav" } as React.CSSProperties}
     >
-      {/* The travelling blob. One element for all three tabs, so it SLIDES
-          between them instead of cross-fading — the movement is what tells you
-          where you came from. `key` restarts the squash keyframe on every
-          change; the wrapper keeps its transition so the slide isn't cut. */}
-      {activeIndex >= 0 && (
-        <span
-          className="bn-blob"
-          aria-hidden="true"
-          style={{ "--bn-i": activeIndex } as React.CSSProperties}
-        >
-          <span key={activeIndex} className="bn-blob-skin" />
-        </span>
-      )}
-
       {TABS.map((t) => {
         const on = t.match(pathname);
         return (
@@ -195,10 +204,10 @@ export default function BottomNav() {
             <span className="bn-ico-wrap">
               <t.Icon active={on} />
             </span>
+            <span className="bn-label">{t.label}</span>
           </Link>
         );
       })}
-
     </nav>
   );
 }

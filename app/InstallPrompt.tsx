@@ -52,11 +52,11 @@ export default function InstallPrompt({ userId }: { userId: string | null }) {
         gap: 10,
         padding: "11px 12px 11px 14px",
         borderRadius: 14,
-        background: "rgba(20,14,13,.92)",
+        background: "var(--surface)",
         backdropFilter: "blur(14px)",
         WebkitBackdropFilter: "blur(14px)",
-        border: "1px solid rgba(255,138,82,.28)",
-        boxShadow: "0 12px 30px rgba(0,0,0,.55)",
+        border: "1px solid var(--border)",
+        boxShadow: "0 3px 12px rgba(40,53,43,.06)",
         animation: "installNudgeIn .42s cubic-bezier(.16,1,.3,1) both",
       }}
     >
@@ -66,21 +66,21 @@ export default function InstallPrompt({ userId }: { userId: string | null }) {
             fontFamily: "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif",
             fontWeight: 800,
             fontSize: 13,
-            color: "#f4ece6",
+            color: "var(--text)",
           }}
         >
           Pasang di home screen
         </div>
         <div
           style={{
-            fontFamily: "var(--font-dm-mono), 'JetBrains Mono', monospace",
-            fontSize: 9.5,
+            fontFamily: "var(--font-dm-sans), sans-serif",
+            fontSize: 11,
             letterSpacing: ".06em",
-            color: "#9a938d",
+            color: "var(--muted)",
             marginTop: 2,
           }}
         >
-          TANPA BROWSER · LEBIH CEPET
+          Akses langsung dari layar utama
         </div>
       </div>
       <Link
@@ -98,11 +98,11 @@ export default function InstallPrompt({ userId }: { userId: string | null }) {
           fontSize: 12,
           color: "#fff",
           textDecoration: "none",
-          background: "linear-gradient(180deg,#ff8a52,#ee3c30 55%,#c01f12)",
-          border: "1px solid rgba(255,150,120,.6)",
+          background: "var(--accent)",
+          border: "1px solid var(--border)",
         }}
       >
-        CARANYA
+        Lihat caranya
       </Link>
       <button
         type="button"
@@ -113,12 +113,12 @@ export default function InstallPrompt({ userId }: { userId: string | null }) {
         }}
         style={{
           flexShrink: 0,
-          width: 30,
-          height: 30,
+          width: 44,
+          height: 44,
           borderRadius: 999,
           fontSize: 15,
           lineHeight: 1,
-          color: "#8a837d",
+          color: "var(--muted)",
           cursor: "pointer",
           background: "transparent",
           border: "none",

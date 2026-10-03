@@ -13,7 +13,7 @@
  * already on disk) plus a real offline screen instead of Safari's dinosaur.
  */
 
-const VERSION = "v1";
+const VERSION = "v2-friendly";
 const STATIC_CACHE = `r2fit-static-${VERSION}`;
 const SHELL_CACHE = `r2fit-shell-${VERSION}`;
 
