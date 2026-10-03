@@ -5,7 +5,8 @@
     "deploymentEnabled": {
       "codex/free-render-trial": false,
       "codex/patch-release-dependencies": false,
-      "codex/friendly-food-tracker": false
+      "codex/friendly-food-tracker": false,
+      "codex/automatic-barcode-scanner": false
     }
   }
 }
