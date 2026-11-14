@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "./friendly.css";
+import "./companion.css";
 import BottomNav from "./BottomNav";
 import ServerSync from "./ServerSync";
 import ToastStack from "./Toast";
@@ -39,7 +40,7 @@ const OG_IMAGE = `${SITE_URL}/api/og?days=75&v=2`;
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: "R2·FIT — Track",
-  description: "75 days before meet-up.",
+  description: "Catat makan, latihan, dan progresmu.",
   applicationName: "R2·FIT",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
@@ -60,7 +61,7 @@ export const metadata: Metadata = {
     url: SITE_URL,
     siteName: "R2·FIT",
     title: "R2·FIT — Track",
-    description: "75 days before meet-up.",
+    description: "Catat makan, latihan, dan progresmu.",
     images: [
       {
         url: OG_IMAGE,
@@ -73,7 +74,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "R2·FIT — Track",
-    description: "75 days before meet-up.",
+    description: "Catat makan, latihan, dan progresmu.",
     images: [OG_IMAGE],
   },
 };
@@ -81,7 +82,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#f7f8f3",
+  themeColor: "#ffffff",
   // Required for `env(safe-area-inset-*)` to report anything but 0 — the app
   // already has 55 of those, and without cover they were all no-ops. It also
   // pairs with statusBarStyle: "default": the status bar draws over

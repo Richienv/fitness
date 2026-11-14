@@ -42,34 +42,6 @@ function HomeIcon({ active }: IconProps) {
   );
 }
 
-function FriendsIcon({ active }: IconProps) {
-  return (
-    <svg className="bn-ico" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle
-        cx="9.2"
-        cy="8"
-        r="3.5"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        fill={active ? "currentColor" : "none"}
-        fillOpacity={active ? 0.16 : 0}
-      />
-      <path
-        d="M2.8 20.2c0-3.5 2.9-5.8 6.4-5.8s6.4 2.3 6.4 5.8"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-      />
-      <path
-        d="M16.4 5.2a3.2 3.2 0 0 1 0 6M18 14.9c2.1.6 3.4 2.3 3.4 4.6"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
 function StatsIcon({ active }: IconProps) {
   // Three bars, ascending. The active state fills them rather than adding a
   // fourth shape, so the silhouette never changes size between states.
@@ -112,22 +84,7 @@ function StatsIcon({ active }: IconProps) {
   );
 }
 
-// ── Tabs ────────────────────────────────────────────────────────────────────
-//
-// Three slots, icons only.
-//
-// MAKAN and LATIHAN are gone from here on purpose: they're the two full-width
-// primary CTAs at the top of Beranda, so the nav was offering a second, worse
-// route to the same places. TIDUR is a card on Beranda; SET is the gear in
-// its header.
-//
-// The OS jump is gone too. It was the only thing in this bar that left the
-// app, which made it the odd one out in every design it appeared in — a
-// raised circle that couldn't be centred, then a white chip that had to
-// out-shout three hollow strokes to justify its slot. Three tabs that all go
-// somewhere IN the app is a bar with one job.
-//
-// Three columns also happen to put an icon dead centre, which four never could.
+// Four direct routes: home, food, workouts, and progress.
 
 type Tab = {
   href: string;
@@ -144,8 +101,7 @@ const TABS: Tab[] = [
     match: (p) =>
       p === "/" ||
       p.startsWith("/sleep") ||
-      p.startsWith("/settings") ||
-      p.startsWith("/workout"),
+      p.startsWith("/settings") || p.startsWith("/social"),
   },
   {
     href: "/meal",
@@ -154,16 +110,16 @@ const TABS: Tab[] = [
     match: (p) => p.startsWith("/meal"),
   },
   {
-    href: "/social",
-    label: "Teman",
-    Icon: FriendsIcon,
-    match: (p) => p.startsWith("/social"),
+    href: "/workout",
+    label: "Latihan",
+    Icon: () => <Icon name="workout" size={23} />,
+    match: (p) => p.startsWith("/workout"),
   },
   {
-    href: "/dashboard",
-    label: "Statistik",
+    href: "/companion",
+    label: "Progres",
     Icon: StatsIcon,
-    match: (p) => p.startsWith("/dashboard"),
+    match: (p) => p.startsWith("/dashboard") || p.startsWith("/companion"),
   },
 ];
 

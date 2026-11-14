@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import AvatarPlayer from "./companion/AvatarPlayer";
 export default function AuthFrame({
   title,
   children,
@@ -15,7 +16,7 @@ export default function AuthFrame({
         <Link href="/" className="friendly-brand">
           r2<span>fit</span>
         </Link>
-        <p className="quiet">Catat makan, bangun kebiasaan baik.</p>
+        <AvatarPlayer duo />
         <h1>{title}</h1>
         {children}
         <div className="auth-footer">{footer}</div>
