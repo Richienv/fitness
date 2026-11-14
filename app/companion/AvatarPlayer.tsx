@@ -6,10 +6,12 @@ export default function AvatarPlayer({
   character = "richie",
   level = 1,
   duo = false,
+  showPlaybackControl = false,
 }: {
   character?: Character;
   level?: number;
   duo?: boolean;
+  showPlaybackControl?: boolean;
 }) {
   const reduced = useReducedMotion();
   const [playing, setPlaying] = useState(true),
@@ -111,6 +113,13 @@ export default function AvatarPlayer({
             : "center",
         }}
       />
+      {duo && showPlaybackControl && !reduced && (
+        <button className="entry-animation-control" type="button"
+          aria-label={playing ? "Jeda animasi" : "Putar animasi"}
+          onClick={() => setPlaying((p) => !p)}>
+          {playing ? "Jeda" : "Putar"}
+        </button>
+      )}
       {!duo && (
         <div className="avatar-controls">
           <button onClick={() => step(-1)} aria-label="Putar ke kiri">

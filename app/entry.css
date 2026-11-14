@@ -1,178 +1,90 @@
-/* Private entry, cinematic welcome and one shared settings flow. */
-.account-entry,
-.setup-shell {
-  --person: #3e60d5;
-  max-width: 560px;
-  margin: auto;
-  padding: calc(24px + env(safe-area-inset-top)) 26px
-    calc(42px + env(safe-area-inset-bottom));
+/* Personal entry: neutral UI, generated companions, one account per phone. */
+.app-root:has(.account-entry),
+.app-root:has(.setup-shell:not(.settings-overview)) {
+  padding-bottom: 0;
   min-height: 100dvh;
   background: #fff;
-  color: #22283a;
 }
-.account-entry.renita,
-.setup-shell.renita,
-.entry-primary.renita {
-  --person: #9f344b;
+.account-entry, .setup-shell {
+  --person: #202020;
+  max-width: 480px;
+  margin: auto;
+  padding: calc(24px + env(safe-area-inset-top)) 28px calc(32px + env(safe-area-inset-bottom));
+  min-height: 100dvh;
+  background: #fff;
+  color: #202020;
 }
-.entry-primary.richie {
-  --person: #3e60d5;
-}
-.entry-brand,
-.setup-header {
+.account-entry { max-width: 432px; }
+.entry-brand, .setup-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 14px;
   min-height: 44px;
 }
-.entry-brand > span:last-child {
-  font-size: 12px;
-  color: #7c8393;
+.account-entry .friendly-brand, .setup-shell .friendly-brand, .entry-loading .friendly-brand {
+  color: #202020;
+  font-size: 27px;
 }
-.entry-brand .friendly-brand {
-  font-size: 29px;
+.account-entry .friendly-brand span, .setup-shell .friendly-brand span, .entry-loading .friendly-brand span {
+  color: #202020;
 }
-.account-heading {
-  margin: 42px 0 28px;
-}
-.account-heading p,
-.setup-overline,
-.settings-person p {
-  font-size: 10px;
-  letter-spacing: 2px;
-  font-weight: 700;
-  color: #7a8296;
-}
-.account-heading h1 {
-  font-size: clamp(36px, 9vw, 50px);
-  font-weight: 700;
-  line-height: 1.13;
-  letter-spacing: -2px;
-  margin-top: 12px;
-}
-.account-picks {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-.account-pick {
-  position: relative;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: left;
-  border-radius: 24px;
-  background: #f0f3ff;
-  border: 2px solid transparent;
-  padding: 12px 12px 20px;
-  color: #2d4595;
-  cursor: pointer;
-  transition:
-    border-color 0.16s,
-    background 0.16s;
-}
-.account-pick.renita {
-  background: #fbf0f2;
-  color: #8e2d46;
-}
-.account-pick[aria-pressed="true"] {
-  border-color: currentColor;
-  background: #e8edff;
-}
-.account-pick.renita[aria-pressed="true"] {
-  background: #f7e5ea;
-}
-.account-pick img {
-  width: 100%;
-  height: 210px;
-  object-fit: contain;
-  pointer-events: none;
-}
-.account-pick > span {
-  width: 100%;
-  font-size: 20px;
-  font-weight: 750;
-  letter-spacing: -0.6px;
-}
-.account-pick small {
-  display: block;
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0;
-  margin-top: 6px;
-  opacity: 0.8;
-}
-.account-pick i {
+.entry-companions { margin: 12px 0 22px; }
+.entry-companions .avatar-player { height: clamp(210px, 32dvh, 270px); }
+.entry-animation-control {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 23px;
-  height: 23px;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-style: normal;
-  font-size: 14px;
-}
-.entry-password {
-  margin-top: 30px;
-  display: grid;
-  gap: 12px;
-}
-.entry-password > label {
-  font-size: 13px;
-  color: #70788b;
-}
-.entry-password-input {
-  display: flex;
-  border: 1px solid #dfe3ed;
-  border-radius: 14px;
-  overflow: hidden;
-  background: #fafbfe;
-}
-.entry-password-input input {
-  width: 100%;
-  min-width: 0;
-  height: 58px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  padding: 16px;
-  font: inherit;
-  font-size: 22px;
-  letter-spacing: 9px;
-  color: #22283a;
-}
-.entry-password-input input::placeholder {
-  font-size: 15px;
-  letter-spacing: 1px;
-  color: #a1a6b1;
-}
-.entry-password-input button {
+  right: 0;
+  bottom: 0;
+  min-height: 44px;
+  min-width: 44px;
   font: inherit;
   font-size: 11px;
-  padding: 12px;
   border: 0;
   background: transparent;
-  color: #727b8f;
-  min-width: 68px;
+  color: #777;
+  cursor: pointer;
 }
-.entry-password-input:focus-within {
-  border-color: var(--person);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--person) 12%, transparent);
+.account-heading { margin: 0 0 28px; }
+.account-heading h1 {
+  font-size: clamp(27px, 7.5vw, 33px);
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -1.2px;
+  margin: 0;
 }
-.entry-primary,
-.entry-secondary {
+.account-heading p { font-size: 13px; line-height: 1.6; color: #777; margin: 9px 0 0; }
+.account-picks { display: flex; gap: 10px; }
+.account-pick {
+  flex: 1;
+  min-height: 48px;
+  border: 1px solid #dedede;
+  border-radius: 12px;
+  background: #fff;
+  color: #202020;
   font: inherit;
   font-size: 14px;
-  font-weight: 700;
-  min-height: 54px;
-  padding: 16px 20px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.account-pick[aria-pressed="true"] { border-color: #202020; background: #f5f5f5; }
+.account-current { display: flex; align-items: center; justify-content: space-between; min-height: 48px; border-bottom: 1px solid #ededed; }
+.account-current > span { font-size: 14px; font-weight: 600; }
+.entry-password { margin-top: 22px; display: grid; gap: 10px; }
+.entry-password > label { font-size: 12px; color: #666; }
+.entry-password-input { display: flex; border: 1px solid #dedede; border-radius: 12px; overflow: hidden; background: #fff; }
+.entry-password-input input { width: 100%; min-width: 0; height: 54px; border: 0; border-radius: 0; background: transparent; padding: 14px 16px; font: inherit; font-size: 22px; letter-spacing: 8px; color: #202020; }
+.entry-password-input input::placeholder { font-size: 14px; letter-spacing: 0; color: #999; }
+.entry-password-input button { font: inherit; font-size: 12px; padding: 12px; border: 0; background: transparent; color: #777; min-width: 68px; }
+.entry-password-input:focus-within { border-color: #202020; box-shadow: 0 0 0 1px #202020; }
+.entry-password-input input:focus-visible { outline: none; }
+.entry-primary, .entry-secondary {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  min-height: 52px;
+  padding: 15px 20px;
   border: 0;
-  border-radius: 14px;
+  border-radius: 12px;
   display: flex;
   gap: 18px;
   align-items: center;
@@ -180,220 +92,30 @@
   text-decoration: none;
   cursor: pointer;
 }
-.entry-primary {
-  background: var(--person, #3e60d5);
-  color: white;
+.entry-primary { background: #202020; color: #fff; }
+.entry-password > .entry-primary { margin-top: 8px; }
+.entry-primary:disabled { background: #ededed; color: #999; cursor: default; }
+.entry-secondary { background: #f3f3f3; color: #555; }
+.entry-link { font: inherit; min-height: 44px; background: transparent; border: 0; color: #777; font-size: 12px; cursor: pointer; }
+.entry-error { font-size: 13px; line-height: 1.6; padding: 12px 14px; color: #8c3447; background: #fcf5f6; border-radius: 10px; }
+.entry-loading { min-height: 100dvh; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 16px; text-align: center; padding: 32px; background: #fff; }
+.entry-loading h1 { font-size: 25px; }
+.entry-loading p { font-size: 14px; color: #777; }
+.account-entry :is(button, a):focus-visible, .setup-shell :is(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid #202020;
+  outline-offset: 3px;
 }
-.entry-primary > span {
-  margin-left: auto;
-  font-size: 20px;
-  font-weight: 400;
-}
-.entry-primary:disabled {
-  background: #e7e9f0;
-  color: #9298a7;
-  cursor: default;
-}
-.entry-secondary {
-  background: #f1f3f8;
-  color: #5f687b;
-}
-.entry-link {
-  font: inherit;
-  min-height: 44px;
-  background: transparent;
-  border: 0;
-  color: #70798b;
-  font-size: 12px;
-  cursor: pointer;
-}
-.entry-error {
-  font-size: 13px;
-  line-height: 1.6;
-  padding: 12px 14px;
-  color: #942b43;
-  background: #fff0f3;
-  border-radius: 10px;
-}
-.entry-loading {
-  min-height: 75dvh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 16px;
-  text-align: center;
-  padding: 32px;
-}
-.entry-loading h1 {
-  font-size: 25px;
-}
-.entry-loading p {
-  font-size: 14px;
-  color: #677086;
-}
-.cinema-welcome {
-  --person: #3e60d5;
-  max-width: 600px;
-  margin: auto;
-  min-height: 100dvh;
-  background: #171c2a;
-  color: #fff;
-  padding-bottom: calc(24px + env(safe-area-inset-bottom));
-  overflow: hidden;
-}
-.cinema-welcome header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: calc(20px + env(safe-area-inset-top)) 24px 16px;
-}
-.cinema-welcome header > span:nth-child(2) {
-  font-size: 9px;
-  letter-spacing: 2px;
-  color: #9ca5ba;
-}
-.cinema-welcome header > a {
-  font-size: 12px;
-  color: #c5cee3;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-}
-.cinema-welcome .friendly-brand {
-  color: white;
-}
-.cinema-welcome .friendly-brand span {
-  color: #89a2fc;
-}
-.cinema-scene {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 1;
-  background-repeat: no-repeat;
-  background-color: #2f2d30;
-}
-.cinema-scene:after {
-  content: "";
-  position: absolute;
-  inset: 70% 0 0;
-  background: linear-gradient(transparent, #171c2a);
-  pointer-events: none;
-}
-.cinema-overline {
-  position: absolute;
-  z-index: 1;
-  left: 26px;
-  bottom: 30px;
-  font-size: 10px;
-  letter-spacing: 3px;
-  color: #f0e8dd;
-}
-.cinema-play {
-  position: absolute;
-  right: 18px;
-  top: 18px;
-  min-height: 44px;
-  min-width: 62px;
-  border: 1px solid #ffffff45;
-  border-radius: 30px;
-  background: #171c2a77;
-  backdrop-filter: blur(8px);
-  color: white;
-  font: inherit;
-  font-size: 11px;
-}
-.cinema-play:disabled {
-  opacity: 0.45;
-}
-.cinema-story {
-  position: relative;
-  margin-top: -16px;
-  padding: 0 28px;
-}
-.cinema-date {
-  font-size: 9px;
-  color: #929db5;
-  letter-spacing: 1.6px;
-}
-.cinema-story h1 {
-  font-size: 44px;
-  letter-spacing: -2px;
-  line-height: 1.08;
-  margin: 15px 0 22px;
-  font-weight: 650;
-}
-.cinema-targets {
-  display: flex;
-  gap: 26px;
-  border-top: 1px solid #ffffff16;
-  border-bottom: 1px solid #ffffff16;
-  padding: 18px 0;
-}
-.cinema-targets > span {
-  flex: 1;
-  font-size: 12px;
-  color: #aeb8ce;
-}
-.cinema-targets strong {
-  display: block;
-  font-size: 30px;
-  font-weight: 600;
-  line-height: 1.4;
-  color: white;
-  margin-left: 17px;
-}
-.cinema-targets small {
-  font-size: 13px;
-  color: #aeb8ce;
-  font-weight: 400;
-}
-.richie-dot,
-.renita-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  margin-right: 10px;
-  background: #6c91ff;
-}
-.renita-dot {
-  background: #d2798e;
-}
-.cinema-dialogue {
-  min-height: 94px;
-  display: flex;
-  justify-content: center;
-  flex-direction: column;
-  padding: 16px 0;
-  color: #d2d8e6;
-  font-size: 14px;
-  line-height: 1.75;
-}
-.cinema-dialogue b {
-  color: #8996b3;
-  font-size: 11px;
-  margin-right: 7px;
-}
-.cinema-dialogue p {
-  animation: entry-fade 0.35s ease;
-}
-.cinema-foot {
-  font-size: 10px;
-  line-height: 1.7;
-  color: #8591ab;
-  text-align: center;
-  padding-top: 15px;
-}
+.setup-overline { font-size: 12px; color: #888; }
+.setup-header > .setup-account-name { flex: 0; color: #555; font-size: 13px; }
+.setup-signout { display: block; margin: 12px auto 0; }
 .setup-header {
   font-size: 13px;
-  color: #677086;
-  margin-bottom: 26px;
+  color: #717171;
+  margin-bottom: 24px;
 }
 .setup-header > .entry-back {
   font-size: 25px;
-  color: #22283a;
+  color: #202020;
   min-width: 44px;
   min-height: 44px;
   display: flex;
@@ -403,7 +125,7 @@
   flex: 1;
 }
 .setup-header > a:last-child {
-  font-size: 11px;
+  font-size: 12px;
 }
 .setup-steps {
   display: flex;
@@ -413,7 +135,7 @@
 .setup-steps span {
   height: 3px;
   border-radius: 10px;
-  background: #eef0f6;
+  background: #ededed;
   flex: 1;
 }
 .setup-steps span.filled {
@@ -424,7 +146,7 @@
 }
 .setup-shell > h1 {
   font-size: clamp(28px, 7.5vw, 36px);
-  letter-spacing: -1.2px;
+  letter-spacing: -1px;
   line-height: 1.2;
   white-space: pre-line;
   margin-bottom: 25px;
@@ -440,7 +162,7 @@
 .setup-note {
   font-size: 12px;
   line-height: 1.7;
-  color: #7a8295;
+  color: #777777;
   margin: 0;
 }
 .setup-field {
@@ -448,15 +170,15 @@
   gap: 9px;
   font-size: 12px;
   font-weight: 600;
-  color: #626d80;
+  color: #5c5c5c;
   min-width: 0;
 }
 .setup-field > div {
   display: flex;
   align-items: center;
-  border: 1px solid #e0e4ee;
+  border: 1px solid #e4e4e4;
   border-radius: 12px;
-  background: #fafbfe;
+  background: #fafafa;
   overflow: hidden;
 }
 .setup-field input,
@@ -464,9 +186,9 @@
 .setup-field textarea {
   font: inherit;
   font-size: 16px;
-  color: #22283a;
-  background: #fafbfe;
-  border: 1px solid #e0e4ee;
+  color: #202020;
+  background: #fafafa;
+  border: 1px solid #e4e4e4;
   border-radius: 12px;
   padding: 14px 12px;
   min-height: 52px;
@@ -485,7 +207,7 @@
   font-style: normal;
   font-weight: 400;
   padding-right: 14px;
-  color: #8a92a3;
+  color: #888888;
 }
 .setup-field textarea {
   resize: vertical;
@@ -500,7 +222,7 @@
 .setup-segment {
   display: flex;
   gap: 8px;
-  background: #f3f5fa;
+  background: #f5f5f5;
   padding: 5px;
   border-radius: 12px;
 }
@@ -511,7 +233,7 @@
   flex: 1;
   padding: 10px;
   min-height: 44px;
-  color: #687287;
+  color: #686868;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 9px;
@@ -520,8 +242,8 @@
 .setup-segment button[aria-pressed="true"] {
   background: white;
   color: var(--person);
-  box-shadow: 0 2px 8px #20263809;
-  border-color: #e8ebf3;
+  box-shadow: 0 2px 8px #00000000;
+  border-color: #e8e8e8;
 }
 .setup-choice {
   border: 0;
@@ -534,7 +256,7 @@
 .setup-choice legend {
   font-size: 12px;
   font-weight: 650;
-  color: #626d80;
+  color: #5c5c5c;
   margin-bottom: 12px;
 }
 .setup-options {
@@ -550,10 +272,10 @@
   justify-content: center;
   gap: 5px;
   padding: 14px 12px;
-  background: #fafbfe;
-  border: 1px solid #e3e7ef;
+  background: #fafafa;
+  border: 1px solid #e5e5e5;
   border-radius: 13px;
-  color: #586278;
+  color: #555555;
   font: inherit;
   cursor: pointer;
 }
@@ -566,7 +288,7 @@
   font-size: 12px;
 }
 .setup-options small {
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.6;
   opacity: 0.8;
 }
@@ -578,12 +300,12 @@
   flex: 1;
   min-width: 0;
   min-height: 45px;
-  border: 1px solid #e5e8f1;
+  border: 1px solid #e5e5e5;
   border-radius: 11px;
   background: white;
-  color: #687287;
+  color: #686868;
   font: inherit;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
 }
 .setup-week button[aria-pressed="true"] {
@@ -594,7 +316,7 @@
 .setup-actions {
   display: flex;
   gap: 10px;
-  padding-top: 8px;
+  padding-top: 12px;
 }
 .setup-actions > .entry-primary {
   flex: 1;
@@ -603,47 +325,47 @@
   padding: 16px;
 }
 .setup-draft-note {
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.7;
-  color: #969dad;
+  color: #858585;
   text-align: center;
 }
 .setup-nutrition {
   display: flex;
-  background: #f5f6fa;
+  background: #f5f5f5;
   border-radius: 14px;
   padding: 18px 14px;
   gap: 12px;
 }
 .setup-nutrition > span {
   flex: 1;
-  font-size: 10px;
-  color: #7c8598;
+  font-size: 12px;
+  color: #777777;
 }
 .setup-nutrition strong {
   display: block;
   font-size: 20px;
   margin-top: 8px;
   font-weight: 650;
-  color: #283349;
+  color: #242424;
 }
 .setup-nutrition small {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 400;
 }
 .setup-review-avatar {
   display: flex;
   gap: 22px;
   align-items: center;
-  background: #f6f7fb;
-  border-radius: 20px;
+  background: #f6f6f6;
+  border-radius: 16px;
   padding: 14px 20px;
 }
 .setup-review-avatar img {
   object-fit: contain;
 }
 .setup-review-avatar span {
-  color: #7b8497;
+  color: #777777;
   font-size: 12px;
 }
 .setup-review-avatar strong {
@@ -657,8 +379,8 @@
   font-weight: 500;
 }
 .setup-review-avatar p {
-  font-size: 10px;
-  color: #7b8497;
+  font-size: 12px;
+  color: #777777;
   margin-top: 8px;
 }
 .setup-review-list {
@@ -674,9 +396,9 @@
   width: 100%;
   padding: 20px 0;
   border: 0;
-  border-bottom: 1px solid #edf0f6;
+  border-bottom: 1px solid #ededed;
   background: transparent;
-  color: #263047;
+  color: #242424;
   font: inherit;
   text-decoration: none;
   cursor: pointer;
@@ -687,33 +409,17 @@
 }
 .setup-review-list small {
   display: block;
-  font-size: 11px;
-  color: #8490a5;
+  font-size: 12px;
+  color: #767676;
   line-height: 1.8;
   margin-top: 5px;
   overflow-wrap: anywhere;
 }
 .setup-review-list em {
   font-style: normal;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--person);
   white-space: nowrap;
-}
-.setup-confirm {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  font-size: 12px;
-  line-height: 1.7;
-  color: #626d80;
-  padding: 12px 0;
-}
-.setup-confirm input {
-  accent-color: var(--person);
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-  margin-top: 2px;
 }
 .settings-overview {
   padding-bottom: calc(120px + env(safe-area-inset-bottom));
@@ -733,12 +439,12 @@
   margin: 8px 0;
 }
 .settings-person span {
-  font-size: 11px;
-  color: #8791a4;
+  font-size: 12px;
+  color: #767676;
 }
 .settings-deal {
   background: color-mix(in srgb, var(--person) 6%, white);
-  border-radius: 20px;
+  border-radius: 16px;
   padding: 23px;
   display: grid;
   grid-template-columns: 1fr auto;
@@ -747,7 +453,7 @@
   color: var(--person);
 }
 .settings-deal > span {
-  font-size: 11px;
+  font-size: 12px;
   grid-column: 1/-1;
 }
 .settings-deal strong {
@@ -766,7 +472,7 @@
   gap: 20px;
   padding: 30px 0;
   font-size: 12px;
-  color: #69768d;
+  color: #666666;
 }
 .full {
   width: 100%;
@@ -774,56 +480,9 @@
 .settings-overview > .setup-draft-note {
   margin-top: 18px;
 }
-@keyframes entry-fade {
-  from {
-    opacity: 0.2;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-@media (max-width: 360px) {
-  .account-entry,
-  .setup-shell {
-    padding-left: 18px;
-    padding-right: 18px;
-  }
-  .account-heading {
-    margin-top: 24px;
-  }
-  .account-pick img {
-    height: 180px;
-  }
-  .account-picks {
-    gap: 10px;
-  }
-  .account-pick {
-    padding: 10px 10px 16px;
-  }
-  .account-pick small {
-    font-size: 9px;
-  }
-  .cinema-story {
-    padding: 0 22px;
-  }
-  .setup-two {
-    gap: 10px;
-  }
-  .setup-field input[type="date"] {
-    font-size: 14px;
-    padding: 14px 8px;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .account-pick,
-  .cinema-dialogue p {
-    animation: none;
-    transition: none;
-  }
-}
 
-.entry-password-input input:focus-visible {
-  outline: none;
+@media (max-width: 360px) {
+  .account-entry, .setup-shell { padding-left: 20px; padding-right: 20px; }
+  .setup-two { gap: 10px; }
+  .setup-field input[type="date"] { font-size: 16px; padding: 14px 6px; }
 }

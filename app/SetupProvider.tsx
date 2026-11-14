@@ -13,6 +13,7 @@ import { applySetupToDevice, SETUP_CACHE_KEY } from "@/lib/setupDevice";
 import { scopedKey, setActiveUser } from "@/lib/userScope";
 import { mergeServerMeasurements } from "@/lib/measurements";
 import type { AccountSetup, SetupState } from "@/lib/setup";
+import { rememberAccount } from "@/lib/deviceAccount";
 const Context = createContext<
   | (SetupState & { accept: (setup: AccountSetup) => void; offline: boolean })
   | null
@@ -62,6 +63,7 @@ export default function SetupProvider({
         if (!r.ok) throw new Error(data.error || "Data belum bisa dimuat.");
         if (!current) return;
         const next = data as SetupState;
+        rememberAccount(next.person);
         if (next.setup) applySetupToDevice(next.setup);
         if (next.latest) mergeServerMeasurements([next.latest]);
         setState(next);
@@ -92,9 +94,9 @@ export default function SetupProvider({
     };
   }, [userId, retry]);
   const needsSetup = !!userId && owner === userId && state && !state.setup;
-  const setupRoute = path === "/welcome" || path === "/onboarding";
+  const setupRoute = path === "/onboarding";
   useEffect(() => {
-    if (needsSetup && !setupRoute) router.replace("/welcome");
+    if (needsSetup && !setupRoute) router.replace("/onboarding");
   }, [needsSetup, setupRoute, router]);
   if (!userId) return children;
   if (error)

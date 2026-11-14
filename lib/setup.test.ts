@@ -33,6 +33,7 @@ test("server identity wins over posted identity and unrelated fields", () => {
     {
       ...valid("renita"),
       person: "richie",
+      sex: "male",
       userId: "some-other-user",
       weight: "45.6",
     },
@@ -40,6 +41,8 @@ test("server identity wins over posted identity and unrelated fields", () => {
     today,
   );
   assert.equal(s.person, "renita");
+  assert.equal(s.profile.sex, "female");
+  assert.equal(s.draft.sex, "female");
   assert.equal(s.targetWeightKg, 43);
   assert.equal(s.profile.weightKg, 45.6);
   assert.equal("userId" in s, false);

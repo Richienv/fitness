@@ -14,7 +14,6 @@ export default function SettingsPage() {
           ←
         </Link>
         <span>Settings</span>
-        <Link href="/welcome">Welcome ↗</Link>
       </header>
       <div className="settings-person">
         <img
@@ -24,7 +23,6 @@ export default function SettingsPage() {
           height="140"
         />
         <div>
-          <p>AKUN PRIBADI</p>
           <h1>{PERSON[account.person].name}</h1>
           <span>Data tersimpan di akunmu.</span>
         </div>
@@ -78,7 +76,7 @@ export default function SettingsPage() {
         className="entry-secondary full"
         onClick={() => signOut({ callbackUrl: "/login" })}
       >
-        Keluar / ganti akun
+        Keluar
       </button>
       <p className="setup-draft-note">
         {account.offline

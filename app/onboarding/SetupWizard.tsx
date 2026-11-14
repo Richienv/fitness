@@ -15,10 +15,10 @@ import { scopedKey } from "@/lib/userScope";
 import { todayKey } from "@/lib/targets";
 import { useAccountSetup } from "../SetupProvider";
 const titles = [
-  "Kenalan dengan\ntubuhmu.",
-  "Targetnya,\nkita sepakati.",
-  "Sesuaikan dengan\nhari-harimu.",
-  "Makan yang\ncocok buatmu.",
+  "Data awal",
+  "Targetmu",
+  "Rutinitasmu",
+  "Preferensi makan",
   "Sudah sesuai?",
 ];
 const labels = ["Tubuh", "Target", "Rutinitas", "Makan", "Konfirmasi"];
@@ -51,8 +51,7 @@ export default function SetupWizard() {
   const [draft, setDraft] = useState<SetupDraft | null>(null),
     [step, setStep] = useState(0),
     [error, setError] = useState(""),
-    [saving, setSaving] = useState(false),
-    [confirmed, setConfirmed] = useState(false);
+    [saving, setSaving] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null),
     initialized = useRef(false);
   useEffect(() => {
@@ -68,7 +67,7 @@ export default function SetupWizard() {
         m = account.latest;
       d = {
         ...d,
-        age: p.age ? String(p.age) : "",
+        age: p.age ? String(p.age) : account.person === "richie" ? "24" : "",
         height: p.heightCm ? String(p.heightCm) : "",
         weight: m?.weightKg ? String(m.weightKg) : "",
         measurementDate: m?.date || d.measurementDate,
@@ -85,6 +84,7 @@ export default function SetupWizard() {
     } catch {}
     if (edit)
       setStep(Math.max(0, ["body", "target", "routine", "food"].indexOf(edit)));
+    d.sex = newSetupDraft(account.person, todayKey()).sex;
     setDraft(d);
   }, [account]);
   useEffect(() => {
@@ -104,7 +104,6 @@ export default function SetupWizard() {
   function update<K extends keyof SetupDraft>(key: K, value: SetupDraft[K]) {
     setDraft((d) => (d ? { ...d, [key]: value } : d));
     setError("");
-    setConfirmed(false);
   }
   function move(n: number) {
     setStep(n);
@@ -131,10 +130,6 @@ export default function SetupWizard() {
         setError(problem);
         return;
       }
-    }
-    if (!confirmed) {
-      setError("Konfirmasi dulu bahwa data ini milikmu dan sudah sesuai.");
-      return;
     }
     setSaving(true);
     setError("");
@@ -191,21 +186,9 @@ export default function SetupWizard() {
   return (
     <main className={`setup-shell ${account.person}`}>
       <header className="setup-header">
-        <Link
-          href={account.setup ? "/settings" : "/welcome"}
-          className="entry-back"
-          aria-label="Kembali"
-        >
-          ←
-        </Link>
-        <span>Data {PERSON[account.person].name}</span>
-        <button
-          className="entry-link"
-          type="button"
-          onClick={() => signOut({ callbackUrl: "/login" })}
-        >
-          Ganti akun
-        </button>
+        {account.setup ? <Link href="/settings" className="entry-back" aria-label="Kembali">←</Link> :
+          <span className="friendly-brand">r2<span>fit</span></span>}
+        <span className="setup-account-name">{PERSON[account.person].name}</span>
       </header>
       <div className="setup-steps" aria-label={`Langkah ${step + 1} dari 5`}>
         {labels.map((l, i) => (
@@ -213,29 +196,17 @@ export default function SetupWizard() {
         ))}
       </div>
       <p className="setup-overline">
-        {String(step + 1).padStart(2, "0")} / 05 · {labels[step]}
+        {step + 1} dari 5
       </p>
       <h1 ref={heading} tabIndex={-1}>
-        {titles[step]}
+        {step === 0 ? `${titles[step]} ${PERSON[account.person].name}` : titles[step]}
       </h1>
       <form onSubmit={next} noValidate className="setup-form">
         {step === 0 && (
           <>
             <p className="setup-note">
-              Gunakan angka timbangan dan ukuran tubuhmu sendiri.
+              Isi hasil timbangan terakhirmu.
             </p>
-            <div className="setup-segment" aria-label="Profil tubuh">
-              {(["male", "female"] as const).map((s) => (
-                <button
-                  type="button"
-                  key={s}
-                  aria-pressed={draft.sex === s}
-                  onClick={() => update("sex", s)}
-                >
-                  {s === "male" ? "Pria" : "Wanita"}
-                </button>
-              ))}
-            </div>
             <div className="setup-two">
               {field("age", "Usia", "tahun", 18, 100, "1")}
               {field("height", "Tinggi badan", "cm", 100, 230)}
@@ -283,10 +254,6 @@ export default function SetupWizard() {
                 <option value="maintain">Pertahankan kondisi</option>
               </select>
             </label>
-            <p className="setup-note">
-              Tanggal ini adalah target pribadi. Progres mengikuti catatan
-              nyata.
-            </p>
             <fieldset className="setup-choice">
               <legend>Sudah ukur lingkar tubuh?</legend>
               <div className="setup-segment">
@@ -497,9 +464,7 @@ export default function SetupWizard() {
               )
             )}
             <p className="setup-note">
-              Estimasi awal dari profil, belum hasil kalibrasi metabolisme.
-              Preferensi dan alergi menjadi catatan, bukan jaminan hasil
-              scanner.
+              Estimasi awal dari profilmu. Bisa disesuaikan di Settings.
             </p>
           </>
         )}
@@ -557,17 +522,7 @@ export default function SetupWizard() {
                 </button>
               ))}
             </div>
-            <label className="setup-confirm">
-              <input
-                type="checkbox"
-                checked={confirmed}
-                onChange={(e) => setConfirmed(e.target.checked)}
-              />
-              <span>
-                Data ini milik {PERSON[account.person].name}. Angka berat dan
-                ukuran yang diisi berasal dari pengukuran sendiri.
-              </span>
-            </label>
+
           </>
         )}
         {error && (
@@ -588,18 +543,19 @@ export default function SetupWizard() {
           )}
           <button
             className="entry-primary"
-            disabled={saving || (step === 4 && !confirmed)}
+            disabled={saving}
           >
             {saving ? "Menyimpan…" : step === 4 ? "Simpan & lanjut" : "Lanjut"}
-            <span aria-hidden="true">→</span>
           </button>
         </footer>
         <p className="setup-draft-note">
           {account.offline
             ? "Sedang offline. Perlu koneksi untuk menyimpan ke akun."
-            : "Draft tersimpan di perangkat ini. Final disimpan ke akun setelah konfirmasi."}
+            : step === 4 ? "Simpan ke akunmu. Bisa diubah lagi di Settings." : "Bisa diubah lagi di Settings."}
         </p>
       </form>
+      {!account.setup && <button className="entry-link setup-signout" type="button"
+        onClick={() => signOut({ callbackUrl: "/login" })}>Keluar</button>}
     </main>
   );
 }

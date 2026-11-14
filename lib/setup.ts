@@ -214,6 +214,9 @@ export function buildSetup(
       raw[key] ?? base[key as keyof SetupDraft],
     ]),
   ) as SetupDraft;
+  // These two private profiles are bound to the authenticated account.
+  // An old device draft or posted field cannot swap the person's physiology.
+  draft.sex = base.sex;
   for (let step = 0; step < 4; step++) {
     const error = validateSetupStep(draft, step, today);
     if (error) throw new Error(error);

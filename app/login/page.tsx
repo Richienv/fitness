@@ -1,8 +1,10 @@
 "use client";
 import { signIn } from "next-auth/react";
-import { useState, useRef, type FormEvent } from "react";
+import { useState, useRef, useEffect, type FormEvent } from "react";
 import { PERSON } from "@/lib/setup";
 import type { Character } from "@/lib/companionProgress";
+import { deviceAccount, rememberAccount } from "@/lib/deviceAccount";
+import AvatarPlayer from "../companion/AvatarPlayer";
 export default function LoginPage() {
   const [person, setPerson] = useState<Character | null>(null),
     [password, setPassword] = useState(""),
@@ -10,8 +12,16 @@ export default function LoginPage() {
     [error, setError] = useState(""),
     [loading, setLoading] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const [choosing, setChoosing] = useState(true);
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("person");
+    const known = requested === "richie" || requested === "renita"
+      ? requested : deviceAccount();
+    if (known) { setPerson(known); setChoosing(false); }
+  }, []);
   function choose(p: Character) {
     setPerson(p);
+    setChoosing(false);
     setPassword("");
     setError("");
     requestAnimationFrame(() => input.current?.focus());
@@ -32,7 +42,8 @@ export default function LoginPage() {
         redirect: false,
       });
       if (r?.ok && !r.error) {
-        window.location.assign("/welcome");
+        rememberAccount(person);
+        window.location.assign("/");
         return;
       }
       setError(
@@ -49,17 +60,15 @@ export default function LoginPage() {
         <span className="friendly-brand">
           r2<span>fit</span>
         </span>
-        <span>Ruang kita.</span>
       </header>
+      <div className="entry-companions">
+        <AvatarPlayer duo showPlaybackControl />
+      </div>
       <section className="account-heading">
-        <p>SELAMAT DATANG</p>
-        <h1>
-          Hari ini,
-          <br />
-          siapa dulu?
-        </h1>
+        <h1>Masuk ke akunmu.</h1>
+        <p>{person ? `Selamat datang, ${PERSON[person].name}.` : "Ruang kecil untuk progresmu."}</p>
       </section>
-      <div className="account-picks" aria-label="Pilih akun">
+      {choosing ? <div className="account-picks" aria-label="Pilih akun">
         {(["richie", "renita"] as const).map((p) => (
           <button
             key={p}
@@ -68,26 +77,20 @@ export default function LoginPage() {
             onClick={() => choose(p)}
             disabled={loading}
           >
-            <img
-              src={`/avatars/v2/${p}-level-01-poster.webp`}
-              alt=""
-              width="180"
-              height="240"
-            />
-            <span>
-              {PERSON[p].name}
-              <small>{p === "richie" ? "73" : "43"} kg · akhir tahun</small>
-            </span>
-            <i aria-hidden="true">{person === p ? "✓" : "+"}</i>
+            {PERSON[p].name}
           </button>
         ))}
-      </div>
+      </div> : <div className="account-current">
+        <span>{person && PERSON[person].name}</span>
+        <button className="entry-link" type="button" disabled={loading}
+          onClick={() => { setChoosing(true); setPerson(null); setPassword(""); setError(""); }}>Ganti akun</button>
+      </div>}
       <form
         className={`entry-password ${person ? "is-ready" : ""}`}
         onSubmit={submit}
       >
         <label htmlFor="password">
-          {person ? `Password ${PERSON[person].name}` : "Pilih akunmu dulu"}
+          Password
         </label>
         <div className="entry-password-input">
           <input
@@ -132,7 +135,6 @@ export default function LoginPage() {
             : person
               ? `Masuk sebagai ${PERSON[person].name}`
               : "Masuk"}
-          <span aria-hidden="true">→</span>
         </button>
       </form>
     </main>
