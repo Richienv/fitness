@@ -2,8 +2,9 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
+import { loginPerson, loginBucket, LOGIN_LIMIT } from "@/lib/privateLogin";
 
-// Email + password auth. Credentials provider requires JWT sessions (there's
+// Private account selector + password auth. Credentials provider requires JWT sessions (there's
 // no DB session row to look up), so we carry the user id on the token.
 //
 // NOTE: this module imports bcrypt + Prisma, so it is NOT edge-safe. When we
@@ -27,18 +28,46 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Credentials({
       credentials: {
-        email: { label: "Email", type: "email" },
+        person: { label: "Akun", type: "text" },
         password: { label: "Password", type: "password" },
       },
-      authorize: async (creds) => {
-        const email = String(creds?.email ?? "").trim().toLowerCase();
-        const password = String(creds?.password ?? "");
-        if (!email || !password) return null;
-        const user = await db.user.findUnique({ where: { email } });
-        if (!user) return null;
-        const ok = await bcrypt.compare(password, user.passwordHash);
-        if (!ok) return null;
-        return { id: user.id, email: user.email, name: user.name ?? undefined };
+      authorize: async (creds, request) => {
+        const person = loginPerson(creds?.person);
+        const password =
+          typeof creds?.password === "string" ? creds.password : "";
+        if (!person || password.length !== 4) return null;
+        const secret = process.env.AUTH_SECRET;
+        if (!secret) return null;
+        const address = (
+          request.headers.get("x-vercel-forwarded-for") ||
+          request.headers.get("x-forwarded-for") ||
+          "unknown"
+        )
+          .split(",")[0]
+          .trim();
+        const bucket = loginBucket(address, secret);
+        const attempt = await db.loginAttempt.upsert({
+          where: { key: bucket.key },
+          create: { ...bucket, attempts: 1 },
+          update: { attempts: { increment: 1 } },
+        });
+        if (attempt.attempts > LOGIN_LIMIT) return null;
+        const user = await db.user.findUnique({
+          where: { loginAlias: person },
+          select: { id: true, name: true, email: true, passwordHash: true },
+        });
+        if (!user || !(await bcrypt.compare(password, user.passwordHash)))
+          return null;
+        // Successful entries do not consume the failure allowance.
+        await db.loginAttempt.deleteMany({ where: { key: bucket.key } });
+        await db.loginAttempt.deleteMany({
+          where: { expiresAt: { lt: new Date() } },
+        });
+        return {
+          id: user.id,
+          email: user.email,
+          name: person === "richie" ? "Richie" : "Renita",
+        };
       },
     }),
   ],

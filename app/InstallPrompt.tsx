@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   detectPlatform,
@@ -18,6 +19,7 @@ import {
  * not the account.
  */
 export default function InstallPrompt({ userId }: { userId: string | null }) {
+  const pathname = usePathname();
   const [show, setShow] = useState(false);
 
   useEffect(() => {
@@ -33,7 +35,7 @@ export default function InstallPrompt({ userId }: { userId: string | null }) {
     return () => clearTimeout(t);
   }, [userId]);
 
-  if (!show) return null;
+  if (!show || ["/welcome", "/onboarding"].includes(pathname)) return null;
 
   return (
     <div

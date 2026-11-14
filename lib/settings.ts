@@ -30,6 +30,8 @@ export type UserSettings = {
   // Set once the user hand-edits a daily target. When true the manual targets
   // win over profile-derived numbers everywhere (see lib/targets).
   targetsCustom?: boolean;
+  routine?: { trainingDays: number[]; sleepHours: number };
+  foodPreferences?: { style: string; allergies: string };
 };
 
 export const DEFAULT_PROFILE: Profile = {
@@ -95,6 +97,8 @@ function read(): UserSettings {
       startDate: parsed.startDate || DEFAULT_SETTINGS.startDate,
       profile: { ...DEFAULT_PROFILE, ...(parsed.profile ?? {}) },
       targetsCustom: parsed.targetsCustom ?? false,
+      routine: parsed.routine,
+      foodPreferences: parsed.foodPreferences,
     };
   } catch {
     return DEFAULT_SETTINGS;
@@ -117,6 +121,8 @@ export function patchSettings(patch: Partial<UserSettings>): UserSettings {
     startDate: patch.startDate ?? cur.startDate,
     profile: patch.profile ? { ...cur.profile, ...patch.profile } : cur.profile,
     targetsCustom: patch.targetsCustom ?? cur.targetsCustom,
+    routine: patch.routine ?? cur.routine,
+    foodPreferences: patch.foodPreferences ?? cur.foodPreferences,
   };
   setSettings(next);
   return next;

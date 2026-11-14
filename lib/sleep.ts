@@ -2,7 +2,7 @@
 // Pure data module: NO "use client" (server routes may import it and the
 // build guard fails otherwise).
 
-import { SLEEP_FLOOR_MIN, SLEEP_TARGET_MIN } from "./targets";
+import { SLEEP_FLOOR_MIN, getSleepTargetMin } from "./targets";
 import { scopedKey } from "./userScope";
 
 export type SleepQuality = 1 | 2 | 3;
@@ -117,7 +117,7 @@ export function sleepStreak(all: Record<string, SleepLog>, todayStr: string): nu
  *  deficit vs target, floored at 0 (surplus offsets deficit). */
 export function sleepDebtMin(logs: SleepLog[], days = 7): number {
   const recent = logs.slice(-days);
-  const net = recent.reduce((a, s) => a + (SLEEP_TARGET_MIN - s.durationMin), 0);
+  const net = recent.reduce((a, s) => a + (getSleepTargetMin() - s.durationMin), 0);
   return Math.max(0, net);
 }
 

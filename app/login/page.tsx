@@ -1,103 +1,140 @@
 "use client";
-
-import Link from "next/link";
-import AuthFrame from "../AuthFrame";
-import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { useState, type FormEvent } from "react";
-
+import { useState, useRef, type FormEvent } from "react";
+import { PERSON } from "@/lib/setup";
+import type { Character } from "@/lib/companionProgress";
 export default function LoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+  const [person, setPerson] = useState<Character | null>(null),
+    [password, setPassword] = useState(""),
+    [show, setShow] = useState(false),
+    [error, setError] = useState(""),
+    [loading, setLoading] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  function choose(p: Character) {
+    setPerson(p);
+    setPassword("");
+    setError("");
+    requestAnimationFrame(() => input.current?.focus());
+  }
+  async function submit(e: FormEvent) {
     e.preventDefault();
-    if (loading) return;
-    setError(null);
-
-    const cleanEmail = email.trim();
-    if (!cleanEmail) {
-      setError("Email tidak boleh kosong.");
+    if (loading || !person) return;
+    if (password.length !== 4) {
+      setError("Masukkan password 4 huruf.");
       return;
     }
-    if (!password) {
-      setError("Kata sandi tidak boleh kosong.");
-      return;
-    }
-
     setLoading(true);
+    setError("");
     try {
-      const res = await signIn("credentials", {
-        email: cleanEmail,
+      const r = await signIn("credentials", {
+        person,
         password,
         redirect: false,
       });
-      if (res?.error) {
-        setError("Email atau kata sandi salah.");
+      if (r?.ok && !r.error) {
+        window.location.assign("/welcome");
         return;
       }
-      if (res?.ok) {
-        router.push("/");
-        router.refresh();
-        return;
-      }
-      setError("Terjadi kesalahan. Coba lagi.");
+      setError(
+        "Password belum cocok. Jika sudah mencoba berkali-kali, tunggu 15 menit.",
+      );
     } catch {
-      setError("Terjadi kesalahan. Coba lagi.");
-    } finally {
-      setLoading(false);
+      setError("Koneksi bermasalah. Coba lagi.");
     }
+    setLoading(false);
   }
-
   return (
-    <AuthFrame
-      title="Masuk ke akunmu"
-      footer={
-        <>
-          Belum punya akun? <Link href="/register">Daftar</Link>
-        </>
-      }
-    >
-      <form className="friendly-form" onSubmit={onSubmit} noValidate>
-        <label htmlFor="email">
-          Email
-          <input
-            id="email"
-            name="email"
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            autoCapitalize="none"
-            spellCheck={false}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+    <main className={`account-entry ${person || ""}`}>
+      <header className="entry-brand">
+        <span className="friendly-brand">
+          r2<span>fit</span>
+        </span>
+        <span>Ruang kita.</span>
+      </header>
+      <section className="account-heading">
+        <p>SELAMAT DATANG</p>
+        <h1>
+          Hari ini,
+          <br />
+          siapa dulu?
+        </h1>
+      </section>
+      <div className="account-picks" aria-label="Pilih akun">
+        {(["richie", "renita"] as const).map((p) => (
+          <button
+            key={p}
+            className={`account-pick ${p}`}
+            aria-pressed={person === p}
+            onClick={() => choose(p)}
             disabled={loading}
-          />
-        </label>
+          >
+            <img
+              src={`/avatars/v2/${p}-level-01-poster.webp`}
+              alt=""
+              width="180"
+              height="240"
+            />
+            <span>
+              {PERSON[p].name}
+              <small>{p === "richie" ? "73" : "43"} kg · akhir tahun</small>
+            </span>
+            <i aria-hidden="true">{person === p ? "✓" : "+"}</i>
+          </button>
+        ))}
+      </div>
+      <form
+        className={`entry-password ${person ? "is-ready" : ""}`}
+        onSubmit={submit}
+      >
         <label htmlFor="password">
-          Kata sandi
+          {person ? `Password ${PERSON[person].name}` : "Pilih akunmu dulu"}
+        </label>
+        <div className="entry-password-input">
           <input
+            ref={input}
             id="password"
             name="password"
-            type="password"
+            type={show ? "text" : "password"}
             autoComplete="current-password"
+            autoCapitalize="none"
+            spellCheck={false}
+            minLength={4}
+            maxLength={4}
+            required
+            disabled={!person || loading}
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={loading}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              setError("");
+            }}
+            placeholder="4 huruf"
           />
-        </label>
+          <button
+            type="button"
+            disabled={!person}
+            onClick={() => setShow((s) => !s)}
+            aria-label={show ? "Sembunyikan password" : "Lihat password"}
+          >
+            {show ? "Sembunyikan" : "Lihat"}
+          </button>
+        </div>
         {error && (
-          <p className="status-message" role="alert">
+          <p role="alert" className="entry-error">
             {error}
           </p>
         )}
-        <button className="primary-button" disabled={loading}>
-          {loading ? "Memuat…" : "Masuk"}
+        <button
+          className="entry-primary"
+          disabled={!person || password.length !== 4 || loading}
+        >
+          {loading
+            ? "Masuk…"
+            : person
+              ? `Masuk sebagai ${PERSON[person].name}`
+              : "Masuk"}
+          <span aria-hidden="true">→</span>
         </button>
       </form>
-    </AuthFrame>
+    </main>
   );
 }

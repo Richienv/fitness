@@ -46,7 +46,9 @@ export const TARGETS = {
 };
 
 // Nightly sleep goal (minutes). 8h target; 7h floor still "counts" for streak.
-export const SLEEP_TARGET_MIN = 480;
+export function getSleepTargetMin(): number {
+  return Math.round((getSettings().routine?.sleepHours ?? 8) * 60);
+}
 export const SLEEP_FLOOR_MIN = 420;
 
 export function getStartDate(): string {

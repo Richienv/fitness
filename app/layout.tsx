@@ -3,6 +3,8 @@ import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "./friendly.css";
 import "./companion.css";
+import "./entry.css";
+import SetupProvider from "./SetupProvider";
 import BottomNav from "./BottomNav";
 import ServerSync from "./ServerSync";
 import ToastStack from "./Toast";
@@ -121,17 +123,22 @@ export default async function RootLayout({
       <body>
         <Providers>
           {/* Sets the per-user localStorage scope before ServerSync / pages read. */}
-          <UserScopeInit userId={userId} />
+          <UserScopeInit
+            userId={userId}
+            legacyOwner={/^richie/i.test(session?.user?.name ?? "")}
+          />
           <PWA />
-          <NativeBridge userId={userId} />
-          <ActiveDateProvider>
-            {/* userId is a DEPENDENCY, not decoration — see ServerSync. */}
-            <ServerSync userId={userId} />
-            <div className="app-root">{children}</div>
-            <BottomNav />
-            <InstallPrompt userId={userId} />
-            <ToastStack />
-          </ActiveDateProvider>
+          <SetupProvider userId={userId}>
+            <NativeBridge userId={userId} />
+            <ActiveDateProvider>
+              {/* userId is a DEPENDENCY, not decoration — see ServerSync. */}
+              <ServerSync userId={userId} />
+              <div className="app-root">{children}</div>
+              <BottomNav />
+              <InstallPrompt userId={userId} />
+              <ToastStack />
+            </ActiveDateProvider>
+          </SetupProvider>
         </Providers>
       </body>
     </html>

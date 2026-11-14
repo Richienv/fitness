@@ -4,6 +4,7 @@ import type { MealType } from "./presets";
 import { macrosFor, getIngredient, type Macros } from "./ingredients";
 import { coerceServerItems } from "./mealRecords";
 import { scopedKey } from "./userScope";
+import { getSettings } from "./settings";
 import { contributeFood } from "./foodContribute";
 import type { NutritionExtras } from "./nutritionLabel";
 
@@ -482,7 +483,8 @@ export function getLastMealOfType(mealType: MealType): MealLog | null {
 function defaultGymDay(date: string): boolean {
   const [y, m, d] = date.split("-").map(Number);
   const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-  return dow !== 0 && dow !== 3;
+  const days = getSettings().routine?.trainingDays;
+  return days ? days.includes(dow) : dow !== 0 && dow !== 3;
 }
 
 export function getDaily(date: string): DailyFlags {

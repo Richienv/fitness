@@ -9,7 +9,7 @@ import {
 } from "react";
 import { useSoftRefresh } from "@/lib/useSoftRefresh";
 import { useSheetBack } from "@/lib/backSheet";
-import { SLEEP_TARGET_MIN, todayKey, weekNumber } from "@/lib/targets";
+import { getSleepTargetMin, todayKey, weekNumber } from "@/lib/targets";
 import {
   consistencyScore,
   durationFromTimes,
@@ -277,6 +277,7 @@ export default function SleepPage() {
     return () => clearInterval(t);
   }, [reload]);
 
+  const SLEEP_TARGET_MIN = getSleepTargetMin();
   const week = weekNumber();
   const lastNight = all[today] ?? null;
   const streak = useMemo(() => sleepStreak(all, today), [all, today]);

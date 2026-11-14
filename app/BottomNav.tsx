@@ -138,7 +138,7 @@ export default function BottomNav() {
     vtNavigate(href);
   }
 
-  if (pathname === "/login" || pathname === "/register") return null;
+  if (["/login", "/register", "/welcome", "/onboarding"].includes(pathname)) return null;
 
   return (
     <nav

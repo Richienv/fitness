@@ -1,0 +1,1 @@
+Generated with the built-in ChatGPT image generator, 15 November 2026, from the approved Richie/Renita reference. Twelve 4×3 frames, 700ms each. High-angle conversation and fist-bump, burgundy/white Renita and blue/grey Richie. Dialogue and target figures are rendered by the UI for accessibility. No procedural character generation.

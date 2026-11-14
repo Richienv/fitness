@@ -7,6 +7,7 @@ const { auth } = NextAuth(authConfig);
 // Web (browser) API endpoints have no api-key; Hermes bot endpoints do. Only
 // mutations to non-public paths (i.e. /api/hermes/*) require the key.
 const PUBLIC_API_PATHS = [
+  "/api/setup",
   "/api/summary",
   "/api/today",
   "/api/week",

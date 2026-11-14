@@ -19,6 +19,8 @@ model User {
   username     String?  @unique
   name         String?
   passwordHash String
+  loginAlias   String?  @unique
+  setup        Json?
   // Physiology profile (women's mode). Nullable so existing accounts are
   // unaffected until they fill it in.
   sex                      String?  // "male" | "female"
@@ -351,4 +353,12 @@ model FoodItem {
 
   @@index([name])
   @@index([userId])
+}
+
+// Durable login attempt buckets; no plaintext addresses or passwords.
+model LoginAttempt {
+  key       String   @id
+  attempts  Int      @default(1)
+  expiresAt DateTime
+  @@index([expiresAt])
 }

@@ -13,7 +13,7 @@
  * already on disk) plus a real offline screen instead of Safari's dinosaur.
  */
 
-const VERSION = "v3-companions";
+const VERSION = "v4-private-welcome";
 const STATIC_CACHE = `r2fit-static-${VERSION}`;
 const SHELL_CACHE = `r2fit-shell-${VERSION}`;
 
@@ -60,7 +60,8 @@ function isImmutableAsset(url) {
     return (
       url.pathname.startsWith("/_next/static/") ||
       url.pathname.startsWith("/icons/") ||
-      url.pathname.startsWith("/avatars/v2/")
+      url.pathname.startsWith("/avatars/v2/") ||
+      url.pathname.startsWith("/avatars/welcome-v1/")
     );
   }
   return url.hostname === "fonts.gstatic.com" || url.hostname === "fonts.googleapis.com";

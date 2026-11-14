@@ -21,7 +21,7 @@ import {
   type SessionType,
   type WorkoutSession,
 } from "@/lib/workouts";
-import { getProfile } from "@/lib/settings";
+import { getProfile, getSettings } from "@/lib/settings";
 import {
   MUSCLE_LABEL,
   MUSCLE_TO_GROUP,
@@ -73,6 +73,7 @@ export default function WorkoutHome() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [templates, setTemplates] = useState<CustomTemplate[]>([]);
   const [isFemale, setIsFemale] = useState(false);
+  const [routineDays, setRoutineDays] = useState<number[] | null>(null);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -86,6 +87,7 @@ export default function WorkoutHome() {
     setActiveId(getActiveWorkoutId());
     setTemplates(getCustomTemplates());
     setIsFemale(getProfile().sex === "female");
+    setRoutineDays(getSettings().routine?.trainingDays ?? null);
   }, []);
 
   const today = activeDate;
@@ -114,7 +116,13 @@ export default function WorkoutHome() {
   const week = useMemo<WeekDay[]>(() => {
     const todayWd = now ? now.getDay() : -1;
     const used = new Set<SessionType>();
+    const scheduled = programSessions.filter(s => !isRestSession(s));
+    let slot = 0;
     return DOW_WEEKDAY.map((wd, i) => {
+      if (routineDays !== null) {
+        const session = routineDays.includes(wd) && scheduled.length ? scheduled[slot++ % scheduled.length] : null;
+        return { short: DOW_SHORT[i], full: DOW_FULL[i], weekday: wd, session, isToday: wd === todayWd };
+      }
       const candidates = programSessions.filter(
         (s) => s.recommendedDays.includes(wd) && !isRestSession(s),
       );
@@ -134,7 +142,7 @@ export default function WorkoutHome() {
         isToday: wd === todayWd,
       };
     });
-  }, [programSessions, now]);
+  }, [programSessions, now, routineDays]);
 
   const todayIdx = useMemo(() => {
     const i = week.findIndex((d) => d.isToday);
