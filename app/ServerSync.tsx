@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useAccountSetup } from "./SetupProvider";
 import {
   mergeServerFoods,
   mergeServerMeals,
@@ -88,9 +89,10 @@ function softRefresh(): void {
  * with a real id, the pull runs for the first time — with cookies.
  */
 export default function ServerSync({ userId }: { userId: string | null }) {
+  const ready = !!useAccountSetup()?.setup;
   useEffect(() => {
     // Signed out: every one of these calls is a guaranteed 401.
-    if (!userId) return;
+    if (!userId || !ready) return;
 
     let cancelled = false;
 
@@ -141,7 +143,7 @@ export default function ServerSync({ userId }: { userId: string | null }) {
       window.removeEventListener("focus", onFocus);
       clearInterval(interval);
     };
-  }, [userId]);
+  }, [userId, ready]);
 
   return null;
 }

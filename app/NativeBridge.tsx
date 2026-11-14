@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useAccountSetup } from "./SetupProvider";
 import { clearWidget, isNativeApp, syncWidget } from "@/lib/native";
 
 /**
@@ -16,6 +17,7 @@ import { clearWidget, isNativeApp, syncWidget } from "@/lib/native";
  * instead of whenever WidgetKit next feels like it.
  */
 export default function NativeBridge({ userId }: { userId: string | null }) {
+  const ready = !!useAccountSetup()?.setup;
   useEffect(() => {
     if (!isNativeApp()) return;
 
@@ -24,6 +26,7 @@ export default function NativeBridge({ userId }: { userId: string | null }) {
       return;
     }
 
+    if (!ready) return;
     void syncWidget();
 
     const onVisible = () => {
@@ -34,7 +37,7 @@ export default function NativeBridge({ userId }: { userId: string | null }) {
     // numbers to it.
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [userId]);
+  }, [userId, ready]);
 
   return null;
 }
