@@ -107,8 +107,8 @@ summary:focus-visible,
   gap: 3px;
 }
 .avatar-controls button {
-  width: 36px;
-  min-height: 36px;
+  width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   font: inherit;
   font-size: 18px;

@@ -23,8 +23,9 @@ export default function AvatarPlayer({
     base = duo
       ? "duo"
       : `${character}-level-${String(Math.max(1, Math.min(12, level))).padStart(2, "0")}`;
-  const sheet = `/avatars/v2/${base}-sheet.webp`,
-    poster = `/avatars/v2/${base}-poster.webp`;
+  const revision = base === "renita-level-07" ? "?revision=3" : "";
+  const sheet = `/avatars/v2/${base}-sheet.webp${revision}`,
+    poster = `/avatars/v2/${base}-poster.webp${revision}`;
   useEffect(() => {
     let current = true;
     setLoaded(false);
