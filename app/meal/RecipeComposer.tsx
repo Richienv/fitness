@@ -1,6 +1,6 @@
 "use client";
 import { scaleNutritionExtras } from "@/lib/nutritionLabel";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   getRecipes,
   recipeNutrition,
@@ -29,6 +29,7 @@ export default function RecipeComposer({
   const [recipeId, setRecipeId] = useState(
     () => `recipe_${crypto.randomUUID()}`,
   );
+  const resultsRef = useRef<HTMLDivElement>(null);
   const [manual, setManual] = useState(false);
   const [parts, setParts] = useState<RecipePart[]>([]);
   const [servings, setServings] = useState("2");
@@ -65,6 +66,16 @@ export default function RecipeComposer({
         : [],
     [foods, debounced],
   );
+  useEffect(() => {
+    if (!query) return;
+    const frame = requestAnimationFrame(() =>
+      resultsRef.current?.scrollIntoView({
+        block: "start",
+        behavior: "instant",
+      }),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [query, results]);
   const count = Number(servings);
   const valid =
     parts.length > 0 &&
@@ -246,7 +257,11 @@ export default function RecipeComposer({
         ))}
       </div>
       {query && (
-        <div aria-live="polite">
+        <div
+          aria-live="polite"
+          ref={resultsRef}
+          className="recipe-search-results"
+        >
           {results.map((f) => (
             <button className="food-result" key={f.id} onClick={() => add(f)}>
               <span>
