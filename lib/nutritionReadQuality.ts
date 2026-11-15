@@ -6,7 +6,7 @@ import {
 import type { ImageMethod } from "./nutritionPreprocess.ts";
 export const CORE_NUTRIENTS = ["kcal", "protein", "carbs", "fat"] as const;
 export type VariantPrediction = {
-  method: ImageMethod;
+  method: ImageMethod | "focus" | "scale";
   confidence: number;
   label: NutritionLabel;
   elapsedMs: number;

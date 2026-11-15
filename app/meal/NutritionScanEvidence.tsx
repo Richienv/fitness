@@ -13,6 +13,12 @@ export default function NutritionScanEvidence({
   text: string;
 }) {
   const percent = (n: number) => `${Math.round(n)}%`;
+  const methodName = (method: ScanEvidence["method"]) =>
+    method === "focus"
+      ? "Fokus tabel"
+      : method === "scale"
+        ? "Ukuran alternatif"
+        : IMAGE_METHODS[method];
   return (
     <details className="label-evidence label-scan-result">
       <summary>
@@ -34,7 +40,7 @@ export default function NutritionScanEvidence({
           <figcaption>
             {evidence.method === "original"
               ? "Asli terpilih"
-              : IMAGE_METHODS[evidence.method]}
+              : methodName(evidence.method)}
           </figcaption>
           <img
             src={evidence.processed}
@@ -47,7 +53,7 @@ export default function NutritionScanEvidence({
         {evidence.predictions.map((prediction) => (
           <div className="label-variant-result" key={prediction.method}>
             <strong>
-              {IMAGE_METHODS[prediction.method]}
+              {methodName(prediction.method)}
               {prediction.method === evidence.method ? " · Terpilih" : ""}
             </strong>
             <p>

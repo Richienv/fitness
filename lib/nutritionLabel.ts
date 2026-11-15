@@ -34,7 +34,7 @@ export type NutritionLabel = {
   energyKj: number | null;
 };
 const aliases: [LabelKey, RegExp][] = [
-  ["kcal", /能量|熱量|热量|energy|energi|calories|kalori/i],
+  ["kcal", /能量|熱量|热量|energy|energ[il]|calories|kalori/i],
   ["protein", /蛋白[质質]|protein/i],
   ["carbs", /碳水化合物|碳水|carbohydrate[s]?|karbohidrat/i],
   ["saturatedFat", /[饱飽]和脂肪(?:酸)?|saturated\s*fat|lemak\s*jenuh/i],
@@ -54,21 +54,33 @@ export function parseNutritionLabel(raw: string): NutritionLabel {
   const basisMatch = compact.match(
     /(?:每|per)(\d+(?:[.,]\d+)?)\s*(毫升|ml|克|grams?|gr|g)/i,
   );
-  const serving =
-    /(?:每份|每[一1]份|perserving|persajian|pertakaransaji|amountperserving)/i.test(
-      compact,
+  const servingMatch = compact.match(
+    /(?:每份|每[一1]份|perserving|persajian|pertakaransaji|amountperserving)/i,
+  );
+  // Values are read left to right. On a two-column label the reference must
+  // follow that same order, never unconditionally prefer a later "per 100 g".
+  const servingFirst =
+    servingMatch && (!basisMatch || servingMatch.index! < basisMatch.index!);
+  const dualColumnHeader = text.split("\n").some((row) => {
+    const h = row.replace(/\s/g, "");
+    return (
+      /(?:perserving|persajian|每份|每食用分量)/i.test(h) &&
+      /(?:per|每)\d+(?:[.,]\d+)?(?:g|克|ml)/i.test(h)
     );
+  });
   const referenceNumber = compact.match(/(?:每|per)(\d+(?:[.,]\d+)?)/i);
   const basisAmountHint = referenceNumber
     ? Number(referenceNumber[1].replace(",", "."))
     : null;
-  const basis = basisMatch
-    ? {
-        amount: Number(basisMatch[1].replace(",", ".")),
-        unit: /毫升|ml/i.test(basisMatch[2]) ? ("ml" as const) : ("g" as const),
-      }
-    : serving
-      ? { amount: 1, unit: "serving" as const }
+  const basis = servingFirst
+    ? { amount: 1, unit: "serving" as const }
+    : basisMatch
+      ? {
+          amount: Number(basisMatch[1].replace(",", ".")),
+          unit: /毫升|ml/i.test(basisMatch[2])
+            ? ("ml" as const)
+            : ("g" as const),
+        }
       : null;
   const values = emptyLabelValues();
   const evidence: NutritionLabel["evidence"] = {};
@@ -78,7 +90,11 @@ export function parseNutritionLabel(raw: string): NutritionLabel {
   // Only associate explicit row labels with amounts carrying units. NRV% is
   // never a nutrient amount, even when the amount column is unreadable.
   for (const original of text.split("\n")) {
-    const line = original.replace(/[ \t]/g, "");
+    // Indonesian packs often print total energy and energy from fat on one
+    // line. Ignore only the latter field, not the total next to it.
+    const line = original
+      .replace(/[ \t]/g, "")
+      .split(/(?:energy|energ[il]|calories)(?:from|dari)(?:fat|lemak)/i)[0];
     let match = aliases.find(([, pattern]) => pattern.test(line));
     const sodiumConfusion =
       !match &&
@@ -88,12 +104,14 @@ export function parseNutritionLabel(raw: string): NutritionLabel {
       ) &&
       /^[-·]*(?:钢|納|纳)\d+(?:[.,]\d+)?(?:毫克|mg)/i.test(line);
     if (sodiumConfusion) match = ["sodium", /钢|納|纳/];
+    if (!match) continue;
+    const [key, pattern] = match;
+    // Reference-intake footnotes are not this food's total energy.
     if (
-      !match ||
-      /(?:energy|energi|calories)(?:from|dari)(?:fat|lemak)/i.test(line)
+      key === "kcal" &&
+      /berdasarkan|kebutuhan|caloriesaday|dailyvalue|dailyintake/i.test(line)
     )
       continue;
-    const [key, pattern] = match;
     if (
       ambiguous.has(key) ||
       (key === "sugar" && /糖醇|sugaralcohol|polyol/i.test(line))
@@ -106,6 +124,17 @@ export function parseNutritionLabel(raw: string): NutritionLabel {
     let amount = tail.match(
       /(^|[^\d.-])(\d+(?:[.,]\d+)?)\s*(千焦耳?|千卡|大卡|kkal|kcal|kJ|毫克|mg|微克|μg|ug|克|grams?|gr|g)(?![a-z])/i,
     );
+    // A missing first-column amount must not silently consume the second
+    // column's value. Without both printed amounts its column is uncertain.
+    if (
+      dualColumnHeader &&
+      [
+        ...tail.matchAll(
+          /\d+(?:[.,]\d+)?(?:千焦耳?|千卡|大卡|kkal|kcal|kJ|毫克|mg|微克|μg|ug|克|grams?|gr|g)(?![a-z])/gi,
+        ),
+      ].length < 2
+    )
+      continue;
     // "Calories 120" names the energy unit explicitly on US-style labels.
     // Bare "Energy 120" / "能量120" remains unknown: it may be kJ.
     if (!amount && key === "kcal" && /^calories/i.test(label[0])) {
@@ -273,36 +302,51 @@ export type LabelOcrItem = { text: string; score: number; poly: number[][] };
 /** Join detected table cells along their actual slanted rows before parsing. */
 function labelRowsFromOcr(items: LabelOcrItem[]) {
   const cells = items.filter((i) => i.score >= 0.5 && i.poly.length === 4);
-  const slopes = cells
-    .map((i) => (i.poly[1][1] - i.poly[0][1]) / (i.poly[1][0] - i.poly[0][0]))
-    .filter((n) => Number.isFinite(n) && Math.abs(n) < 0.6)
-    .sort((a, b) => a - b);
-  const slope = slopes[Math.floor(slopes.length / 2)] ?? 0;
-  const positions = cells
-    .map((i) => {
-      const x = i.poly.reduce((n, p) => n + p[0], 0) / 4;
-      const y = i.poly.reduce((n, p) => n + p[1], 0) / 4 - slope * x;
-      const height = Math.max(
-        8,
-        Math.abs(
-          (i.poly[2][1] + i.poly[3][1] - i.poly[0][1] - i.poly[1][1]) / 2,
-        ),
-      );
-      return { i, x, y, height };
-    })
-    .sort((a, b) => a.y - b.y);
-  const rows: { y: number; height: number; cells: typeof positions }[] = [];
+  const positions = cells.map((i) => {
+    const x = i.poly.reduce((n, p) => n + p[0], 0) / 4;
+    const y = i.poly.reduce((n, p) => n + p[1], 0) / 4;
+    const slope = (i.poly[1][1] - i.poly[0][1]) / (i.poly[1][0] - i.poly[0][0]);
+    const height = Math.max(
+      8,
+      Math.abs((i.poly[2][1] + i.poly[3][1] - i.poly[0][1] - i.poly[1][1]) / 2),
+    );
+    const anchor = aliases.some(([, pattern]) =>
+      pattern.test(i.text.replace(/\s/g, "")),
+    );
+    return {
+      i,
+      x,
+      y,
+      height,
+      slope: Number.isFinite(slope) && Math.abs(slope) < 0.6 ? slope : 0,
+      anchor,
+    };
+  });
+  // A curved bag has different slopes in different regions. Start with the
+  // nutrient names, then match nearby cells against each row's local baseline.
+  // A global page angle can put "60 kkal from fat" on the total-energy row.
+  positions.sort((a, b) => Number(b.anchor) - Number(a.anchor) || a.y - b.y);
+  const rows: {
+    anchor: (typeof positions)[number];
+    cells: typeof positions;
+  }[] = [];
+  const distance = (
+    a: (typeof positions)[number],
+    b: (typeof positions)[number],
+  ) => Math.abs(b.y - a.y - ((a.slope + b.slope) / 2) * (b.x - a.x));
   for (const cell of positions) {
-    // Large calorie numerals must not attach to a nearby, smaller heading.
-    // Compare against the shorter text height and prefer the closest row.
     const row = rows
       .filter(
-        (r) => Math.abs(r.y - cell.y) <= Math.min(r.height, cell.height) * 0.65,
+        (r) =>
+          !(cell.anchor && r.anchor.anchor) &&
+          distance(r.anchor, cell) <=
+            Math.min(r.anchor.height, cell.height) * 0.65,
       )
-      .sort((a, b) => Math.abs(a.y - cell.y) - Math.abs(b.y - cell.y))[0];
+      .sort((a, b) => distance(a.anchor, cell) - distance(b.anchor, cell))[0];
     if (row) row.cells.push(cell);
-    else rows.push({ y: cell.y, height: cell.height, cells: [cell] });
+    else rows.push({ anchor: cell, cells: [cell] });
   }
+  rows.sort((a, b) => a.anchor.y - b.anchor.y);
   return rows.map((r) => {
     const cells = r.cells.sort((a, b) => a.x - b.x).map((c) => c.i);
     return { text: cells.map((c) => c.text).join(" "), cells };

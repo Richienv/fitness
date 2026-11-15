@@ -70,5 +70,5 @@ for (const model of JSON.parse(
   }
 }
 console.log(
-  "Prepared same-origin PaddleOCR worker, runtime and Chinese models.",
+  "Prepared same-origin PaddleOCR worker, runtime and mixed-script/Latin models.",
 );

@@ -11,12 +11,14 @@ export type NutritionRead = {
   label: NutritionLabel;
   confidence: number;
   elapsedMs: number;
+  items?: LabelOcrItem[];
 };
 export type NutritionOcr = {
   initialize: () => Promise<void>;
   read: (
     image: HTMLCanvasElement,
     mode?: "fast" | "quality",
+    alphabet?: "mixed" | "latin",
   ) => Promise<NutritionRead>;
   /** Release this lease; a short idle window keeps the next scan warm. */
   terminate: (discard?: boolean) => Promise<void>;
@@ -55,31 +57,35 @@ async function makeEngine(): Promise<Engine> {
     /* webpackIgnore: true */ /* turbopackIgnore: true */ moduleUrl
   )) as typeof import("@paddleocr/paddleocr-js");
   let browserWorker: Worker | null = null;
-  const ocr = await bounded(
-    PaddleOCR.create({
-      initialize: false,
-      worker: {
-        createWorker: () => {
-          browserWorker = new Worker(`${base}/worker.js`, { type: "module" });
-          return browserWorker;
+  let recognitionModel = "PP-OCRv5_mobile_rec";
+  let destroyed = false;
+  const open = () =>
+    bounded(
+      PaddleOCR.create({
+        initialize: false,
+        worker: {
+          createWorker: () => {
+            browserWorker = new Worker(`${base}/worker.js`, { type: "module" });
+            return browserWorker;
+          },
         },
-      },
-      textDetectionModelName: "PP-OCRv5_mobile_det",
-      textRecognitionModelName: "PP-OCRv5_mobile_rec",
-      textDetectionModelAsset: { url: `${base}/PP-OCRv5_mobile_det.tar` },
-      textRecognitionModelAsset: { url: `${base}/PP-OCRv5_mobile_rec.tar` },
-      ortOptions: {
-        backend: "wasm",
-        wasmPaths: `${base}/runtime/`,
-        numThreads: 1,
-      },
-    }),
-    45000,
-    "Pembaca belum bisa dimuat. Periksa koneksi lalu coba lagi.",
-  ).catch((error) => {
-    browserWorker?.terminate();
-    throw error;
-  });
+        textDetectionModelName: "PP-OCRv5_mobile_det",
+        textRecognitionModelName: recognitionModel,
+        textDetectionModelAsset: { url: `${base}/PP-OCRv5_mobile_det.tar` },
+        textRecognitionModelAsset: { url: `${base}/${recognitionModel}.tar` },
+        ortOptions: {
+          backend: "wasm",
+          wasmPaths: `${base}/runtime/`,
+          numThreads: 1,
+        },
+      }),
+      45000,
+      "Pembaca belum bisa dimuat. Periksa koneksi lalu coba lagi.",
+    ).catch((error) => {
+      browserWorker?.terminate();
+      throw error;
+    });
+  let ocr = await open();
   let initialization: Promise<void> | null = null;
   let queue = Promise.resolve();
   const initialize = () =>
@@ -90,8 +96,28 @@ async function makeEngine(): Promise<Engine> {
     ).then(() => {}));
   return {
     initialize,
-    read(image, mode = "quality") {
+    read(image, mode = "quality", alphabet = "mixed") {
       const task = queue.then(async () => {
+        if (destroyed) throw new Error("Sesi pembacaan sudah ditutup.");
+        const wanted =
+          alphabet === "latin"
+            ? "en_PP-OCRv5_mobile_rec"
+            : "PP-OCRv5_mobile_rec";
+        if (wanted !== recognitionModel) {
+          // Keep only one model worker alive on phones. The asset response is
+          // cached, but the old inference session is released before switching.
+          const oldWorker = browserWorker;
+          await bounded(ocr.dispose(), 1000, "Sesi selesai.").catch(() => {});
+          oldWorker?.terminate();
+          if (destroyed) throw new Error("Sesi pembacaan sudah ditutup.");
+          recognitionModel = wanted;
+          ocr = await open();
+          initialization = null;
+          if (destroyed) {
+            browserWorker?.terminate();
+            throw new Error("Sesi pembacaan sudah ditutup.");
+          }
+        }
         await initialize();
         const start = performance.now();
         const [result] = await bounded(
@@ -110,6 +136,7 @@ async function makeEngine(): Promise<Engine> {
         );
         return {
           label,
+          items,
           confidence: labelConfidenceFromOcr(items, label),
           elapsedMs: performance.now() - start,
         };
@@ -121,6 +148,7 @@ async function makeEngine(): Promise<Engine> {
       return task;
     },
     async destroy() {
+      destroyed = true;
       browserWorker?.terminate();
       // A stalled initialization must not keep a worker alive indefinitely.
       let timer: ReturnType<typeof setTimeout> | undefined;
@@ -182,12 +210,12 @@ export async function createNutritionOcr(
     };
     return {
       initialize,
-      read: async (image, mode) => {
+      read: async (image, mode, alphabet) => {
         if (!alive) throw new Error("Sesi pembacaan sudah ditutup.");
         await initialize();
         if (!alive) throw new Error("Sesi pembacaan sudah ditutup.");
         try {
-          return await engine.read(image, mode);
+          return await engine.read(image, mode, alphabet);
         } catch (error) {
           await release(true);
           throw error;
@@ -214,7 +242,12 @@ export function labelImage(
 ): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   const region = crop ?? { x: 0, y: 0, width, height };
-  const scale = Math.min(2, 1800 / region.width, 2200 / region.height);
+  // A user-selected small table needs enough pixels for tiny gram units.
+  // Resample once from the original photo, with bounded output dimensions.
+  const closeCrop = region.width * region.height < width * height * 0.8;
+  const scale = closeCrop
+    ? Math.min(6, 1200 / region.width, 2200 / region.height)
+    : Math.min(2, 1800 / region.width, 2200 / region.height);
   canvas.width = Math.round(region.width * scale);
   canvas.height = Math.round(region.height * scale);
   const ctx = canvas.getContext("2d");

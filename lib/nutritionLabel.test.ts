@@ -268,3 +268,71 @@ test("large FDA calorie numerals align with Calories, not the small heading abov
   assert.equal(label.values.kcal, 230);
   assert.equal(labelConfidenceFromOcr(items, label), 72);
 });
+
+test("real bilingual two-column snack keeps serving values with serving basis", () => {
+  const label = parseNutritionLabel(`Per Serving/ Per 100g
+每食用分量 每100克
+Energy/能量 109kcal/千卡544.9 kcal/千卡
+Protein/蛋白質 1.3g/克 6.5g/克
+Total Fat/總脂肪 6.7g/克 33.6g/克
+Total Carbohydrates/總碳水化合物10.8g/克 54.1g/克`);
+  assert.deepEqual(label.basis, { amount: 1, unit: "serving" });
+  assert.equal(label.values.kcal, 109);
+  assert.equal(label.values.protein, 1.3);
+  const reversed = parseNutritionLabel(
+    "Per 100g / Per serving\nEnergy 544.9 kcal 109 kcal\nProtein 6.5g 1.3g",
+  );
+  assert.deepEqual(reversed.basis, { amount: 100, unit: "g" });
+  assert.equal(reversed.values.kcal, 544.9);
+});
+test("total energy survives energy-from-fat printed on the same row", () => {
+  assert.equal(
+    parseNutritionLabel("Energi Total 100 kkal Energi dari Lemak 45 kkal")
+      .values.kcal,
+    100,
+  );
+  assert.equal(
+    parseNutritionLabel("Energi dari Lemak 45 kkal").values.kcal,
+    null,
+  );
+});
+test("a g misrecognized as 9 stays unknown, never invent a decimal or gram unit", () => {
+  const label = parseNutritionLabel(
+    "Per sajian\nProtein 19 2%\nLemak Total 69 10%",
+  );
+  assert.equal(label.values.protein, null);
+  assert.equal(label.values.fat, null);
+});
+
+test("two-column missing serving amount cannot become the per-100g value", () => {
+  const n = parseNutritionLabel(
+    "Per Serving / Per 100g\nProtein 6.5g\nFat 33.6g\nEnergy 109 kcal 544.9 kcal",
+  );
+  assert.equal(n.values.protein, null);
+  assert.equal(n.values.fat, null);
+  assert.equal(n.values.kcal, 109);
+});
+test("reference energy footnote never overwrites snack calories", () => {
+  const n = parseNutritionLabel(
+    "Per sajian\nEnergl Total 100 kkal Energi dari Lemak 45 kkal\nPersen AKG berdasarkan kebutuhan energi 2150 kkal",
+  );
+  assert.equal(n.values.kcal, 100);
+});
+
+test("actual curved snack geometry keeps energy and grams on their own rows", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const fixtures = JSON.parse(
+    await readFile(
+      new URL("./fixtures/nutrition-real-geometry.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  const lite = parseNutritionLabel(labelTextFromOcr(fixtures[0].items));
+  assert.deepEqual(
+    [lite.values.kcal, lite.values.protein, lite.values.carbs, lite.values.fat],
+    [100, 1, 10, 6],
+  );
+  const lays = parseNutritionLabel(labelTextFromOcr(fixtures[1].items));
+  assert.equal(lays.values.kcal, 160);
+  assert.equal(lays.values.fat, 10);
+});
