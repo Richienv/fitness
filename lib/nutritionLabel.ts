@@ -34,7 +34,7 @@ export type NutritionLabel = {
   energyKj: number | null;
 };
 const aliases: [LabelKey, RegExp][] = [
-  ["kcal", /能量|熱量|热量|energy|calories|kalori/i],
+  ["kcal", /能量|熱量|热量|energy|energi|calories|kalori/i],
   ["protein", /蛋白[质質]|protein/i],
   ["carbs", /碳水化合物|碳水|carbohydrate[s]?|karbohidrat/i],
   ["saturatedFat", /[饱飽]和脂肪(?:酸)?|saturated\s*fat|lemak\s*jenuh/i],
@@ -52,9 +52,12 @@ export function parseNutritionLabel(raw: string): NutritionLabel {
   const text = raw.normalize("NFKC").replace(/\r/g, "");
   const compact = text.replace(/[ \t]/g, "");
   const basisMatch = compact.match(
-    /(?:每|per)(\d+(?:[.,]\d+)?)\s*(毫升|ml|克|g)/i,
+    /(?:每|per)(\d+(?:[.,]\d+)?)\s*(毫升|ml|克|grams?|gr|g)/i,
   );
-  const serving = /(?:每份|每[一1]份|perserving|persajian)/i.test(compact);
+  const serving =
+    /(?:每份|每[一1]份|perserving|persajian|pertakaransaji|amountperserving)/i.test(
+      compact,
+    );
   const referenceNumber = compact.match(/(?:每|per)(\d+(?:[.,]\d+)?)/i);
   const basisAmountHint = referenceNumber
     ? Number(referenceNumber[1].replace(",", "."))
@@ -85,7 +88,11 @@ export function parseNutritionLabel(raw: string): NutritionLabel {
       ) &&
       /^[-·]*(?:钢|納|纳)\d+(?:[.,]\d+)?(?:毫克|mg)/i.test(line);
     if (sodiumConfusion) match = ["sodium", /钢|納|纳/];
-    if (!match) continue;
+    if (
+      !match ||
+      /(?:energy|energi|calories)(?:from|dari)(?:fat|lemak)/i.test(line)
+    )
+      continue;
     const [key, pattern] = match;
     if (
       ambiguous.has(key) ||
@@ -96,9 +103,21 @@ export function parseNutritionLabel(raw: string): NutritionLabel {
     const tail = line
       .slice(label.index + label[0].length)
       .split(/(?:NRV|参考值|參考值)/i)[0];
-    const amount = tail.match(
-      /(^|[^\d.-])(\d+(?:[.,]\d+)?)\s*(千焦耳?|千卡|大卡|kcal|kJ|毫克|mg|微克|μg|ug|克|g)(?![a-z])/i,
+    let amount = tail.match(
+      /(^|[^\d.-])(\d+(?:[.,]\d+)?)\s*(千焦耳?|千卡|大卡|kkal|kcal|kJ|毫克|mg|微克|μg|ug|克|grams?|gr|g)(?![a-z])/i,
     );
+    // "Calories 120" names the energy unit explicitly on US-style labels.
+    // Bare "Energy 120" / "能量120" remains unknown: it may be kJ.
+    if (!amount && key === "kcal" && /^calories/i.test(label[0])) {
+      const calories = tail.match(/^:?(\d+(?:[.,]\d+)?)(?![\d.,])$/i);
+      if (calories)
+        amount = [
+          calories[0],
+          "",
+          calories[1],
+          "kcal",
+        ] as unknown as RegExpMatchArray;
+    }
     if (!amount) continue;
     if (sodiumConfusion)
       warnings.push(
@@ -111,10 +130,10 @@ export function parseNutritionLabel(raw: string): NutritionLabel {
       if (/千焦|kj/.test(unit)) {
         energyKj = n;
         value = n / 4.184;
-      } else if (/千卡|大卡|kcal/.test(unit)) value = n;
+      } else if (/千卡|大卡|kkal|kcal/.test(unit)) value = n;
       else continue;
     } else {
-      if (/千焦|千卡|大卡|kcal|kj/.test(unit)) continue;
+      if (/千焦|千卡|大卡|kkal|kcal|kj/.test(unit)) continue;
       const grams = /毫克|mg/.test(unit)
         ? n / 1000
         : /微克|μg|ug/.test(unit)
@@ -274,9 +293,13 @@ function labelRowsFromOcr(items: LabelOcrItem[]) {
     .sort((a, b) => a.y - b.y);
   const rows: { y: number; height: number; cells: typeof positions }[] = [];
   for (const cell of positions) {
-    const row = rows.find(
-      (r) => Math.abs(r.y - cell.y) <= Math.max(r.height, cell.height) * 0.55,
-    );
+    // Large calorie numerals must not attach to a nearby, smaller heading.
+    // Compare against the shorter text height and prefer the closest row.
+    const row = rows
+      .filter(
+        (r) => Math.abs(r.y - cell.y) <= Math.min(r.height, cell.height) * 0.65,
+      )
+      .sort((a, b) => Math.abs(a.y - cell.y) - Math.abs(b.y - cell.y))[0];
     if (row) row.cells.push(cell);
     else rows.push({ y: cell.y, height: cell.height, cells: [cell] });
   }
@@ -302,7 +325,10 @@ function nutrientCellScores(
       // A damaged percent sign can turn NRV into "1496" or "480%0".
       return (
         pattern.test(text) ||
-        /\d(?:[.,]\d+)?(?:千焦耳?|千卡|大卡|kcal|kJ|毫克|mg|微克|μg|ug|克|g)(?![a-z])/i.test(
+        (key === "kcal" &&
+          /calories/i.test(row.text) &&
+          /^\d+(?:[.,]\d+)?$/.test(text)) ||
+        /\d(?:[.,]\d+)?(?:千焦耳?|千卡|大卡|kkal|kcal|kJ|毫克|mg|微克|μg|ug|克|grams?|gr|g)(?![a-z])/i.test(
           text,
         )
       );

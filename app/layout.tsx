@@ -4,6 +4,7 @@ import "./globals.css";
 import "./friendly.css";
 import "./companion.css";
 import "./entry.css";
+import "./meal-entry.css";
 import SetupProvider from "./SetupProvider";
 import BottomNav from "./BottomNav";
 import ServerSync from "./ServerSync";

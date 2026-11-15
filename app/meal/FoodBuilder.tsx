@@ -41,6 +41,7 @@ import NutritionLabelPanel from "./NutritionLabelPanel";
 import ManualFoodSheet from "./ManualFoodSheet";
 import { scaleNutritionExtras } from "@/lib/nutritionLabel";
 import SearchField from "./SearchField";
+import { useVisibleViewport } from "@/lib/useVisibleViewport";
 import NutritionSummary from "./NutritionSummary";
 import Icon from "../ui/Icon";
 import type { RecipeFood } from "@/lib/recipes";
@@ -467,8 +468,12 @@ export default function FoodBuilder({
   const [allFoods, setAllFoods] = useState<BuilderFood[] | null>(null);
   const [loadingAll, setLoadingAll] = useState(false);
   const [catalogueError, setCatalogueError] = useState<string | null>(null);
+  const viewport = useVisibleViewport();
   const searchRef = useRef<HTMLInputElement | null>(null);
   const builderRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    builderRef.current?.querySelector(".builder-scroll")?.scrollTo({ top: 0 });
+  }, [query]);
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
     builderRef.current?.focus({ preventScroll: true });
@@ -1663,6 +1668,7 @@ export default function FoodBuilder({
         tabIndex={-1}
         className="food-builder"
         style={{
+          ...viewport,
           visibility:
             recipeOpen || labelOpen || manualOpen ? "hidden" : "visible",
         }}
@@ -1726,31 +1732,9 @@ export default function FoodBuilder({
             </label>
           </div>
           <h1>Catat makan</h1>
-          <SearchField
-            value={query}
-            onChange={setQuery}
-            inputRef={searchRef}
-            loading={searching}
-          />
-          <div className="builder-tools">
-            <button className="soft-button" onClick={() => setRecipeOpen(true)}>
-              <Icon name="pot" />
-              Racik masakan
-            </button>
-            <button
-              className="soft-button"
-              onClick={() => setLabelOpen(true)}
-            >
-              <Icon name="scan" />
-              Scan label nutrisi
-            </button>
-            <button className="text-button" onClick={() => openNewFood(null)}>
-              Tambah manual
-            </button>
-          </div>
         </header>
         <div className="builder-scroll">
-          {count > 0 && (
+          {count > 0 && !query && (
             <section className="builder-tray">
               <div className="row-between">
                 <h2>Pilihan makan ({count})</h2>
@@ -1925,13 +1909,32 @@ export default function FoodBuilder({
             </section>
           )}
         </div>
-        {count > 0 && (
-          <footer className="builder-footer">
+        <footer className="builder-footer thumb-dock">
+          <SearchField
+            value={query}
+            onChange={setQuery}
+            inputRef={searchRef}
+            loading={searching}
+          />
+          <div className="builder-tools">
+            <button className="soft-button" onClick={() => setRecipeOpen(true)}>
+              <Icon name="pot" />
+              Racik
+            </button>
+            <button className="soft-button" onClick={() => setLabelOpen(true)}>
+              <Icon name="scan" />
+              Scan label
+            </button>
+            <button className="text-button" onClick={() => openNewFood(null)}>
+              Manual
+            </button>
+          </div>
+          {count > 0 && (
             <button className="primary-button" onClick={saveBuilderMeal}>
               Simpan {count} makanan · {Math.round(tk)} kkal
             </button>
-          </footer>
-        )}
+          )}
+        </footer>
       </div>
       {recipeOpen && (
         <RecipeComposer

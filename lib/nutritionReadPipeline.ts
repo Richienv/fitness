@@ -74,7 +74,7 @@ export async function readOptimizedNutritionLabel(
       check();
       if (
         preset === "auto" &&
-        performance.now() - start >= (options.budgetMs ?? 4500)
+        performance.now() - start >= (options.budgetMs ?? 14000)
       )
         break;
       options.onProgress?.(method);

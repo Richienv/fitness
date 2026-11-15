@@ -2,17 +2,21 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { useSheetBack } from "@/lib/backSheet";
 import Icon from "../ui/Icon";
+import { useVisibleViewport } from "@/lib/useVisibleViewport";
 export default function FriendlySheet({
   title,
   onClose,
   children,
   footer,
+  className = "",
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  className?: string;
 }) {
+  const viewport = useVisibleViewport();
   const ref = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
   close.current = onClose;
@@ -23,9 +27,9 @@ export default function FriendlySheet({
     return () => opener?.focus({ preventScroll: true });
   }, []);
   return (
-    <div className="friendly-backdrop" onClick={onClose}>
+    <div className="friendly-backdrop" style={viewport} onClick={onClose}>
       <div
-        className="friendly-sheet"
+        className={`friendly-sheet ${className}`}
         ref={ref}
         role="dialog"
         aria-modal="true"

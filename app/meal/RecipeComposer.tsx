@@ -140,17 +140,25 @@ export default function RecipeComposer({
       title="Racik masakan"
       onClose={onClose}
       footer={
-        <div className="recipe-actions">
-          <button
-            className="secondary-button"
-            disabled={!valid}
-            onClick={store}
-          >
-            Simpan masakan
-          </button>
-          <button className="primary-button" disabled={!valid} onClick={log}>
-            Tambahkan ke catatan makan
-          </button>
+        <div className="recipe-dock">
+          <SearchField
+            value={query}
+            onChange={setQuery}
+            label="Cari bahan masakan"
+            loading={loading}
+          />
+          <div className="recipe-actions">
+            <button
+              className="secondary-button"
+              disabled={!valid}
+              onClick={store}
+            >
+              Simpan masakan
+            </button>
+            <button className="primary-button" disabled={!valid} onClick={log}>
+              Tambahkan ke catatan makan
+            </button>
+          </div>
         </div>
       }
     >
@@ -227,12 +235,6 @@ export default function RecipeComposer({
         </button>
       </div>
       <h3>Bahan masakan</h3>
-      <SearchField
-        value={query}
-        onChange={setQuery}
-        label="Cari bahan masakan"
-        loading={loading}
-      />
       <p className="quiet">
         Tambahkan juga minyak, saus, dan gula yang digunakan.
       </p>

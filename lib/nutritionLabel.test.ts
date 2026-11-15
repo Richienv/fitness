@@ -203,3 +203,68 @@ test("actual sample OCR flags sodium character correction without guessing the r
   assert.ok(n.warnings.some((w) => w.includes("钠")));
   assert.equal(parseNutritionLabel("钢251毫克").values.sodium, null);
 });
+
+test("Indonesian snack labels read energi total, kkal, grams and per sajian", () => {
+  const label = parseNutritionLabel(`INFORMASI NILAI GIZI
+Takaran saji 30 g
+Jumlah per sajian
+Energi total 150 kkal
+Energi dari lemak 50 kkal
+Lemak total 6 g
+Protein 3 g
+Karbohidrat total 21 g
+Gula 8 g
+Natrium 120 mg`);
+  assert.deepEqual(label.basis, { amount: 1, unit: "serving" });
+  assert.equal(label.values.kcal, 150);
+  assert.equal(label.values.fat, 6);
+  assert.equal(label.values.carbs, 21);
+  assert.equal(label.values.sodium, 120);
+  assert.deepEqual(
+    parseNutritionLabel("Per 100 gr\nEnergi 500 kkal\nProtein 8 gram").basis,
+    { amount: 100, unit: "g" },
+  );
+  assert.equal(
+    parseNutritionLabel("Per 100 gr\nProtein 8 gram").values.protein,
+    8,
+  );
+});
+test("Calories names a unit, while unknown energy numbers and percentages stay empty", () => {
+  assert.equal(
+    parseNutritionLabel("Amount per serving\nCalories 120").values.kcal,
+    120,
+  );
+  assert.equal(parseNutritionLabel("Calories 12%").values.kcal, null);
+  assert.equal(parseNutritionLabel("Energy 120").values.kcal, null);
+  assert.equal(parseNutritionLabel("能量120").values.kcal, null);
+});
+
+test("large FDA calorie numerals align with Calories, not the small heading above", () => {
+  const box = (
+    text: string,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    score = 0.98,
+  ) => ({
+    text,
+    score,
+    poly: [
+      [x, y],
+      [x + w, y],
+      [x + w, y + h],
+      [x, y + h],
+    ],
+  });
+  const items = [
+    box("Amount per serving", 10, 45, 120, 14),
+    box("230", 200, 53, 80, 45, 0.72),
+    box("Calories", 10, 57, 130, 40),
+  ];
+  const text = labelTextFromOcr(items);
+  assert.match(text, /Calories 230/);
+  const label = parseNutritionLabel(text);
+  assert.equal(label.values.kcal, 230);
+  assert.equal(labelConfidenceFromOcr(items, label), 72);
+});

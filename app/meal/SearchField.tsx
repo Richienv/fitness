@@ -1,7 +1,6 @@
 "use client";
-import { useEffect, useState, type RefObject } from "react";
+import type { RefObject } from "react";
 import Icon from "../ui/Icon";
-const examples = ["Nasi putih", "Telur", "Tempe", "Ayam"];
 export default function SearchField({
   value,
   onChange,
@@ -15,40 +14,6 @@ export default function SearchField({
   label?: string;
   loading?: boolean;
 }) {
-  const [focused, setFocused] = useState(false);
-  const [hint, setHint] = useState("");
-  useEffect(() => {
-    if (
-      focused ||
-      value ||
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    ) {
-      setHint("");
-      return;
-    }
-    let word = 0,
-      pos = 0,
-      deleting = false,
-      timer: ReturnType<typeof setTimeout>;
-    const tick = () => {
-      const text = examples[word];
-      pos += deleting ? -1 : 1;
-      setHint(text.slice(0, pos));
-      let delay = deleting ? 55 : 110;
-      if (pos === text.length && !deleting) {
-        deleting = true;
-        delay = 1600;
-      }
-      if (pos === 0 && deleting) {
-        deleting = false;
-        word = (word + 1) % examples.length;
-        delay = 450;
-      }
-      timer = setTimeout(tick, delay);
-    };
-    timer = setTimeout(tick, 700);
-    return () => clearTimeout(timer);
-  }, [focused, value]);
   return (
     <label className="friendly-search">
       <span className="sr-only">{label}</span>
@@ -59,9 +24,7 @@ export default function SearchField({
         type="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        placeholder={hint ? `Cari ${hint}…` : "Cari makanan atau bahan…"}
+        placeholder={`${label}…`}
         aria-busy={loading}
         autoComplete="off"
       />

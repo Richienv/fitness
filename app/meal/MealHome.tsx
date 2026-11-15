@@ -767,14 +767,14 @@ export default function MealHome({
           onClick={() => setRacikMeal(nowSlot ?? inferMealType())}
         >
           <Icon name="pot" />
-          Racik masakan
+          Racik
         </button>
         <button
           className="secondary-button"
           onClick={() => setLabelMeal(nowSlot ?? inferMealType())}
         >
           <Icon name="scan" />
-          Scan label nutrisi
+          Scan label
         </button>
       </div>
       <div className="meal-slots">

@@ -1,15 +1,17 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { NutritionOcr } from "@/lib/nutritionOcr";
 import {
-  labelCanAutoCapture,
-  labelFingerprint,
-  confirmLabelRead,
-  type NutritionLabel,
-} from "@/lib/nutritionLabel";
-import { nutritionGuideCrop } from "@/lib/nutritionCamera";
-import { createNutritionOcr, labelImage } from "@/lib/nutritionOcr";
-import { IMAGE_METHODS, type ImagePreset } from "@/lib/nutritionPreprocess";
+  createNutritionOcr,
+  labelImage,
+  type NutritionOcr,
+} from "@/lib/nutritionOcr";
+import { type NutritionLabel } from "@/lib/nutritionLabel";
+import { nutritionCoreCount } from "@/lib/nutritionReadQuality";
+import {
+  FULL_PHOTO,
+  photoCropPixels,
+  type PhotoCrop,
+} from "@/lib/nutritionPhoto";
 import {
   readOptimizedNutritionLabel,
   type NutritionScanEvidence,
@@ -17,6 +19,9 @@ import {
 import type { RecipeFood } from "@/lib/recipes";
 import FriendlySheet from "./FriendlySheet";
 import ManualFoodSheet, { type ManualFoodInitial } from "./ManualFoodSheet";
+import NutritionPhotoCrop from "./NutritionPhotoCrop";
+import Icon from "../ui/Icon";
+
 export default function NutritionLabelPanel({
   onClose,
   onAdd,
@@ -26,92 +31,132 @@ export default function NutritionLabelPanel({
   onAdd: (food: RecipeFood) => void;
   initial?: ManualFoodInitial;
 }) {
-  const [result, setResult] = useState<NutritionLabel | null>(null);
+  const [photo, setPhoto] = useState<HTMLCanvasElement | null>(null);
   const [preview, setPreview] = useState("");
-  const [evidence, setEvidence] = useState<NutritionScanEvidence | undefined>();
-  const [preset, setPreset] = useState<ImagePreset>("auto");
-  const presetRef = useRef<ImagePreset>("auto");
-  const [status, setStatus] = useState("Menyiapkan pembaca label…");
-  const [error, setError] = useState("");
-  const [running, setRunning] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [crop, setCrop] = useState<PhotoCrop>(FULL_PHOTO);
+  const [result, setResult] = useState<NutritionLabel | null>(null);
+  const [evidence, setEvidence] = useState<NutritionScanEvidence>();
   const [manual, setManual] = useState(false);
-  const [attempt, setAttempt] = useState(0);
-  const video = useRef<HTMLVideoElement>(null);
-  const cameraBox = useRef<HTMLDivElement>(null);
-  const stream = useRef<MediaStream | null>(null);
-  const worker = useRef<Promise<NutritionOcr> | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const active = useRef(false);
-  const run = useRef(0);
-  const wantsCamera = useRef(true);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState("");
+  const [error, setError] = useState("");
+  const [camera, setCamera] = useState<"off" | "starting" | "ready">("off");
+  const [elapsed, setElapsed] = useState(0);
+  const cameraInput = useRef<HTMLInputElement>(null),
+    galleryInput = useRef<HTMLInputElement>(null);
+  const video = useRef<HTMLVideoElement>(null),
+    stream = useRef<MediaStream | null>(null);
+  const lease = useRef<NutritionOcr | null>(null),
+    generation = useRef(0),
+    active = useRef(true);
   const stopCamera = useCallback(() => {
-    run.current++;
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = null;
     stream.current?.getTracks().forEach((t) => t.stop());
     stream.current = null;
     if (video.current) video.current.srcObject = null;
-    if (active.current) setRunning(false);
+    if (active.current) setCamera("off");
   }, []);
-  const getWorker = useCallback(() => {
-    if (!worker.current) {
-      const promise = createNutritionOcr((stage) => {
-        if (active.current && stage !== "recognizing text")
-          setStatus(
-            stage === "ready"
-              ? "Membaca tabel nutrisi…"
-              : "Menyiapkan pembaca label… Unduhan pertama bisa lebih lama.",
-          );
-      });
-      worker.current = promise;
-      promise.catch(() => {
-        if (worker.current === promise) worker.current = null;
-      });
-    }
-    return worker.current;
-  }, []);
-  const accept = useCallback(
-    (
-      label: NutritionLabel,
-      scanEvidence: NutritionScanEvidence,
-      confidence: number,
-    ) => {
-      wantsCamera.current = false;
-      stopCamera();
-      setPreview(scanEvidence.original);
-      setEvidence(scanEvidence);
-      setResult({
-        ...label,
-        warnings: [
-          ...label.warnings,
-          ...(confidence < 75 &&
-          !label.warnings.some((w) => w.includes("kurang jelas"))
-            ? [
-                "Sebagian teks kurang jelas. Periksa angka dengan foto sebelum menambahkan.",
-              ]
-            : []),
-        ],
-      });
+  const cancel = useCallback(() => {
+    generation.current++;
+    const old = lease.current;
+    lease.current = null;
+    if (old) void old.terminate(true);
+    if (active.current) {
       setBusy(false);
-      const pending = worker.current;
-      worker.current = null;
-      if (pending) void pending.then((w) => w.terminate()).catch(() => {});
-    },
-    [stopCamera],
-  );
-  const start = useCallback(async () => {
+      setStatus("");
+    }
+  }, []);
+  useEffect(() => {
+    active.current = true;
+    const hide = () => {
+      if (document.hidden) {
+        cancel();
+        stopCamera();
+      }
+    };
+    document.addEventListener("visibilitychange", hide);
+    return () => {
+      active.current = false;
+      generation.current++;
+      stopCamera();
+      void lease.current?.terminate(true);
+      document.removeEventListener("visibilitychange", hide);
+    };
+  }, [stopCamera, cancel]);
+  useEffect(() => {
+    if (!busy) {
+      setElapsed(0);
+      return;
+    }
+    const start = Date.now(),
+      timer = setInterval(
+        () => setElapsed(Math.floor((Date.now() - start) / 1000)),
+        1000,
+      );
+    return () => clearInterval(timer);
+  }, [busy]);
+  function showPhoto(canvas: HTMLCanvasElement) {
+    setPhoto(canvas);
+    setPreview(canvas.toDataURL("image/jpeg", 0.93));
+    setCrop({ ...FULL_PHOTO });
+    setError("");
+  }
+  async function selectImage(file: File | undefined) {
+    if (!file) return;
+    cancel();
+    stopCamera();
+    const current = generation.current;
+    if (
+      (!file.type.startsWith("image/") &&
+        !/\.(jpe?g|png|webp|heic|heif|avif)$/i.test(file.name)) ||
+      file.size > 25 * 1024 * 1024
+    ) {
+      setError("Pilih foto maksimal 25 MB.");
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setBusy(true);
+    setStatus("Membuka foto…");
+    try {
+      const image = new Image();
+      image.src = url;
+      await image.decode();
+      if (!active.current || current !== generation.current) return;
+      const canvas = document.createElement("canvas"),
+        scale = Math.min(
+          1,
+          2600 / Math.max(image.naturalWidth, image.naturalHeight),
+        );
+      canvas.width = Math.round(image.naturalWidth * scale);
+      canvas.height = Math.round(image.naturalHeight * scale);
+      const ctx = canvas.getContext("2d")!;
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      showPhoto(canvas);
+    } catch {
+      if (active.current && current === generation.current)
+        setError(
+          "Format foto belum bisa dibuka. Ambil foto lewat kamera HP atau pilih JPG/PNG.",
+        );
+    } finally {
+      URL.revokeObjectURL(url);
+      if (active.current && current === generation.current) setBusy(false);
+    }
+  }
+  async function startCamera() {
+    cancel();
     stopCamera();
     setError("");
-    setStatus("Menyalakan kamera…");
-    setBusy(false);
-    const generation = run.current;
+    setCamera("starting");
+    const current = generation.current;
+    let timeout: ReturnType<typeof setTimeout> | undefined,
+      expired = false;
     try {
       if (!navigator.mediaDevices?.getUserMedia)
         throw new Error(
-          "Kamera tidak tersedia. Pilih gambar label atau isi manual.",
+          "Kamera browser tidak tersedia. Gunakan Ambil foto atau Galeri.",
         );
-      const media = await navigator.mediaDevices.getUserMedia({
+      const request = navigator.mediaDevices.getUserMedia({
         audio: false,
         video: {
           facingMode: { ideal: "environment" },
@@ -119,351 +164,357 @@ export default function NutritionLabelPanel({
           height: { ideal: 1080 },
         },
       });
-      if (!active.current || generation !== run.current) {
-        media.getTracks().forEach((t) => t.stop());
-        return;
-      }
+      request
+        .then((media) => {
+          if (expired || !active.current || current !== generation.current)
+            media.getTracks().forEach((t) => t.stop());
+        })
+        .catch(() => {});
+      const media = await Promise.race([
+        request,
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => {
+            expired = true;
+            reject(
+              new Error(
+                "Kamera browser belum merespons. Gunakan Ambil foto untuk membuka kamera HP.",
+              ),
+            );
+          }, 10000);
+        }),
+      ]);
+      if (!active.current || current !== generation.current) return;
+      if (timeout) clearTimeout(timeout);
       stream.current = media;
-      if (!video.current) throw new Error("Pratinjau kamera belum tersedia.");
+      if (!video.current)
+        throw new Error("Pratinjau belum tersedia. Gunakan kamera HP.");
       video.current.srcObject = media;
-      await video.current.play();
-      if (!active.current || generation !== run.current) return;
-      setRunning(true);
-      const reader = await getWorker();
-      if (!active.current || generation !== run.current) return;
-      let last = "",
-        repeats = 0;
-      let previous: NutritionLabel | null = null;
-      let qualityNext = false;
-      const scan = async () => {
-        if (!active.current || generation !== run.current || document.hidden)
-          return;
-        const v = video.current;
-        if (!v || v.videoWidth < 160 || v.videoHeight < 160) {
-          setStatus("Menunggu gambar kamera…");
-          timer.current = setTimeout(() => void scan(), 500);
-          return;
-        }
-        setStatus("Membaca tabel nutrisi… Tahan kemasan tetap.");
-        try {
-          const box = cameraBox.current?.getBoundingClientRect();
-          if (!box?.width || !box.height)
-            throw new Error("Bingkai kamera belum siap.");
-          const crop = nutritionGuideCrop(
-            v.videoWidth,
-            v.videoHeight,
-            box.width,
-            box.height,
+      // A stream may arrive without producing a playable video on a webview.
+      await Promise.race([
+        video.current.play(),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(
+            () =>
+              reject(
+                new Error("Pratinjau kamera belum siap. Gunakan kamera HP."),
+              ),
+            5000,
           );
-          const frame = labelImage(v, v.videoWidth, v.videoHeight, crop);
-          const read = await readOptimizedNutritionLabel(reader, frame, {
-            preset: presetRef.current,
-            mode: qualityNext ? "quality" : "fast",
-            maxRescues: 1,
-            budgetMs: 2500,
-            cancelled: () => !active.current || generation !== run.current,
-            onProgress: (method) => {
-              if (
-                active.current &&
-                generation === run.current &&
-                method !== "original"
-              )
-                setStatus(
-                  `Memperjelas tulisan… ${IMAGE_METHODS[method]}. Tahan tetap.`,
-                );
-            },
-          });
-          if (!active.current || generation !== run.current) return;
-          const fingerprint = labelFingerprint(read.label);
-          repeats = fingerprint === last ? repeats + 1 : 1;
-          last = fingerprint;
-          const label =
-            repeats > 1 && previous
-              ? confirmLabelRead(previous, read.label)
-              : read.label;
-          previous = read.label;
-          const coreCount = [
-            label.values.kcal,
-            label.values.protein,
-            label.values.carbs,
-            label.values.fat,
-          ].filter((n) => n !== null).length;
-          qualityNext =
-            coreCount >= 2 &&
-            (read.confidence < 92 || label.warnings.length > 0);
-          if (labelCanAutoCapture(label, read.confidence, repeats)) {
-            accept(label, read.evidence, read.confidence);
-            return;
-          }
-          setStatus(
-            coreCount === 4
-              ? "Tabel terbaca. Tahan tetap sebentar untuk memastikan angka."
-              : coreCount >= 2
-                ? "Sebagian tabel terbaca. Masukkan judul dan baris paling bawah."
-                : "Dekatkan tabel sampai memenuhi bingkai. Kurangi pantulan cahaya.",
-          );
-          timer.current = setTimeout(() => void scan(), 350);
-        } catch {
-          if (!active.current || generation !== run.current) return;
-          wantsCamera.current = false;
-          stopCamera();
-          setError(
-            "Pembaca label terhenti. Coba lagi, pilih gambar, atau isi manual.",
-          );
-          const pending = worker.current;
-          worker.current = null;
-          if (pending) void pending.then((w) => w.terminate()).catch(() => {});
-        }
-      };
-      void scan();
+        }),
+      ]);
+      if (active.current && current === generation.current) setCamera("ready");
     } catch (e) {
-      if (!active.current || generation !== run.current) return;
-      wantsCamera.current = false;
-      stopCamera();
-      setError(
-        e instanceof Error && e.name === "NotAllowedError"
-          ? "Izin kamera ditolak. Izinkan kamera di pengaturan browser atau pilih gambar label."
-          : e instanceof Error
-            ? e.message
-            : "Kamera belum bisa dibuka.",
-      );
+      if (active.current && current === generation.current) {
+        stopCamera();
+        setError(
+          e instanceof Error && e.name === "NotAllowedError"
+            ? "Kamera browser belum diizinkan. Ambil foto atau pilih dari galeri."
+            : e instanceof Error
+              ? e.message
+              : "Kamera belum bisa dibuka.",
+        );
+      }
+    } finally {
+      if (timeout) clearTimeout(timeout);
     }
-  }, [accept, getWorker, stopCamera]);
-  useEffect(() => {
-    let cancelled = false;
-    active.current = true;
-    // Load in parallel with camera permission and positioning, not after a frame.
-    if (!result && !manual)
-      void getWorker()
-        .then((w) => w.initialize())
-        .catch(() => {
-          if (!cancelled && active.current)
-            setError("Pembaca label belum siap. Coba lagi atau isi manual.");
-        });
-    if (!result && !manual && wantsCamera.current && !document.hidden)
-      void start();
-    const visibility = () => {
-      if (document.hidden && wantsCamera.current) stopCamera();
-      else if (!result && !manual && wantsCamera.current) void start();
-    };
-    document.addEventListener("visibilitychange", visibility);
-    return () => {
-      cancelled = true;
-      active.current = false;
-      stopCamera();
-      document.removeEventListener("visibilitychange", visibility);
-      const pending = worker.current;
-      worker.current = null;
-      if (pending) void pending.then((w) => w.terminate()).catch(() => {});
-    };
-  }, [attempt, manual, result, start, stopCamera, getWorker]);
-  async function selectImage(file: File | undefined) {
-    if (!file) return;
-    wantsCamera.current = false;
+  }
+  function capture() {
+    const v = video.current;
+    if (!v?.videoWidth) {
+      setError("Gambar kamera belum siap. Coba kamera HP.");
+      return;
+    }
+    // Keep the full sensor frame. A rigid overlay must not discard table rows.
+    const canvas = labelImage(v, v.videoWidth, v.videoHeight);
+    cancel();
+    stopCamera();
+    showPhoto(canvas);
+  }
+  function rotate() {
+    if (!photo) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = photo.height;
+    canvas.height = photo.width;
+    const ctx = canvas.getContext("2d")!;
+    ctx.translate(canvas.width, 0);
+    ctx.rotate(Math.PI / 2);
+    ctx.drawImage(photo, 0, 0);
+    showPhoto(canvas);
+  }
+  async function read() {
+    if (!photo || busy) return;
+    cancel();
     stopCamera();
     setError("");
     setBusy(true);
-    setStatus("Membaca gambar label…");
-    const previous = worker.current;
-    worker.current = null;
-    if (previous) void previous.then((w) => w.terminate()).catch(() => {});
-    const generation = run.current;
-    if (!file.type.startsWith("image/") || file.size > 15 * 1024 * 1024) {
-      setError("Pilih gambar label berukuran maksimal 15 MB.");
-      setBusy(false);
-      return;
-    }
-    const url = URL.createObjectURL(file);
+    setStatus("Menyiapkan pembaca label…");
+    const current = generation.current;
+    let reader: NutritionOcr | null = null;
     try {
-      const image = new Image();
-      image.src = url;
-      await image.decode();
-      if (!active.current || generation !== run.current) return;
-      const frame = labelImage(image, image.naturalWidth, image.naturalHeight);
-      const reader = await getWorker();
-      if (!active.current || generation !== run.current) return;
+      reader = await createNutritionOcr((stage) => {
+        if (active.current && current === generation.current)
+          setStatus(
+            stage === "ready"
+              ? "Membaca angka pada label…"
+              : "Menyiapkan pembaca. Unduhan pertama bisa lebih lama…",
+          );
+      });
+      if (!active.current || current !== generation.current) {
+        void reader.terminate(true);
+        return;
+      }
+      lease.current = reader;
+      const frame = labelImage(
+        photo,
+        photo.width,
+        photo.height,
+        photoCropPixels(crop, photo.width, photo.height),
+      );
       const read = await readOptimizedNutritionLabel(reader, frame, {
-        preset: presetRef.current,
         mode: "quality",
-        cancelled: () => !active.current || generation !== run.current,
+        maxRescues: 2,
+        budgetMs: 14000,
+        cancelled: () => !active.current || current !== generation.current,
         onProgress: (method) => {
-          if (active.current && generation === run.current)
+          if (active.current && current === generation.current)
             setStatus(
               method === "original"
-                ? "Membaca gambar asli…"
-                : `Memperjelas tulisan… ${IMAGE_METHODS[method]}.`,
+                ? "Membaca angka pada label…"
+                : "Memperjelas tulisan dan membaca ulang…",
             );
         },
       });
-      if (active.current && generation === run.current)
-        accept(read.label, read.evidence, read.confidence);
-    } catch {
-      if (active.current && generation === run.current)
+      if (!active.current || current !== generation.current) return;
+      if (!nutritionCoreCount(read.label)) {
         setError(
-          "Gambar belum bisa dibaca. Pilih JPG/PNG yang lebih jelas atau isi manual.",
+          "Angka nutrisi belum terbaca. Crop lebih dekat ke tabel, putar jika menyamping, lalu baca lagi.",
+        );
+        return;
+      }
+      setEvidence(read.evidence);
+      setResult(read.label);
+    } catch (e) {
+      if (active.current && current === generation.current)
+        setError(
+          e instanceof Error &&
+            /^(Pembaca|Pembacaan|Gambar|Ukuran)/.test(e.message)
+            ? e.message
+            : "Pembaca belum berhasil dimuat. Periksa koneksi dan coba lagi; foto tetap tersedia.",
         );
     } finally {
-      URL.revokeObjectURL(url);
-      if (active.current && generation === run.current) setBusy(false);
+      if (reader) void reader.terminate();
+      if (lease.current === reader) lease.current = null;
+      if (active.current && current === generation.current) setBusy(false);
     }
   }
+  function close() {
+    cancel();
+    stopCamera();
+    onClose();
+  }
+  const pickers = (
+    <>
+      <input
+        ref={cameraInput}
+        className="scan-file"
+        type="file"
+        accept="image/*"
+        capture="environment"
+        aria-label="Ambil foto label"
+        onChange={(e) => {
+          void selectImage(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={galleryInput}
+        className="scan-file"
+        type="file"
+        accept="image/*"
+        aria-label="Pilih foto dari galeri"
+        onChange={(e) => {
+          void selectImage(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
+    </>
+  );
   if (manual)
-    return (
-      <ManualFoodSheet initial={initial} onClose={onClose} onAdd={onAdd} />
-    );
+    return <ManualFoodSheet initial={initial} onClose={close} onAdd={onAdd} />;
   if (result)
     return (
       <ManualFoodSheet
         label={result}
-        preview={preview}
+        preview={evidence?.original}
         scanEvidence={evidence}
-        initial={initial}
-        onClose={onClose}
+        initial={{ ...initial, name: initial?.name || "Snack" }}
+        onClose={close}
         onAdd={onAdd}
         onRescan={() => {
           setResult(null);
-          setPreview("");
           setEvidence(undefined);
-          wantsCamera.current = true;
-          setAttempt((n) => n + 1);
+          setError("");
         }}
       />
     );
   return (
     <FriendlySheet
-      title="Scan label nutrisi"
-      onClose={() => {
-        wantsCamera.current = false;
-        stopCamera();
-        onClose();
-      }}
-    >
-      <p className="label-intro">
-        Masukkan tabel <span lang="zh">营养成分表</span> utuh. Terbaca otomatis,
-        lalu bisa dikoreksi.
-      </p>
-      <div
-        ref={cameraBox}
-        className={`label-camera${running ? " scanning" : ""}`}
-      >
-        <video
-          ref={video}
-          muted
-          playsInline
-          aria-label="Pratinjau label nutrisi"
-        />
-        <div className="label-guide" aria-hidden="true">
-          <i />
-          <i />
-          <i />
-          <i />
-        </div>
-        <div className="label-camera-hints">
-          <span className="label-position-hint">
-            Judul tabel di bagian atas bingkai
-          </span>
-          <span className="label-camera-label">
-            Angka + satuan di tengah · baris bawah ikut masuk
-          </span>
-        </div>
-        {!running && (
-          <div className="label-table-example" aria-hidden="true">
-            <strong lang="zh">营养成分表</strong>
-            <div className="label-example-head">
-              <span lang="zh">项目</span>
-              <span>每100克 / ml</span>
-              <span>NRV%</span>
-            </div>
-            {[
-              ["能量", "kJ"],
-              ["蛋白质", "g"],
-              ["脂肪", "g"],
-              ["碳水化合物", "g"],
-              ["钠", "mg"],
-            ].map(([name, unit]) => (
-              <div className="label-example-row" key={name}>
-                <span lang="zh">{name}</span>
-                <span className="label-example-dots" />
-                <span>{unit}</span>
+      title="Scan label"
+      className="nutrition-scan-sheet"
+      onClose={close}
+      footer={
+        <div className="scan-dock">
+          {busy ? (
+            <>
+              <div className="scan-reading" role="status">
+                <span className="scan-spinner" />
+                {status}
               </div>
-            ))}
-            <small>Contoh posisi tabel</small>
-          </div>
-        )}
-        <p role="status" className="label-camera-status">
-          <span>{error || status}</span>
-        </p>
-      </div>
-      {!!error && !running && !busy && (
-        <button
-          className="secondary-button"
-          onClick={() => {
-            wantsCamera.current = true;
-            setAttempt((n) => n + 1);
-          }}
-        >
-          Coba kamera lagi
-        </button>
-      )}
-      <label className="label-upload secondary-button">
-        {busy ? "Membaca gambar…" : "Pilih gambar label"}
-        <input
-          type="file"
-          accept="image/*"
-          disabled={busy}
-          onChange={(e) => {
-            void selectImage(e.target.files?.[0]);
-            e.target.value = "";
-          }}
-        />
-      </label>
-      <details className="label-filter-settings">
-        <summary>
-          Perbaikan gambar ·{" "}
-          {preset === "auto" ? "Otomatis" : IMAGE_METHODS[preset]}
-        </summary>
-        <label>
-          Filter gambar
-          <select
-            value={preset}
+              <button className="secondary-button" onClick={cancel}>
+                Batalkan pembacaan
+              </button>
+            </>
+          ) : (
+            <>
+              {photo ? (
+                <button className="primary-button" onClick={() => void read()}>
+                  Baca label
+                </button>
+              ) : camera === "ready" ? (
+                <button className="primary-button" onClick={capture}>
+                  Foto & periksa
+                </button>
+              ) : (
+                <button
+                  className="primary-button"
+                  onClick={() => {
+                    cancel();
+                    stopCamera();
+                    cameraInput.current?.click();
+                  }}
+                >
+                  Ambil foto
+                </button>
+              )}
+              <div className="scan-dock-row">
+                {photo && (
+                  <button
+                    className="secondary-button"
+                    onClick={() => cameraInput.current?.click()}
+                  >
+                    Foto ulang
+                  </button>
+                )}
+                <button
+                  className="secondary-button"
+                  onClick={() => {
+                    cancel();
+                    stopCamera();
+                    galleryInput.current?.click();
+                  }}
+                >
+                  Galeri
+                </button>
+                <button
+                  className="text-button"
+                  onClick={() => {
+                    cancel();
+                    stopCamera();
+                    setManual(true);
+                  }}
+                >
+                  Isi manual
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      }
+    >
+      {pickers}
+      {photo ? (
+        <>
+          <p className="label-intro">
+            Sisakan tabel, angka, dan satuannya. Geser sudut untuk crop.
+          </p>
+          <NutritionPhotoCrop
+            src={preview}
+            ratio={photo.width / photo.height}
+            crop={crop}
+            onChange={setCrop}
             disabled={busy}
-            onChange={(e) => {
-              const next = e.target.value as ImagePreset;
-              presetRef.current = next;
-              setPreset(next);
-              if (running) {
-                stopCamera();
-                wantsCamera.current = true;
-                setAttempt((n) => n + 1);
-              }
-            }}
+          />
+          <div className="scan-photo-tools">
+            <button className="text-button" disabled={busy} onClick={rotate}>
+              Putar 90°
+            </button>
+            <button
+              className="text-button"
+              disabled={busy}
+              onClick={() => setCrop({ ...FULL_PHOTO })}
+            >
+              Foto utuh
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div
+            className={
+              "scan-capture-preview " + (camera !== "off" ? "is-camera" : "")
+            }
           >
-            <option value="auto">Otomatis — bantu jika tulisan sulit</option>
-            {Object.entries(IMAGE_METHODS).map(([value, name]) => (
-              <option value={value} key={value}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <p>
-          Gambar asli selalu dibaca lebih dulu. Filter manual dibandingkan
-          dengan hasil asli; angka yang berbeda ditandai untuk diperiksa.
+            <video
+              ref={video}
+              muted
+              playsInline
+              aria-label="Pratinjau kamera label"
+            />
+            {camera === "off" && (
+              <div className="scan-empty">
+                <Icon name="scan" size={44} />
+                <h3>Foto tabel nutrisinya.</h3>
+                <p>
+                  Label Indonesia, English, atau 中文.
+                  <br />
+                  Boleh dari kamera atau foto yang sudah ada.
+                </p>
+              </div>
+            )}
+            {camera === "starting" && (
+              <p role="status" className="scan-camera-message">
+                Membuka kamera…
+              </p>
+            )}
+          </div>
+          <p className="label-intro">
+            Dekatkan sampai tulisannya jelas. Hindari pantulan cahaya.
+          </p>
+          <button
+            className="text-button scan-browser-camera"
+            disabled={camera === "starting"}
+            onClick={() => void startCamera()}
+          >
+            {camera === "ready"
+              ? "Ganti / mulai ulang kamera"
+              : "Gunakan kamera browser"}
+          </button>
+        </>
+      )}
+      {error && (
+        <p className="scan-error" role="alert">
+          {error}
         </p>
-      </details>
+      )}
+      {busy && elapsed >= 12 && (
+        <p className="quiet">
+          Foto tetap tersedia. Pembacaan pertama perlu mengunduh pembaca teks;
+          kamu bisa membatalkan kapan saja.
+        </p>
+      )}
       <p className="label-privacy">
-        Foto tetap di perangkat. kJ jadi kkal; NRV% diabaikan.
+        Foto diproses di perangkatmu. Hasil bisa dikoreksi sebelum disimpan.
       </p>
-      <button
-        className="text-button"
-        onClick={() => {
-          wantsCamera.current = false;
-          stopCamera();
-          setManual(true);
-        }}
-      >
-        Isi nutrisi manual
-      </button>
     </FriendlySheet>
   );
 }

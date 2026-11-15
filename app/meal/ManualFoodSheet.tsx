@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useId } from "react";
 import FriendlySheet from "./FriendlySheet";
 import NutritionSummary from "./NutritionSummary";
 import NutritionScanEvidence from "./NutritionScanEvidence";
@@ -46,6 +46,7 @@ export default function ManualFoodSheet({
   scanEvidence?: ScanEvidence;
   onRescan?: () => void;
 }) {
+  const formId = useId();
   const [name, setName] = useState(initial?.name ?? "");
   const [unit, setUnit] = useState(initial?.unit ?? "1 porsi");
   const [weight, setWeight] = useState("");
@@ -57,7 +58,7 @@ export default function ManualFoodSheet({
   );
   const [basisConfirmed, setBasisConfirmed] = useState(!label || !!label.basis);
   const [consumed, setConsumed] = useState(
-    (label?.basis?.amount ?? label?.basisAmountHint)?.toString() ?? "100",
+    label?.basis?.unit === "serving" ? "1" : "",
   );
   const [values, setValues] = useState(
     () =>
@@ -92,8 +93,21 @@ export default function ManualFoodSheet({
     <FriendlySheet
       title={label ? "Periksa label nutrisi" : "Tambah makanan manual"}
       onClose={onClose}
+      footer={
+        <div className="scan-review-actions">
+          <button className="primary-button" form={formId} disabled={!valid}>
+            Tambahkan ke pilihan makan
+          </button>
+          {onRescan && (
+            <button type="button" className="text-button" onClick={onRescan}>
+              Scan label lagi
+            </button>
+          )}
+        </div>
+      }
     >
       <form
+        id={formId}
         className="friendly-form"
         onSubmit={(e) => {
           e.preventDefault();
@@ -120,7 +134,7 @@ export default function ManualFoodSheet({
       >
         <p className="quiet">
           {label
-            ? "Angka diisi dari label. Periksa porsi acuan dan koreksi angka sebelum menambahkan. Kolom kosong berarti belum terbaca."
+            ? "Isi porsi yang kamu makan, lalu cek angka dari label."
             : "Masukkan nutrisi dari label atau sumber yang kamu pakai. Angka berikut untuk satu porsi acuan."}
         </p>
         {label && scanEvidence && (
@@ -154,6 +168,22 @@ export default function ManualFoodSheet({
             placeholder="Beri nama produk"
           />
         </label>
+        {label && (
+          <label>
+            Jumlah yang dimakan (
+            {basisUnit === "serving" ? "sajian" : basisUnit})
+            <input
+              required
+              type="number"
+              min="0.1"
+              step="any"
+              value={consumed}
+              placeholder="Isi porsi yang kamu makan"
+              inputMode="decimal"
+              onChange={(e) => setConsumed(e.target.value)}
+            />
+          </label>
+        )}
         {label ? (
           <>
             <div className="form-columns">
@@ -229,12 +259,13 @@ export default function ManualFoodSheet({
                 step="any"
                 value={values[k]}
                 placeholder="Belum terbaca"
+                inputMode="decimal"
                 onChange={(e) => setValues({ ...values, [k]: e.target.value })}
               />
             </label>
           ))}
         </div>
-        <details className="label-extra" open={!!label}>
+        <details className="label-extra">
           <summary>Gula, natrium, dan nutrisi lain</summary>
           <div className="form-columns">
             {LABEL_KEYS.filter(
@@ -266,20 +297,6 @@ export default function ManualFoodSheet({
             </p>
           )}
         </details>
-        {label && (
-          <label>
-            Jumlah yang dimakan (
-            {basisUnit === "serving" ? "sajian" : basisUnit})
-            <input
-              required
-              type="number"
-              min="0.1"
-              step="any"
-              value={consumed}
-              onChange={(e) => setConsumed(e.target.value)}
-            />
-          </label>
-        )}
         <NutritionSummary
           values={
             Object.fromEntries(
@@ -300,14 +317,6 @@ export default function ManualFoodSheet({
             label ? "Jumlah yang akan dicatat" : "Nutrisi satu porsi acuan"
           }
         />
-        <button className="primary-button" disabled={!valid}>
-          Tambahkan ke pilihan makan
-        </button>
-        {onRescan && (
-          <button type="button" className="secondary-button" onClick={onRescan}>
-            Scan label lagi
-          </button>
-        )}
       </form>
     </FriendlySheet>
   );
