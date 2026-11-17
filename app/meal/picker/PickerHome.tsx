@@ -35,6 +35,10 @@ function PickerHome({
   onImport: () => void;
   onGroup: () => void;
 }) {
+  // Quick picks and search are enough to log a meal. The category grid stays
+  // unmounted until "Lihat kategori lainnya", then works as before: six tiles,
+  // and the same control reveals the rest. Foods and category browse stay.
+  const [groupsOpen, setGroupsOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   return (
     <section className="picker-home">
@@ -55,52 +59,64 @@ function PickerHome({
           </div>
         </div>
       )}
-      <h2>Pilih jenis makanan</h2>
-      <p className="quiet">Atur cara masak dan porsi setelah memilih.</p>
-      <div className="food-category-grid">
-        {(expanded ? tiles : tiles.slice(0, 6)).map((t, i) => (
-          <button
-            className={`food-category category-${i % 4}`}
-            key={t.id}
-            onClick={() => onTile(t.id)}
-            aria-label={`${t.label}, ${t.hint}`}
-          >
-            <Icon
-              name={
-                ["sayur", "buah", "tahu", "kacang"].some((v) =>
-                  t.id.includes(v),
-                )
-                  ? "leaf"
-                  : "meal"
-              }
-            />
-            <strong>{t.label}</strong>
-            <small>{t.hint}</small>
-          </button>
-        ))}
-      </div>
-      {tiles.length > 6 && (
+      {groupsOpen ? (
+        <>
+          <h2>Pilih jenis makanan</h2>
+          <p className="quiet">Atur cara masak dan porsi setelah memilih.</p>
+          <div className="food-category-grid">
+            {(expanded ? tiles : tiles.slice(0, 6)).map((t, i) => (
+              <button
+                className={`food-category category-${i % 4}`}
+                key={t.id}
+                onClick={() => onTile(t.id)}
+                aria-label={`${t.label}, ${t.hint}`}
+              >
+                <Icon
+                  name={
+                    ["sayur", "buah", "tahu", "kacang"].some((v) =>
+                      t.id.includes(v),
+                    )
+                      ? "leaf"
+                      : "meal"
+                  }
+                />
+                <strong>{t.label}</strong>
+                <small>{t.hint}</small>
+              </button>
+            ))}
+          </div>
+          {tiles.length > 6 && (
+            <button
+              className="text-button"
+              aria-expanded={expanded}
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? "Ringkas kategori" : "Lihat kategori lainnya"}
+            </button>
+          )}
+          {loading && (
+            <p className="quiet" role="status">
+              Memuat katalog makanan…
+            </p>
+          )}
+          {error && (
+            <div className="status-message" role="status">
+              <p>{error}</p>
+              <p>Kategori dasar tetap tersedia.</p>
+              <button className="text-button" onClick={onRetry}>
+                Coba muat lagi
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
         <button
-          className="text-button"
-          aria-expanded={expanded}
-          onClick={() => setExpanded(!expanded)}
+          className="text-button category-entry"
+          aria-expanded={false}
+          onClick={() => setGroupsOpen(true)}
         >
-          {expanded ? "Ringkas kategori" : "Lihat kategori lainnya"}
+          Lihat kategori lainnya
         </button>
-      )}
-      {loading && (
-        <p className="quiet" role="status">
-          Memuat katalog makanan…
-        </p>
-      )}
-      {error && (
-        <div className="status-message" role="status">
-          <p>{error}</p>
-          <p>Kategori dasar tetap tersedia.</p>
-          <button className="text-button" onClick={onRetry}>
-            Coba muat lagi
-          </button>
-        </div>
       )}
       <details className="library-tools">
         <summary>Pilihan lain</summary>

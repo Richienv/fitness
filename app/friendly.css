@@ -657,6 +657,9 @@ progress::-moz-progress-bar {
 .picker-home {
   margin-top: 5px;
 }
+.category-entry {
+  margin-top: 14px;
+}
 .picker-home > h2 {
   margin: 20px 0 6px;
 }
