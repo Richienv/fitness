@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
 import Icon from "./ui/Icon";
 import { haptic } from "@/lib/haptics";
-import { useVTNavigate } from "@/lib/navigate";
 
 // ── Icons ───────────────────────────────────────────────────────────────────
 //
@@ -123,19 +123,47 @@ const TABS: Tab[] = [
   },
 ];
 
+const TAB_HREFS = TABS.map((t) => t.href);
+
 export default function BottomNav() {
   const pathname = usePathname();
-  const vtNavigate = useVTNavigate();
+  const router = useRouter();
+
+  // The root layout reads the session, so every route is dynamic. Next does
+  // not prefetch a dynamic route that has no loading.js, and a tap then waits
+  // for a server round trip before the next screen can commit. A full prefetch
+  // caches these four shells ahead of the tap. onInvalidate runs again when
+  // that cache is dropped (navigation, refresh) so the other tabs stay warm.
+  useEffect(() => {
+    let cancelled = false;
+    const warm = (href: string) => {
+      if (cancelled) return;
+      router.prefetch(href, {
+        kind: "full" as NonNullable<
+          Parameters<typeof router.prefetch>[1]
+        >["kind"],
+        onInvalidate: () => warm(href),
+      });
+    };
+    for (const href of TAB_HREFS) warm(href);
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   // Which cell the blob sits under. -1 on a route no tab claims, which hides
   // it rather than parking it on a lie.
   const activeIndex = TABS.findIndex((t) => t.match(pathname));
 
   function nav(href: string, e: React.MouseEvent) {
-    e.preventDefault();
-    if (href === pathname) return;
+    if (href === pathname) {
+      e.preventDefault();
+      return;
+    }
     haptic("tap");
-    vtNavigate(href);
+    // Leave the click to <Link>. Wrapping router.push in startViewTransition
+    // holds the previous screen until the next route commits — that wait is
+    // the lag on every tab tap.
   }
 
   if (["/login", "/register", "/welcome", "/onboarding"].includes(pathname)) return null;
@@ -152,6 +180,7 @@ export default function BottomNav() {
           <Link
             key={t.href}
             href={t.href}
+            prefetch
             onClick={(e) => nav(t.href, e)}
             className={`bn-item${on ? " active" : ""}`}
             aria-label={t.label}

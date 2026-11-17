@@ -226,7 +226,6 @@ export default function WorkoutHome() {
 
   return (
     <main
-      className="page-rise"
       style={{
         maxWidth: 560,
         margin: "0 auto",
