@@ -2,7 +2,13 @@
 import { memo, useState } from "react";
 import type { Tile } from "@/lib/foodTiles";
 import Icon from "../../ui/Icon";
-export type UsualChip = { id: string; name: string; kcal: number };
+export type UsualChip = {
+  id: string;
+  name: string;
+  kcal: number;
+  /** The portion a tap will save, e.g. "180 g" or "1 egg". */
+  detail: string;
+};
 export type TileView = {
   id: string;
   label: string;
@@ -35,72 +41,93 @@ function PickerHome({
   onImport: () => void;
   onGroup: () => void;
 }) {
+  // Quick picks are the way to log a usual food. The category grid stays
+  // unmounted until "Lihat kategori lainnya".
+  const [groupsOpen, setGroupsOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   return (
     <section className="picker-home">
       {usual.length > 0 && (
         <div className="usual-foods">
           <h2>Pilihan cepat untuk {mealLabel.toLowerCase()}</h2>
-          <div className="usual-rail">
+          <div className="usual-list">
             {usual.map((u) => (
               <button
-                className="soft-button"
+                className="usual-row"
                 key={u.id}
                 onClick={() => onUsual(u.id)}
+                aria-label={`${u.name}, ${u.detail}, ${Math.round(u.kcal)} kkal`}
               >
-                <strong>{u.name}</strong>
-                <small>{Math.round(u.kcal)} kkal</small>
+                <span>
+                  <strong>{u.name}</strong>
+                  <small>
+                    {u.detail} · {Math.round(u.kcal)} kkal
+                  </small>
+                </span>
+                <Icon name="plus" />
               </button>
             ))}
           </div>
         </div>
       )}
-      <h2>Pilih jenis makanan</h2>
-      <p className="quiet">Atur cara masak dan porsi setelah memilih.</p>
-      <div className="food-category-grid">
-        {(expanded ? tiles : tiles.slice(0, 6)).map((t, i) => (
-          <button
-            className={`food-category category-${i % 4}`}
-            key={t.id}
-            onClick={() => onTile(t.id)}
-            aria-label={`${t.label}, ${t.hint}`}
-          >
-            <Icon
-              name={
-                ["sayur", "buah", "tahu", "kacang"].some((v) =>
-                  t.id.includes(v),
-                )
-                  ? "leaf"
-                  : "meal"
-              }
-            />
-            <strong>{t.label}</strong>
-            <small>{t.hint}</small>
-          </button>
-        ))}
-      </div>
-      {tiles.length > 6 && (
+      {groupsOpen ? (
+        <>
+          <h2>Pilih jenis makanan</h2>
+          <p className="quiet">Atur cara masak dan porsi setelah memilih.</p>
+          <div className="food-category-grid">
+            {(expanded ? tiles : tiles.slice(0, 6)).map((t, i) => (
+              <button
+                className={`food-category category-${i % 4}`}
+                key={t.id}
+                onClick={() => onTile(t.id)}
+                aria-label={`${t.label}, ${t.hint}`}
+              >
+                <Icon
+                  name={
+                    ["sayur", "buah", "tahu", "kacang"].some((v) =>
+                      t.id.includes(v),
+                    )
+                      ? "leaf"
+                      : "meal"
+                  }
+                />
+                <strong>{t.label}</strong>
+                <small>{t.hint}</small>
+              </button>
+            ))}
+          </div>
+          {tiles.length > 6 && (
+            <button
+              className="text-button"
+              aria-expanded={expanded}
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? "Ringkas kategori" : "Lihat kategori lainnya"}
+            </button>
+          )}
+          {loading && (
+            <p className="quiet" role="status">
+              Memuat katalog makanan…
+            </p>
+          )}
+          {error && (
+            <div className="status-message" role="status">
+              <p>{error}</p>
+              <p>Kategori dasar tetap tersedia.</p>
+              <button className="text-button" onClick={onRetry}>
+                Coba muat lagi
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
         <button
-          className="text-button"
-          aria-expanded={expanded}
-          onClick={() => setExpanded(!expanded)}
+          className="text-button category-entry"
+          aria-expanded={false}
+          onClick={() => setGroupsOpen(true)}
         >
-          {expanded ? "Ringkas kategori" : "Lihat kategori lainnya"}
+          Lihat kategori lainnya
         </button>
-      )}
-      {loading && (
-        <p className="quiet" role="status">
-          Memuat katalog makanan…
-        </p>
-      )}
-      {error && (
-        <div className="status-message" role="status">
-          <p>{error}</p>
-          <p>Kategori dasar tetap tersedia.</p>
-          <button className="text-button" onClick={onRetry}>
-            Coba muat lagi
-          </button>
-        </div>
       )}
       <details className="library-tools">
         <summary>Pilihan lain</summary>

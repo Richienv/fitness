@@ -64,6 +64,25 @@ export function portionModel(
   return { mode: "grams", unitG: basis, defaultG: suggestedG > 0 ? suggestedG : basis };
 }
 
+/**
+ * Grams a usual-food tap saves, and the grams the portion sheet opens at.
+ * A quantity already on the tray wins. A remembered weight is used only when
+ * the food's own weight is real — a made-up 250 g is how a bowl became 950 kkal.
+ * Otherwise this is the food's own default serving.
+ */
+export function openingGrams(
+  food: Pick<FoodLike, "unit" | "gramsPerUnit">,
+  suggestedG: number,
+  opts?: { currentQty?: number; medianG?: number },
+): number {
+  const model = portionModel(food, suggestedG);
+  const currentQty = opts?.currentQty ?? 0;
+  if (currentQty > 0) return Math.round(currentQty * model.unitG);
+  const medianG = opts?.medianG;
+  if (model.mode === "grams" && medianG && medianG > 0) return Math.round(medianG);
+  return Math.round(model.defaultG);
+}
+
 /** Multiplier of one stored unit for a given number of grams. */
 export function qtyFromGrams(unitG: number, grams: number): number {
   if (!(unitG > 0) || !(grams > 0)) return 0;

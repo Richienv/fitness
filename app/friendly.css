@@ -657,35 +657,54 @@ progress::-moz-progress-bar {
 .picker-home {
   margin-top: 5px;
 }
+.category-entry {
+  margin-top: 14px;
+}
 .picker-home > h2 {
   margin: 20px 0 6px;
 }
 .usual-foods h2 {
   font-size: 14px;
+  margin-top: 0;
 }
-.usual-rail {
-  display: flex;
-  overflow-x: auto;
+.usual-list {
+  display: grid;
   gap: 8px;
-  padding: 10px 0 6px;
+  margin-top: 8px;
 }
-.usual-rail button {
-  display: block;
+.usual-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 58px;
+  padding: 10px 14px;
   text-align: left;
-  flex: none;
   background: #fff;
   border: 1px solid var(--border);
-  max-width: 210px;
-  white-space: normal;
+  border-radius: 14px;
+  color: var(--text);
 }
-.usual-rail strong {
-  font-size: 12px;
+.usual-row > span {
+  flex: 1;
+  min-width: 0;
 }
-.usual-rail small {
+.usual-row strong {
   display: block;
-  margin-top: 4px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.usual-row small {
+  display: block;
+  margin-top: 2px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.usual-row svg {
+  flex: none;
+  color: var(--muted);
 }
 .food-category-grid {
   display: grid;

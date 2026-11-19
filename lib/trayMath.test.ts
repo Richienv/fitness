@@ -6,6 +6,7 @@ import {
   gramBasis,
   gramsToSave,
   itemMacros,
+  openingGrams,
   portionModel,
   qtyFromGrams,
   trayTotals,
@@ -78,6 +79,19 @@ test("no curated staple opens at more than 1.6x its stored macros", () => {
     if (f.kcal > 0 && ratio > 1.6) worst.push(`${f.id} ×${ratio.toFixed(2)}`);
   }
   assert.deepEqual(worst, []);
+});
+
+test("a usual tap saves the remembered grams, and never invents a weight", () => {
+  const rice = byId("white-rice");
+  const suggested = satuanFor(rice).portionG;
+  assert.equal(openingGrams(rice, suggested), portionModel(rice, suggested).defaultG);
+  assert.equal(openingGrams(rice, suggested, { medianG: 180 }), 180);
+  assert.equal(openingGrams(rice, suggested, { medianG: 180, currentQty: 1.2 }), 120);
+
+  const soup = byId("noodle-soup");
+  const soupModel = portionModel(soup, satuanFor(soup).portionG);
+  assert.equal(soupModel.mode, "units");
+  assert.equal(openingGrams(soup, satuanFor(soup).portionG, { medianG: 250 }), soupModel.defaultG);
 });
 
 test("a food WITH a gram basis still portions in grams, anchored on its serving", () => {
