@@ -548,6 +548,25 @@ export default function MealHome({
     reloadFromStore();
   }, [reloadFromStore]);
 
+  // After a save, bring that meal's slot onto the screen. The builder is a
+  // full-screen cover, and removing it hands focus back in a way that jumps
+  // the page to the top — so the scroll runs again once that settles.
+  const revealSavedMeal = useCallback(
+    (meal: MealType, close: () => void) => {
+      close();
+      reloadFromStore();
+      const go = () =>
+        document
+          .querySelector(`[data-meal="${meal}"]`)
+          ?.scrollIntoView({ block: "start" });
+      requestAnimationFrame(() => {
+        go();
+        window.setTimeout(go, 60);
+      });
+    },
+    [reloadFromStore],
+  );
+
   useEffect(() => {
     setNowSlot(inferMealType());
   }, []);
@@ -779,8 +798,9 @@ export default function MealHome({
       </div>
       <div className="meal-slots">
         {slots.map((s) => (
-          <section
+            <section
             key={s.key}
+            data-meal={s.key}
             className={`meal-slot ${s.key === "breakfast" ? "breakfast-slot" : ""}${s.key === nowSlot && activeDate === todayStr ? " current" : ""}`}
           >
             {s.key === "breakfast" && <MorningScene />}
@@ -861,10 +881,7 @@ export default function MealHome({
           dateKey={activeDate}
           startInLabel
           onClose={() => setLabelMeal(null)}
-          onSaved={() => {
-            setLabelMeal(null);
-            reloadFromStore();
-          }}
+          onSaved={() => revealSavedMeal(labelMeal, () => setLabelMeal(null))}
         />
       )}
       {builderMeal && (
@@ -872,10 +889,9 @@ export default function MealHome({
           meal={builderMeal}
           dateKey={activeDate}
           onClose={() => setBuilderMeal(null)}
-          onSaved={() => {
-            setBuilderMeal(null);
-            reloadFromStore();
-          }}
+          onSaved={() =>
+            revealSavedMeal(builderMeal, () => setBuilderMeal(null))
+          }
         />
       )}
 
@@ -885,10 +901,7 @@ export default function MealHome({
           dateKey={activeDate}
           startInRacik
           onClose={() => setRacikMeal(null)}
-          onSaved={() => {
-            setRacikMeal(null);
-            reloadFromStore();
-          }}
+          onSaved={() => revealSavedMeal(racikMeal, () => setRacikMeal(null))}
         />
       )}
 

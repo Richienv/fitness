@@ -61,6 +61,7 @@ import { openingChoice } from "@/lib/foodPicker";
 import {
   gramsToSave,
   itemMacros,
+  openingGrams,
   portionModel,
   qtyFromGrams,
   servingPreview,
@@ -733,22 +734,12 @@ export default function FoodBuilder({
     haptic("tap");
     const ing = bIng(id);
     if (!ing) return;
-    const model = portionModel(ing, satuanFor(ing).portionG);
-    const cur = selection[id] || 0;
-    // Open at what THIS person usually eats, not the generic portion — after a
-    // few logs the slider starts in the right place on its own. Only for foods
-    // whose weight is real: a "usual 250 g" of a food with no gram basis would
-    // be a made-up weight, and it is exactly how noodle soup opened at 950 kkal.
-    const usual = historyStats.medianPortion.get(id);
     setSheet({
       id,
-      grams: Math.round(
-        cur > 0
-          ? cur * model.unitG
-          : model.mode === "grams" && usual && usual > 0
-            ? usual
-            : model.defaultG,
-      ),
+      grams: openingGrams(ing, satuanFor(ing).portionG, {
+        currentQty: selection[id] || 0,
+        medianG: historyStats.medianPortion.get(id),
+      }),
       mods: (entryMods[id] ?? []).slice(),
     });
   };
@@ -816,12 +807,30 @@ export default function FoodBuilder({
     setAddTick((t) => t + 1);
     learnPick([ing]);
     setQuery("");
-    setAddedFlash((f) => ({ name: ing.name, tick: (f?.tick ?? 0) + 1 }));
+    setAddedFlash((f) => ({ name: foodLabel(ing), tick: (f?.tick ?? 0) + 1 }));
     if (flashTimer.current) clearTimeout(flashTimer.current);
     flashTimer.current = window.setTimeout(() => setAddedFlash(null), 1400);
     haptic("success");
     if (opts.refocus !== false) setTimeout(() => searchRef.current?.focus(), 0);
     return true;
+  };
+
+  /**
+   * A usual food already has a portion: the one on the row. The first tap puts
+   * that amount on the tray. A second tap opens the sheet, for a different
+   * portion or an add-on. Search and categories still open the sheet first.
+   */
+  const addUsual = (id: string) => {
+    if ((selection[id] || 0) > 0) {
+      openPortionSheet(id);
+      return;
+    }
+    const ing = bIng(id);
+    if (!ing || ing.missingNutrition) return;
+    const grams = openingGrams(ing, satuanFor(ing).portionG, {
+      medianG: historyStats.medianPortion.get(id),
+    });
+    commitFood(id, grams, [], { refocus: false });
   };
 
   /** TAMBAH on the portion sheet. */
@@ -1344,18 +1353,25 @@ export default function FoodBuilder({
       habit.length > 0 ? habit : STAPLES.filter((f) => f.favorite).slice(0, 4);
     setUsual({
       title: habit.length > 0 ? BLABEL[activeMeal] : "FAVORIT",
-      chips: chosen.map((f) => ({
-        id: f.id,
-        name: f.name,
-        kcal: itemMacros(
-          f,
-          portionModel(f, satuanFor(f).portionG).defaultG /
-            portionModel(f, satuanFor(f).portionG).unitG,
-        ).kcal,
-      })),
+      chips: chosen.map((f) => {
+        const suggested = satuanFor(f).portionG;
+        const model = portionModel(f, suggested);
+        const grams = openingGrams(f, suggested, {
+          medianG: historyStats.medianPortion.get(f.id),
+        });
+        const qty = qtyFromGrams(model.unitG, grams);
+        return {
+          id: f.id,
+          name: f.name,
+          kcal: itemMacros(f, qty).kcal,
+          detail:
+            model.mode === "grams"
+              ? `${grams} g`
+              : satuanFor(f).label || f.unit || "1 porsi",
+        };
+      }),
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeMeal, predictor, familyIndex]);
+  }, [activeMeal, predictor, familyIndex, historyStats]);
 
   /** Open the portion sheet from a tile, already sitting on a real food. */
   const openTile = (tileId: string) => {
@@ -1367,15 +1383,11 @@ export default function FoodBuilder({
     haptic("tap");
     const ing = bIng(leaf.food.id);
     if (!ing) return;
-    const model = portionModel(ing, satuanFor(ing).portionG);
-    const usualG = historyStats.medianPortion.get(ing.id);
     setSheet({
       id: ing.id,
-      grams: Math.round(
-        model.mode === "grams" && usualG && usualG > 0
-          ? usualG
-          : model.defaultG,
-      ),
+      grams: openingGrams(ing, satuanFor(ing).portionG, {
+        medianG: historyStats.medianPortion.get(ing.id),
+      }),
       mods: [],
       fam: { tileId, picks: p, family: tile.family },
     });
@@ -1753,14 +1765,18 @@ export default function FoodBuilder({
               {traySelected.map(({ id, ing, qty }) => {
                 const model = portionModel(ing, satuanFor(ing).portionG);
                 const n = itemMacros(ing, qty, entryMods[id] ?? []);
+                const name = foodLabel(ing);
+                const noun = parseSatuan(
+                  satuanFor({ ...ing, name }).label,
+                ).noun;
                 return (
                   <div className="tray-food" key={id}>
                     <button onClick={() => openPortionSheet(id)}>
-                      <strong>{ing.name}</strong>
+                      <strong>{name}</strong>
                       <small>
                         {model.mode === "grams"
                           ? `${Math.round(model.unitG * qty)} g`
-                          : `${round1(qty)} × ${ing.unit}`}{" "}
+                          : `${round1(qty)} ${noun}`}{" "}
                         · {Math.round(n.kcal)} kkal
                         {modSummary(entryMods[id] ?? [])
                           ? ` · ${modSummary(entryMods[id] ?? [])}`
@@ -1777,7 +1793,7 @@ export default function FoodBuilder({
                     )}
                     <button
                       className="icon-button"
-                      aria-label={`Hapus ${ing.name} dari pilihan`}
+                      aria-label={`Hapus ${name} dari pilihan`}
                       onClick={() => bRemove(id)}
                     >
                       <Icon name="close" />
@@ -1809,7 +1825,7 @@ export default function FoodBuilder({
                 runCatalogueLoad(true);
               }}
               onTile={openTile}
-              onUsual={openPortionSheet}
+              onUsual={addUsual}
               onMore={() => setBrowseOpen(true)}
               onImport={() => {
                 if (
@@ -1931,7 +1947,7 @@ export default function FoodBuilder({
           </div>
           {count > 0 && (
             <button className="primary-button" onClick={saveBuilderMeal}>
-              Simpan {count} makanan · {Math.round(tk)} kkal
+              Simpan ke {BLABEL[activeMeal].toLowerCase()} · {Math.round(tk)} kkal
             </button>
           )}
         </footer>
@@ -1967,9 +1983,10 @@ export default function FoodBuilder({
         />
       )}
 
-      {/* ── PORTION SHEET — the only way into the tray ──
-          Tapping a row opens this instead of adding straight away, so the
-          portion and any add-ons are decided before anything is committed. */}
+      {/* ── PORTION SHEET ──
+          Search results and category tiles open this before anything is
+          committed. A usual-food tap skips it and saves the portion on the row;
+          tapping that food again, or its tray row, still opens the sheet. */}
       {sheet
         ? (() => {
             const ing = bIng(sheet.id);
@@ -2006,7 +2023,7 @@ export default function FoodBuilder({
 
             return (
               <PortionSheet
-                name={ing.name}
+                name={foodLabel(ing)}
                 mealLabel={BLABEL[activeMeal].toLowerCase()}
                 per100={{
                   kcal: ing.kcal * s100,
