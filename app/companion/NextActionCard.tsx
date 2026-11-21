@@ -7,6 +7,7 @@ import Icon, { type IconName } from "../ui/Icon";
 const ICON: Record<NextAction["key"], IconName> = {
   resume: "workout",
   weigh: "scale",
+  usual: "meal",
   meal: "plus",
   workout: "workout",
   protein: "plus",
@@ -14,13 +15,16 @@ const ICON: Record<NextAction["key"], IconName> = {
 };
 
 /** The single filled button on Home. Everything else is a quiet link.
- *  The weigh-in opens its sheet in place (`onWeigh`) instead of navigating. */
+ *  The weigh-in opens its sheet in place (`onWeigh`) and the usual meal logs
+ *  in one tap (`onUsual`) instead of navigating. */
 export default function NextActionCard({
   action,
   onWeigh,
+  onUsual,
 }: {
   action: NextAction;
   onWeigh?: () => void;
+  onUsual?: () => void;
 }) {
   const className = `next-action-button ${action.key}`;
   const content: ReactNode = (
@@ -37,7 +41,11 @@ export default function NextActionCard({
   );
   return (
     <section className="next-action" aria-label="Langkah berikutnya">
-      {action.key === "weigh" && onWeigh ? (
+      {action.key === "usual" && onUsual ? (
+        <button type="button" className={className} onClick={onUsual}>
+          {content}
+        </button>
+      ) : action.key === "weigh" && onWeigh ? (
         <button
           type="button"
           className={className}

@@ -438,3 +438,39 @@ test("addedMealType names the slot that gained food that day", () => {
   assert.equal(addedMealType(before, after, TODAY), "lunch");
   assert.equal(addedMealType(after, after, TODAY), null);
 });
+
+test("next action: an empty main meal with a usual meal offers it in one tap", () => {
+  const s = snapshot(input());
+  const usual = { label: "Oat + whey", kcal: 480.4, protein: 31.6, days: 9 };
+  const a = nextAction(s, {
+    hour: 7,
+    activeWorkoutId: null,
+    slotLogged: false,
+    weightGoal: false,
+    usual,
+  });
+  assert.equal(a.key, "usual");
+  assert.equal(a.title, "Sarapan biasa");
+  assert.equal(a.hint, "Oat + whey · 480 kkal · 32 g protein");
+  assert.equal(a.href, "/meal?add=1"); // the fallback when tapping is not possible
+  const lunch = nextAction(s, {
+    hour: 12,
+    activeWorkoutId: null,
+    slotLogged: false,
+    weightGoal: false,
+    usual,
+  });
+  assert.equal(lunch.title, "Makan siang biasa");
+});
+
+test("next action: no usual meal keeps the plain meal step, and a logged slot moves on", () => {
+  const s = snapshot(input());
+  const ctx = { hour: 7, activeWorkoutId: null, slotLogged: false, weightGoal: false };
+  assert.equal(nextAction(s, { ...ctx, usual: null }).key, "meal");
+  const logged = nextAction(snapshot(input({ intake: { [TODAY]: { kcal: 500, protein: 40 } } })), {
+    ...ctx,
+    slotLogged: true,
+    usual: { label: "Oat", kcal: 300, protein: 10, days: 5 },
+  });
+  assert.notEqual(logged.key, "usual");
+});

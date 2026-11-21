@@ -114,6 +114,17 @@ The first action of the morning no longer leaves Home for the older English meas
 
 Verification: `npm test` (353 pass, 13 new), `npx tsc --noEmit`, `npm run build:app`. Walkthrough at 375 × 812 on a separate localhost origin with a locally minted test session, an unreachable database and test data only: the morning button (07:00 simulated in the page), a first weigh-in after two days (streak 2 → 3 +1, first trend 72,6 kg), a correction from the quiet link in the evening (72,3 → 72,1, trend 72,6 → 72,5, −0,1), a repeat save of the same value (toast, no sheet), an out-of-range value (error, nothing saved), the typo hint, Escape (nothing saved, focus back on "Catat berat"), and a first-ever weigh-in (streak 1, "2 lagi" for the trend). A stylesheet check confirmed the new animations sit inside `prefers-reduced-motion: no-preference`.
 
+## What shipped: "Makan biasa" in one tap (21 Nov 2026)
+
+From the 21 Nov brainstorm ("1 klik tapi wow hasilnya banyak dan akurat"), the first item: the meal he usually eats, logged from Home in one tap.
+
+- **What counts as "biasa".** `usualMeal()` in `lib/usualMeal.ts` (pure, 6 tests): the same set of foods in this slot on at least 3 different days in the last 28 days, today excluded. Rows for one day and slot count as one meal, order does not matter, the most frequent set wins and a tie goes to the most recent. The items, and so the portions, are copied from the most recent time he ate it ("his" 1,5 portion of rice, not "1 porsi").
+- **Where it shows.** When the current main meal slot (sarapan, makan siang, makan malam) is still empty and a usual meal exists, the next action becomes "Makan malam biasa", with the foods, kcal and protein as its hint ("Nasi putih + Ikan + sayur · 615 kkal · 43 g protein"). Without a usual meal the step stays "Catat makan malam". Snacks never get it. The quiet "Catat makan" link stays for anything else.
+- **One tap.** The button logs those items for today through the existing `saveMeal()`, read fresh from storage at the tap (if the slot filled in the meantime, it opens the food builder instead). Every item gets the same new stamp. The usual celebration sheet then counts up what changed, from storage right before and right after: protein, kcal left, the streak and badges. The sheet has "Urungkan", which removes exactly the stamped items through `updateMealItems()` (deleting the meal record, and syncing that, when nothing else is in it). Focus cycles between "Lanjut" and "Urungkan".
+- **No data changes.** No new storage key, record shape or API. `lib/usualMealData.ts` is the browser adapter; `nextAction()` gained the `usual` step; `ProgressCelebration` gained an optional `onUndo`.
+
+Verification: `npm test` (361 pass, 8 new), `npx tsc --noEmit`, `npm run build:app`. Walkthrough at 375 × 812 on a localhost origin with a test session and test data only: dinner eaten as "Nasi putih + Ikan + sayur" on 9 of 14 days, the button at 22:00, one tap (record saved with both items on one stamp, kcal 1.180 → 1.795 of 2.000), "Urungkan" (record removed, back to 1.180, the offer returns, "Dibatalkan" toast).
+
 ## Follow-ups
 
 - ~~The morning action "Timbang pagi ini" opens the older English measurements page.~~ Shipped 21 Nov 2026 (above). The HUD's "timbang" chip and "Pinggang dan ukuran lain" still open that English page, which keeps the weight history and the other measurements.

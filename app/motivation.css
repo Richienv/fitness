@@ -245,6 +245,8 @@
 }
 .hud-day-ring {
   --hud-fill: var(--p);
+  /* Glides when a log on Home fills today's circle (registered property). */
+  transition: --hud-fill var(--dur-ring) var(--ease-out);
   position: relative;
   width: 30px;
   height: 30px;
@@ -655,6 +657,17 @@ button.next-action-button {
 .cel-close {
   width: 100%;
   min-height: 52px;
+}
+.cel-undo {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 6px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  background: none;
+  border: 0;
 }
 
 

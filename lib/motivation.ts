@@ -308,6 +308,7 @@ export const SLOT_NAME: Record<MealType, string> = {
 export type NextActionKey =
   | "resume"
   | "weigh"
+  | "usual"
   | "meal"
   | "workout"
   | "protein"
@@ -326,6 +327,8 @@ export type NextActionContext = {
   slotLogged: boolean;
   /** The avatar goal is a weight trend. */
   weightGoal: boolean;
+  /** The meal he usually eats in this slot (lib/usualMeal.ts), if any. */
+  usual?: { label: string; kcal: number; protein: number; days: number } | null;
 };
 
 /** One obvious next step, in a fixed order (design note, section 3). */
@@ -354,6 +357,15 @@ export function nextAction(s: Snapshot, ctx: NextActionContext): NextAction {
   // Sarapan, makan siang and makan malam lead; a snack is optional, so an
   // empty snack slot never outranks the training day.
   const slot = mealSlotForHour(ctx.hour);
+  if (!ctx.slotLogged && slot !== "snack" && ctx.usual) {
+    const name = SLOT_NAME[slot];
+    return {
+      key: "usual",
+      title: `${name[0].toUpperCase()}${name.slice(1)} biasa`,
+      hint: `${ctx.usual.label} · ${Math.round(ctx.usual.kcal).toLocaleString("id-ID")} kkal · ${Math.round(ctx.usual.protein)} g protein`,
+      href: "/meal?add=1",
+    };
+  }
   if (!ctx.slotLogged && slot !== "snack") {
     return {
       key: "meal",

@@ -7,6 +7,7 @@ import {
   type CSSProperties,
 } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { getMealsForDate, isCustomItem, type MealLog } from "@/lib/store";
 import { macrosFor } from "@/lib/ingredients";
 import {
@@ -31,6 +32,13 @@ import {
   type Snapshot,
 } from "@/lib/motivation";
 import { readSnapshot } from "@/lib/motivationData";
+import {
+  logUsualMeal,
+  readUsualMeal,
+  undoUsualMeal,
+  type UsualOffer,
+} from "@/lib/usualMealData";
+import { celebrationDiff, SLOT_NAME } from "@/lib/motivation";
 import { weighCelebration, weighContext, type WeighIn } from "@/lib/weighIn";
 import { haptic } from "@/lib/haptics";
 import { toast } from "../Toast";
@@ -47,6 +55,7 @@ const kg = (n: number) =>
   });
 export default function HomePage() {
   const { data: session } = useSession();
+  const router = useRouter();
   const [meals, setMeals] = useState<MealLog[]>([]),
     [measurements, setMeasurements] = useState<Measurement[]>([]),
     [workouts, setWorkouts] = useState<WorkoutSession[]>([]);
@@ -63,11 +72,24 @@ export default function HomePage() {
       todayKg: number | null;
       previous: WeighIn | null;
     } | null>(null),
-    [celebration, setCelebration] = useState<Celebration | null>(null);
+    [celebration, setCelebration] = useState<Celebration | null>(null),
+    [usual, setUsual] = useState<UsualOffer | null>(null),
+    // The one-tap log the open celebration can take back.
+    [undo, setUndo] = useState<{
+      mealId: string;
+      stamp: number;
+      title: string;
+    } | null>(null);
   const refresh = useCallback(() => {
     const d = todayKey();
+    const h = new Date().getHours();
     setDate(d);
-    setHour(new Date().getHours());
+    setHour(h);
+    try {
+      setUsual(readUsualMeal(mealSlotForHour(h), d));
+    } catch {
+      setUsual(null);
+    }
     // If a record is malformed the HUD steps aside; the quiet links remain.
     try {
       setSnap(readSnapshot({ today: d }));
@@ -93,7 +115,51 @@ export default function HomePage() {
     setWeigh({ today: d, todayKg: c.today, previous: c.previous });
   }, []);
   const closeWeigh = useCallback(() => setWeigh(null), []);
-  const closeCelebration = useCallback(() => setCelebration(null), []);
+  const closeCelebration = useCallback(() => {
+    setCelebration(null);
+    setUndo(null);
+  }, []);
+  // "Makan biasa": one tap logs the meal he usually eats in this slot, read
+  // fresh from storage at the tap, then the sheet counts up what changed.
+  const logUsual = useCallback(() => {
+    const d = todayKey();
+    const slot = mealSlotForHour(new Date().getHours());
+    const offer = readUsualMeal(slot, d);
+    const slotTaken = getMealsForDate(d).some(
+      (m) => m.mealType === slot && m.items.length > 0,
+    );
+    if (!offer || slotTaken) {
+      router.push("/meal?add=1");
+      return;
+    }
+    let before: Snapshot | null = null;
+    try {
+      before = readSnapshot({ today: d });
+    } catch {}
+    const logged = logUsualMeal(offer, d);
+    haptic("success");
+    refresh();
+    let c: Celebration | null = null;
+    try {
+      if (before) c = celebrationDiff(before, readSnapshot({ today: d }), "meal");
+    } catch {}
+    const name = SLOT_NAME[slot];
+    if (c) {
+      setUndo({
+        ...logged,
+        title: `${name[0].toUpperCase()}${name.slice(1)} biasa tercatat`,
+      });
+      setCelebration(c);
+    } else toast(`${offer.label} tercatat`, "success");
+  }, [refresh, router]);
+  const undoUsual = useCallback(() => {
+    if (undo) undoUsualMeal(undo.mealId, undo.stamp);
+    setCelebration(null);
+    setUndo(null);
+    haptic("tap");
+    refresh();
+    toast("Dibatalkan", "success");
+  }, [undo, refresh]);
   const saveWeight = useCallback(
     (kg: number) => {
       const d = weigh?.today ?? todayKey();
@@ -140,6 +206,7 @@ export default function HomePage() {
           (m) => m.mealType === slot && m.items.length > 0,
         ),
         weightGoal: settings.goal?.mode === "weight",
+        usual,
       })
     : null;
   const goal = settings.goal;
@@ -157,7 +224,9 @@ export default function HomePage() {
         </Link>
       </header>
       {snap && <HomeHud s={snap} />}
-      {action && <NextActionCard action={action} onWeigh={openWeigh} />}
+      {action && (
+        <NextActionCard action={action} onWeigh={openWeigh} onUsual={logUsual} />
+      )}
       <nav className="quiet-actions" aria-label="Catat lainnya">
         {action?.key !== "meal" && action?.key !== "protein" && (
           <Link href="/meal?add=1">
@@ -287,11 +356,14 @@ export default function HomePage() {
         <ProgressCelebration
           c={celebration}
           title={
-            celebration.weigh?.replaced != null
-              ? "Berat diperbarui"
-              : "Berat tercatat"
+            celebration.kind === "meal" && undo
+              ? undo.title
+              : celebration.weigh?.replaced != null
+                ? "Berat diperbarui"
+                : "Berat tercatat"
           }
           onClose={closeCelebration}
+          onUndo={celebration.kind === "meal" && undo ? undoUsual : undefined}
         />
       )}
       <Link href="/companion" className="duo-link">

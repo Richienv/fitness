@@ -53,22 +53,33 @@ export default function ProgressCelebration({
   c,
   title,
   onClose,
+  onUndo,
 }: {
   c: Celebration;
   title: string;
   onClose: () => void;
+  /** Offered after a one-tap log: takes exactly that log back. */
+  onUndo?: () => void;
 }) {
   const button = useRef<HTMLButtonElement>(null);
+  const sheet = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    // "Lanjut" is the sheet's only control: keep focus on it while the sheet
-    // is open, and hand focus back to where it was when it closes.
+    // Keep focus inside the sheet's buttons ("Lanjut", and "Urungkan" when
+    // offered) while it is open, and hand focus back when it closes.
     const previous = document.activeElement as HTMLElement | null;
     button.current?.focus({ preventScroll: true });
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
       if (e.key === "Tab") {
         e.preventDefault();
-        button.current?.focus({ preventScroll: true });
+        const controls = [
+          ...(sheet.current?.querySelectorAll<HTMLButtonElement>("button") ??
+            []),
+        ];
+        const at = controls.indexOf(document.activeElement as HTMLButtonElement);
+        const next =
+          controls[(at + (e.shiftKey ? -1 : 1) + controls.length) % controls.length];
+        (next ?? button.current)?.focus({ preventScroll: true });
       }
     };
     window.addEventListener("keydown", key);
@@ -106,6 +117,7 @@ export default function ProgressCelebration({
   return (
     <div className="cel-backdrop" onClick={onClose}>
       <div
+        ref={sheet}
         className="cel-sheet"
         role="dialog"
         aria-modal="true"
@@ -341,6 +353,11 @@ export default function ProgressCelebration({
         >
           Lanjut
         </button>
+        {onUndo && (
+          <button type="button" className="cel-undo" onClick={onUndo}>
+            Urungkan
+          </button>
+        )}
       </div>
     </div>
   );
