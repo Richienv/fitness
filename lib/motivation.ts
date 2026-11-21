@@ -6,6 +6,7 @@
 // The browser adapter that reads the stores lives in lib/motivationData.ts.
 import { BADGE_BY_KEY } from "./badges.ts";
 import type { MealType } from "./presets";
+import type { WeighChange } from "./weighIn";
 
 export type DayIntake = { kcal: number; protein: number };
 export type DayTarget = { kcal: number; protein: number };
@@ -196,8 +197,9 @@ export type StreakChange = {
   from: number;
   to: number;
 };
+export type CelebrationKind = "meal" | "workout" | "weigh";
 export type Celebration = {
-  kind: "meal" | "workout";
+  kind: CelebrationKind;
   added: DayIntake;
   before: Snapshot;
   after: Snapshot;
@@ -205,6 +207,8 @@ export type Celebration = {
   streaks: StreakChange[];
   week: { from: number; to: number; planned: number } | null;
   badges: (BadgeProgress & { from: number; to: number })[];
+  /** A weigh-in's own numbers (lib/weighIn.ts weighCelebration). */
+  weigh?: WeighChange;
 };
 
 export const STREAK_LABEL: Record<StreakKey, { label: string; unit: string }> =
@@ -219,7 +223,7 @@ export const STREAK_LABEL: Record<StreakKey, { label: string; unit: string }> =
 export function celebrationDiff(
   before: Snapshot,
   after: Snapshot,
-  kind: "meal" | "workout",
+  kind: CelebrationKind,
 ): Celebration {
   const pairs: [StreakKey, Streak, Streak][] = [
     ["meal", before.meal, after.meal],
@@ -258,9 +262,11 @@ export function celebrationDiff(
 }
 
 /** True when the log moved anything the sheet would count up. A 0 kcal
- *  log (water, creatine) changes nothing, so it gets the plain toast. */
+ *  log (water, creatine) or re-saving the same weight changes nothing, so it
+ *  gets the plain toast. */
 export function hasChanges(c: Celebration): boolean {
   return (
+    !!c.weigh?.changed ||
     c.added.kcal !== 0 ||
     c.added.protein !== 0 ||
     c.proteinReached ||

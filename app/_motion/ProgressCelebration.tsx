@@ -4,8 +4,10 @@ import { useEffect, useRef, type CSSProperties } from "react";
 import {
   STREAK_LABEL,
   type Celebration,
+  type CelebrationKind,
   type StreakKey,
 } from "@/lib/motivation";
+import { TREND_MIN, formatKg } from "@/lib/weighIn";
 import AnimatedNumber from "./AnimatedNumber";
 import TodayRings from "./TodayRings";
 import Icon, { type IconName } from "../ui/Icon";
@@ -16,6 +18,15 @@ const STREAK_ICON: Record<StreakKey, IconName> = {
   workout: "workout",
   weigh: "scale",
 };
+/** The streak each kind of log feeds. */
+const OWN_STREAK: Record<CelebrationKind, StreakKey> = {
+  meal: "meal",
+  workout: "workout",
+  weigh: "weigh",
+};
+/** A signed change in kg, neutral in tone: up or down is not judged here. */
+const signedKg = (n: number) =>
+  `${n > 0 ? "+" : n < 0 ? "−" : "±"}${formatKg(Math.abs(n))}`;
 
 /** A bar that grows from the old fraction to the new one (CSS animation,
  *  opt-in under prefers-reduced-motion). */
@@ -68,16 +79,28 @@ export default function ProgressCelebration({
   }, [onClose]);
   const { before, after } = c;
   const proteinLeft = Math.max(0, after.proteinTarget - after.protein);
+  const w = c.weigh;
   const subtitle =
     c.kind === "meal"
       ? `+${id(c.added.kcal)} kkal · +${id(c.added.protein)} g protein`
-      : c.week
-        ? `Latihan ke-${c.week.to} minggu ini`
-        : "Sesi tersimpan";
+      : c.kind === "weigh"
+        ? w
+          ? w.replaced !== null && w.replaced !== w.kg
+            ? `${formatKg(w.replaced)} → ${formatKg(w.kg)} kg hari ini`
+            : `${formatKg(w.kg)} kg hari ini`
+          : "Berat tersimpan"
+        : c.week
+          ? `Latihan ke-${c.week.to} minggu ini`
+          : "Sesi tersimpan";
   // The streak this kind of log feeds is shown when today (this week) is
   // really covered; it only counts up, with a +1, when it actually moved.
-  const ownKey: StreakKey = c.kind === "meal" ? "meal" : "workout";
-  const own = c.kind === "meal" ? after.meal : after.workoutWeeks;
+  const ownKey = OWN_STREAK[c.kind];
+  const own =
+    ownKey === "meal"
+      ? after.meal
+      : ownKey === "weigh"
+        ? after.weigh
+        : after.workoutWeeks;
   const ownMoved = c.streaks.some((x) => x.key === ownKey);
   let row = 0;
   return (
@@ -210,13 +233,63 @@ export default function ProgressCelebration({
               <span className="cel-label">
                 {STREAK_LABEL[ownKey].label}
                 <small>
-                  {c.kind === "meal" ? "Hari ini sudah aman" : "Pekan ini sudah aman"}
+                  {c.kind === "workout" ? "Pekan ini sudah aman" : "Hari ini sudah aman"}
                 </small>
               </span>
               <strong className="cel-value">
                 {own.count}
                 <small> {STREAK_LABEL[ownKey].unit}</small>
               </strong>
+            </li>
+          )}
+          {w?.trend && (
+            <li
+              className="cel-row stagger-item"
+              style={{ ["--i" as string]: row++ } as CSSProperties}
+            >
+              <span className="cel-icon weigh">
+                <Icon name="trend" size={18} />
+              </span>
+              <span className="cel-label">
+                Tren 7 hari
+                <small>
+                  {w.trend.from === null
+                    ? `Tren pertama: rata-rata ${w.trendCount} timbangan`
+                    : `Rata-rata ${w.trendCount} timbangan dalam 7 hari`}
+                </small>
+              </span>
+              <strong className="cel-value">
+                <AnimatedNumber
+                  value={w.trend.to}
+                  from={w.trend.from ?? w.trend.to}
+                  decimals={1}
+                  durationMs={900}
+                  format={formatKg}
+                />
+                <small> kg</small>
+                {w.trend.from !== null && (
+                  <em className="cel-delta">
+                    {signedKg(Math.round((w.trend.to - w.trend.from) * 10) / 10)}
+                  </em>
+                )}
+              </strong>
+            </li>
+          )}
+          {w && !w.trend && w.trendCount < TREND_MIN && (
+            <li
+              className="cel-row quiet stagger-item"
+              style={{ ["--i" as string]: row++ } as CSSProperties}
+            >
+              <span className="cel-icon weigh">
+                <Icon name="trend" size={18} />
+              </span>
+              <span className="cel-label">
+                Tren 7 hari muncul setelah {TREND_MIN} timbangan
+                <small>
+                  Sudah {w.trendCount} dalam 7 hari terakhir,{" "}
+                  {TREND_MIN - w.trendCount} lagi
+                </small>
+              </span>
             </li>
           )}
           {c.badges.slice(0, 2).map((b) => (

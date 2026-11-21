@@ -16,7 +16,9 @@ export type IconName =
   | "flame"
   | "scale"
   | "check"
-  | "medal";
+  | "medal"
+  | "minus"
+  | "trend";
 const paths: Record<IconName, React.ReactNode> = {
   scan: (
     <>
@@ -41,6 +43,9 @@ const paths: Record<IconName, React.ReactNode> = {
     </>
   ),
   plus: <path d="M12 5v14M5 12h14" />,
+  minus: <path d="M5 12h14" />,
+  // A level wave: a 7-day mean, with no direction implied.
+  trend: <path d="M3 14c2.5 0 3-5 6-5s3.5 6 6 6 3-5 6-5" />,
   close: <path d="m6 6 12 12M18 6 6 18" />,
   arrow: <path d="M5 12h14m-6-6 6 6-6 6" />,
   workout: (

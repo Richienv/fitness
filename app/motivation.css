@@ -343,6 +343,13 @@
 .next-action-button:active {
   transform: scale(0.98);
 }
+/* The weigh-in opens a sheet, so it is a <button>, styled like the link. */
+button.next-action-button {
+  width: 100%;
+  border: 0;
+  font: inherit;
+  text-align: left;
+}
 .next-action-button.workout,
 .next-action-button.resume {
   background: var(--mv-workout);
@@ -388,7 +395,8 @@
   gap: 2px 6px;
   margin: 2px 0 14px;
 }
-.quiet-actions a {
+.quiet-actions a,
+.quiet-actions button {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -615,6 +623,17 @@
   color: var(--mv-protein);
   background: #eef7f2;
 }
+/* A weight change: neutral, since up or down depends on the goal. */
+.cel-delta {
+  margin-left: 6px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mv-weigh);
+  background: #eef0f8;
+}
 .cel-bar {
   display: block;
   height: 6px;
@@ -639,6 +658,119 @@
 }
 
 
+/* ---------- Weigh-in sheet (21 Nov 2026) ----------
+   Uses FriendlySheet; classes are wi- so they never meet the legacy dark
+   .weigh-* rules in globals.css. */
+.wi-sheet {
+  --bg: #fff;
+  max-width: 560px;
+  /* FriendlySheet's entrance runs unconditionally; this one is opt-in below. */
+  animation: none;
+}
+.wi-sheet .friendly-sheet-body {
+  padding: 20px 20px 18px;
+}
+.wi-form {
+  display: grid;
+  gap: 10px;
+}
+.wi-form > label {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--muted);
+}
+.wi-field {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) 52px;
+  align-items: center;
+  gap: 10px;
+}
+.wi-step {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  color: var(--mv-weigh);
+  background: var(--mv-soft);
+  border: 1px solid var(--border);
+}
+.wi-input {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 18px;
+  background: var(--mv-soft);
+  border: 1.5px solid var(--border);
+}
+.wi-input:focus-within {
+  border-color: var(--mv-weigh);
+  background: #fff;
+}
+.wi-input.invalid {
+  border-color: #c0573f;
+}
+.wi-input input {
+  width: 4.6ch;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.wi-input input:focus-visible {
+  outline: none;
+}
+.wi-input span {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.wi-help {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
+.wi-help.invalid {
+  color: #a2442f;
+  font-weight: 600;
+}
+.wi-jump {
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  color: #7a5a14;
+  background: #fbf4e3;
+  text-align: center;
+}
+.wi-footer {
+  display: grid;
+  gap: 4px;
+}
+.wi-footer .primary-button {
+  min-height: 52px;
+  font-size: 15px;
+}
+.wi-more {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
 /* ---------- Motion (opt-in) ---------- */
 @media (prefers-reduced-motion: no-preference) {
   .hud-streak.lit .hud-streak-icon {
@@ -654,7 +786,8 @@
   .cel-backdrop {
     animation: mv-fade 0.24s var(--ease-out) both;
   }
-  .cel-sheet {
+  .cel-sheet,
+  .wi-sheet {
     animation: mv-sheet 0.42s var(--ease-ios) both;
   }
   .cel-check {
@@ -663,7 +796,8 @@
   .cel-spark {
     animation: mv-spark 0.75s var(--ease-out) 0.24s both;
   }
-  .cel-plus {
+  .cel-plus,
+  .cel-delta {
     animation: mv-pop 0.5s var(--ease-spring) 0.7s both;
   }
   /* Rows arrive one after another, after the sheet has landed. */

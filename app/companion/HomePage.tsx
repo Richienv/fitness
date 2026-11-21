@@ -9,7 +9,11 @@ import {
 import { useSession } from "next-auth/react";
 import { getMealsForDate, isCustomItem, type MealLog } from "@/lib/store";
 import { macrosFor } from "@/lib/ingredients";
-import { getAllMeasurements, type Measurement } from "@/lib/measurements";
+import {
+  getAllMeasurements,
+  saveMeasurement,
+  type Measurement,
+} from "@/lib/measurements";
 import {
   getActiveWorkoutId,
   getAllWorkouts,
@@ -19,11 +23,22 @@ import { todayKey } from "@/lib/targets";
 import { useSoftRefresh } from "@/lib/useSoftRefresh";
 import { readCompanion, type CompanionSettings } from "@/lib/companionSettings";
 import { companionProgress, weightSummary } from "@/lib/companionProgress";
-import { mealSlotForHour, nextAction, type Snapshot } from "@/lib/motivation";
+import {
+  hasChanges,
+  mealSlotForHour,
+  nextAction,
+  type Celebration,
+  type Snapshot,
+} from "@/lib/motivation";
 import { readSnapshot } from "@/lib/motivationData";
+import { weighCelebration, weighContext, type WeighIn } from "@/lib/weighIn";
+import { haptic } from "@/lib/haptics";
+import { toast } from "../Toast";
+import ProgressCelebration from "../_motion/ProgressCelebration";
 import AvatarPlayer from "./AvatarPlayer";
 import HomeHud from "./HomeHud";
 import NextActionCard from "./NextActionCard";
+import WeighInSheet from "./WeighInSheet";
 import Icon from "../ui/Icon";
 const kg = (n: number) =>
   n.toLocaleString("id-ID", {
@@ -43,6 +58,12 @@ export default function HomePage() {
     [date, setDate] = useState(""),
     [snap, setSnap] = useState<Snapshot | null>(null),
     [hour, setHour] = useState(12);
+  const [weigh, setWeigh] = useState<{
+      today: string;
+      todayKg: number | null;
+      previous: WeighIn | null;
+    } | null>(null),
+    [celebration, setCelebration] = useState<Celebration | null>(null);
   const refresh = useCallback(() => {
     const d = todayKey();
     setDate(d);
@@ -65,6 +86,44 @@ export default function HomePage() {
     return () => clearInterval(t);
   }, [refresh]);
   useSoftRefresh(refresh);
+  // The weigh-in opens in place, read fresh from storage at the tap.
+  const openWeigh = useCallback(() => {
+    const d = todayKey();
+    const c = weighContext(getAllMeasurements(), d);
+    setWeigh({ today: d, todayKg: c.today, previous: c.previous });
+  }, []);
+  const closeWeigh = useCallback(() => setWeigh(null), []);
+  const closeCelebration = useCallback(() => setCelebration(null), []);
+  const saveWeight = useCallback(
+    (kg: number) => {
+      const d = weigh?.today ?? todayKey();
+      // "Before" comes from storage right before the save, so a weight merged
+      // by background sync is never counted as part of this weigh-in. The
+      // save itself never depends on the celebration.
+      let before: { snap: Snapshot; rows: Measurement[] } | null = null;
+      try {
+        before = { snap: readSnapshot({ today: d }), rows: getAllMeasurements() };
+      } catch {}
+      saveMeasurement({ date: d, weightKg: kg });
+      haptic("success");
+      setWeigh(null);
+      refresh();
+      let c: Celebration | null = null;
+      try {
+        if (before)
+          c = weighCelebration(
+            before.snap,
+            readSnapshot({ today: d }),
+            before.rows,
+            getAllMeasurements(),
+            d,
+          );
+      } catch {}
+      if (c && hasChanges(c)) setCelebration(c);
+      else toast("Berat tersimpan", "success");
+    },
+    [weigh?.today, refresh],
+  );
   const weight = date
     ? weightSummary(measurements, date)
     : { latest: null, mean: null, count: 0 };
@@ -98,7 +157,7 @@ export default function HomePage() {
         </Link>
       </header>
       {snap && <HomeHud s={snap} />}
-      {action && <NextActionCard action={action} />}
+      {action && <NextActionCard action={action} onWeigh={openWeigh} />}
       <nav className="quiet-actions" aria-label="Catat lainnya">
         {action?.key !== "meal" && action?.key !== "protein" && (
           <Link href="/meal?add=1">
@@ -113,10 +172,10 @@ export default function HomePage() {
           </Link>
         )}
         {action?.key !== "weigh" && (
-          <Link href="/dashboard/progress">
+          <button type="button" aria-haspopup="dialog" onClick={openWeigh}>
             <Icon name="scale" size={16} />
             Catat berat
-          </Link>
+          </button>
         )}
       </nav>
       <section className="home-avatar">
@@ -215,6 +274,26 @@ export default function HomePage() {
           ))
         )}
       </section>
+      {weigh && (
+        <WeighInSheet
+          today={weigh.today}
+          todayKg={weigh.todayKg}
+          previous={weigh.previous}
+          onSave={saveWeight}
+          onClose={closeWeigh}
+        />
+      )}
+      {celebration && (
+        <ProgressCelebration
+          c={celebration}
+          title={
+            celebration.weigh?.replaced != null
+              ? "Berat diperbarui"
+              : "Berat tercatat"
+          }
+          onClose={closeCelebration}
+        />
+      )}
       <Link href="/companion" className="duo-link">
         <img
           src="/avatars/v2/duo-poster.webp"
