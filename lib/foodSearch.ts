@@ -387,6 +387,12 @@ export function searchPrepared<T extends SearchableFood>(
     return {
       token,
       idfTerm,
+      // The word exists in the catalogue as a whole word ("ayam"). Then it
+      // means that word: matching it inside another word ("b-ayam") or by
+      // typo is a guess the user did not need, and it put spinach under
+      // "ayam mentah". A word that exists nowhere keeps the loose matching,
+      // which is what rescues a typo ("ayem") or a half-typed word ("aya").
+      realWord: family.some((v) => index.postings.has(v)),
       variants: [
         // Same word, other spelling: no penalty.
         ...family.map((v) => ({ v, penalty: 1, spelling: true, mask: letterMask(v) })),
@@ -442,6 +448,7 @@ export function searchPrepared<T extends SearchableFood>(
           // same prefix and fuzzy treatment the typed form gets. Otherwise
           // typing "telor" would stop matching "Telur dadar" by prefix.
           if (!spelling && tier < HIT.WORD_EXACT) continue;
+          if (plan.realWord && tier < HIT.WORD_PREFIX) continue;
           const tf = tierToTf(tier) * weight * penalty;
           if (tf <= 0) continue;
           // Every variant is scored under the family's shared IDF.

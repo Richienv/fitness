@@ -89,6 +89,13 @@ import { modsFor, modDelta, modSummary, type FoodMod } from "@/lib/foodMods";
 import { STAPLE_POPULARITY } from "@/lib/ingredients";
 import { emptyHistory } from "@/lib/suggest";
 import {
+  foodState,
+  groupResults,
+  parseFoodQuery,
+  relaxQuery,
+  type FoodState,
+} from "@/lib/foodQuery";
+import {
   getHistoryStats,
   invalidateHistoryStats,
   categoryForGroup,
@@ -148,6 +155,8 @@ type BuilderFood = import("@/lib/nutritionLabel").NutritionExtras & {
   servings?: { label: string; grams: number }[];
   /** Static popularity prior (0–200). Never shown; ranks and orders. */
   popularity?: number;
+  /** Raw or cooked when known (see lib/foodQuery foodState). */
+  state?: FoodState;
   missingNutrition?: boolean;
 };
 
@@ -450,6 +459,11 @@ export default function FoodBuilder({
   // DB food-composition search results, plus a session cache so a picked DB
   // food still resolves after the query clears.
   const [dbResults, setDbResults] = useState<BuilderFood[]>([]);
+  // Which result groups ("Masakan ayam" …) are expanded, for this query.
+  const [openGroups, setOpenGroups] = useState<{ q: string; keys: string[] }>({
+    q: "",
+    keys: [],
+  });
   const [dbCache, setDbCache] = useState<Record<string, BuilderFood>>({});
   // True from the moment a query is typed until its DB results land, so the
   // list can show a loading spinner instead of the previous query's rows.
@@ -522,7 +536,8 @@ export default function FoodBuilder({
   // Debounced; per-100g values map to a "100 g" unit so the qty math and the
   // save path work unchanged.
   useEffect(() => {
-    const term = query.trim();
+    // The words that name food: "ayam air fryer" asks the server for "ayam".
+    const term = parseFoodQuery(query.trim()).text;
     setSearchError(null);
     if (term.length < 2) {
       setDbResults([]);
@@ -1232,6 +1247,9 @@ export default function FoodBuilder({
     .concat(groupFoods)
     .map(applyOv);
   const q = query.trim().toLowerCase();
+  // Cooking methods the catalogue does not name ("air fryer", "oven") and
+  // "mentah" are hints, not words a food must contain.
+  const parsedQ = parseFoodQuery(q);
   // Search results — one flat, ranked list: local library matches lead, DB
   // hits (already score-ranked by the API) follow. Then the user's own staples
   // that match the query are floated to the very top (most-used first), so what
@@ -1443,15 +1461,26 @@ export default function FoodBuilder({
   // deeper costs a larger sort, not a larger scan.
   const RANK_LIMIT = 400;
   const SHOW_LIMIT = 60;
-  const searchFlatRaw: BuilderFood[] = q
-    ? searchPrepared(searchPool, q, {
+  const dbPool = prepareSearch(dbResults);
+  // When nothing matches every word, search the longest leading part that
+  // finds something, and say so ("ayam kremes spesial" → "ayam kremes").
+  const searchText = !q
+    ? ""
+    : (relaxQuery(
+        parsedQ.text,
+        (t) =>
+          searchPrepared(searchPool, t, { limit: 1 }).length > 0 ||
+          searchPrepared(dbPool, t, { limit: 1 }).length > 0,
+      ) ?? parsedQ.text);
+  const searchFlatRaw: BuilderFood[] = searchText
+    ? searchPrepared(searchPool, searchText, {
         limit: RANK_LIMIT,
         affinity,
         suppression,
       })
         .map((r) => r.food)
         .concat(
-          searchPrepared(prepareSearch(dbResults), q, {
+          searchPrepared(dbPool, searchText, {
             limit: 30,
             affinity,
             suppression,
@@ -1501,6 +1530,40 @@ export default function FoodBuilder({
   }, [q, searchFlat.length]);
 
   const searchResultCount = searchFlat.length;
+  // A one-word query groups by what the word means (the food, its dishes,
+  // dishes with it), with what this user picks most in its own group on top.
+  const searchGroups = (() => {
+    if (!searchText) return null;
+    const seen = new Set<string>();
+    const unique = searchFlatRaw.filter((f) => {
+      if (seen.has(f.id)) return false;
+      seen.add(f.id);
+      return true;
+    });
+    return groupResults(unique, searchText, {
+      affinity,
+      preferRaw: parsedQ.wantsRaw || parsedQ.method === "airfry",
+    });
+  })();
+  const searchHint = !q
+    ? null
+    : parsedQ.method === "airfry"
+      ? "Air fryer tidak menambah minyak. Pilih bahannya, lalu isi berat sebelum dimasak."
+      : parsedQ.method === "panggang"
+        ? "Oven atau grill: pilih bahannya, atau masakan panggang."
+        : searchText !== parsedQ.text
+          ? `Tidak ada yang cocok dengan semua kata. Menampilkan “${searchText}”.`
+          : null;
+  const groupOpen = (k: string) =>
+    openGroups.q === q && openGroups.keys.includes(k);
+  const toggleGroup = (k: string) =>
+    setOpenGroups((cur) => {
+      const keys = cur.q === q ? cur.keys : [];
+      return {
+        q,
+        keys: keys.includes(k) ? keys.filter((x) => x !== k) : [...keys, k],
+      };
+    });
   // Browse mode: sort/group with no query → the WHOLE library (capped for perf).
   // With SEMUA as the default, an empty query always means "browse the
   // library" — there is no separate staples screen to fall back to.
@@ -1646,7 +1709,12 @@ export default function FoodBuilder({
         }}
       >
         <span>
-          <strong>{ing.name}</strong>
+          <strong>
+            {ing.name}
+            {foodState(ing) === "mentah" && !/mentah|raw/i.test(ing.name) && (
+              <em className="state-tag">mentah</em>
+            )}
+          </strong>
           <small>
             {preview.description} ·{" "}
             {ing.missingNutrition
@@ -1834,7 +1902,38 @@ export default function FoodBuilder({
                 <h2>Hasil pencarian</h2>
                 {searching && <span className="quiet">Mencari…</span>}
               </div>
-              {searchFlat.map(renderResultRow)}
+              {searchHint && <p className="search-hint">{searchHint}</p>}
+              {searchGroups
+                ? searchGroups.map((g) => {
+                    const open = groupOpen(g.key);
+                    return (
+                      <section
+                        key={g.key}
+                        className={`result-group ${g.key}`}
+                        aria-label={g.title}
+                      >
+                        <h3>
+                          {g.title}
+                          <span>{g.items.length}</span>
+                        </h3>
+                        {(open ? g.items.slice(0, SHOW_LIMIT) : g.items.slice(0, 4)).map(
+                          renderResultRow,
+                        )}
+                        {g.items.length > 4 && (
+                          <button
+                            className="text-button"
+                            aria-expanded={open}
+                            onClick={() => toggleGroup(g.key)}
+                          >
+                            {open
+                              ? "Tampilkan lebih sedikit"
+                              : `Lihat semua ${g.items.length}`}
+                          </button>
+                        )}
+                      </section>
+                    );
+                  })
+                : searchFlat.map(renderResultRow)}
               {searchResultCount === 0 && !searching && (
                 <div className="empty-note">
                   <p>Makanan “{query}” belum ditemukan.</p>

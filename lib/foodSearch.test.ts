@@ -38,11 +38,18 @@ test("an empty query returns nothing rather than everything", () => {
   assert.deepEqual(names("   "), []);
 });
 
-test("a whole-word match outranks the same letters buried in another word", () => {
-  // "Bayam" contains a-y-a-m but is not chicken.
+test("a real word never matches inside another word", () => {
+  // "Bayam" contains a-y-a-m but is spinach. "ayam" is a word the catalogue
+  // has, so it means chicken and nothing buried inside other words.
   const out = names("ayam");
   assert.equal(out[0], "Ayam goreng");
-  assert.ok(out.indexOf("Ayam bakar") < out.indexOf("Bayam rebus"));
+  assert.ok(out.includes("Ayam bakar"));
+  assert.ok(!out.includes("Bayam rebus"));
+});
+
+test("a typo still finds the food it is one letter away from", () => {
+  // "ayem" is not a word anywhere, so the loose matching stays on for it.
+  assert.ok(names("ayem").includes("Ayam goreng"));
 });
 
 test("typing more words NARROWS the results", () => {

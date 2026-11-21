@@ -24,6 +24,9 @@ export type Ingredient = {
   gramsPerUnit?: number;
   /** Short note shown inline on the ingredient card. */
   note?: string;
+  /** Raw or cooked, when the serving is clearly one of them. Shown as a
+   *  "mentah" tag in search so a raw cut is never mistaken for a dish. */
+  state?: "mentah" | "matang";
   /** Other names this food is searched by, space-separated. Search-only —
    *  never displayed. These staples are English-named ("Whole egg") in an app
    *  that is otherwise entirely in Bahasa, so without this the twenty foods a
@@ -48,7 +51,7 @@ export const STAPLE_POPULARITY = 120;
 export const INGREDIENTS: Ingredient[] = [
   // Proteins
   { id: "egg",          name: "Whole egg",        zh: "鸡蛋",     pinyin: "jī dàn",       unit: "1 egg",           group: "protein", favorite: true, kcal: 70,  protein: 6,  fat: 5,  carbs: 0.5 , aliases: "telur telor telur ayam" },
-  { id: "chicken-breast", name: "Chicken breast", zh: "鸡胸肉",   pinyin: "jī xiōng ròu", unit: "1 breast (250g)", group: "protein", favorite: true, step: 0.25, gramsPerUnit: 250, kcal: 275, protein: 52, fat: 6,  carbs: 0 , aliases: "ayam dada dada ayam" },
+  { id: "chicken-breast", state: "mentah", name: "Chicken breast", zh: "鸡胸肉",   pinyin: "jī xiōng ròu", unit: "1 breast (250g)", group: "protein", favorite: true, step: 0.25, gramsPerUnit: 250, kcal: 275, protein: 52, fat: 6,  carbs: 0 , aliases: "ayam dada dada ayam" },
   { id: "chicken-thigh", name: "Chicken thigh",   zh: "鸡腿",     pinyin: "jī tuǐ",       unit: "1 thigh (150g)",  group: "protein", favorite: true, step: 0.25, gramsPerUnit: 150, kcal: 220, protein: 24, fat: 14, carbs: 0 , aliases: "ayam paha paha ayam" },
   { id: "beef-slice",   name: "Beef slice",       zh: "牛肉片",   pinyin: "niú ròu piàn", unit: "1 slice (30g)",   group: "protein", favorite: true, step: 0.5, gramsPerUnit: 30, kcal: 54,  protein: 5,  fat: 4,  carbs: 0 , aliases: "daging sapi irisan sapi" },
   { id: "whey",         name: "Whey scoop",       zh: "乳清蛋白", pinyin: "rǔ qīng dàn bái", unit: "1 scoop (30g)", group: "protein", step: 0.5, gramsPerUnit: 30, kcal: 120, protein: 25, fat: 2,  carbs: 3 , aliases: "whey protein bubuk protein" },

@@ -563,3 +563,54 @@ progress::-moz-progress-bar {
     animation: mv-sheet 0.42s var(--ease-ios) both;
   }
 }
+
+/* Search results: a hint line, groups by meaning, a "mentah" tag. */
+.search-hint {
+  margin: 4px 0 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--calm-fill);
+  color: var(--calm-text);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.result-group {
+  margin-top: 14px;
+}
+.result-group h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 2px;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--calm-muted);
+}
+.result-group h3 span {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--calm-fill);
+  font-size: 12px;
+  font-weight: 600;
+}
+.result-group.personal h3 {
+  color: var(--calm-accent);
+}
+.result-group > .text-button {
+  min-height: 44px;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.state-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--calm-border);
+  color: var(--calm-muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  vertical-align: 2px;
+}
