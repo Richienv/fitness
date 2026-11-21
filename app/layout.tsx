@@ -6,6 +6,7 @@ import "./companion.css";
 import "./entry.css";
 import "./meal-entry.css";
 import "./motivation.css";
+import "./calm.css";
 import SetupProvider from "./SetupProvider";
 import BottomNav from "./BottomNav";
 import ServerSync from "./ServerSync";

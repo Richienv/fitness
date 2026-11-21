@@ -158,7 +158,10 @@ export default function HomePage() {
     setUndo(null);
     haptic("tap");
     refresh();
-    toast("Dibatalkan", "success");
+    toast(
+      `${undo?.title.replace(" tercatat", "") ?? "Catatan"} dibatalkan`,
+      "success",
+    );
   }, [undo, refresh]);
   const saveWeight = useCallback(
     (kg: number) => {

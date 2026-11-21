@@ -1,15 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type CSSProperties,
-  type ReactNode,
-  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { foodLabel } from "@/lib/foodLabel";
 import { getIngredient, macrosFor, type Macros } from "@/lib/ingredients";
@@ -42,8 +38,7 @@ import { toast } from "../Toast";
 import DatePicker from "./DatePicker";
 import FoodBuilder from "./FoodBuilder";
 import Icon from "../ui/Icon";
-import NutritionSummary from "./NutritionSummary";
-import MorningScene from "./MorningScene";
+import TodayRings from "../_motion/TodayRings";
 import { useSheetBack } from "@/lib/backSheet";
 import {
   addedMealType,
@@ -53,6 +48,12 @@ import {
   type Celebration,
 } from "@/lib/motivation";
 import { readSnapshot } from "@/lib/motivationData";
+import {
+  logUsualMeal,
+  readUsualMeal,
+  undoUsualMeal,
+  type UsualOffer,
+} from "@/lib/usualMealData";
 import ProgressCelebration from "../_motion/ProgressCelebration";
 
 /** A blank editor draft; may or may not carry an id (edit vs. add). */
@@ -101,150 +102,31 @@ function bahasaDate(dateStr: string): string {
   return `${ID_DAYS[dt.getUTCDay()]} · ${dt.getUTCDate()} ${ID_MON[dt.getUTCMonth()]} ${dt.getUTCFullYear()}`;
 }
 
+const fmt = (n: number) => Math.round(n).toLocaleString("id-ID");
+const ID_DAY_SHORT = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+const ID_MON_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
+  "Jul", "Agu", "Sep", "Okt", "Nov", "Des",
+];
+/** "Jum, 20 Nov" — the date chip when the page shows another day. */
+function shortDate(dateStr: string): string {
+  if (!dateStr) return "";
+  const dt = parseDate(dateStr);
+  return `${ID_DAY_SHORT[dt.getUTCDay()]}, ${dt.getUTCDate()} ${ID_MON_SHORT[dt.getUTCMonth()]}`;
+}
+
 /** Local clock time (HH:MM) of an epoch-ms stamp — when a food was logged. */
 function fmtTime(ms: number): string {
   const d = new Date(ms);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-/** A single row that can be swiped (left or right) to *request* a delete. Below
- *  a small drag threshold a tap opens the meal; past the threshold the row snaps
- *  back and calls onRequestDelete, which opens a confirmation dialog — nothing is
- *  removed until the user confirms. The row never keeps a "flung-off" state, so
- *  after a delete the remaining rows can't inherit a stale swipe/gone state.
- *  Uses pointer events so it works on touch and mouse. */
-function SwipeRow({
-  onTap,
-  onRequestDelete,
-  children,
-}: {
-  onTap: () => void;
-  onRequestDelete: () => void;
-  children: ReactNode;
-}) {
-  const [dx, setDx] = useState(0);
-  const st = useRef<{ x: number; y: number; drag: boolean } | null>(null);
-  // Low trigger point — the confirmation dialog is the safety net, so opening it
-  // should feel easy. Past this point the finger meets gentle resistance
-  // (rubber-band) so the gesture has a tactile "wall", the way iOS drags feel.
-  const THRESH = 64;
-
-  /** Rubber-band: track the finger 1:1 up to THRESH, then let only a fraction of
-   *  further travel through, so the row resists like it has weight. */
-  const damp = (raw: number) => {
-    const a = Math.abs(raw);
-    if (a <= THRESH) return raw;
-    const over = a - THRESH;
-    const eased = THRESH + over * (1 - over / (over + 220));
-    return raw < 0 ? -eased : eased;
-  };
-
-  const down = (e: ReactPointerEvent<HTMLDivElement>) => {
-    st.current = { x: e.clientX, y: e.clientY, drag: false };
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
-    }
-  };
-  const move = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const s = st.current;
-    if (!s) return;
-    const ddx = e.clientX - s.x;
-    const ddy = e.clientY - s.y;
-    if (!s.drag && Math.abs(ddx) > 8 && Math.abs(ddx) > Math.abs(ddy))
-      s.drag = true;
-    if (s.drag) setDx(damp(ddx));
-  };
-  const up = () => {
-    const s = st.current;
-    st.current = null;
-    if (!s) return;
-    if (!s.drag) {
-      onTap();
-      return;
-    }
-    // Always settle back with weight; open the confirmation if dragged far enough.
-    const trigger = Math.abs(dx) > THRESH;
-    setDx(0);
-    if (trigger) onRequestDelete();
-  };
-
-  const dragging = st.current?.drag ?? false;
-  const prog = Math.min(1, Math.abs(dx) / THRESH);
-  return (
-    <div style={{ position: "relative", borderRadius: 12 }}>
-      <div
-        aria-hidden="true"
-        style={{
-          position: "absolute",
-          inset: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: dx < 0 ? "flex-end" : "flex-start",
-          padding: "0 14px",
-          borderRadius: 12,
-          background: `linear-gradient(90deg,rgba(238,60,48,${0.06 + prog * 0.24}),rgba(238,60,48,${0.02 + prog * 0.08}))`,
-          color: "var(--text)",
-          fontFamily: MONO,
-          fontSize: 10.5,
-          letterSpacing: ".12em",
-          opacity: prog,
-        }}
-      >
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 7,
-            // The label eases in and nudges toward the swiped edge as you pass
-            // the trigger, so the gesture confirms itself before you let go.
-            transform: `translateX(${(dx < 0 ? 1 : -1) * (1 - prog) * 10}px) scale(${0.86 + prog * 0.14})`,
-            transition: dragging ? "none" : "transform .34s var(--ease-ios)",
-            fontWeight: prog >= 1 ? 700 : 400,
-          }}
-        >
-          HAPUS
-        </span>
-      </div>
-      <div
-        onPointerDown={down}
-        onPointerMove={move}
-        onPointerUp={up}
-        onPointerCancel={() => {
-          st.current = null;
-          setDx(0);
-        }}
-        style={{
-          position: "relative",
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          borderRadius: 12,
-          textAlign: "left",
-          cursor: "pointer",
-          touchAction: "pan-y",
-          transform: `translateX(${dx}px)`,
-          // 1:1 finger tracking while dragging (direct manipulation); on release
-          // it settles back with a weighty, slightly springy decelerate.
-          transition: dragging ? "none" : "transform .44s var(--ease-spring)",
-          willChange: "transform",
-          // Rows sit *inside* a slot card, so they carry no card chrome of their
-          // own — only the swipe background behind them reads as a surface.
-          background: dragging || dx !== 0 ? "var(--surface)" : "transparent",
-        }}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
 
 const MEAL_ID_LABEL: Record<MealType, string> = {
-  breakfast: "SARAPAN",
-  lunch: "SIANG",
-  snack: "SNACK",
-  dinner: "MALAM",
+  breakfast: "Sarapan",
+  lunch: "Siang",
+  snack: "Camilan",
+  dinner: "Malam",
 };
 
 /** The four cards, in the order they happen. Windows match inferMealType(). */
@@ -318,66 +200,28 @@ function addMacros(a: Macros, b: Macros): Macros {
 function toggleStyle(active: boolean): CSSProperties {
   return {
     flex: 1,
-    padding: "11px",
+    minHeight: 44,
+    padding: "10px 6px",
     borderRadius: 12,
-    fontFamily: MONO,
-    fontSize: 11,
-    letterSpacing: ".06em",
+    fontFamily: SANS,
+    fontSize: 14,
+    fontWeight: active ? 650 : 500,
     cursor: "pointer",
     border: active
-      ? "1px solid rgba(255,150,120,.6)"
-      : "1px solid rgba(84,119,93,.1)",
-    background: active ? FIRE : "rgba(84,119,93,.03)",
-    color: active ? "var(--text)" : "#7c736e",
-    boxShadow: active
-      ? "inset 0 1.5px 1px rgba(255,225,205,.6),0 6px 16px rgba(238,60,48,.35)"
-      : "none",
-    textShadow: active ? "0 1px 2px rgba(120,15,5,.5)" : "none",
+      ? "1px solid var(--calm-accent)"
+      : "1px solid var(--calm-border)",
+    background: active ? "var(--calm-accent-soft)" : "#fff",
+    color: active ? "var(--calm-accent)" : "var(--calm-text)",
   };
 }
 
-/** The compact GYM / REST segment in the header — same job as the old
- *  full-width toggle row, a fraction of the space. */
-function segStyle(active: boolean): CSSProperties {
-  return {
-    padding: "8px 13px",
-    borderRadius: 9,
-    fontFamily: MONO,
-    fontSize: 9.5,
-    fontWeight: active ? 700 : 400,
-    letterSpacing: ".1em",
-    cursor: "pointer",
-    color: active ? "var(--text)" : "#7c736e",
-    background: active ? FIRE : "transparent",
-    border: active ? "1px solid rgba(255,150,120,.5)" : "1px solid transparent",
-    textShadow: active ? "0 1px 2px rgba(120,15,5,.5)" : "none",
-  };
-}
-
-/** Small round icon button used in the manage-sheet rows. */
-function manageIconStyle(disabled: boolean): CSSProperties {
-  return {
-    width: 30,
-    height: 30,
-    flexShrink: 0,
-    borderRadius: 9,
-    fontFamily: MONO,
-    fontSize: 13,
-    lineHeight: 1,
-    cursor: disabled ? "default" : "pointer",
-    color: disabled ? "#4a4642" : "var(--text)",
-    background: "rgba(84,119,93,.04)",
-    border: "1px solid rgba(84,119,93,.1)",
-    opacity: disabled ? 0.4 : 1,
-  };
-}
 
 const editLabelStyle: CSSProperties = {
   display: "block",
-  fontFamily: MONO,
-  fontSize: 9.5,
-  letterSpacing: ".12em",
-  color: "#7c736e",
+  fontFamily: SANS,
+  fontSize: 13,
+  fontWeight: 600,
+  color: "var(--calm-muted)",
   marginTop: 16,
 };
 
@@ -388,10 +232,9 @@ const editInputStyle: CSSProperties = {
   borderRadius: 12,
   fontFamily: SANS,
   fontSize: 16, // ≥16 avoids iOS focus zoom
-  color: "var(--text)",
-  background: "rgba(84,119,93,.04)",
-  border: "1px solid rgba(84,119,93,.12)",
-  outline: "none",
+  color: "var(--calm-text)",
+  background: "#fff",
+  border: "1px solid var(--calm-border)",
   boxSizing: "border-box",
 };
 
@@ -452,17 +295,8 @@ type Slot = {
  *  width, so it sometimes wraps. Each amount is glued to its label with a
  *  non-breaking space: a wrap can then only happen at a "·", which moves
  *  "0g gula" down as one piece instead of stranding the word on its own. */
-function macroLine(
-  protein: number,
-  carbs: number,
-  fat: number,
-  sugar: number | null | undefined,
-): string {
-  return (
-    `${Math.round(protein)}g protein · ${Math.round(carbs)}g karbo` +
-    ` · ${Math.round(fat)}g lemak` +
-    (sugar == null ? " · gula belum tersedia" : ` · ${Math.round(sugar)}g gula`)
-  );
+function macroLine(protein: number): string {
+  return `${Math.round(protein)} g protein`;
 }
 
 function describeItem(it: MealItem): {
@@ -476,7 +310,7 @@ function describeItem(it: MealItem): {
     return {
       name: it.name,
       kcal: it.kcal,
-      detail: `${portion} · ${macroLine(it.protein, it.carbs, it.fat, it.sugar)}`,
+      detail: `${portion} · ${macroLine(it.protein)}`,
     };
   }
   const ing = getIngredient(it.id);
@@ -484,11 +318,10 @@ function describeItem(it: MealItem): {
   const portion = ing?.gramsPerUnit
     ? `${Math.round(ing.gramsPerUnit * it.qty)} g`
     : `${round1(it.qty)}×`;
-  const sugar = ing?.sugar == null ? null : ing.sugar * it.qty;
   return {
     name: ing ? foodLabel(ing) : it.id,
     kcal: m.kcal,
-    detail: `${portion} · ${macroLine(m.protein, m.carbs, m.fat, sugar)}`,
+    detail: `${portion} · ${macroLine(m.protein)}`,
   };
 }
 
@@ -547,7 +380,14 @@ export default function MealHome({
     c: Celebration;
     title: string;
   } | null>(null);
-  const closeCelebration = useCallback(() => setCelebration(null), []);
+  const [usualUndo, setUsualUndo] = useState<{
+    mealId: string;
+    stamp: number;
+  } | null>(null);
+  const closeCelebration = useCallback(() => {
+    setCelebration(null);
+    setUsualUndo(null);
+  }, []);
 
   // Hardware back closes the top-most open sheet instead of leaving the page.
   // (FoodBuilder wires its own step-aware handler internally.)
@@ -740,6 +580,35 @@ export default function MealHome({
     [activeDate, celebrateMeal, reloadFromStore],
   );
 
+  // "Makan biasa" for the current main meal, when it is still empty today.
+  const usualOffer = useMemo<UsualOffer | null>(() => {
+    if (!activeDate || activeDate !== todayStr) return null;
+    if (!nowSlot || nowSlot === "snack") return null;
+    if (slots.find((x) => x.key === nowSlot)?.items.length) return null;
+    try {
+      return readUsualMeal(nowSlot, activeDate);
+    } catch {
+      return null;
+    }
+  }, [activeDate, todayStr, nowSlot, slots]);
+  const logUsual = useCallback(() => {
+    if (!usualOffer) return;
+    const before = getAllMeals();
+    const logged = logUsualMeal(usualOffer, activeDate);
+    haptic("success");
+    if (celebrateMeal(before)) setUsualUndo(logged);
+    else toast(`${usualOffer.label} tercatat`, "success");
+    reloadFromStore();
+  }, [usualOffer, activeDate, celebrateMeal, reloadFromStore]);
+  const undoUsual = useCallback(() => {
+    if (usualUndo) undoUsualMeal(usualUndo.mealId, usualUndo.stamp);
+    setCelebration(null);
+    setUsualUndo(null);
+    haptic("tap");
+    reloadFromStore();
+    toast(`${celebration?.title.replace(" tercatat", "") ?? "Catatan"} dibatalkan`, "success");
+  }, [usualUndo, celebration, reloadFromStore]);
+
   const mealNames: Record<MealType, string> = {
     breakfast: "Sarapan",
     lunch: "Makan siang",
@@ -748,23 +617,66 @@ export default function MealHome({
   };
   return (
     <main className="friendly-page meal-page">
-      <header className="page-top">
-        <div>
-          <p className="eyebrow">Catatan harian</p>
-          <h1>Makan</h1>
-        </div>
-        <button className="soft-button" onClick={() => setPickerOpen(true)}>
-          {activeDate === todayStr ? "Hari ini" : activeDate}
-          <Icon name="sun" size={18} />
+      <header className="mk-head">
+        <h1>Makan</h1>
+        <button
+          className="mk-date"
+          aria-haspopup="dialog"
+          onClick={() => setPickerOpen(true)}
+        >
+          {activeDate === todayStr ? "Hari ini" : shortDate(activeDate)}
+          <Icon name="chevron" size={16} />
         </button>
       </header>
-      <p className="quiet date-caption">
-        {dateLine.toLocaleLowerCase("id-ID")}
-      </p>
-      <section className="daily-nutrition">
-        <div className="row-between">
-          <h2>Nutrisi hari ini</h2>
-          <div className="segment">
+
+      <section className="mk-summary" aria-label="Nutrisi hari ini">
+        <div className="mk-summary-main">
+          <TodayRings
+            kcal={totals.kcal}
+            kcalTarget={target.kcal}
+            protein={totals.protein}
+            proteinTarget={target.protein}
+            size={112}
+          />
+          <div className="hud-legend">
+            <div className="kcal">
+              <span>Kalori</span>
+              <strong>
+                {fmt(totals.kcal)}
+                <small> / {fmt(target.kcal)} kkal</small>
+              </strong>
+              <small>
+                {target.kcal - totals.kcal >= 0
+                  ? `${fmt(target.kcal - totals.kcal)} kkal tersisa`
+                  : `${fmt(totals.kcal - target.kcal)} kkal di atas target`}
+              </small>
+            </div>
+            <div className="protein">
+              <span>Protein</span>
+              <strong>
+                {fmt(totals.protein)}
+                <small> / {fmt(target.protein)} g</small>
+              </strong>
+              <small>
+                {target.protein - totals.protein > 0
+                  ? `${fmt(target.protein - totals.protein)} g lagi`
+                  : "Target tercapai"}
+              </small>
+            </div>
+            <p className="mk-macros">
+              {`Karbo\u00a0${fmt(totals.carbs)}\u00a0/\u00a0${target.carbs}\u00a0g`}
+              {` · Lemak\u00a0${fmt(totals.fat)}\u00a0/\u00a0${target.fat}\u00a0g`}
+              {sugarTotal > 0 ? ` · Gula ${round1(sugarTotal)}\u00a0g` : ""}
+            </p>
+          </div>
+        </div>
+        <div className="mk-daytype">
+          <span id="mk-daytype-label">Target hari</span>
+          <div
+            className="segment"
+            role="group"
+            aria-labelledby="mk-daytype-label"
+          >
             <button aria-pressed={gymDay} onClick={() => toggleGym(true)}>
               Latihan
             </button>
@@ -773,41 +685,119 @@ export default function MealHome({
             </button>
           </div>
         </div>
-        <NutritionSummary values={totals} />
-        <div className="calorie-budget">
-          <div className="row-between">
-            <span>
-              {Math.max(
-                0,
-                Math.round(target.kcal - totals.kcal),
-              ).toLocaleString("id-ID")}{" "}
-              kkal tersisa
-            </span>
-            <span>Target {target.kcal.toLocaleString("id-ID")}</span>
-          </div>
-          <progress
-            value={Math.min(totals.kcal, target.kcal)}
-            max={target.kcal}
-            aria-label="Kalori dari target harian"
-          />
-        </div>
-        <details className="nutrition-targets">
-          <summary>Target dan detail nutrisi</summary>
-          <p>
-            Protein {round1(totals.protein)} / {target.protein} g · Karbohidrat{" "}
-            {round1(totals.carbs)} / {target.carbs} g · Lemak{" "}
-            {round1(totals.fat)} / {target.fat} g · Gula tercatat{" "}
-            {round1(sugarTotal)} g
-          </p>
-        </details>
       </section>
+
+      <section className="mk-quick" aria-labelledby="mk-quick-title">
+        <h2 className="mk-section-title" id="mk-quick-title">
+          Catat cepat
+        </h2>
+        <div className="mk-chips">
+          {usualOffer && (
+            <button className="mk-chip usual" onClick={logUsual}>
+              <Icon name="meal" size={18} />
+              <span>
+                <strong>{MEAL_TITLE[usualOffer.slot]} biasa</strong>
+                <small>
+                  {usualOffer.label} · {fmt(usualOffer.kcal)} kkal
+                </small>
+              </span>
+            </button>
+          )}
+          {quickEntries.map((e) => (
+            <button className="mk-chip" key={e.id} onClick={() => logQuick(e)}>
+              <Icon name="plus" size={18} />
+              <span>
+                <strong>{e.label}</strong>
+                <small>{fmt(e.kcal)} kkal</small>
+              </span>
+            </button>
+          ))}
+          <button
+            className="mk-chip manage"
+            onClick={() => setManageOpen(true)}
+          >
+            {quickEntries.length ? "Atur" : "Atur menu cepat"}
+          </button>
+        </div>
+      </section>
+
+      <section className="mk-day" aria-labelledby="mk-day-title">
+        <h2 className="mk-section-title" id="mk-day-title">
+          {activeDate === todayStr
+            ? "Hari ini"
+            : dateLine.toLocaleLowerCase("id-ID")}
+        </h2>
+        <div className="mk-day-list">
+          {slots.map((s) => {
+            const isNow = s.key === nowSlot && activeDate === todayStr;
+            return (
+              <section
+                key={s.key}
+                className={`mk-slot${isNow ? " now" : ""}`}
+                aria-labelledby={`mk-slot-${s.key}`}
+              >
+                <header className="mk-slot-head">
+                  <h3 id={`mk-slot-${s.key}`}>
+                    {mealNames[s.key]}
+                    {isNow && <span className="mk-now">Sekarang</span>}
+                  </h3>
+                  <span className="mk-slot-kcal">
+                    {fmt(s.kcal)} <small>kkal</small>
+                  </span>
+                </header>
+                {s.items.length ? (
+                  <ul className="mk-items">
+                    {s.items.map((it) => (
+                      <li className="mk-item" key={it.key}>
+                        <span className="mk-item-name">
+                          <strong>{it.name}</strong>
+                          <small>{it.detail}</small>
+                        </span>
+                        <span className="mk-item-kcal">
+                          {fmt(it.kcal)} kkal
+                        </span>
+                        <button
+                          className="icon-button"
+                          aria-label={`Hapus ${it.name}`}
+                          onClick={() =>
+                            setPendingDelete({
+                              mealId: it.mealId,
+                              itemIndex: it.itemIndex,
+                              name: it.name,
+                            })
+                          }
+                        >
+                          <Icon name="close" size={18} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mk-empty">Belum ada</p>
+                )}
+                <button
+                  className="mk-add"
+                  onClick={() => setBuilderMeal(s.key)}
+                >
+                  <Icon name="plus" size={16} />
+                  Tambah ke {mealNames[s.key].toLowerCase()}
+                </button>
+              </section>
+            );
+          })}
+        </div>
+      </section>
+
       <div className="food-actions">
         <button
           className="primary-button"
           onClick={() => setBuilderMeal(nowSlot ?? inferMealType())}
         >
           <Icon name="search" />
-          Cari makanan
+          <span className="dock-label">
+            Cari makanan
+            <small>{mealNames[nowSlot ?? inferMealType()].toLowerCase()}</small>
+          </span>
         </button>
         <button
           className="secondary-button"
@@ -824,84 +814,6 @@ export default function MealHome({
           Scan label
         </button>
       </div>
-      <div className="meal-slots">
-        {slots.map((s) => (
-          <section
-            key={s.key}
-            className={`meal-slot ${s.key === "breakfast" ? "breakfast-slot" : ""}${s.key === nowSlot && activeDate === todayStr ? " current" : ""}`}
-          >
-            {s.key === "breakfast" && <MorningScene />}
-            <header className="row-between">
-              <div>
-                <h2>{mealNames[s.key]}</h2>
-                <p className="quiet">
-                  {s.window}
-                  {s.key === nowSlot && activeDate === todayStr
-                    ? " · Sekarang"
-                    : ""}
-                </p>
-              </div>
-              <span className="slot-kcal">
-                {Math.round(s.kcal)} <small>kkal</small>
-              </span>
-            </header>
-            {s.items.length ? (
-              s.items.map((it) => (
-                <div className="logged-food" key={it.key}>
-                  <button
-                    className="logged-food-main"
-                    onClick={() => setBuilderMeal(s.key)}
-                  >
-                    <strong>{it.name}</strong>
-                    <small>{it.detail}</small>
-                  </button>
-                  <span>{Math.round(it.kcal)} kkal</span>
-                  <button
-                    className="icon-button"
-                    aria-label={`Hapus ${it.name}`}
-                    onClick={() =>
-                      setPendingDelete({
-                        mealId: it.mealId,
-                        itemIndex: it.itemIndex,
-                        name: it.name,
-                      })
-                    }
-                  >
-                    <Icon name="close" />
-                  </button>
-                </div>
-              ))
-            ) : (
-              <p className="empty-note">Belum ada makanan dicatat.</p>
-            )}
-            <button className="slot-add" onClick={() => setBuilderMeal(s.key)}>
-              <Icon name="plus" />
-              Catat {mealNames[s.key].toLowerCase()}
-            </button>
-          </section>
-        ))}
-      </div>
-      <details className="quick-log">
-        <summary>Menu cepat tersimpan ({quickEntries.length})</summary>
-        <div className="quick-log-grid">
-          {quickEntries.map((e) => (
-            <button
-              className="soft-button"
-              key={e.id}
-              onClick={() => logQuick(e)}
-            >
-              <span>
-                {e.label}
-                <small>{Math.round(e.kcal)} kkal</small>
-              </span>
-              <Icon name="plus" />
-            </button>
-          ))}
-        </div>
-        <button className="text-button" onClick={() => setManageOpen(true)}>
-          Kelola menu cepat
-        </button>
-      </details>
       {labelMeal && (
         <FoodBuilder
           meal={labelMeal}
@@ -947,6 +859,7 @@ export default function MealHome({
           c={celebration.c}
           title={celebration.title}
           onClose={closeCelebration}
+          onUndo={usualUndo ? undoUsual : undefined}
         />
       )}
 
@@ -954,136 +867,40 @@ export default function MealHome({
           user must confirm here, so an accidental slide can't wipe a food. */}
       {pendingDelete && (
         <div
+          className={`mk-dlg-backdrop${deleteClosing ? " closing" : ""}`}
           onClick={() => closeDelete(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 240,
-            background: "rgba(5,4,6,.72)",
-            backdropFilter: "blur(6px)",
-            WebkitBackdropFilter: "blur(6px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 24,
-            animation: deleteClosing
-              ? "dlgBackdropOut .23s var(--ease-standard) both"
-              : "dlgBackdropIn .32s var(--ease-out) both",
-          }}
         >
           <div
-            onClick={(ev) => ev.stopPropagation()}
-            role="dialog"
+            className="mk-dlg"
+            role="alertdialog"
             aria-modal="true"
-            style={{
-              width: "100%",
-              maxWidth: 360,
-              borderRadius: 24,
-              padding: "24px 22px 20px",
-              background: "var(--surface)",
-              border: "1px solid rgba(84,119,93,.12)",
-              boxShadow: "none",
-              transformOrigin: "center bottom",
-              willChange: "transform, opacity",
-              animation: deleteClosing
-                ? "dlgCardOut .23s var(--ease-standard) both"
-                : "dlgCardIn .46s var(--ease-ios) both",
+            aria-labelledby="mk-dlg-title"
+            aria-describedby="mk-dlg-desc"
+            onClick={(ev) => ev.stopPropagation()}
+            onKeyDown={(ev) => {
+              if (ev.key === "Escape") closeDelete(false);
             }}
           >
-            <div
-              aria-hidden="true"
-              style={{
-                width: 46,
-                height: 46,
-                borderRadius: 14,
-                display: "grid",
-                placeItems: "center",
-                fontSize: 22,
-                margin: "0 auto 14px",
-                background: "rgba(238,60,48,.1)",
-                border: "1px solid rgba(238,60,48,.3)",
-              }}
-            >
-              HAPUS
-            </div>
-            <div
-              style={{
-                fontFamily: SANS,
-                fontWeight: 800,
-                fontSize: 17,
-                color: "var(--text)",
-                textAlign: "center",
-              }}
-            >
-              Hapus makanan ini?
-            </div>
-            <div
-              style={{
-                fontFamily: SANS,
-                fontWeight: 700,
-                fontSize: 14,
-                color: "var(--text)",
-                textAlign: "center",
-                marginTop: 6,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {pendingDelete.name}
-            </div>
-            <div
-              style={{
-                fontFamily: MONO,
-                fontSize: 10,
-                letterSpacing: ".04em",
-                color: "#7c736e",
-                textAlign: "center",
-                marginTop: 8,
-                lineHeight: 1.4,
-              }}
-            >
-              Nggak bisa dibatalin setelah dihapus.
-            </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+            <h2 id="mk-dlg-title">Hapus {pendingDelete.name}?</h2>
+            <p id="mk-dlg-desc">
+              Makanan ini hilang dari catatan dan totalnya ikut berkurang.
+              Tidak bisa dibatalkan.
+            </p>
+            <div className="mk-dlg-actions">
               <button
                 type="button"
-                className="dlg-btn"
+                className="secondary-button"
+                autoFocus
                 onClick={() => closeDelete(false)}
-                style={{
-                  flex: 1,
-                  padding: "13px 0",
-                  borderRadius: 14,
-                  fontFamily: MONO,
-                  fontSize: 12,
-                  letterSpacing: ".1em",
-                  color: "var(--text)",
-                  cursor: "pointer",
-                  background: "rgba(84,119,93,.05)",
-                  border: "1px solid rgba(84,119,93,.14)",
-                }}
               >
-                BATAL
+                Batal
               </button>
               <button
                 type="button"
-                className="dlg-btn"
+                className="mk-danger"
                 onClick={() => closeDelete(true)}
-                style={{
-                  flex: 1,
-                  padding: "13px 0",
-                  borderRadius: 14,
-                  fontFamily: MONO,
-                  fontSize: 12,
-                  letterSpacing: ".1em",
-                  fontWeight: 700,
-                  color: "var(--text)",
-                  cursor: "pointer",
-                  background: "var(--surface)",
-                  border: "1px solid rgba(255,150,120,.5)",
-                }}
               >
-                HAPUS
+                Hapus
               </button>
             </div>
           </div>
@@ -1093,143 +910,87 @@ export default function MealHome({
       {/* manage quick-log sheet */}
       {manageOpen && (
         <div
+          className="mk-sheet-backdrop"
           onClick={() => setManageOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 200,
-            background: "rgba(5,4,6,.72)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "flex-end",
-          }}
         >
           <div
+            className="mk-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mk-manage-title"
             onClick={(ev) => ev.stopPropagation()}
-            style={{
-              width: "100%",
-              maxWidth: 480,
-              margin: "0 auto",
-              borderRadius: "26px 26px 0 0",
-              padding: "22px 20px calc(30px + env(safe-area-inset-bottom))",
-              background: "var(--surface)",
-              borderTop: "1px solid rgba(84,119,93,.1)",
-              boxShadow: "none",
-              animation: "sheetCardIn .44s var(--ease-ios) both",
-              maxHeight: "80dvh",
-              overflowY: "auto",
+            onKeyDown={(ev) => {
+              if (ev.key === "Escape") setManageOpen(false);
             }}
           >
-            <div
-              style={{
-                fontFamily: SANS,
-                fontWeight: 800,
-                fontSize: 18,
-                color: "var(--text)",
-              }}
-            >
-              ATUR CATAT CEPAT
-            </div>
-            <div
-              style={{
-                fontFamily: MONO,
-                fontSize: 10,
-                letterSpacing: ".06em",
-                color: "#7c736e",
-                marginTop: 5,
-              }}
-            >
-              Yang muncul di baris atas — tambah, ubah, atau hapus
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-                marginTop: 16,
-              }}
-            >
-              {quickEntries.map((e, i) => (
-                <div
-                  key={e.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "10px 12px",
-                    borderRadius: 13,
-                    background:
-                      "linear-gradient(180deg,rgba(84,119,93,.04),transparent 40%),#0d0b0c",
-                    border: "1px solid rgba(84,119,93,.09)",
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontFamily: SANS,
-                        fontWeight: 700,
-                        fontSize: 13,
-                        color: "var(--text)",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                    >
-                      {e.label}
-                    </div>
-                    <div
-                      style={{
-                        fontFamily: MONO,
-                        fontSize: 9,
-                        letterSpacing: ".08em",
-                        color: "#8a837d",
-                        marginTop: 2,
-                      }}
-                    >
-                      {MEAL_ID_LABEL[e.mealType]} · {Math.round(e.kcal)} kkal
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    aria-label="Naik"
-                    disabled={i === 0}
-                    onClick={() => setQuickEntries(moveQuickLogEntry(e.id, -1))}
-                    style={manageIconStyle(i === 0)}
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Turun"
-                    disabled={i === quickEntries.length - 1}
-                    onClick={() => setQuickEntries(moveQuickLogEntry(e.id, 1))}
-                    style={manageIconStyle(i === quickEntries.length - 1)}
-                  >
-                    ↓
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Ubah"
-                    onClick={() => setEditDraft(e)}
-                    style={manageIconStyle(false)}
-                  >
-                    ✎
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Hapus"
-                    onClick={() => setQuickEntries(deleteQuickLogEntry(e.id))}
-                    style={manageIconStyle(false)}
-                  >
-                    HAPUS
-                  </button>
-                </div>
-              ))}
-            </div>
-
+            <h2 id="mk-manage-title">Atur catat cepat</h2>
+            <p>Menu yang muncul di "Catat cepat". Urutkan, ubah, atau hapus.</p>
+            {quickEntries.length === 0 ? (
+              <p className="mk-empty">
+                Belum ada. Tambahkan makanan yang sering kamu catat.
+              </p>
+            ) : (
+              <ul className="mk-manage-list">
+                {quickEntries.map((e, i) => (
+                  <li key={e.id}>
+                    <span className="mk-item-name">
+                      <strong>{e.label}</strong>
+                      <small>
+                        {MEAL_TITLE[e.mealType]} · {fmt(e.kcal)} kkal
+                      </small>
+                    </span>
+                    <span className="mk-manage-actions">
+                      <button
+                        type="button"
+                        className="icon-button"
+                        aria-label={`Naikkan ${e.label}`}
+                        disabled={i === 0}
+                        onClick={() =>
+                          setQuickEntries(moveQuickLogEntry(e.id, -1))
+                        }
+                      >
+                        <Icon
+                          name="chevron"
+                          size={18}
+                          style={{ transform: "rotate(180deg)" }}
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-button"
+                        aria-label={`Turunkan ${e.label}`}
+                        disabled={i === quickEntries.length - 1}
+                        onClick={() =>
+                          setQuickEntries(moveQuickLogEntry(e.id, 1))
+                        }
+                      >
+                        <Icon name="chevron" size={18} />
+                      </button>
+                      <button
+                        type="button"
+                        className="mk-text-btn"
+                        onClick={() => setEditDraft(e)}
+                      >
+                        Ubah
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-button"
+                        aria-label={`Hapus ${e.label}`}
+                        onClick={() =>
+                          setQuickEntries(deleteQuickLogEntry(e.id))
+                        }
+                      >
+                        <Icon name="close" size={18} />
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
             <button
               type="button"
+              className="secondary-button mk-sheet-wide"
               onClick={() =>
                 setEditDraft({
                   label: "",
@@ -1240,41 +1001,16 @@ export default function MealHome({
                   fat: 0,
                 })
               }
-              style={{
-                width: "100%",
-                marginTop: 14,
-                padding: "12px",
-                borderRadius: 13,
-                fontFamily: MONO,
-                fontSize: 12,
-                letterSpacing: ".08em",
-                color: "var(--text)",
-                cursor: "pointer",
-                background: FIRE,
-                border: "1px solid rgba(255,150,120,.6)",
-                boxShadow: "none",
-              }}
             >
-              ＋ TAMBAH
+              <Icon name="plus" size={18} />
+              Tambah menu cepat
             </button>
             <button
               type="button"
+              className="primary-button mk-sheet-wide"
               onClick={() => setManageOpen(false)}
-              style={{
-                width: "100%",
-                marginTop: 9,
-                padding: "11px",
-                borderRadius: 13,
-                fontFamily: MONO,
-                fontSize: 11,
-                letterSpacing: ".1em",
-                color: "#9a938d",
-                cursor: "pointer",
-                background: "rgba(84,119,93,.03)",
-                border: "1px solid rgba(84,119,93,.1)",
-              }}
             >
-              TUTUP
+              Selesai
             </button>
           </div>
         </div>
@@ -1283,45 +1019,24 @@ export default function MealHome({
       {/* quick-log entry editor (layered above manage sheet) */}
       {editDraft && (
         <div
+          className="mk-sheet-backdrop editor"
           onClick={() => setEditDraft(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 215,
-            background: "rgba(5,4,6,.72)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "flex-end",
-          }}
         >
           <div
+            className="mk-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mk-edit-title"
             onClick={(ev) => ev.stopPropagation()}
-            style={{
-              width: "100%",
-              maxWidth: 480,
-              margin: "0 auto",
-              borderRadius: "26px 26px 0 0",
-              padding: "22px 20px calc(30px + env(safe-area-inset-bottom))",
-              background: "var(--surface)",
-              borderTop: "1px solid rgba(84,119,93,.1)",
-              boxShadow: "none",
-              animation: "sheetCardIn .44s var(--ease-ios) both",
-              maxHeight: "88dvh",
-              overflowY: "auto",
+            onKeyDown={(ev) => {
+              if (ev.key === "Escape") setEditDraft(null);
             }}
           >
-            <div
-              style={{
-                fontFamily: SANS,
-                fontWeight: 800,
-                fontSize: 18,
-                color: "var(--text)",
-              }}
-            >
-              {editDraft.id ? "UBAH ENTRI" : "ENTRI BARU"}
-            </div>
+            <h2 id="mk-edit-title">
+              {editDraft.id ? "Ubah menu cepat" : "Menu cepat baru"}
+            </h2>
 
-            <label style={editLabelStyle}>NAMA</label>
+            <label style={editLabelStyle}>Nama</label>
             <input
               type="text"
               value={editDraft.label}
@@ -1332,7 +1047,7 @@ export default function MealHome({
               style={editInputStyle}
             />
 
-            <label style={editLabelStyle}>WAKTU</label>
+            <label style={editLabelStyle}>Waktu makan</label>
             <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
               {(["breakfast", "lunch", "snack", "dinner"] as const).map(
                 (mt) => (
@@ -1357,26 +1072,27 @@ export default function MealHome({
               }}
             >
               <label style={{ ...editLabelStyle, marginTop: 0 }}>
-                PORSI (g) &amp; RASIO
+                Porsi dan nilai gizi
               </label>
               <button
                 type="button"
                 onClick={() => setLockRatio((v) => !v)}
                 style={{
-                  fontFamily: MONO,
-                  fontSize: 10,
-                  letterSpacing: ".08em",
-                  padding: "6px 11px",
-                  borderRadius: 10,
+                  fontFamily: SANS,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  minHeight: 36,
+                  padding: "6px 12px",
+                  borderRadius: 999,
                   cursor: "pointer",
-                  color: lockRatio ? "var(--text)" : "#9a938d",
-                  background: lockRatio ? FIRE : "rgba(84,119,93,.04)",
+                  color: lockRatio ? "var(--calm-accent)" : "var(--calm-muted)",
+                  background: lockRatio ? "var(--calm-accent-soft)" : "#fff",
                   border: lockRatio
-                    ? "1px solid rgba(255,150,120,.6)"
-                    : "1px solid rgba(84,119,93,.12)",
+                    ? "1px solid var(--calm-accent)"
+                    : "1px solid var(--calm-border)",
                 }}
               >
-                {lockRatio ? "KUNCI RASIO" : "BEBAS"}
+                {lockRatio ? "Rasio terkunci" : "Ubah bebas"}
               </button>
             </div>
             <div
@@ -1388,7 +1104,7 @@ export default function MealHome({
               }}
             >
               <NumField
-                label="PORSI (g)"
+                label="Porsi (g)"
                 value={editDraft.baseGrams ?? 0}
                 onChange={(n) =>
                   setEditDraft((d) => {
@@ -1410,7 +1126,7 @@ export default function MealHome({
                 }
               />
               <NumField
-                label="KKAL"
+                label="Kalori (kkal)"
                 value={editDraft.kcal}
                 onChange={(n) =>
                   setEditDraft((d) => {
@@ -1433,22 +1149,22 @@ export default function MealHome({
                 }
               />
               <NumField
-                label="PROTEIN (g)"
+                label="Protein (g)"
                 value={editDraft.protein}
                 onChange={(n) => setEditDraft({ ...editDraft, protein: n })}
               />
               <NumField
-                label="KARBO (g)"
+                label="Karbo (g)"
                 value={editDraft.carbs}
                 onChange={(n) => setEditDraft({ ...editDraft, carbs: n })}
               />
               <NumField
-                label="LEMAK (g)"
+                label="Lemak (g)"
                 value={editDraft.fat}
                 onChange={(n) => setEditDraft({ ...editDraft, fat: n })}
               />
               <NumField
-                label="GULA (g)"
+                label="Gula (g)"
                 value={editDraft.sugar ?? 0}
                 onChange={(n) => setEditDraft({ ...editDraft, sugar: n })}
               />
@@ -1458,20 +1174,10 @@ export default function MealHome({
               <button
                 type="button"
                 onClick={() => setEditDraft(null)}
-                style={{
-                  flex: 1,
-                  padding: "12px",
-                  borderRadius: 13,
-                  fontFamily: MONO,
-                  fontSize: 11,
-                  letterSpacing: ".1em",
-                  color: "#9a938d",
-                  cursor: "pointer",
-                  background: "rgba(84,119,93,.03)",
-                  border: "1px solid rgba(84,119,93,.1)",
-                }}
+                className="secondary-button"
+                style={{ flex: 1, minHeight: 48 }}
               >
-                BATAL
+                Batal
               </button>
               <button
                 type="button"
@@ -1483,7 +1189,7 @@ export default function MealHome({
                     return;
                   }
                   if (d.kcal < 0) {
-                    toast("KKAL harus ≥ 0", "warn");
+                    toast("Kalori tidak boleh negatif", "warn");
                     return;
                   }
                   const payload = {
@@ -1503,21 +1209,10 @@ export default function MealHome({
                   haptic("success");
                   setEditDraft(null);
                 }}
-                style={{
-                  flex: 1,
-                  padding: "12px",
-                  borderRadius: 13,
-                  fontFamily: MONO,
-                  fontSize: 11,
-                  letterSpacing: ".1em",
-                  color: "var(--text)",
-                  cursor: "pointer",
-                  background: FIRE,
-                  border: "1px solid rgba(255,150,120,.6)",
-                  boxShadow: "none",
-                }}
+                className="primary-button"
+                style={{ flex: 1, minHeight: 48 }}
               >
-                SIMPAN ✓
+                Simpan
               </button>
             </div>
           </div>

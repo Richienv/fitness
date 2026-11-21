@@ -18,7 +18,8 @@ export type IconName =
   | "check"
   | "medal"
   | "minus"
-  | "trend";
+  | "trend"
+  | "chevron";
 const paths: Record<IconName, React.ReactNode> = {
   scan: (
     <>
@@ -87,6 +88,7 @@ const paths: Record<IconName, React.ReactNode> = {
     </>
   ),
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
+  chevron: <path d="m6 9 6 6 6-6" />,
   medal: (
     <>
       <circle cx="12" cy="15" r="6" />
