@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+} from "react";
 import {
   SESSIONS,
   femaleSessions,
@@ -35,6 +41,37 @@ import { inferFromLog } from "@/lib/gymInventory";
 import { useActiveDate } from "@/lib/activeDate";
 import { useSheetBack } from "@/lib/backSheet";
 import { useVTNavigate } from "@/lib/navigate";
+import { useSoftRefresh } from "@/lib/useSoftRefresh";
+import { haptic } from "@/lib/haptics";
+import {
+  ACTIVITY_BY_KEY,
+  activityKcal,
+  type ActivityKey,
+  type Intensity,
+} from "@/lib/burn";
+import { addActivity, deleteActivity, getActivities } from "@/lib/activity";
+import { readDayBurn, sessionTitle, type DayBurn } from "@/lib/burnData";
+import { setsByMuscleThisWeek } from "@/lib/todayVolume";
+import Icon from "../ui/Icon";
+import { toast } from "../Toast";
+import TodayBurn, { activityAmount } from "./TodayBurn";
+import ActivitySheet from "./ActivitySheet";
+import ExerciseGuide from "./ExerciseGuide";
+
+/** "BESARIN DADA" → "Besarin dada"; "SENIN" → "Senin". */
+function titleCase(s: string): string {
+  const lower = s.toLocaleLowerCase("id-ID");
+  return lower.charAt(0).toLocaleUpperCase("id-ID") + lower.slice(1);
+}
+const dayName = titleCase;
+const MUSCLE_GROUP_ID: { key: MuscleColorGroup; label: string }[] = [
+  { key: "chest", label: "Dada" },
+  { key: "back", label: "Punggung" },
+  { key: "shoulders", label: "Bahu" },
+  { key: "arms", label: "Lengan" },
+  { key: "legs", label: "Kaki" },
+  { key: "abs", label: "Perut" },
+];
 
 // Shared app typography and accent.
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
@@ -77,9 +114,16 @@ export default function WorkoutHome() {
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [burn, setBurn] = useState<DayBurn | null>(null);
+  const [activityOpen, setActivityOpen] = useState(false);
+  const [guide, setGuide] = useState<{ name: string; sets?: string } | null>(
+    null,
+  );
 
   useSheetBack(modalOpen, () => setModalOpen(false));
   useSheetBack(searchOpen, () => setSearchOpen(false));
+  useSheetBack(activityOpen, () => setActivityOpen(false));
+  useSheetBack(!!guide, () => setGuide(null));
 
   useEffect(() => {
     setNow(new Date());
@@ -91,6 +135,63 @@ export default function WorkoutHome() {
   }, []);
 
   const today = activeDate;
+
+  // What today burned: gym sessions and logged activities, re-read whenever
+  // the stores change (a save here, a sync, another tab).
+  const refreshBurn = useCallback(() => {
+    if (!today) return;
+    setWorkouts(getAllWorkouts());
+    setActiveId(getActiveWorkoutId());
+    setBurn(readDayBurn(today));
+  }, [today]);
+  useEffect(() => {
+    refreshBurn();
+  }, [refreshBurn]);
+  useSoftRefresh(refreshBurn);
+
+  const saveActivity = (a: {
+    kind: ActivityKey;
+    steps?: number;
+    minutes?: number;
+    reps?: number;
+    intensity?: Intensity;
+  }) => {
+    addActivity({ ...a, date: today });
+    setActivityOpen(false);
+    haptic("success");
+    const kcal = activityKcal(a, burn?.kg ?? 70);
+    toast(
+      `${ACTIVITY_BY_KEY[a.kind].label} tercatat · ≈ ${Math.round(kcal).toLocaleString("id-ID")} kkal`,
+      "success",
+    );
+    refreshBurn();
+  };
+  const removeActivity = (id: string) => {
+    const a = getActivities(today).find((x) => x.id === id);
+    deleteActivity(id);
+    refreshBurn();
+    if (a)
+      toast(
+        `${ACTIVITY_BY_KEY[a.kind].label} ${activityAmount(a)} dihapus`,
+        "success",
+      );
+  };
+
+  // Sets per muscle group over the last 7 days, as bars.
+  const muscleBars = useMemo(() => {
+    const load = today ? setsByMuscleThisWeek(today) : {};
+    const byGroup = new Map<MuscleColorGroup, number>();
+    for (const [m, n] of Object.entries(load)) {
+      const g = MUSCLE_TO_GROUP[m as MuscleKey];
+      if (g) byGroup.set(g, (byGroup.get(g) ?? 0) + (n ?? 0));
+    }
+    const max = Math.max(10, ...byGroup.values());
+    return MUSCLE_GROUP_ID.map(({ key, label }) => {
+      const sets = byGroup.get(key) ?? 0;
+      return { key, label, sets, ratio: sets / max };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [today, workouts]);
 
   const programSessions = useMemo(
     () => (isFemale ? femaleSessions() : SESSIONS.filter((s) => !s.program)),
@@ -260,521 +361,190 @@ export default function WorkoutHome() {
           </h1>
         </div>
 
-        {/* Resume pill for an in-progress session */}
-        {activeInProgress && (
-          <Link
-            href={`/workout/session/${activeInProgress.id}`}
-            className="tap-press"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              marginBottom: 16,
-              padding: "11px 15px",
-              borderRadius: 14,
-              textDecoration: "none",
-              background:
-                "linear-gradient(90deg,rgba(62,96,213,.14),rgba(62,96,213,.03))",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <span
-                className="mono"
-                style={{
-                  display: "block",
-                  fontSize: 9,
-                  letterSpacing: "1.5px",
-                  color: "var(--muted)",
-                }}
-              >
-                LANJUTKAN SESI
-              </span>
-              <span
-                style={{
-                  display: "block",
-                  fontWeight: 700,
-                  fontSize: 14,
-                  color: "var(--text)",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {activeInProgress.sessionType === "CUSTOM"
-                  ? (activeInProgress.customName ?? "Catat cepat")
-                  : SESSIONS.find((s) => s.id === activeInProgress.sessionType)
-                      ?.name}
-              </span>
-            </span>
-            <span
-              className="mono"
-              style={{ fontSize: 20, color: "var(--muted)" }}
-            >
-              ›
-            </span>
-          </Link>
-        )}
+        <TodayBurn
+          burn={burn}
+          onAdd={() => setActivityOpen(true)}
+          onDelete={removeActivity}
+        />
 
-        {/* WEEK STRIP */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 22 }}>
-          {week.map((d, i) => {
-            const on = i === sel;
-            const rest = !d.session;
-            const done = !!d.session && thisWeekDone.has(d.session.id);
-            let bg = "#f0f2f8";
-            let border = "1px solid var(--border)";
-            let shadow = "none";
-            let labelColor = "var(--muted)";
-            let mark = "—";
-            let markColor = "var(--muted)";
-            let markWeight = 400;
-            if (done) {
-              labelColor = "#22c55e";
-              mark = "✓";
-              markColor = "var(--muted)";
-              markWeight = 700;
-              bg = "var(--surface)";
-              border = "1px solid var(--border)";
-            } else if (!rest) {
-              mark = "•";
-              markColor = "var(--muted)";
-            }
-            if (d.isToday) {
-              labelColor = "var(--accent)";
-              mark = "●";
-              markColor = "var(--accent)";
-              markWeight = 800;
-            }
-            if (on) {
-              bg = FIRE;
-              border = "1px solid var(--accent)";
-              shadow = "none";
-              labelColor = "#fff";
-              markColor = "#fff";
-            }
-            return (
-              <button
-                key={i}
-                type="button"
-                className="tap-press"
-                onClick={() => setSelectedIdx(i)}
-                style={{
-                  flex: 1,
-                  cursor: "pointer",
-                  padding: "11px 0 10px",
-                  borderRadius: 13,
-                  background: bg,
-                  border,
-                  boxShadow: shadow,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 5,
-                }}
-              >
-                <span
-                  className="mono"
-                  style={{
-                    fontSize: 8.5,
-                    letterSpacing: ".5px",
-                    fontWeight: 700,
-                    color: labelColor,
-                  }}
-                >
-                  {d.short}
-                </span>
-                <span
-                  style={{
-                    fontSize: 13,
-                    fontWeight: markWeight,
-                    color: markColor,
-                    lineHeight: 1,
-                  }}
-                >
-                  {mark}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* STATEMENT CARD */}
-        <div
-          key={cur?.short ?? sel}
-          style={{
-            position: "relative",
-            borderRadius: 24,
-            overflow: "hidden",
-            background: "linear-gradient(160deg,#f0f2fa,#ffffff)",
-            border: "1px solid var(--border)",
-            padding: "24px 22px 22px",
-            minHeight: 250,
-            animation: "wo-cardin .34s cubic-bezier(.22,.61,.36,1)",
-          }}
-        >
-          <div style={{ position: "relative" }}>
-            <div
-              className="mono"
-              style={{
-                fontSize: 10,
-                letterSpacing: "2px",
-                color: curIsToday
-                  ? "var(--accent)"
-                  : curIsDone
-                    ? "#22c55e"
-                    : "var(--muted)",
-              }}
-            >
-              {curIsToday
-                ? `${cur.full} · HARI INI`
-                : curIsDone
-                  ? `${cur.full} · SELESAI`
-                  : cur?.full}
-            </div>
-            <div
-              style={{
-                fontSize: 32,
-                fontWeight: 800,
-                lineHeight: ".98",
-                letterSpacing: ".3px",
-                color: "var(--text)",
-                marginTop: 10,
-                textWrap: "balance",
-              }}
-            >
-              {curSession ? curSession.name : "Hari Istirahat"}
-            </div>
-            <div
-              style={{
-                width: 52,
-                height: 4,
-                borderRadius: 2,
-                background: "var(--accent)",
-                margin: "15px 0",
-              }}
-            />
-            <div
-              style={{
-                fontSize: 13.5,
-                lineHeight: 1.55,
-                color: "var(--muted)",
-                fontWeight: 500,
-              }}
-            >
-              {curSession
-                ? (curSession.aesthetic ?? curSession.focus)
-                : "Istirahat dan pulihkan — target 8–10rb langkah biar tetap gerak dan kaki recovery."}
-            </div>
-            {chips.length > 0 && (
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 6,
-                  marginTop: 16,
-                }}
-              >
-                {chips.map((e, i) => (
-                  <span
-                    key={e.name}
-                    className="mono"
-                    style={{
-                      fontSize: 9.5,
-                      letterSpacing: ".3px",
-                      padding: "6px 11px",
-                      borderRadius: 8,
-                      color: i < 4 ? "var(--text)" : "var(--muted)",
-                      background: i < 4 ? "#edf0f8" : "#f4f5fa",
-                      border:
-                        i < 4
-                          ? "1px solid var(--border)"
-                          : "1px solid var(--border)",
-                    }}
-                  >
-                    {e.name}
-                  </span>
-                ))}
-              </div>
+        <section className="lt-card" aria-labelledby="lt-gym-title">
+          <div className="lt-head">
+            <h2 id="lt-gym-title">Gym</h2>
+            {cur && (
+              <span className="lt-note">
+                {dayName(cur.full)}
+                {curIsToday ? " · hari ini" : ""}
+              </span>
             )}
           </div>
-        </div>
+          {activeInProgress ? (
+            <>
+              <p className="lt-gym-title">
+                <strong>{sessionTitle(activeInProgress)}</strong>
+                <span>Sedang berlangsung</span>
+              </p>
+              <Link
+                href={`/workout/session/${activeInProgress.id}`}
+                className="primary-button lt-primary"
+              >
+                Lanjutkan latihan
+              </Link>
+            </>
+          ) : curSession ? (
+            <>
+              <p className="lt-gym-title">
+                <strong>{titleCase(curSession.name)}</strong>
+                <span>
+                  {curSession.exercises.length} latihan ·{" "}
+                  {titleCase(curSession.focus)}
+                </span>
+              </p>
+              {curIsDone ? (
+                <div className="lt-done-row">
+                  <span className="lt-status done">
+                    <Icon name="check" size={16} />
+                    Selesai minggu ini
+                  </span>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => viewDone(curSession.id)}
+                  >
+                    Lihat ringkasan
+                  </button>
+                  <button
+                    type="button"
+                    className="mk-text-btn"
+                    onClick={() => mulai(curSession)}
+                  >
+                    Ulangi
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="primary-button lt-primary"
+                  onClick={() => mulai(curSession)}
+                >
+                  {curIsToday
+                    ? "Mulai latihan"
+                    : `Mulai ${titleCase(curSession.name)}`}
+                </button>
+              )}
+              <ul className="lt-exercises" aria-label="Daftar latihan">
+                {curSession.exercises.map((ex) => (
+                  <li key={ex.name}>
+                    <span>
+                      <strong>{ex.name}</strong>
+                      <small>
+                        {ex.sets} set × {ex.repsLabel}
+                      </small>
+                    </span>
+                    <button
+                      type="button"
+                      className="mk-text-btn"
+                      aria-label={`Cara melakukan ${ex.name}`}
+                      onClick={() =>
+                        setGuide({
+                          name: ex.name,
+                          sets: `${ex.sets} set × ${ex.repsLabel} repetisi`,
+                        })
+                      }
+                    >
+                      Cara
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="lt-gym-title">
+              <strong>Hari istirahat</strong>
+              <span>
+                Jalan 8–10 ribu langkah membantu pemulihan. Tetap mau latihan?
+                Pilih sesinya di bawah.
+              </span>
+            </p>
+          )}
 
-        {/* ACTION ZONE */}
-        {curIsRest && (
-          <div
-            style={{
-              marginTop: 16,
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              padding: "16px 18px",
-              borderRadius: 16,
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <div style={{ flex: 1 }}>
-              <div
-                style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}
-              >
-                Hari istirahat
-              </div>
-              <div
-                className="mono"
-                style={{ fontSize: 10, color: "var(--muted)", marginTop: 3 }}
-              >
-                JALAN 8–10K LANGKAH
-              </div>
-            </div>
+          <h3 className="lt-sub-title">Minggu ini</h3>
+          {trainingDays.length ? (
+            <ul className="lt-week">
+              {trainingDays.map(({ d, i }) => {
+                const done = !!d.session && thisWeekDone.has(d.session.id);
+                const selected = i === sel;
+                return (
+                  <li key={i}>
+                    <button
+                      type="button"
+                      className={`lt-week-row${selected ? " selected" : ""}`}
+                      aria-pressed={selected}
+                      onClick={() => setSelectedIdx(i)}
+                    >
+                      <span className="lt-week-day">{dayName(d.full)}</span>
+                      <span className="lt-week-name">
+                        {titleCase(d.session!.name)}
+                      </span>
+                      <span
+                        className={`lt-status${done ? " done" : d.isToday ? " today" : ""}`}
+                      >
+                        {done ? (
+                          <>
+                            <Icon name="check" size={16} />
+                            Selesai
+                          </>
+                        ) : d.isToday ? (
+                          "Hari ini"
+                        ) : (
+                          "Belum"
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="lt-empty">Atur hari latihan di Pengaturan.</p>
+          )}
+
+          <h3 className="lt-sub-title">Otot minggu ini</h3>
+          <ul className="lt-muscles" aria-label="Set per kelompok otot, 7 hari terakhir">
+            {muscleBars.map((m) => (
+              <li key={m.key}>
+                <span>{m.label}</span>
+                <span className="lt-bar" aria-hidden="true">
+                  <span style={{ ["--p" as string]: m.ratio } as CSSProperties} />
+                </span>
+                <strong>{m.sets} set</strong>
+              </li>
+            ))}
+          </ul>
+          <p className="lt-foot">
+            Set per kelompok otot dalam 7 hari terakhir. Sekitar 10–20 set
+            seminggu umum dipakai untuk membangun otot.
+          </p>
+
+          <div className="lt-links">
+            <button
+              type="button"
+              className="mk-text-btn"
+              onClick={() => setSearchOpen(true)}
+            >
+              Catat bebas
+            </button>
+            <button
+              type="button"
+              className="mk-text-btn"
+              onClick={() => setModalOpen(true)}
+            >
+              Buat sesi sendiri
+            </button>
+            <Link className="mk-text-btn" href="/workout/equipment">
+              Alat gym
+            </Link>
           </div>
-        )}
-
-        {curIsDone && curSession && (
-          <>
-            <div
-              style={{
-                marginTop: 16,
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "15px 18px",
-                borderRadius: 16,
-                background: "rgba(34,197,94,.08)",
-                border: "1px solid rgba(34,197,94,.3)",
-              }}
-            >
-              <span style={{ fontSize: 18 }}>✓</span>
-              <div
-                className="mono"
-                style={{
-                  flex: 1,
-                  fontWeight: 700,
-                  fontSize: 13,
-                  letterSpacing: "1px",
-                  color: "var(--accent)",
-                }}
-              >
-                SUDAH SELESAI {cur.full}
-              </div>
-              <button
-                type="button"
-                className="mono tap-press"
-                onClick={() => viewDone(curSession.id)}
-                style={{
-                  fontSize: 11,
-                  letterSpacing: "1px",
-                  color: "#22c55e",
-                  background: "transparent",
-                  border: "none",
-                  textDecoration: "underline",
-                  cursor: "pointer",
-                }}
-              >
-                LIHAT
-              </button>
-            </div>
-            <button
-              type="button"
-              className="mono tap-press"
-              onClick={() => mulai(curSession)}
-              style={{
-                marginTop: 10,
-                width: "100%",
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                borderRadius: 15,
-                padding: 15,
-                color: "var(--muted)",
-                fontSize: 12,
-                letterSpacing: "1.5px",
-                cursor: "pointer",
-              }}
-            >
-              ↻ ULANGI SESI INI
-            </button>
-          </>
-        )}
-
-        {canStart && curSession && (
-          <>
-            <button
-              type="button"
-              className="tap-press"
-              onClick={() => mulai(curSession)}
-              style={{
-                marginTop: 16,
-                width: "100%",
-                border: "1px solid var(--accent)",
-                borderRadius: 18,
-                padding: 19,
-                color: "#fff",
-                fontSize: 20,
-                fontWeight: 800,
-                letterSpacing: "2px",
-                background: FIRE,
-                cursor: "pointer",
-              }}
-            >
-              {curIsToday ? "MULAI · HARI INI" : "MULAI LEBIH AWAL"}
-            </button>
-            <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-              <button
-                type="button"
-                className="mono tap-press"
-                onClick={() => setSearchOpen(true)}
-                style={{
-                  flex: 1.35,
-                  borderRadius: 14,
-                  padding: "14px 10px",
-                  background: "var(--surface)",
-                  color: "#171213",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  letterSpacing: "1.5px",
-                  cursor: "pointer",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                CATAT BEBAS
-              </button>
-              <button
-                type="button"
-                className="mono tap-press"
-                onClick={() => setModalOpen(true)}
-                style={ghostBtn}
-              >
-                ＋ SESI SAYA
-              </button>
-            </div>
-          </>
-        )}
-
-        {/* MINGGU INI */}
-        <div
-          className="mono"
-          style={{
-            fontSize: 10,
-            letterSpacing: "2px",
-            color: "var(--muted)",
-            margin: "26px 0 10px",
-          }}
-        >
-          MINGGU INI
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {trainingDays.map(({ d, i }) => {
-            const on = i === sel;
-            const done = !!d.session && thisWeekDone.has(d.session.id);
-            return (
-              <button
-                key={i}
-                type="button"
-                className="tap-press"
-                onClick={() => setSelectedIdx(i)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 14,
-                  padding: "14px 16px",
-                  borderRadius: 15,
-                  cursor: "pointer",
-                  background: on ? "rgba(62,96,213,.1)" : "var(--surface)",
-                  border: on
-                    ? "1px solid rgba(255,150,120,.4)"
-                    : "1px solid var(--border)",
-                  opacity: done && !on ? 0.55 : 1,
-                }}
-              >
-                <span
-                  className="mono"
-                  style={{
-                    width: 38,
-                    flex: "none",
-                    fontSize: 9,
-                    letterSpacing: "1px",
-                    color: on ? "var(--accent)" : "var(--muted)",
-                    textAlign: "left",
-                  }}
-                >
-                  {d.short}
-                </span>
-                <span
-                  style={{
-                    flex: 1,
-                    textAlign: "left",
-                    fontWeight: 700,
-                    fontSize: 15,
-                    color: "var(--text)",
-                  }}
-                >
-                  {d.session!.name}
-                </span>
-                {done ? (
-                  <span
-                    style={{ fontSize: 13, color: "#22c55e", flex: "none" }}
-                  >
-                    ✓
-                  </span>
-                ) : (
-                  <span
-                    style={{
-                      fontSize: 20,
-                      color: "var(--muted)",
-                      lineHeight: 1,
-                      flex: "none",
-                    }}
-                  >
-                    ›
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Quiet utility line */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexWrap: "wrap",
-            gap: 12,
-            rowGap: 10,
-            marginTop: 18,
-            padding: 14,
-            borderRadius: 14,
-            border: "1px dashed rgba(255,255,255,.12)",
-            color: "var(--muted)",
-          }}
-        >
-          <button
-            type="button"
-            className="mono tap-press"
-            onClick={() => setModalOpen(true)}
-            style={utilBtn}
-          >
-            ＋ CATAT BEBAS
-          </button>
-          <span style={{ color: "var(--muted)" }}>|</span>
-          <button
-            type="button"
-            className="mono tap-press"
-            onClick={() => setSearchOpen(true)}
-            style={utilBtn}
-          >
-            CARI
-          </button>
-          <span style={{ color: "var(--muted)" }}>|</span>
-          <Link
-            href="/workout/equipment"
-            className="mono"
-            style={{ ...utilBtn, textDecoration: "none" }}
-          >
-            ALAT
-          </Link>
-        </div>
+        </section>
 
         {/* SESI SAYA (custom templates) */}
         {templates.length > 0 && (
@@ -891,6 +661,20 @@ export default function WorkoutHome() {
         )}
       </div>
 
+      {activityOpen && (
+        <ActivitySheet
+          kg={burn?.kg ?? 70}
+          onSave={saveActivity}
+          onClose={() => setActivityOpen(false)}
+        />
+      )}
+      {guide && (
+        <ExerciseGuide
+          name={guide.name}
+          sets={guide.sets}
+          onClose={() => setGuide(null)}
+        />
+      )}
       {searchOpen && (
         <SearchModal
           onClose={() => setSearchOpen(false)}

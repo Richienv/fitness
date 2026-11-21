@@ -22,6 +22,7 @@ import {
 } from "@/lib/motivation";
 import { readSnapshot, takeBefore } from "@/lib/motivationData";
 import { useSheetBack } from "@/lib/backSheet";
+import { readBodyKg, workoutBurn } from "@/lib/burnData";
 import ProgressCelebration from "../../../../_motion/ProgressCelebration";
 
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
@@ -116,6 +117,13 @@ export default function SessionComplete({ workoutId }: { workoutId: string }) {
     }
     return out;
   }, [workout, prev, def]);
+
+  // What this session burned, per exercise (active kcal, an estimate).
+  const burn = useMemo(() => {
+    if (!workout) return null;
+    const kg = readBodyKg();
+    return { kg, ...workoutBurn(workout, kg) };
+  }, [workout]);
 
   // Muscle split for the animated bars.
   const muscleBars = useMemo(() => {
@@ -274,6 +282,56 @@ export default function SessionComplete({ workoutId }: { workoutId: string }) {
             <div className="mono" style={{ fontSize: 8.5, letterSpacing: "2px", color: "#ffb99e", marginTop: 7 }}>REKOR BARU</div>
           </div>
         </div>
+
+        {/* Active calories, with the arithmetic visible per exercise */}
+        {burn && burn.perExercise.length > 0 && (
+          <section
+            className="rise-3"
+            aria-label="Kalori aktif terbakar"
+            style={{
+              marginTop: 22,
+              padding: 16,
+              borderRadius: 16,
+              background: "#0c0a0b",
+              border: "1px solid rgba(255,255,255,.08)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: "#f1ede9" }}>Kalori aktif terbakar</span>
+              <span style={{ fontSize: 22, fontWeight: 800, color: "#ff8a72", fontVariantNumeric: "tabular-nums" }}>
+                ≈ {Math.round(burn.total).toLocaleString("id-ID")} kkal
+              </span>
+            </div>
+            <ul style={{ listStyle: "none", margin: "10px 0 0", padding: 0 }}>
+              {burn.perExercise.map((e, i) => (
+                <li
+                  key={`${e.name}-${i}`}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    padding: "9px 0",
+                    borderTop: "1px solid rgba(255,255,255,.06)",
+                    fontSize: 14,
+                    color: "#cfc8c2",
+                  }}
+                >
+                  <span>
+                    {e.name} · {e.sets} set
+                  </span>
+                  <span style={{ color: "#f1ede9", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                    ≈ {Math.round(e.kcal).toLocaleString("id-ID")} kkal
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p style={{ margin: "10px 0 0", fontSize: 13, color: "#a49c96", lineHeight: 1.45 }}>
+              Perkiraan dari jumlah set, otot yang dilatih dan berat badanmu (
+              {burn.kg.toLocaleString("id-ID")} kg), bisa meleset sekitar 20–30%.
+              Sudah masuk ke &quot;Hari ini&quot; di Latihan.
+            </p>
+          </section>
+        )}
 
         {/* PR chips */}
         {prs.length > 0 && (

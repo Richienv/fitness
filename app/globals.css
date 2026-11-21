@@ -7455,7 +7455,13 @@ button:active,
    .stagger-item — list children with incremental delay.
    ============================================================ */
 .page-rise {
-  animation: page-rise var(--dur-base) var(--ease-out) both;
+  /* backwards, not both: an animation that keeps filling a transform makes
+   * the element a containing block for position: fixed children even when
+   * the value is none, so every modal on the page (Latihan's "Buat sesi
+   * sendiri", the how-to sheet) was placed against the page instead of the
+   * screen and opened below the fold. Releasing it after the entrance
+   * fixes all of them at once. */
+  animation: page-rise var(--dur-base) var(--ease-out) backwards;
 }
 /* Final keyframe must be `transform: none` (NOT translateY(0)) so the
  * persisted post-animation state does NOT create a containing block —
