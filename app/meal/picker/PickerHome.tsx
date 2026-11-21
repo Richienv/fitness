@@ -1,5 +1,5 @@
 "use client";
-import { memo, useState } from "react";
+import { memo } from "react";
 import type { Tile } from "@/lib/foodTiles";
 import Icon from "../../ui/Icon";
 export type UsualChip = { id: string; name: string; kcal: number };
@@ -13,11 +13,9 @@ export type TileView = {
 function PickerHome({
   mealLabel,
   usual,
-  tiles,
   loading,
   error,
   onRetry,
-  onTile,
   onUsual,
   onMore,
   onImport,
@@ -25,17 +23,14 @@ function PickerHome({
 }: {
   mealLabel: string;
   usual: UsualChip[];
-  tiles: TileView[];
   loading: boolean;
   error: string | null;
   onRetry: () => void;
-  onTile: (id: string) => void;
   onUsual: (id: string) => void;
   onMore: () => void;
   onImport: () => void;
   onGroup: () => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
   return (
     <section className="picker-home">
       {usual.length > 0 && (
@@ -55,38 +50,12 @@ function PickerHome({
           </div>
         </div>
       )}
-      <h2>Pilih jenis makanan</h2>
-      <p className="quiet">Atur cara masak dan porsi setelah memilih.</p>
-      <div className="food-category-grid">
-        {(expanded ? tiles : tiles.slice(0, 6)).map((t, i) => (
-          <button
-            className={`food-category category-${i % 4}`}
-            key={t.id}
-            onClick={() => onTile(t.id)}
-            aria-label={`${t.label}, ${t.hint}`}
-          >
-            <Icon
-              name={
-                ["sayur", "buah", "tahu", "kacang"].some((v) =>
-                  t.id.includes(v),
-                )
-                  ? "leaf"
-                  : "meal"
-              }
-            />
-            <strong>{t.label}</strong>
-            <small>{t.hint}</small>
-          </button>
-        ))}
-      </div>
-      {tiles.length > 6 && (
-        <button
-          className="text-button"
-          aria-expanded={expanded}
-          onClick={() => setExpanded(!expanded)}
-        >
-          {expanded ? "Ringkas kategori" : "Lihat kategori lainnya"}
-        </button>
+      {usual.length === 0 && (
+        <p className="quiet search-first">
+          Ketik nama makanan di kolom bawah, misalnya “nasi”, “ayam goreng” atau
+          “telur”. Ketuk hasilnya untuk menambah; porsinya bisa diubah setelah
+          itu.
+        </p>
       )}
       {loading && (
         <p className="quiet" role="status">
@@ -96,7 +65,6 @@ function PickerHome({
       {error && (
         <div className="status-message" role="status">
           <p>{error}</p>
-          <p>Kategori dasar tetap tersedia.</p>
           <button className="text-button" onClick={onRetry}>
             Coba muat lagi
           </button>

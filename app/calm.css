@@ -614,3 +614,103 @@ progress::-moz-progress-bar {
   font-weight: 600;
   vertical-align: 2px;
 }
+
+/* Tray: what is chosen, each with − amount + and ×. */
+/* Row 1: name and numbers, ×. Row 2: "Edit nilai gizi", − amount +. */
+.food-builder .tray-food {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 12px 0;
+  border-top: 1px solid var(--calm-border);
+}
+.food-builder .tray-food > .tray-main {
+  grid-column: 1;
+  grid-row: 1;
+}
+.food-builder .tray-food > .icon-button {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+}
+.food-builder .tray-food > .tray-qty {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end;
+}
+.tray-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.tray-main strong {
+  font-size: 15px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.tray-main small {
+  font-size: 13px;
+  color: var(--calm-muted);
+}
+.tray-qty {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--calm-border);
+  border-radius: 999px;
+  background: #fff;
+}
+.tray-qty button {
+  min-width: 40px;
+  min-height: 40px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  color: var(--calm-accent);
+  font: inherit;
+}
+.tray-qty .tray-amount {
+  min-width: 64px;
+  padding: 0 4px;
+  color: var(--calm-text);
+  font-size: 14px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  text-decoration: underline dotted var(--calm-border);
+  text-underline-offset: 4px;
+}
+.food-builder .tray-food .tray-edit {
+  grid-column: 1;
+  grid-row: 2;
+  justify-self: start;
+  min-height: 32px;
+  padding: 0;
+  font-size: 13px;
+}
+.tray-peek {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 48px;
+  margin: 4px 0 8px;
+  padding: 0 14px;
+  border: 1px solid var(--calm-border);
+  border-radius: 14px;
+  background: var(--calm-fill);
+  color: var(--calm-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+.tray-peek span:last-child {
+  color: var(--calm-accent);
+}
+.search-first {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--calm-muted);
+}

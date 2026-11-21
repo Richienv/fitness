@@ -34,3 +34,14 @@ The learning already existed and stays as it is: `lib/foodAffinity.ts` (decayed 
 
 - Remembering which food was picked for which query ("ayam" → Dada ayam) on top of the general affinity.
 - Golden-set cases for the new query layer (the harness scores the raw ranker).
+
+## Follow-up the same day: search first, one tap, an editable tray
+
+Richie: "pilih jenis makanan juga aku nggak mau … kita rely heavily di search … habis di search, di tap, … bisa kita udah masukin apa aja dengan gampang dan clear, terus bisa diedit dengan gampang dan clear."
+
+- The "Pilih jenis makanan" category tiles are gone from the sheet. What remains with no query: his personal quick picks ("Pilihan cepat"), the catalogue status, and "Pilihan lain". With no quick picks yet, one line says what to type.
+- **One tap adds.** Tapping a search result or a quick pick puts it on the tray at his usual portion (the median of his own logs, else the food's default), through the same `commitFood` path as before, so learning and arithmetic are unchanged. A food already on the tray opens its portion sheet instead of being added twice.
+- **The tray says what is chosen and lets it change.** Each item shows its Indonesian name, kcal and protein, then − amount + (a quarter of the usual portion in grams, or the food's own step for counted foods; tapping the amount opens the full portion sheet), × to remove, and "Edit nilai gizi" for gram-based foods. Counting words are Indonesian ("1 butir", "2 sdm"). While searching, a bar says "Sudah dipilih 3 · 475 kkal" and "Lihat" returns to the tray.
+- **Errors in plain words.** The catalogue never shows the server's message (it could be a database stack trace, as on the local server); it says "Katalog lengkap belum bisa dimuat. Makanan dasar tetap bisa dicari." and keeps "Coba muat lagi".
+
+Verified at 375 px with test data: empty sheet, "ayam" → tap "Dada ayam" (250 g), "+" → 315 g, the bar while searching, three foods on the tray, one blue "Simpan 3 makanan · 475 kkal". Tests 372 pass, typecheck and build pass.

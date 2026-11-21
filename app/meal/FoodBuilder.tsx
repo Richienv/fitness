@@ -323,6 +323,38 @@ const STAPLES: BuilderFood[] = (INGREDIENTS as BuilderFood[]).map((i) => ({
   popularity: STAPLE_POPULARITY,
 }));
 
+/** The curated staples carry English serving words ("1 egg"); the tray
+ *  speaks Bahasa. Only the counting word changes, never the amount. */
+const UNIT_ID: Record<string, string> = {
+  egg: "butir",
+  eggs: "butir",
+  plate: "piring",
+  bowl: "mangkuk",
+  slice: "iris",
+  slices: "iris",
+  scoop: "sendok takar",
+  scoops: "sendok takar",
+  piece: "potong",
+  pieces: "potong",
+  pc: "buah",
+  pcs: "buah",
+  cup: "gelas",
+  tbsp: "sdm",
+  tsp: "sdt",
+  skewer: "tusuk",
+  skewers: "tusuk",
+  breast: "potong",
+  thigh: "potong",
+  fillet: "fillet",
+  serving: "porsi",
+  bottle: "botol",
+  bag: "bungkus",
+  whole: "utuh",
+};
+function unitBahasa(unit: string): string {
+  return unit.replace(/[a-z]+/gi, (w) => UNIT_ID[w.toLowerCase()] ?? w);
+}
+
 /** The colour of the food mound on the portion plate, by category. */
 const TINT: Record<string, string> = {
   protein: "#c98a4a",
@@ -848,6 +880,49 @@ export default function FoodBuilder({
     if (!sh) return;
     commitFood(sh.id, sh.grams, sh.mods, { refocus: query.trim().length > 0 });
     setSheet(null);
+  };
+
+  /**
+   * One tap from search: add at this person's usual portion (or the food's
+   * default) and let the tray be where the amount is changed. A food that is
+   * already on the tray opens its portion instead of being added twice.
+   */
+  const quickAdd = (id: string) => {
+    const ing = bIng(id);
+    if (!ing) return;
+    if (ing.missingNutrition) {
+      setManualGroup(null);
+      setManualOpen(true);
+      return;
+    }
+    if (selection[id]) {
+      openPortionSheet(id);
+      return;
+    }
+    const model = portionModel(ing, satuanFor(ing).portionG);
+    const usualG = historyStats.medianPortion.get(id);
+    const grams =
+      model.mode === "grams" && usualG && usualG > 0 ? usualG : model.defaultG;
+    commitFood(id, Math.round(grams), entryMods[id] ?? []);
+  };
+
+  /** − / + on a tray item: a quarter of the usual portion in grams, or the
+   *  food's own step for counted foods. Never below one step; × removes. */
+  const stepTray = (id: string, dir: 1 | -1) => {
+    const ing = bIng(id);
+    if (!ing) return;
+    const model = portionModel(ing, satuanFor(ing).portionG);
+    const step =
+      model.mode === "grams"
+        ? Math.max(10, Math.round(model.defaultG / 4 / 5) * 5) / model.unitG
+        : (ing.step ?? 0.5);
+    haptic("tap");
+    setSelection((sel) => {
+      const cur = sel[id] ?? 0;
+      const next = Math.round((cur + dir * step) * 1000) / 1000;
+      if (next < step - 1e-9) return sel;
+      return { ...sel, [id]: next };
+    });
   };
 
   const toggleReveal = (id: string) =>
@@ -1701,12 +1776,12 @@ export default function FoodBuilder({
       <button
         key={ing.id}
         className="food-result"
-        onClick={() => {
-          if (ing.missingNutrition) {
-            setManualGroup(null);
-            setManualOpen(true);
-          } else openPortionSheet(ing.id);
-        }}
+        aria-label={
+          selection[ing.id]
+            ? `${ing.name}, sudah dipilih. Ubah porsi`
+            : `Tambah ${ing.name}`
+        }
+        onClick={() => quickAdd(ing.id)}
       >
         <span>
           <strong>
@@ -1825,35 +1900,67 @@ export default function FoodBuilder({
               {traySelected.map(({ id, ing, qty }) => {
                 const model = portionModel(ing, satuanFor(ing).portionG);
                 const n = itemMacros(ing, qty, entryMods[id] ?? []);
+                const amount =
+                  model.mode === "grams"
+                    ? `${Math.round(model.unitG * qty)} g`
+                    : /^1\s/.test(ing.unit)
+                      ? `${round1(qty)} ${unitBahasa(ing.unit.slice(2))}`
+                      : `${round1(qty)} × ${unitBahasa(ing.unit)}`;
+                const mods = modSummary(entryMods[id] ?? []);
+                const label = foodLabel(ing);
                 return (
                   <div className="tray-food" key={id}>
-                    <button onClick={() => openPortionSheet(id)}>
-                      <strong>{ing.name}</strong>
+                    <div className="tray-main">
+                      <strong>{label}</strong>
                       <small>
-                        {model.mode === "grams"
-                          ? `${Math.round(model.unitG * qty)} g`
-                          : `${round1(qty)} × ${ing.unit}`}{" "}
-                        · {Math.round(n.kcal)} kkal
-                        {modSummary(entryMods[id] ?? [])
-                          ? ` · ${modSummary(entryMods[id] ?? [])}`
-                          : ""}
+                        {Math.round(n.kcal)} kkal · {round1(n.protein)} g
+                        protein
+                        {mods ? ` · ${mods}` : ""}
                       </small>
-                    </button>
-                    {model.mode === "grams" && (
+                    </div>
+                    <div
+                      className="tray-qty"
+                      role="group"
+                      aria-label={`Porsi ${label}`}
+                    >
                       <button
-                        className="text-button"
-                        onClick={() => openEdit(id)}
+                        type="button"
+                        aria-label={`Kurangi ${label}`}
+                        onClick={() => stepTray(id, -1)}
                       >
-                        Edit nutrisi
+                        <Icon name="minus" size={18} />
                       </button>
-                    )}
+                      <button
+                        type="button"
+                        className="tray-amount"
+                        aria-label={`Ubah porsi ${label}, sekarang ${amount}`}
+                        onClick={() => openPortionSheet(id)}
+                      >
+                        {amount}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Tambah porsi ${label}`}
+                        onClick={() => stepTray(id, 1)}
+                      >
+                        <Icon name="plus" size={18} />
+                      </button>
+                    </div>
                     <button
                       className="icon-button"
-                      aria-label={`Hapus ${ing.name} dari pilihan`}
+                      aria-label={`Hapus ${label} dari pilihan`}
                       onClick={() => bRemove(id)}
                     >
                       <Icon name="close" />
                     </button>
+                    {model.mode === "grams" && (
+                      <button
+                        className="text-button tray-edit"
+                        onClick={() => openEdit(id)}
+                      >
+                        Edit nilai gizi
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -1873,15 +1980,13 @@ export default function FoodBuilder({
             <PickerHome
               mealLabel={BLABEL[activeMeal]}
               usual={usual.chips}
-              tiles={tileViews}
               loading={loadingAll && !allFoods}
               error={catalogueError}
               onRetry={() => {
                 clearCatalogueCache();
                 runCatalogueLoad(true);
               }}
-              onTile={openTile}
-              onUsual={openPortionSheet}
+              onUsual={quickAdd}
               onMore={() => setBrowseOpen(true)}
               onImport={() => {
                 if (
@@ -1895,6 +2000,18 @@ export default function FoodBuilder({
               }}
               onGroup={() => setNewGroup({ name: "", emoji: "" })}
             />
+          )}
+          {q && count > 0 && (
+            <button
+              type="button"
+              className="tray-peek"
+              onClick={() => setQuery("")}
+            >
+              <span>
+                Sudah dipilih {count} · {Math.round(tk)} kkal
+              </span>
+              <span>Lihat</span>
+            </button>
           )}
           {q && (
             <section className="search-results" aria-live="polite">

@@ -108,24 +108,30 @@ async function fetchCatalogue(): Promise<CatalogueResult> {
   try {
     const res = await fetch("/api/foods/all");
     if (!res.ok) {
+      // The server's message can be a database stack trace; it stays in the
+      // console, and the person gets words they can act on.
       const body = (await res.json().catch(() => null)) as { message?: string } | null;
+      if (body?.message) console.warn("Katalog gagal dimuat:", res.status, body.message);
       return {
         ok: false,
         message:
           res.status === 401
-            ? "Sesi habis — masuk lagi buat lihat library."
-            : body?.message || `Library gagal dimuat (${res.status}).`,
+            ? "Sesi habis. Masuk lagi untuk memuat katalog makanan."
+            : "Katalog lengkap belum bisa dimuat. Makanan dasar tetap bisa dicari.",
       };
     }
     const data = (await res.json()) as { data?: { foods?: CatalogueFood[] } };
     const foods = normalizeCatalogueFoods(data?.data?.foods);
     if (foods.length === 0) {
-      return { ok: false, message: "Library kosong — coba lagi nanti." };
+      return { ok: false, message: "Katalog makanan kosong. Coba lagi nanti." };
     }
     writeCache(foods);
     return { ok: true, foods, fromCache: false };
   } catch {
-    return { ok: false, message: "Nggak bisa muat library — cek koneksi." };
+    return {
+      ok: false,
+      message: "Katalog belum bisa dimuat. Periksa koneksi; makanan dasar tetap bisa dicari.",
+    };
   }
 }
 
