@@ -101,7 +101,8 @@ const TABS: Tab[] = [
     match: (p) =>
       p === "/" ||
       p.startsWith("/sleep") ||
-      p.startsWith("/settings") || p.startsWith("/social"),
+      (p.startsWith("/settings") && !p.startsWith("/settings/health")) ||
+      p.startsWith("/social"),
   },
   {
     href: "/meal",
@@ -113,7 +114,8 @@ const TABS: Tab[] = [
     href: "/workout",
     label: "Latihan",
     Icon: () => <Icon name="workout" size={23} />,
-    match: (p) => p.startsWith("/workout"),
+    // Apple Health setup is opened from Latihan's "Hari ini" card.
+    match: (p) => p.startsWith("/workout") || p.startsWith("/settings/health"),
   },
   {
     href: "/companion",

@@ -77,7 +77,7 @@ Verification: `lib/burn.test.ts` (5 tests), full suite 377 pass, typecheck, `npm
 
 ## Not in this release
 
-- **Apple Health / Apple Watch import** (steps, active energy, workouts). Needs a HealthKit plugin in the iOS (Capacitor) app, the Health entitlement and a device build; it would write into the same activity list.
+- **Apple Health / Apple Watch import** (steps, active energy, workouts). Needs a HealthKit plugin in the iOS (Capacitor) app, the Health entitlement and a device build; it would write into the same activity list. *Update, same day:* steps and active energy now arrive through an iPhone Shortcut instead; see `2026-11-21-apple-health-shortcut.md`. Workouts are still not imported.
 - Syncing activities to the server (needs a model and an API).
 - Restyling the dark "Buat sesi sendiri" modal, the logger and the summary to the light theme; the summary still says "MINGGU 47 / 12".
 - Burn per set inside the logger while training (the summary has it).

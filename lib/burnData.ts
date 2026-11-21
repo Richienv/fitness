@@ -11,6 +11,8 @@ import {
 } from "./workouts";
 import { getActivities, type ActivityEntry } from "./activity";
 import { activityKcal, bodyWeightKg, workoutKcal, type ExerciseBurn } from "./burn";
+import { combineDay } from "./healthImport";
+import { getHealthDay, type StoredHealthDay } from "./health";
 
 export function readBodyKg(): number {
   return bodyWeightKg(getAllMeasurements(), getProfile().weightKg);
@@ -54,6 +56,13 @@ export type DayBurn = {
   gym: { id: string; title: string; completed: boolean; kcal: number }[];
   activities: (ActivityEntry & { kcal: number })[];
   total: number;
+  /** "health" when Apple Health active energy is the total. */
+  source: "health" | "estimate";
+  health: StoredHealthDay | null;
+  /** Rows shown but not added ("gym:<id>", "act:<id>"), so nothing counts twice. */
+  excluded: string[];
+  /** Estimate for Apple Health steps when Health sent steps but no energy. */
+  healthStepsKcal: number | null;
 };
 
 export function readDayBurn(date: string): DayBurn {
@@ -67,7 +76,14 @@ export function readDayBurn(date: string): DayBurn {
       kcal: workoutBurn(w, kg).total,
     }));
   const activities = getActivities(date).map((a) => ({ ...a, kcal: activityKcal(a, kg) }));
-  const total =
-    gym.reduce((s, g) => s + g.kcal, 0) + activities.reduce((s, a) => s + a.kcal, 0);
-  return { kg, gym, activities, total };
+  const health = getHealthDay(date);
+  const combined = combineDay(
+    [
+      ...gym.map((g) => ({ key: `gym:${g.id}`, kind: "gym" as const, kcal: g.kcal })),
+      ...activities.map((a) => ({ key: `act:${a.id}`, kind: a.kind, kcal: a.kcal })),
+    ],
+    health,
+    (steps) => activityKcal({ kind: "langkah", steps }, kg),
+  );
+  return { kg, gym, activities, health, ...combined };
 }

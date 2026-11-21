@@ -10,6 +10,7 @@ import {
 } from "@/lib/store";
 import { mergeServerWorkouts } from "@/lib/workouts";
 import { mergeServerMeasurements } from "@/lib/measurements";
+import { mergeServerHealth } from "@/lib/health";
 import { syncResolvedTargets } from "@/lib/targetSync";
 import { seedApr13Meals } from "@/lib/mealSeed";
 import { todayKey } from "@/lib/targets";
@@ -37,13 +38,15 @@ async function fetchJson<T>(url: string): Promise<T | null> {
 async function pullFromServer(): Promise<number> {
   const from = daysBefore(todayKey(), 45);
 
-  const [mealsRes, foodsRes, workoutsRes, measRes] = await Promise.all([
+  const [mealsRes, foodsRes, workoutsRes, measRes, healthRes] = await Promise.all([
     fetchJson<{ meals: never[] }>(`/api/meals?from=${from}`),
     fetchJson<{ data: { foods: never[] } }>("/api/foods"),
     fetchJson<{ data: { sessions: never[] } }>(`/api/workouts?from=${from}`),
     fetchJson<{ data: { measurements: never[] } }>(
       `/api/measurements?from=${from}`
     ),
+    // Apple Health days sent by the iPhone Shortcut (see /settings/health).
+    fetchJson<{ data: { days: never[] } }>(`/api/widget/health?from=${from}`),
   ]);
 
   let added = 0;
@@ -53,6 +56,7 @@ async function pullFromServer(): Promise<number> {
     added += mergeServerWorkouts(workoutsRes.data.sessions);
   if (measRes?.data?.measurements)
     added += mergeServerMeasurements(measRes.data.measurements);
+  if (healthRes?.data?.days) added += mergeServerHealth(healthRes.data.days);
   return added;
 }
 
@@ -114,8 +118,10 @@ export default function ServerSync({ userId }: { userId: string | null }) {
     });
 
     // Initial pull — emit a soft refresh if Hermes logged something new.
+    // The records are already saved by the time this resolves, so tell the
+    // pages even if this effect was torn down meanwhile (Strict Mode runs it
+    // twice in dev; the re-run's pull then finds nothing new to announce).
     pullFromServer().then((added) => {
-      if (cancelled) return;
       if (added > 0) {
         console.log("[ServerSync] imported", added, "records from server");
         softRefresh();

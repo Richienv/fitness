@@ -41,8 +41,35 @@ export function signWidgetToken(userId: string, ttlDays = DEFAULT_TTL_DAYS): str
   return `${payload}.${sign(payload)}`;
 }
 
-/** Verify a widget token; return the userId, or null if invalid/expired. */
+/**
+ * A send-only token for the Apple Health Shortcut: it can post steps and
+ * active energy to /api/widget/health and nothing else. It carries a purpose
+ * field, which the read-only widget check refuses, so the two tokens can never
+ * stand in for each other. A year by default: a Shortcut is set up once.
+ */
+export function signHealthToken(userId: string, ttlDays = 365): string {
+  const exp = Date.now() + ttlDays * 24 * 60 * 60 * 1000;
+  const payload = b64url(Buffer.from(JSON.stringify({ u: userId, exp, p: "health" })));
+  return `${payload}.${sign(payload)}`;
+}
+
+/** Verify a health token; return the userId, or null. */
+export function verifyHealthToken(token: string | null | undefined): string | null {
+  const t = readToken(token);
+  return t && t.p === "health" ? t.u : null;
+}
+
+/** Verify a widget token; return the userId, or null if invalid/expired.
+ *  Tokens minted for another purpose (health) are refused. */
 export function verifyWidgetToken(token: string | null | undefined): string | null {
+  const t = readToken(token);
+  return t && t.p === undefined ? t.u : null;
+}
+
+/** Signature and expiry check shared by every token kind. */
+function readToken(
+  token: string | null | undefined,
+): { u: string; p?: string } | null {
   if (!token || typeof token !== "string") return null;
   const dot = token.indexOf(".");
   if (dot <= 0) return null;
@@ -63,10 +90,12 @@ export function verifyWidgetToken(token: string | null | undefined): string | nu
     const obj = JSON.parse(fromB64url(payload).toString("utf8")) as {
       u?: unknown;
       exp?: unknown;
+      p?: unknown;
     };
     if (typeof obj.u !== "string" || !obj.u) return null;
     if (typeof obj.exp !== "number" || Date.now() > obj.exp) return null;
-    return obj.u;
+    if (obj.p !== undefined && typeof obj.p !== "string") return null;
+    return { u: obj.u, p: obj.p as string | undefined };
   } catch {
     return null;
   }
