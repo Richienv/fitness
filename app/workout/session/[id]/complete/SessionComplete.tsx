@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { CSSProperties } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   getDefForWorkout,
   getWorkout,
@@ -15,6 +15,14 @@ import {
 } from "@/lib/workouts";
 import { MUSCLE_TO_GROUP, type MuscleKey } from "@/lib/muscles";
 import { renderWorkoutCard, shareBlob } from "@/lib/shareCards";
+import {
+  celebrationDiff,
+  hasChanges,
+  type Celebration,
+} from "@/lib/motivation";
+import { readSnapshot, takeBefore } from "@/lib/motivationData";
+import { useSheetBack } from "@/lib/backSheet";
+import ProgressCelebration from "../../../../_motion/ProgressCelebration";
 
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
 const FIRE = "linear-gradient(180deg,#ff8a52,#ee3c30 55%,#c01f12)";
@@ -60,6 +68,11 @@ export default function SessionComplete({ workoutId }: { workoutId: string }) {
   // with the machines you actually did; renameable before saving.
   const [saveName, setSaveName] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  // Only right after "Selesai" in the logger: the logger left the numbers
+  // from before this session. Opening an old summary shows no celebration.
+  const [celebration, setCelebration] = useState<Celebration | null>(null);
+  const closeCelebration = useCallback(() => setCelebration(null), []);
+  useSheetBack(!!celebration, closeCelebration);
 
   useEffect(() => {
     const w = getWorkout(workoutId);
@@ -67,6 +80,13 @@ export default function SessionComplete({ workoutId }: { workoutId: string }) {
     if (w) {
       setPrev(getLastSessionOfType(w.sessionType, w.id));
       setSaveName(templateDraftFromWorkout(w).name);
+    }
+    const before = takeBefore(workoutId);
+    if (before && w?.completed) {
+      try {
+        const c = celebrationDiff(before, readSnapshot(), "workout");
+        if (hasChanges(c)) setCelebration(c);
+      } catch {}
     }
     setLoaded(true);
   }, [workoutId]);
@@ -178,6 +198,14 @@ export default function SessionComplete({ workoutId }: { workoutId: string }) {
         background: "radial-gradient(900px 620px at 50% -4%,#221210,#0a0708 46%,#050406 100%)",
       }}
     >
+      {celebration && (
+        <ProgressCelebration
+          c={celebration}
+          title="Latihan selesai"
+          onClose={closeCelebration}
+        />
+      )}
+
       {/* Confetti */}
       <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none", zIndex: 1 }}>
         {CONFETTI.map((c, i) => (

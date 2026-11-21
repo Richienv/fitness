@@ -480,11 +480,20 @@ export function getLastMealOfType(mealType: MealType): MealLog | null {
  *   Wed (3) and Sun (0) = REST, all other days = GYM.
  * Richie trains 5x/week including Saturday.
  */
-function defaultGymDay(date: string): boolean {
+function defaultGymDay(
+  date: string,
+  days = getSettings().routine?.trainingDays,
+): boolean {
   const [y, m, d] = date.split("-").map(Number);
   const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-  const days = getSettings().routine?.trainingDays;
   return days ? days.includes(dow) : dow !== 0 && dow !== 3;
+}
+
+/** getDaily(date).gymDay for many dates, reading storage once. */
+export function gymDayReader(): (date: string) => boolean {
+  const all = read<Record<string, DailyFlags>>(DAILY_KEY, {});
+  const days = getSettings().routine?.trainingDays;
+  return (date) => all[date]?.gymDay ?? defaultGymDay(date, days);
 }
 
 export function getDaily(date: string): DailyFlags {

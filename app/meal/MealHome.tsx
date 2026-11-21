@@ -45,6 +45,15 @@ import Icon from "../ui/Icon";
 import NutritionSummary from "./NutritionSummary";
 import MorningScene from "./MorningScene";
 import { useSheetBack } from "@/lib/backSheet";
+import {
+  addedMealType,
+  celebrationDiff,
+  hasChanges,
+  mealSlotForHour,
+  type Celebration,
+} from "@/lib/motivation";
+import { readSnapshot } from "@/lib/motivationData";
+import ProgressCelebration from "../_motion/ProgressCelebration";
 
 /** A blank editor draft; may or may not carry an id (edit vs. add). */
 type EditDraft = (QuickLogEntry | Omit<QuickLogEntry, "id">) & { id?: string };
@@ -249,12 +258,16 @@ const SLOT_DEFS: { key: MealType; label: string; window: string }[] = [
 /** Pick the meal slot from the current clock time, so logging is one tap — no
  *  breakfast/lunch/dinner prompt. You can still change it inside the builder. */
 function inferMealType(): MealType {
-  const h = new Date().getHours();
-  if (h >= 4 && h < 11) return "breakfast";
-  if (h >= 11 && h < 15) return "lunch";
-  if (h >= 15 && h < 18) return "snack";
-  return "dinner";
+  // Shared with Home's next action, so both point at the same slot.
+  return mealSlotForHour(new Date().getHours());
 }
+
+const MEAL_TITLE: Record<MealType, string> = {
+  breakfast: "Sarapan",
+  lunch: "Makan siang",
+  snack: "Camilan",
+  dinner: "Makan malam",
+};
 
 // One-tap add-ons, shown at the end of the quick rail (preset ids from lib/presets).
 const ADDONS: { id: string; label: string }[] = [
@@ -529,12 +542,19 @@ export default function MealHome({
   // True while the dialog is playing its exit animation, so it glides out
   // (backdrop fade + card drop) instead of snapping to nothing.
   const [deleteClosing, setDeleteClosing] = useState(false);
+  // What the last save changed, counted up in a sheet (today's logs only).
+  const [celebration, setCelebration] = useState<{
+    c: Celebration;
+    title: string;
+  } | null>(null);
+  const closeCelebration = useCallback(() => setCelebration(null), []);
 
   // Hardware back closes the top-most open sheet instead of leaving the page.
   // (FoodBuilder wires its own step-aware handler internally.)
   useSheetBack(pickerOpen, () => setPickerOpen(false));
   useSheetBack(manageOpen, () => setManageOpen(false));
   useSheetBack(!!editDraft, () => setEditDraft(null));
+  useSheetBack(!!celebration, closeCelebration);
 
   const reloadFromStore = useCallback(() => {
     dedupeMeals();
@@ -667,9 +687,35 @@ export default function MealHome({
   const target = gymDay ? TARGETS.gymDay : TARGETS.restDay;
   const dateLine = bahasaDate(activeDate);
 
+  // Compare the stored records right before this save with the stored ones
+  // after it. Past days, and logs that move nothing (water, creatine), keep
+  // the plain feedback: streaks and rings are about today.
+  const celebrateMeal = useCallback(
+    (before: MealLog[]): boolean => {
+      if (!activeDate || activeDate !== todayStr) return false;
+      try {
+        const after = getAllMeals();
+        const slot = addedMealType(before, after, activeDate);
+        if (!slot) return false;
+        const c = celebrationDiff(
+          readSnapshot({ meals: before, today: activeDate }),
+          readSnapshot({ meals: after, today: activeDate }),
+          "meal",
+        );
+        if (!hasChanges(c)) return false;
+        setCelebration({ c, title: `${MEAL_TITLE[slot]} tercatat` });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [activeDate, todayStr],
+  );
+
   // Log a configured quick-log entry straight into the day (no navigation).
   const logQuick = useCallback(
     (e: QuickLogEntry) => {
+      const before = getAllMeals();
       saveMeal({
         date: activeDate,
         mealType: e.mealType,
@@ -687,10 +733,11 @@ export default function MealHome({
         ],
       });
       haptic("success");
-      toast(`✓ ${e.label} · +${Math.round(e.kcal)} kkal`, "success");
+      if (!celebrateMeal(before))
+        toast(`✓ ${e.label} · +${Math.round(e.kcal)} kkal`, "success");
       reloadFromStore();
     },
-    [activeDate, reloadFromStore],
+    [activeDate, celebrateMeal, reloadFromStore],
   );
 
   const mealNames: Record<MealType, string> = {
@@ -861,8 +908,9 @@ export default function MealHome({
           dateKey={activeDate}
           startInLabel
           onClose={() => setLabelMeal(null)}
-          onSaved={() => {
+          onSaved={(before) => {
             setLabelMeal(null);
+            celebrateMeal(before);
             reloadFromStore();
           }}
         />
@@ -872,8 +920,9 @@ export default function MealHome({
           meal={builderMeal}
           dateKey={activeDate}
           onClose={() => setBuilderMeal(null)}
-          onSaved={() => {
+          onSaved={(before) => {
             setBuilderMeal(null);
+            celebrateMeal(before);
             reloadFromStore();
           }}
         />
@@ -885,10 +934,19 @@ export default function MealHome({
           dateKey={activeDate}
           startInRacik
           onClose={() => setRacikMeal(null)}
-          onSaved={() => {
+          onSaved={(before) => {
             setRacikMeal(null);
+            celebrateMeal(before);
             reloadFromStore();
           }}
+        />
+      )}
+
+      {celebration && (
+        <ProgressCelebration
+          c={celebration.c}
+          title={celebration.title}
+          onClose={closeCelebration}
         />
       )}
 

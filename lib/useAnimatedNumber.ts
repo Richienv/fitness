@@ -10,16 +10,20 @@ import { useReducedMotion } from "./useReducedMotion";
  *
  * Use for headline metrics — calories, protein, sugar, day counter, streak —
  * so they count up on mount and glide on update instead of snapping.
+ *
+ * `from` sets the first displayed value, so a celebration can count from the
+ * number before a log to the number after it.
  */
 const EASE_OUT = (t: number): number => 1 - Math.pow(1 - t, 3);
 
 export function useAnimatedNumber(
   target: number,
-  durationMs = 700
+  durationMs = 700,
+  from?: number
 ): number {
   const reduced = useReducedMotion();
-  const [value, setValue] = useState(target);
-  const fromRef = useRef(target);
+  const [value, setValue] = useState(from ?? target);
+  const fromRef = useRef(from ?? target);
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -50,8 +54,17 @@ export function useAnimatedNumber(
       }
     };
     rafRef.current = requestAnimationFrame(tick);
+    // Frames don't run while the page is hidden. Land on the real number
+    // anyway, so a count-up can never leave a stale value on screen.
+    const settle = setTimeout(() => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      fromRef.current = target;
+      setValue(target);
+    }, durationMs + 120);
 
     return () => {
+      clearTimeout(settle);
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     };
   }, [target, durationMs, reduced]);

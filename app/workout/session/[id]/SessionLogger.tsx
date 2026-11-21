@@ -38,7 +38,7 @@ import {
 } from "@/lib/exerciseData";
 import BodyDiagram from "./BodyDiagram";
 import { haptic } from "@/lib/haptics";
-import { toast } from "../../../Toast";
+import { readSnapshot, stashBefore } from "@/lib/motivationData";
 
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
 const MONO = "var(--font-dm-mono), 'JetBrains Mono', monospace";
@@ -307,10 +307,16 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
       durationMin,
       totalVolume: workoutVolume(workout),
     };
+    // Records before this session counts, for the summary's celebration.
+    // A session finished a second time has nothing new to celebrate, and the
+    // snapshot must never stand in the way of saving the workout.
+    try {
+      if (!getWorkout(workout.id)?.completed)
+        stashBefore(workout.id, readSnapshot());
+    } catch {}
     saveWorkout(done);
     setActiveWorkoutId(null);
     haptic("success");
-    toast("Workout complete ✓", "success");
     router.push(`/workout/session/${workout.id}/complete`);
   }
 

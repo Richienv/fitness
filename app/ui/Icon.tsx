@@ -12,7 +12,11 @@ export type IconName =
   | "settings"
   | "leaf"
   | "sun"
-  | "meal";
+  | "meal"
+  | "flame"
+  | "scale"
+  | "check"
+  | "medal";
 const paths: Record<IconName, React.ReactNode> = {
   scan: (
     <>
@@ -66,6 +70,22 @@ const paths: Record<IconName, React.ReactNode> = {
   meal: (
     <>
       <path d="M3 12h18a9 9 0 0 1-18 0ZM7 7v-3m5 3V2m5 5V4M7 21h10" />
+    </>
+  ),
+  flame: (
+    <path d="M12 22c4 0 7-2.8 7-7 0-3.5-2.2-6-4.2-8.2-.5 2.2-1.6 3.6-3 4.2.4-3.3-.9-6.6-3.8-9-.4 3.4-2.4 5.6-4 7.8A8.3 8.3 0 0 0 5 15c0 4.2 3 7 7 7Z" />
+  ),
+  scale: (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="5" />
+      <path d="M8 9a5.5 5.5 0 0 1 8 0l-2.5 3h-3Zm4 0v3" />
+    </>
+  ),
+  check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
+  medal: (
+    <>
+      <circle cx="12" cy="15" r="6" />
+      <path d="m8.5 10.2-3-7.2h4L12 9m3.5 1.2 3-7.2h-4L13 6.6M12 12.5v5" />
     </>
   ),
 };

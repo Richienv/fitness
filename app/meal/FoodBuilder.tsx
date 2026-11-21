@@ -29,6 +29,7 @@ import {
   getAllMeals,
   isCustomItem,
   type MealItem,
+  type MealLog,
   type CustomMealItem,
 } from "@/lib/store";
 import { contributeFood } from "@/lib/foodContribute";
@@ -372,7 +373,9 @@ export default function FoodBuilder({
   meal: MealT;
   dateKey: string;
   onClose: () => void;
-  onSaved?: () => void;
+  /** Called after saving, with the stored meals as they were just before the
+   *  save, so the caller can show exactly what this save changed. */
+  onSaved?: (before: MealLog[]) => void;
   /** Open straight into the ingredient composer, with the search field focused
    *  and a worked example on screen. RACIK could already read a typed plate as
    *  its parts, but only if you guessed that typing several foods at once was
@@ -1001,8 +1004,9 @@ export default function FoodBuilder({
     }
     haptic("success");
     invalidateHistoryStats();
+    const before = getAllMeals();
     saveMeal({ date: dateKey, mealType: activeMeal, items });
-    onSaved?.();
+    onSaved?.(before);
     onClose();
   };
 

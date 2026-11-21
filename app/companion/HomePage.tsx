@@ -1,6 +1,11 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type CSSProperties,
+} from "react";
 import { useSession } from "next-auth/react";
 import { getMealsForDate, isCustomItem, type MealLog } from "@/lib/store";
 import { macrosFor } from "@/lib/ingredients";
@@ -14,8 +19,17 @@ import { todayKey } from "@/lib/targets";
 import { useSoftRefresh } from "@/lib/useSoftRefresh";
 import { readCompanion, type CompanionSettings } from "@/lib/companionSettings";
 import { companionProgress, weightSummary } from "@/lib/companionProgress";
+import { mealSlotForHour, nextAction, type Snapshot } from "@/lib/motivation";
+import { readSnapshot } from "@/lib/motivationData";
 import AvatarPlayer from "./AvatarPlayer";
+import HomeHud from "./HomeHud";
+import NextActionCard from "./NextActionCard";
 import Icon from "../ui/Icon";
+const kg = (n: number) =>
+  n.toLocaleString("id-ID", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
 export default function HomePage() {
   const { data: session } = useSession();
   const [meals, setMeals] = useState<MealLog[]>([]),
@@ -26,10 +40,19 @@ export default function HomePage() {
       goal: null,
     }),
     [active, setActive] = useState<string | null>(null),
-    [date, setDate] = useState("");
+    [date, setDate] = useState(""),
+    [snap, setSnap] = useState<Snapshot | null>(null),
+    [hour, setHour] = useState(12);
   const refresh = useCallback(() => {
     const d = todayKey();
     setDate(d);
+    setHour(new Date().getHours());
+    // If a record is malformed the HUD steps aside; the quiet links remain.
+    try {
+      setSnap(readSnapshot({ today: d }));
+    } catch {
+      setSnap(null);
+    }
     setMeals(getMealsForDate(d));
     setMeasurements(getAllMeasurements());
     setWorkouts(getAllWorkouts());
@@ -42,19 +65,6 @@ export default function HomePage() {
     return () => clearInterval(t);
   }, [refresh]);
   useSoftRefresh(refresh);
-  const totals = useMemo(
-    () =>
-      meals
-        .flatMap((m) => m.items)
-        .reduce(
-          (a, i) => {
-            const n = isCustomItem(i) ? i : macrosFor(i.id, i.qty);
-            return { kcal: a.kcal + n.kcal, protein: a.protein + n.protein };
-          },
-          { kcal: 0, protein: 0 },
-        ),
-    [meals],
-  );
   const weight = date
     ? weightSummary(measurements, date)
     : { latest: null, mean: null, count: 0 };
@@ -62,6 +72,19 @@ export default function HomePage() {
     ? companionProgress(settings.goal, measurements, workouts, date)
     : { level: null, fraction: null };
   const name = session?.user?.name?.split(" ")[0] || "Akunmu";
+  const slot = mealSlotForHour(hour);
+  const action = snap
+    ? nextAction(snap, {
+        hour,
+        activeWorkoutId: active,
+        slotLogged: meals.some(
+          (m) => m.mealType === slot && m.items.length > 0,
+        ),
+        weightGoal: settings.goal?.mode === "weight",
+      })
+    : null;
+  const goal = settings.goal;
+  const trend = weight.mean ?? weight.latest?.weightKg ?? null;
   return (
     <main className="lean-home">
       <h1 className="companion-sr-only">R2 Fit — hari ini</h1>
@@ -74,6 +97,28 @@ export default function HomePage() {
           <Icon name="settings" size={19} />
         </Link>
       </header>
+      {snap && <HomeHud s={snap} />}
+      {action && <NextActionCard action={action} />}
+      <nav className="quiet-actions" aria-label="Catat lainnya">
+        {action?.key !== "meal" && action?.key !== "protein" && (
+          <Link href="/meal?add=1">
+            <Icon name="plus" size={16} />
+            Catat makan
+          </Link>
+        )}
+        {action?.key !== "workout" && action?.key !== "resume" && (
+          <Link href={active ? `/workout/session/${active}` : "/workout"}>
+            <Icon name="workout" size={16} />
+            {active ? "Lanjut latihan" : "Latihan"}
+          </Link>
+        )}
+        {action?.key !== "weigh" && (
+          <Link href="/dashboard/progress">
+            <Icon name="scale" size={16} />
+            Catat berat
+          </Link>
+        )}
+      </nav>
       <section className="home-avatar">
         <AvatarPlayer
           character={settings.character}
@@ -92,45 +137,46 @@ export default function HomePage() {
                 : "Atur target"}
           </Link>
         </div>
+        {goal && (
+          <Link href="/companion#goals" className="avatar-goal">
+            {progress.fraction !== null && (
+              <span className="avatar-goal-bar" aria-hidden="true">
+                <span
+                  style={
+                    {
+                      ["--p" as string]: progress.fraction,
+                    } as CSSProperties
+                  }
+                />
+              </span>
+            )}
+            <span className="avatar-goal-text">
+              {goal.mode === "weight" ? (
+                <>
+                  <span>
+                    {trend !== null
+                      ? `${weight.mean !== null ? "Tren" : "Terakhir"} ${kg(trend)} kg`
+                      : "Belum ada timbangan"}
+                  </span>
+                  <span>
+                    Target{" "}
+                    {goal.targetWeight !== null ? kg(goal.targetWeight) : "—"} kg
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span>Pinggang turun, beban naik</span>
+                  <span>
+                    {progress.fraction !== null
+                      ? `${Math.round(progress.fraction * 100)}% menuju target`
+                      : "Menunggu dua catatan"}
+                  </span>
+                </>
+              )}
+            </span>
+          </Link>
+        )}
       </section>
-      <div className="lean-facts">
-        <Link href="/dashboard/progress">
-          <span>{weight.mean !== null ? "Tren berat" : "Berat terakhir"}</span>
-          <strong>
-            {weight.mean !== null
-              ? weight.mean.toFixed(1)
-              : (weight.latest?.weightKg?.toFixed(1) ?? "—")}
-            <small> kg</small>
-          </strong>
-        </Link>
-        <Link href="/meal">
-          <span>Tercatat</span>
-          <strong>
-            {Math.round(totals.kcal).toLocaleString("id-ID")}
-            <small> kcal</small>
-          </strong>
-        </Link>
-        <Link href="/meal">
-          <span>Protein</span>
-          <strong>
-            {Math.round(totals.protein)}
-            <small> g</small>
-          </strong>
-        </Link>
-      </div>
-      <div className="lean-actions">
-        <Link href="/meal?add=1">
-          <Icon name="plus" />
-          Catat makan
-        </Link>
-        <Link href={active ? `/workout/session/${active}` : "/workout"}>
-          <Icon name="workout" />
-          {active ? "Lanjut latihan" : "Mulai latihan"}
-        </Link>
-      </div>
-      <Link href="/dashboard/progress" className="lean-weight">
-        Catat berat <Icon name="plus" size={16} />
-      </Link>
       <section className="lean-today">
         <div className="row-between">
           <h2>Hari ini</h2>

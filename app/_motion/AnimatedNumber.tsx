@@ -10,6 +10,8 @@ type Props = {
   format?: (n: number) => string;
   /** Override tween length. */
   durationMs?: number;
+  /** First displayed value (count from a "before" number). */
+  from?: number;
   className?: string;
   ariaLabel?: string;
 };
@@ -23,10 +25,11 @@ export default function AnimatedNumber({
   decimals = 0,
   format,
   durationMs = 700,
+  from,
   className,
   ariaLabel,
 }: Props) {
-  const live = useAnimatedNumber(value, durationMs);
+  const live = useAnimatedNumber(value, durationMs, from);
   const factor = Math.pow(10, decimals);
   const rounded = Math.round(live * factor) / factor;
   const text = format
