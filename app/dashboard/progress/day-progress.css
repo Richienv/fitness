@@ -50,6 +50,80 @@
 .dp-forecast li span { font-size: 11px; color: var(--muted, #677086); }
 .dp-forecast li strong { font-size: 13px; font-variant-numeric: tabular-nums; }
 .dp-goal { margin-top: 8px !important; font-weight: 650; }
+.dp-chart { margin: 12px 0 0; }
+.dp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 650;
+}
+.dp-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.dp-legend small { color: var(--muted, #677086); font-size: 11px; font-weight: 500; }
+.dp-legend i {
+  width: 14px;
+  height: 3px;
+  border-radius: 99px;
+}
+.dp-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.dp-grid { stroke: #e7ebf4; stroke-width: 1; }
+.dp-guide { stroke: #c5cce0; stroke-width: 1; stroke-dasharray: 3 3; }
+.dp-hit { cursor: pointer; outline: none; }
+.dp-axis {
+  position: relative;
+  height: 16px;
+  margin-top: 2px;
+}
+.dp-axis span {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 10.5px;
+  color: var(--muted, #677086);
+  white-space: nowrap;
+}
+.dp-axis span:first-child { transform: translateX(0); }
+.dp-axis span:last-child { transform: translateX(-100%); }
+.dp-axis span:only-child { transform: translateX(-50%); }
+.dp-break {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #f7f8fb;
+}
+.dp-break dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
+  margin: 8px 0 0;
+}
+.dp-break dt {
+  font-size: 11px;
+  color: var(--muted, #677086);
+}
+.dp-break dd {
+  margin: 1px 0 0;
+  font-size: 13px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.dp-detail {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: 10px;
+  min-height: 40px;
+  border: 1px solid var(--border, #e4e7f0);
+  border-radius: 12px;
+  background: #fff;
+  color: #3e60d5;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.dp-days li.is-on { background: #f4f7ff; margin: 0 -8px; padding-left: 8px; padding-right: 8px; border-radius: 10px; }
 .dp-days { margin: 12px 0 0; padding: 0; list-style: none; }
 .dp-days li {
   padding: 10px 0;
