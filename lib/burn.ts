@@ -93,9 +93,13 @@ export function activityKcal(
   return positive(a.reps) && k.perRepKg ? a.reps * k.perRepKg * kg : 0;
 }
 
-// One gym set: about 40 s of work at MET 6 and 75 s of rest at MET 2, less
-// the resting MET of 1 for both.
-const SET_KCAL_PER_KG = ((6 - 1) * 40 + (2 - 1) * 75) / 3600;
+// One gym set, with the rest and changeover that come with it: about 45 s of
+// work at MET 7 and 105 s of rest at MET 3, less the resting MET of 1 for both.
+// That is ~4 kcal a minute active for a 75 kg lifter, between the Compendium's
+// moderate (3.5) and vigorous (6.0) resistance training and close to what a
+// watch reports for a strength session. (An earlier 40 s / 75 s version came
+// out at ~2.5 kcal a minute, too low once warm-ups and changeovers count.)
+const SET_KCAL_PER_KG = ((7 - 1) * 45 + (3 - 1) * 105) / 3600;
 const MUSCLE_FACTOR: Partial<Record<MuscleKey, number>> = {
   quad: 1.3,
   hamstring: 1.3,
@@ -134,4 +138,26 @@ export function workoutKcal(
     perExercise.push({ name: e.name, sets, kcal: sets * setKcal(e.primary, kg) });
   }
   return { total: perExercise.reduce((s, e) => s + e.kcal, 0), perExercise };
+}
+
+/**
+ * What a planned session should burn, before it is done: every planned set
+ * counted as if it were done (a set with reps), through the same per-set
+ * estimate as a finished session. Shown on Latihan as "perkiraan" and updated
+ * by the real number once sets are logged.
+ */
+export function plannedWorkoutKcal(
+  exercises: { name: string; primary: readonly MuscleKey[]; sets: number; targetReps: number }[],
+  kg: number,
+): { total: number; perExercise: ExerciseBurn[] } {
+  return workoutKcal(
+    exercises.map((e) => ({
+      name: e.name,
+      primary: e.primary,
+      sets: Array.from({ length: Math.max(0, Math.floor(e.sets)) }, () => ({
+        reps: e.targetReps > 0 ? e.targetReps : 10,
+      })),
+    })),
+    kg,
+  );
 }

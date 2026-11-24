@@ -32,6 +32,9 @@ export type UserSettings = {
   targetsCustom?: boolean;
   routine?: { trainingDays: number[]; sleepHours: number };
   foodPreferences?: { style: string; allergies: string };
+  /** Share of today's training burn that may be eaten back (0 = off). See
+   *  lib/dayBudget. Unset means the default (half). */
+  exerciseEatBack?: number;
 };
 
 export const DEFAULT_PROFILE: Profile = {
@@ -99,6 +102,7 @@ function read(): UserSettings {
       targetsCustom: parsed.targetsCustom ?? false,
       routine: parsed.routine,
       foodPreferences: parsed.foodPreferences,
+      exerciseEatBack: parsed.exerciseEatBack,
     };
   } catch {
     return DEFAULT_SETTINGS;
@@ -123,6 +127,7 @@ export function patchSettings(patch: Partial<UserSettings>): UserSettings {
     targetsCustom: patch.targetsCustom ?? cur.targetsCustom,
     routine: patch.routine ?? cur.routine,
     foodPreferences: patch.foodPreferences ?? cur.foodPreferences,
+    exerciseEatBack: patch.exerciseEatBack ?? cur.exerciseEatBack,
   };
   setSettings(next);
   return next;

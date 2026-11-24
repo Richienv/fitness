@@ -31,7 +31,7 @@ import {
   updateQuickLogEntry,
   type QuickLogEntry,
 } from "@/lib/quicklog";
-import { TARGETS } from "@/lib/targets";
+import { dayTarget } from "@/lib/dayBudgetData";
 import { useActiveDate, parseDate } from "@/lib/activeDate";
 import { haptic } from "@/lib/haptics";
 import { toast } from "../Toast";
@@ -524,7 +524,16 @@ export default function MealHome({
     [pendingDelete, deleteClosing, deleteLoggedItem],
   );
 
-  const target = gymDay ? TARGETS.gymDay : TARGETS.restDay;
+  // The day's target plus what training earned today (lib/dayBudget); the
+  // burn is read from this device, so a save or sync elsewhere nudges a re-read.
+  const [burnTick, setBurnTick] = useState(0);
+  useSoftRefresh(() => setBurnTick((t) => t + 1));
+  const adj = useMemo(
+    () => dayTarget(activeDate, { gymDay }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeDate, gymDay, burnTick],
+  );
+  const target = adj.target;
   const dateLine = bahasaDate(activeDate);
 
   // Compare the stored records right before this save with the stored ones
@@ -650,6 +659,11 @@ export default function MealHome({
                   ? `${fmt(target.kcal - totals.kcal)} kkal tersisa`
                   : `${fmt(totals.kcal - target.kcal)} kkal di atas target`}
               </small>
+              {adj.bonusKcal > 0 && (
+                <small className="mk-bonus">
+                  Termasuk +{fmt(adj.bonusKcal)} kkal dari latihan
+                </small>
+              )}
             </div>
             <div className="protein">
               <span>Protein</span>

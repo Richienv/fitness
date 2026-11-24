@@ -12,7 +12,7 @@ import {
 } from "recharts";
 import { macrosFor, type Macros } from "@/lib/ingredients";
 import { getDaily, isCustomItem, type MealLog } from "@/lib/store";
-import { TARGETS } from "@/lib/targets";
+import { dayTargetReader } from "@/lib/dayBudgetData";
 
 type Metric = "kcal" | "protein" | "carbs" | "fat";
 
@@ -112,6 +112,7 @@ export default function WeeklyGraph({
     const todayStr = dateKey(now);
     let todayI = -1;
     const perDay: Point[] = [];
+    const targetFor = dayTargetReader();
     for (let i = 0; i < 7; i++) {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
@@ -134,7 +135,7 @@ export default function WeeklyGraph({
         { kcal: 0, protein: 0, carbs: 0, fat: 0 }
       );
       const dayFlags = getDaily(key);
-      const t = dayFlags.gymDay ? TARGETS.gymDay : TARGETS.restDay;
+      const t = targetFor(key, dayFlags.gymDay).target;
       perDay.push({
         day: DAY_LABELS[i],
         date: key,

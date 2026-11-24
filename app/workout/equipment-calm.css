@@ -1,0 +1,484 @@
+/* Equipment list and gym setup, in the calm style (24 Nov 2026).
+   One accent (--calm-accent), white surfaces with a hairline, sentence case,
+   nothing under 12 px, every control at least 44 px. Everything is under
+   .lt-eq and built only on the global --calm-* tokens, so it does not depend on
+   the load order of other stylesheets. The how-to sheet reuses the shared
+   .mk-sheet classes, like ExerciseGuide.
+   See docs/plans/2026-11-24-latihan-summary-equipment.md. */
+.lt-eq {
+  max-width: 560px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  padding: 0 20px calc(120px + env(safe-area-inset-bottom));
+  background: var(--calm-bg);
+  color: var(--calm-text);
+  font-family: var(--font-dm-sans), "Plus Jakarta Sans", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+}
+.lt-eq a:focus-visible,
+.lt-eq button:focus-visible,
+.lt-eq input:focus-visible,
+.lt-eq-sheet a:focus-visible,
+.lt-eq-sheet button:focus-visible {
+  outline: 3px solid var(--calm-accent);
+  outline-offset: 2px;
+}
+
+/* Heading */
+.lt-eq-hero {
+  padding-top: calc(8px + env(safe-area-inset-top));
+}
+.lt-eq-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 8px 0 0;
+  color: var(--calm-accent-strong);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.lt-eq-back svg {
+  transform: rotate(180deg);
+}
+.lt-eq h1 {
+  margin: 2px 0 0;
+  font-size: 28px;
+  font-weight: 750;
+  letter-spacing: -0.6px;
+  line-height: 1.15;
+}
+.lt-eq-lead {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--calm-muted);
+}
+
+/* Search and categories stay in view while the list scrolls. The shadow paints
+   the strip under the status bar on a phone with a notch. */
+.lt-eq-sticky {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 20;
+  margin: 10px -20px 0;
+  padding: 8px 20px 10px;
+  background: var(--calm-bg);
+  border-bottom: 1px solid var(--calm-border);
+  box-shadow: 0 calc(-1 * env(safe-area-inset-top, 0px)) 0 var(--calm-bg);
+}
+.lt-eq-search {
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+  border: 1px solid var(--calm-border);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--calm-muted);
+}
+.lt-eq-search:focus-within {
+  border-color: var(--calm-accent);
+  box-shadow: 0 0 0 1px var(--calm-accent);
+}
+.lt-eq-search > svg {
+  flex: none;
+  margin-left: 14px;
+}
+.lt-eq-search input {
+  flex: 1;
+  min-width: 0;
+  min-height: 50px;
+  padding: 0 8px 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--calm-text);
+  font: inherit;
+  font-size: 16px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.lt-eq-search input:focus-visible {
+  outline: none;
+}
+.lt-eq-search input::placeholder {
+  color: var(--calm-muted);
+  opacity: 1;
+}
+.lt-eq-search input::-webkit-search-cancel-button,
+.lt-eq-search input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  display: none;
+}
+.lt-eq-clear {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin-right: 3px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--calm-muted);
+  cursor: pointer;
+}
+.lt-eq-clear:hover {
+  background: var(--calm-fill);
+}
+.lt-eq-chips {
+  display: flex;
+  gap: 8px;
+  margin: 8px -20px 0;
+  padding: 2px 20px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-padding-inline: 20px;
+  scroll-snap-type: x proximity;
+}
+.lt-eq-chips::-webkit-scrollbar {
+  display: none;
+}
+.lt-eq-chip {
+  flex: none;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--calm-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--calm-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  scroll-snap-align: start;
+}
+.lt-eq-chip[aria-pressed="true"] {
+  border-color: var(--calm-accent);
+  background: var(--calm-accent-soft);
+  color: var(--calm-accent-strong);
+}
+
+/* Count in words, with the one link out. */
+.lt-eq-count {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--calm-muted);
+}
+.lt-eq-link {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  min-height: 44px;
+  color: var(--calm-accent-strong);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* One surface for the whole list; a hairline between rows. */
+.lt-eq-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: #fff;
+  border: 1px solid var(--calm-border);
+  border-radius: 20px;
+  overflow: hidden;
+}
+.lt-eq-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px 12px;
+  padding: 12px 16px;
+}
+.lt-eq-row + .lt-eq-row {
+  border-top: 1px solid var(--calm-border);
+}
+.lt-eq-name {
+  display: block;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.lt-eq-meta,
+.lt-eq-cn {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--calm-muted);
+  overflow-wrap: anywhere;
+}
+.lt-eq-cn {
+  font-size: 12.5px;
+}
+.lt-eq-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.lt-eq-tag {
+  padding: 1px 8px;
+  border: 1px solid var(--calm-border);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--calm-muted);
+}
+.lt-eq-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 92px;
+}
+.lt-eq-log,
+.lt-eq-how {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.lt-eq-log {
+  border-color: var(--calm-accent);
+  background: var(--calm-accent);
+  color: #fff;
+}
+.lt-eq-log:hover:not(:disabled) {
+  border-color: var(--calm-accent-strong);
+  background: var(--calm-accent-strong);
+}
+.lt-eq-log:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+.lt-eq-how {
+  background: var(--calm-accent-soft);
+  color: var(--calm-accent-strong);
+  font-size: 14px;
+  font-weight: 600;
+}
+.lt-eq-how:hover {
+  background: #e3e8fa;
+}
+
+/* No match: the reason and the one way out. */
+.lt-eq-empty {
+  padding: 28px 20px 24px;
+  background: #fff;
+  border: 1px solid var(--calm-border);
+  border-radius: 20px;
+  text-align: center;
+}
+.lt-eq-empty h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.lt-eq-empty p {
+  margin: 6px 0 16px;
+  font-size: 14px;
+  color: var(--calm-muted);
+}
+.lt-eq-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 20px;
+  border: 1px solid var(--calm-border);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--calm-text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 650;
+  text-decoration: none;
+  cursor: pointer;
+}
+.lt-eq-btn:hover {
+  background: var(--calm-fill);
+}
+.lt-eq-btn.primary {
+  border-color: var(--calm-accent);
+  background: var(--calm-accent);
+  color: #fff;
+}
+.lt-eq-btn.primary:hover {
+  border-color: var(--calm-accent-strong);
+  background: var(--calm-accent-strong);
+}
+
+/* How-to sheet: .mk-sheet gives the shell; these are the extras. */
+.lt-eq-sheet:focus {
+  outline: none;
+}
+.lt-eq-sheet .lt-eq-cn {
+  margin: 4px 0 0;
+}
+.lt-eq-sheet .lt-guide-list li::marker {
+  color: var(--calm-muted);
+}
+
+/* ---------- Gym setup ---------- */
+.lt-eq-group {
+  margin-top: 16px;
+}
+.lt-eq-grouphead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+}
+.lt-eq-grouphead h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+.lt-eq-grouphead h2 small {
+  margin-left: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--calm-muted);
+}
+.lt-eq-grouphead button {
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--calm-accent-strong);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lt-eq-checks {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  background: #fff;
+  border: 1px solid var(--calm-border);
+  border-radius: 20px;
+  overflow: hidden;
+}
+.lt-eq-checks li + li {
+  border-top: 1px solid var(--calm-border);
+}
+.lt-eq-check {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 60px;
+  padding: 8px 16px;
+  border: 0;
+  background: #fff;
+  color: var(--calm-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.lt-eq-check[aria-checked="true"] {
+  background: var(--calm-accent-soft);
+}
+.lt-eq-check-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.lt-eq-check-text strong {
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.lt-eq-check-text small {
+  font-size: 13px;
+  color: var(--calm-muted);
+}
+.lt-eq-check[aria-checked="true"] .lt-eq-check-text small {
+  color: var(--calm-accent-strong);
+}
+.lt-eq-box {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #7a8296;
+  border-radius: 8px;
+  background: #fff;
+  color: #fff;
+}
+.lt-eq-check[aria-checked="true"] .lt-eq-box {
+  border-color: var(--calm-accent);
+  background: var(--calm-accent);
+}
+.lt-eq-box svg {
+  visibility: hidden;
+}
+.lt-eq-check[aria-checked="true"] .lt-eq-box svg {
+  visibility: visible;
+}
+
+/* The count and Simpan stay above the tab bar. */
+.lt-eq-bar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  max-width: 560px;
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid var(--calm-border);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.lt-eq-bar p {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.lt-eq-bar .lt-eq-btn {
+  min-width: 132px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lt-eq-log,
+  .lt-eq-how,
+  .lt-eq-chip,
+  .lt-eq-btn,
+  .lt-eq-check {
+    transition:
+      background 0.16s,
+      border-color 0.16s,
+      transform 0.12s;
+  }
+  .lt-eq-log:active:not(:disabled),
+  .lt-eq-btn:active {
+    transform: scale(0.97);
+  }
+}

@@ -5,6 +5,7 @@ import type { DayBurn } from "@/lib/burnData";
 import type { ActivityEntry } from "@/lib/activity";
 import { receivedLabel } from "@/lib/health";
 import Icon from "../ui/Icon";
+import FoodTarget from "./FoodTarget";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("id-ID");
 const when = (iso?: string) => (iso ? receivedLabel(iso) : null);
@@ -127,9 +128,9 @@ export default function TodayBurn({
       <p className="lt-foot">
         {fromHealth
           ? "Total memakai kalori aktif dari Apple Health. Aktivitas yang kamu catat tetap tampil, tapi tidak ditambah lagi supaya tidak terhitung dua kali."
-          : `Kalori aktif, di luar kalori istirahat (seperti Apple Watch). Dihitung dari berat badanmu (${burn ? burn.kg.toLocaleString("id-ID") : "—"} kg), bisa meleset sekitar 20–30%.`}{" "}
-        Tidak ditambahkan ke sisa kalori makan.
+          : `Kalori aktif, di luar kalori istirahat (seperti Apple Watch). Dihitung dari berat badanmu (${burn ? burn.kg.toLocaleString("id-ID") : "—"} kg), bisa meleset sekitar 20–30%.`}
       </p>
+      <FoodTarget burnKcal={burn?.total ?? 0} />
       <Link href="/settings/health" className="lt-health-link">
         {health
           ? `Apple Health diperbarui ${when(health.receivedAt) ?? "hari ini"} · Atur`

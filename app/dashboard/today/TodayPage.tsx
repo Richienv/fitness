@@ -15,7 +15,7 @@ import {
   type MealLog,
 } from "@/lib/store";
 import type { MealType } from "@/lib/presets";
-import { TARGETS } from "@/lib/targets";
+import { dayTarget } from "@/lib/dayBudgetData";
 import { useActiveDate, parseDate } from "@/lib/activeDate";
 import { renderNutritionCard, shareBlob } from "@/lib/shareCards";
 import { weekNumber } from "@/lib/workouts";
@@ -231,7 +231,7 @@ export default function TodayPage() {
     setConfirmDel(null);
   }
 
-  const target = gymDay ? TARGETS.gymDay : TARGETS.restDay;
+  const target = dayTarget(activeDate, { gymDay }).target;
   const bars: { key: keyof Macros; label: string; unit: string }[] = [
     { key: "kcal", label: "CALORIES", unit: "" },
     { key: "protein", label: "PROTEIN", unit: "g" },

@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
-import { TARGETS, todayKey } from "@/lib/targets";
-import { getDaily } from "@/lib/store";
+import { todayKey } from "@/lib/targets";
+import { dayTarget } from "@/lib/dayBudgetData";
 import { isNativeApp, syncWidget } from "@/lib/native";
 
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
@@ -138,7 +138,7 @@ export default function WidgetSetupPage() {
     // Capture the user's personal daily target (today's gym/rest goal) so the
     // widget shows /1700 etc. instead of the server default.
     try {
-      const t = getDaily(todayKey()).gymDay ? TARGETS.gymDay : TARGETS.restDay;
+      const t = dayTarget(todayKey()).target;
       setTgt({ kt: Math.round(t.kcal), pt: Math.round(t.protein) });
     } catch {
       /* fall back to server defaults */

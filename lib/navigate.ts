@@ -4,20 +4,17 @@ import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 import { haptic, type HapticKind } from "./haptics";
 
-type ViewTransitionDocument = Document & {
-  startViewTransition?: (cb: () => void) => unknown;
-};
-
 /**
- * Wraps router.push with the View Transitions API for smooth cross-fade /
- * shared-element morphs between pages. Graceful fallback to a plain push
- * when the browser doesn't support it (older iOS, Firefox).
- *
- * Optional haptic — pass null to skip.
+ * router.push with an optional haptic. It used to wrap the push in
+ * document.startViewTransition, but that callback returned before the new
+ * screen existed, so the browser froze the page for the cross-fade and every
+ * tap cost about a second on top of the network (measured: 1.6 s per tab
+ * switch against 0.6 s without it). Screens arrive with their own short
+ * entrance animation instead.
  *
  *   const go = useVTNavigate();
- *   go("/meal");                  // tap haptic + VT
- *   go("/meal", { haptic: null }); // silent VT
+ *   go("/meal");                   // tap haptic
+ *   go("/meal", { haptic: null }); // silent
  *   go("/meal", { haptic: "success" });
  */
 export function useVTNavigate() {
@@ -26,16 +23,8 @@ export function useVTNavigate() {
     (href: string, opts: { haptic?: HapticKind | null } = {}) => {
       const kind = opts.haptic === undefined ? "tap" : opts.haptic;
       if (kind !== null) haptic(kind);
-      const doc =
-        typeof document !== "undefined"
-          ? (document as ViewTransitionDocument)
-          : null;
-      if (doc && typeof doc.startViewTransition === "function") {
-        doc.startViewTransition(() => router.push(href));
-      } else {
-        router.push(href);
-      }
+      router.push(href);
     },
-    [router]
+    [router],
   );
 }

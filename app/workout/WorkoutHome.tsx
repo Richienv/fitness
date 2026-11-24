@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
 } from "react";
@@ -14,13 +15,15 @@ import {
   getAllWorkouts,
   getActiveWorkoutId,
   getCustomTemplates,
-  getWorkout,
+  getDefForWorkout,
   saveCustomTemplate,
   deleteCustomTemplate,
   renameCustomTemplate,
   startCustomWorkout,
   startWorkout,
   startQuickExercise,
+  appendExerciseToWorkout,
+  exerciseDefFromEquipment,
   type CustomTemplate,
   type ExerciseDef,
   type SessionDef,
@@ -28,75 +31,72 @@ import {
   type WorkoutSession,
 } from "@/lib/workouts";
 import { getProfile, getSettings } from "@/lib/settings";
-import {
-  MUSCLE_LABEL,
-  MUSCLE_TO_GROUP,
-  type MuscleColorGroup,
-  type MuscleKey,
-} from "@/lib/muscles";
-import { EQUIPMENT, searchEquipment, type Equipment } from "@/lib/equipment";
-import { recordMachinePick, getPickRank } from "@/lib/machinePicks";
-import { needsCoach, inferLevel } from "@/lib/difficulty";
+import type { Equipment } from "@/lib/equipment";
+import { recordMachinePick } from "@/lib/machinePicks";
 import { inferFromLog } from "@/lib/gymInventory";
-import { useActiveDate } from "@/lib/activeDate";
 import { useSheetBack } from "@/lib/backSheet";
 import { useVTNavigate } from "@/lib/navigate";
 import { useSoftRefresh } from "@/lib/useSoftRefresh";
 import { haptic } from "@/lib/haptics";
+import { todayKey } from "@/lib/targets";
 import {
   ACTIVITY_BY_KEY,
   activityKcal,
+  plannedWorkoutKcal,
   type ActivityKey,
   type Intensity,
 } from "@/lib/burn";
 import { addActivity, deleteActivity, getActivities } from "@/lib/activity";
-import { readDayBurn, sessionTitle, type DayBurn } from "@/lib/burnData";
+import { readDayBurn, sessionTitle, workoutBurn, type DayBurn } from "@/lib/burnData";
 import { setsByMuscleThisWeek } from "@/lib/todayVolume";
+import {
+  BAR_GROUPS,
+  countedSets,
+  groupLoad,
+  sameWeek,
+  sentenceCase,
+  shortDateLabel,
+  weekdayOfKey,
+  withinLastDays,
+  type MuscleBarGroup,
+} from "@/lib/trainingLoad";
 import Icon from "../ui/Icon";
 import { toast } from "../Toast";
 import TodayBurn, { activityAmount } from "./TodayBurn";
 import ActivitySheet from "./ActivitySheet";
 import ExerciseGuide from "./ExerciseGuide";
+import FreeLogSheet from "./FreeLogSheet";
+import CustomSessionSheet from "./CustomSessionSheet";
+import SheetFrame from "./SheetFrame";
+import "./sheets-calm.css";
 
-/** "BESARIN DADA" → "Besarin dada"; "SENIN" → "Senin". */
-function titleCase(s: string): string {
-  const lower = s.toLocaleLowerCase("id-ID");
-  return lower.charAt(0).toLocaleUpperCase("id-ID") + lower.slice(1);
+// Monday-first weekday names (Bahasa) and the Date.getDay() value of each.
+const DOW_NAME = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+const DOW_WEEKDAY = [1, 2, 3, 4, 5, 6, 0];
+
+/** A session left open for longer than this, on an earlier day, is not "now". */
+const FRESH_MS = 12 * 3_600_000;
+
+const fmt = (n: number) => Math.round(n).toLocaleString("id-ID");
+
+/** What a session is called: a saved session keeps the capitals its owner typed. */
+function titleOf(w: WorkoutSession): string {
+  return w.sessionType === "CUSTOM" ? w.customName || "Catat bebas" : sessionTitle(w);
 }
-const dayName = titleCase;
-const MUSCLE_GROUP_ID: { key: MuscleColorGroup; label: string }[] = [
-  { key: "chest", label: "Dada" },
-  { key: "back", label: "Punggung" },
-  { key: "shoulders", label: "Bahu" },
-  { key: "arms", label: "Lengan" },
-  { key: "legs", label: "Kaki" },
-  { key: "abs", label: "Perut" },
-];
-
-// Shared app typography and accent.
-const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
-const FIRE = "var(--accent)";
-
-// Monday-first weekday labels (Bahasa) + the JS getDay() index each maps to.
-const DOW_SHORT = ["SEN", "SEL", "RAB", "KAM", "JUM", "SAB", "MIN"];
-const DOW_FULL = [
-  "SENIN",
-  "SELASA",
-  "RABU",
-  "KAMIS",
-  "JUMAT",
-  "SABTU",
-  "MINGGU",
-];
-const DOW_WEEKDAY = [1, 2, 3, 4, 5, 6, 0]; // getDay() value per Monday-first slot
 
 function isRestSession(s: SessionDef): boolean {
   return s.id === "FEM_REST" || s.primaryMuscles.length === 0;
 }
 
+/** The burn estimate knows sets and reps, not minutes: a timed block
+ *  ("40 min" on a treadmill) would count as one tiny set. Leave it out. */
+const isTimed = (e: ExerciseDef) => /\b(min|menit)\b/i.test(e.repsLabel);
+function plannedKcal(exercises: ExerciseDef[], kg: number): number {
+  return plannedWorkoutKcal(exercises.filter((e) => !isTimed(e)), kg).total;
+}
+
 type WeekDay = {
-  short: string;
-  full: string;
+  name: string;
   weekday: number;
   session: SessionDef | null; // null = rest
   isToday: boolean;
@@ -104,50 +104,73 @@ type WeekDay = {
 
 export default function WorkoutHome() {
   const vtNavigate = useVTNavigate();
-  const { activeDate } = useActiveDate();
-  const [now, setNow] = useState<Date | null>(null);
+  // Today in China time, like the rest of the app. "" until the page is on
+  // the screen, so the server render never shows a guess.
+  const [today, setToday] = useState("");
   const [workouts, setWorkouts] = useState<WorkoutSession[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [templates, setTemplates] = useState<CustomTemplate[]>([]);
   const [isFemale, setIsFemale] = useState(false);
   const [routineDays, setRoutineDays] = useState<number[] | null>(null);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [freeOpen, setFreeOpen] = useState(false);
   const [burn, setBurn] = useState<DayBurn | null>(null);
+  const [bars, setBars] = useState<Record<MuscleBarGroup, number> | null>(null);
   const [activityOpen, setActivityOpen] = useState(false);
-  const [guide, setGuide] = useState<{ name: string; sets?: string } | null>(
-    null,
-  );
+  const [guide, setGuide] = useState<{ name: string; sets?: string } | null>(null);
+  const [renaming, setRenaming] = useState<CustomTemplate | null>(null);
+  const [deleting, setDeleting] = useState<CustomTemplate | null>(null);
+  // A tap on a result starts a session and navigates; a second tap while the
+  // next screen loads must not start another one.
+  const starting = useRef(false);
 
-  useSheetBack(modalOpen, () => setModalOpen(false));
-  useSheetBack(searchOpen, () => setSearchOpen(false));
+  // The two big sheets run useSheetBack themselves (they can ask before closing).
   useSheetBack(activityOpen, () => setActivityOpen(false));
   useSheetBack(!!guide, () => setGuide(null));
+  useSheetBack(!!renaming, () => setRenaming(null));
+  useSheetBack(!!deleting, () => setDeleting(null));
 
   useEffect(() => {
-    setNow(new Date());
-    setWorkouts(getAllWorkouts());
-    setActiveId(getActiveWorkoutId());
-    setTemplates(getCustomTemplates());
     setIsFemale(getProfile().sex === "female");
     setRoutineDays(getSettings().routine?.trainingDays ?? null);
   }, []);
 
-  const today = activeDate;
-
-  // What today burned: gym sessions and logged activities, re-read whenever
-  // the stores change (a save here, a sync, another tab).
-  const refreshBurn = useCallback(() => {
+  // What the page shows, re-read whenever the stores change (a save here, a
+  // sync, another tab) and whenever the app comes back to the screen.
+  const refresh = useCallback(() => {
     if (!today) return;
     setWorkouts(getAllWorkouts());
     setActiveId(getActiveWorkoutId());
+    setTemplates(getCustomTemplates());
     setBurn(readDayBurn(today));
+    setBars(groupLoad(setsByMuscleThisWeek(today)));
   }, [today]);
   useEffect(() => {
-    refreshBurn();
-  }, [refreshBurn]);
-  useSoftRefresh(refreshBurn);
+    refresh();
+  }, [refresh]);
+  useSoftRefresh(refresh);
+
+  // A phone keeps this app alive for days: when it returns to the screen the
+  // date may have moved on, and "hari ini" must move with it.
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  useEffect(() => {
+    const sync = () => {
+      if (document.visibilityState === "hidden") return;
+      setToday(todayKey());
+      refreshRef.current();
+    };
+    sync();
+    document.addEventListener("visibilitychange", sync);
+    window.addEventListener("pageshow", sync);
+    window.addEventListener("focus", sync);
+    return () => {
+      document.removeEventListener("visibilitychange", sync);
+      window.removeEventListener("pageshow", sync);
+      window.removeEventListener("focus", sync);
+    };
+  }, []);
 
   const saveActivity = (a: {
     kind: ActivityKey;
@@ -161,15 +184,15 @@ export default function WorkoutHome() {
     haptic("success");
     const kcal = activityKcal(a, burn?.kg ?? 70);
     toast(
-      `${ACTIVITY_BY_KEY[a.kind].label} tercatat · ≈ ${Math.round(kcal).toLocaleString("id-ID")} kkal`,
+      `${ACTIVITY_BY_KEY[a.kind].label} tercatat · ≈ ${fmt(kcal)} kkal`,
       "success",
     );
-    refreshBurn();
+    refresh();
   };
   const removeActivity = (id: string) => {
     const a = getActivities(today).find((x) => x.id === id);
     deleteActivity(id);
-    refreshBurn();
+    refresh();
     if (a)
       toast(
         `${ACTIVITY_BY_KEY[a.kind].label} ${activityAmount(a)} dihapus`,
@@ -177,95 +200,109 @@ export default function WorkoutHome() {
       );
   };
 
-  // Sets per muscle group over the last 7 days, as bars.
-  const muscleBars = useMemo(() => {
-    const load = today ? setsByMuscleThisWeek(today) : {};
-    const byGroup = new Map<MuscleColorGroup, number>();
-    for (const [m, n] of Object.entries(load)) {
-      const g = MUSCLE_TO_GROUP[m as MuscleKey];
-      if (g) byGroup.set(g, (byGroup.get(g) ?? 0) + (n ?? 0));
-    }
-    const max = Math.max(10, ...byGroup.values());
-    return MUSCLE_GROUP_ID.map(({ key, label }) => {
-      const sets = byGroup.get(key) ?? 0;
-      return { key, label, sets, ratio: sets / max };
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [today, workouts]);
-
   const programSessions = useMemo(
     () => (isFemale ? femaleSessions() : SESSIONS.filter((s) => !s.program)),
     [isFemale],
   );
 
-  // Completed session types in the current calendar week (Mon-anchored).
-  const thisWeekDone = useMemo(() => {
-    const set = new Set<SessionType>();
-    if (!now) return set;
-    const monday = new Date(now);
-    monday.setHours(0, 0, 0, 0);
-    const d = monday.getDay();
-    monday.setDate(monday.getDate() + (d === 0 ? -6 : 1 - d));
-    const mondayMs = monday.getTime();
-    for (const w of workouts) {
-      if (w.completed && w.startedAt >= mondayMs) set.add(w.sessionType);
-    }
-    return set;
-  }, [workouts, now]);
-
-  // Build the Monday-first week, one session per training day (dedup repeats).
+  // The Monday-first week, one session per training day.
   const week = useMemo<WeekDay[]>(() => {
-    const todayWd = now ? now.getDay() : -1;
+    const todayWd = today ? weekdayOfKey(today) : null;
     const used = new Set<SessionType>();
-    const scheduled = programSessions.filter(s => !isRestSession(s));
+    const scheduled = programSessions.filter((s) => !isRestSession(s));
     let slot = 0;
     return DOW_WEEKDAY.map((wd, i) => {
-      if (routineDays !== null) {
-        const session = routineDays.includes(wd) && scheduled.length ? scheduled[slot++ % scheduled.length] : null;
-        return { short: DOW_SHORT[i], full: DOW_FULL[i], weekday: wd, session, isToday: wd === todayWd };
-      }
-      const candidates = programSessions.filter(
-        (s) => s.recommendedDays.includes(wd) && !isRestSession(s),
-      );
       let session: SessionDef | null = null;
-      for (const c of candidates) {
-        if (!used.has(c.id)) {
-          session = c;
-          used.add(c.id);
-          break;
+      if (routineDays !== null) {
+        session =
+          routineDays.includes(wd) && scheduled.length
+            ? scheduled[slot++ % scheduled.length]
+            : null;
+      } else {
+        for (const c of programSessions) {
+          if (c.recommendedDays.includes(wd) && !isRestSession(c) && !used.has(c.id)) {
+            session = c;
+            used.add(c.id);
+            break;
+          }
         }
       }
-      return {
-        short: DOW_SHORT[i],
-        full: DOW_FULL[i],
-        weekday: wd,
-        session,
-        isToday: wd === todayWd,
-      };
+      return { name: DOW_NAME[i], weekday: wd, session, isToday: wd === todayWd };
     });
-  }, [programSessions, now, routineDays]);
+  }, [programSessions, today, routineDays]);
+
+  // Sessions finished this week, by Monday-to-Sunday dates (not by the phone's
+  // clock). Matched to the week's slots one by one, so a session that appears
+  // twice in a week is "Selesai" only as often as it was really done.
+  const doneByIdx = useMemo(() => {
+    const left = new Map<SessionType, number>();
+    if (today) {
+      for (const w of workouts) {
+        if (w.completed && sameWeek(w.date, today)) {
+          left.set(w.sessionType, (left.get(w.sessionType) ?? 0) + 1);
+        }
+      }
+    }
+    return week.map((d) => {
+      const id = d.session?.id;
+      const n = id ? (left.get(id) ?? 0) : 0;
+      if (!id || n === 0) return false;
+      left.set(id, n - 1);
+      return true;
+    });
+  }, [week, workouts, today]);
 
   const todayIdx = useMemo(() => {
     const i = week.findIndex((d) => d.isToday);
     return i >= 0 ? i : 0;
   }, [week]);
-
-  // Default the selection to today once the week is known.
-  useEffect(() => {
-    if (now && selectedIdx === null) setSelectedIdx(todayIdx);
-  }, [now, todayIdx, selectedIdx]);
-
-  const sel = selectedIdx ?? todayIdx;
+  const sel = Math.min(selectedIdx ?? todayIdx, week.length - 1);
   const cur = week[sel];
 
-  const activeWorkout = useMemo(
-    () => (activeId ? getWorkout(activeId) : null),
-    [activeId],
+  // A session that is open now: started today, or within the last hours. One
+  // left open on an earlier day is not "now"; it must not hide today's Mulai.
+  const openWorkout = useMemo(() => {
+    const w = activeId ? workouts.find((x) => x.id === activeId) : undefined;
+    return w && !w.completed ? w : null;
+  }, [activeId, workouts]);
+  const activeInProgress = useMemo(
+    () =>
+      openWorkout &&
+      today &&
+      (openWorkout.date === today || Date.now() - openWorkout.startedAt < FRESH_MS)
+        ? openWorkout
+        : null,
+    [openWorkout, today],
   );
-  const activeInProgress =
-    activeWorkout && !activeWorkout.completed ? activeWorkout : null;
+  // A session with sets in it that is no longer the open one: left on an
+  // earlier day, or replaced when another session was started. Without this
+  // line there is no way back to it.
+  const unfinished = useMemo(
+    () =>
+      today
+        ? (workouts
+            .filter(
+              (w) =>
+                !w.completed &&
+                w.id !== activeInProgress?.id &&
+                withinLastDays(w.date, today, 7) &&
+                w.exercises.some((e) => countedSets(e.sets) > 0),
+            )
+            .sort((a, b) => b.startedAt - a.startedAt)[0] ?? null)
+        : null,
+    [workouts, activeInProgress, today],
+  );
 
-  const pickRank = useMemo(() => getPickRank(), [workouts]);
+  const latestDone = useCallback(
+    (sessionType: SessionType) =>
+      workouts
+        .filter(
+          (w) =>
+            w.completed && w.sessionType === sessionType && !!today && sameWeek(w.date, today),
+        )
+        .sort((a, b) => b.startedAt - a.startedAt)[0],
+    [workouts, today],
+  );
 
   function startOrResume(sessionType: SessionType): string {
     if (activeInProgress && activeInProgress.sessionType === sessionType) {
@@ -274,56 +311,107 @@ export default function WorkoutHome() {
     return startWorkout(sessionType, today).id;
   }
 
+  function go(href: string) {
+    starting.current = true;
+    vtNavigate(href);
+    window.setTimeout(() => {
+      starting.current = false;
+    }, 2500);
+  }
+
   function mulai(session: SessionDef) {
-    const id = startOrResume(session.id);
-    vtNavigate(`/workout/session/${id}`);
+    if (starting.current) return;
+    go(`/workout/session/${startOrResume(session.id)}`);
   }
 
   function logMachine(e: Equipment) {
+    if (starting.current) return;
     recordMachinePick(e);
     inferFromLog(e.id);
-    const { id } = startQuickExercise(e, today);
-    vtNavigate(`/workout/session/${id}`);
+    let id: string;
+    if (
+      activeInProgress &&
+      !(activeInProgress.sessionType === "CUSTOM" && activeInProgress.date === today)
+    ) {
+      // A program session is running: the machine joins it as an extra
+      // exercise, instead of starting a second session and leaving this one
+      // with no way back.
+      const def = exerciseDefFromEquipment(e);
+      const has = getDefForWorkout(activeInProgress).exercises.some(
+        (x) => x.name === def.name,
+      );
+      if (!has) appendExerciseToWorkout(activeInProgress, def);
+      id = activeInProgress.id;
+    } else {
+      id = startQuickExercise(e, today).id;
+    }
+    go(`/workout/session/${id}`);
   }
 
   function viewDone(sessionType: SessionType) {
-    const done = workouts
-      .filter((w) => w.completed && w.sessionType === sessionType)
-      .sort((a, b) => b.startedAt - a.startedAt)[0];
-    if (done) vtNavigate(`/workout/session/${done.id}/complete`);
+    const done = latestDone(sessionType);
+    if (done) go(`/workout/session/${done.id}/complete`);
   }
 
   function pickCustom(template: CustomTemplate) {
+    if (starting.current) return;
     if (
       activeInProgress &&
       activeInProgress.sessionType === "CUSTOM" &&
       activeInProgress.customTemplateId === template.id
     ) {
-      vtNavigate(`/workout/session/${activeInProgress.id}`);
+      go(`/workout/session/${activeInProgress.id}`);
       return;
     }
-    const w = startCustomWorkout(template, today);
-    vtNavigate(`/workout/session/${w.id}`);
+    go(`/workout/session/${startCustomWorkout(template, today).id}`);
   }
 
   function handleSaveTemplate(t: Omit<CustomTemplate, "id" | "createdAt">) {
+    if (starting.current) return;
     const saved = saveCustomTemplate(t);
     setTemplates(getCustomTemplates());
-    setModalOpen(false);
+    haptic("success");
+    toast(`Sesi "${saved.name}" disimpan`, "success");
     pickCustom(saved);
   }
 
-  // ── derived: current day state ──
+  // ── derived: the day shown in the Gym card ──
   const curSession = cur?.session ?? null;
-  const curIsRest = !curSession;
-  const curIsDone = !!curSession && thisWeekDone.has(curSession.id);
+  const curIsDone = !!curSession && !!doneByIdx[sel];
   const curIsToday = !!cur?.isToday;
-  const canStart = !!curSession && !curIsDone;
 
-  const chips = (curSession?.exercises ?? []).slice(0, 5);
-  const trainingDays = week
-    .map((d, i) => ({ d, i }))
-    .filter(({ d }) => d.session);
+  // What the shown session burns: the estimate for its planned sets, or the
+  // real number once it is done. Active calories, like "Hari ini".
+  const gymKcal = useMemo(() => {
+    if (!burn) return null;
+    const kg = burn.kg;
+    if (activeInProgress) {
+      const n = plannedKcal(getDefForWorkout(activeInProgress).exercises, kg);
+      return n > 0 ? { kcal: n, real: false } : null;
+    }
+    if (!curSession) return null;
+    if (curIsDone) {
+      const w = latestDone(curSession.id);
+      const real = w ? workoutBurn(w, kg).total : 0;
+      if (real > 0) return { kcal: real, real: true };
+    }
+    const n = plannedKcal(curSession.exercises, kg);
+    return n > 0 ? { kcal: n, real: false } : null;
+  }, [burn, activeInProgress, curSession, curIsDone, latestDone]);
+  const kcalNote = gymKcal && (
+    <span className="lt-sh-nowrap">
+      ≈ {fmt(gymKcal.kcal)} kkal {gymKcal.real ? "terbakar" : "(perkiraan)"}
+    </span>
+  );
+
+  const trainingDays = week.map((d, i) => ({ d, i })).filter(({ d }) => d.session);
+  const barTotal = bars ? Object.values(bars).reduce((a, b) => a + b, 0) : 0;
+  const barMax = Math.max(10, ...Object.values(bars ?? {}));
+
+  // What "Catat bebas" will do with the machine you pick.
+  const freeNote = activeInProgress
+    ? `Alat yang kamu pilih ditambahkan ke "${titleOf(activeInProgress)}" yang sedang berjalan.`
+    : null;
 
   return (
     <main
@@ -332,7 +420,7 @@ export default function WorkoutHome() {
         maxWidth: 560,
         margin: "0 auto",
         minHeight: "100dvh",
-        fontFamily: SANS,
+        fontFamily: "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif",
         position: "relative",
         background: "var(--bg)",
       }}
@@ -361,27 +449,24 @@ export default function WorkoutHome() {
           </h1>
         </div>
 
-        <TodayBurn
-          burn={burn}
-          onAdd={() => setActivityOpen(true)}
-          onDelete={removeActivity}
-        />
-
         <section className="lt-card" aria-labelledby="lt-gym-title">
           <div className="lt-head">
             <h2 id="lt-gym-title">Gym</h2>
-            {cur && (
+            {today && cur && (
               <span className="lt-note">
-                {dayName(cur.full)}
+                {cur.name}
                 {curIsToday ? " · hari ini" : ""}
               </span>
             )}
           </div>
-          {activeInProgress ? (
+          {!today ? (
+            <p className="lt-empty">Memuat latihan…</p>
+          ) : activeInProgress ? (
             <>
               <p className="lt-gym-title">
-                <strong>{sessionTitle(activeInProgress)}</strong>
+                <strong>{titleOf(activeInProgress)}</strong>
                 <span>Sedang berlangsung</span>
+                {kcalNote && <span>{kcalNote}</span>}
               </p>
               <Link
                 href={`/workout/session/${activeInProgress.id}`}
@@ -393,10 +478,11 @@ export default function WorkoutHome() {
           ) : curSession ? (
             <>
               <p className="lt-gym-title">
-                <strong>{titleCase(curSession.name)}</strong>
+                <strong>{sentenceCase(curSession.name)}</strong>
                 <span>
                   {curSession.exercises.length} latihan ·{" "}
-                  {titleCase(curSession.focus)}
+                  {sentenceCase(curSession.focus)}
+                  {kcalNote && <> · {kcalNote}</>}
                 </span>
               </p>
               {curIsDone ? (
@@ -428,7 +514,7 @@ export default function WorkoutHome() {
                 >
                   {curIsToday
                     ? "Mulai latihan"
-                    : `Mulai ${titleCase(curSession.name)}`}
+                    : `Mulai ${sentenceCase(curSession.name)}`}
                 </button>
               )}
               <ul className="lt-exercises" aria-label="Daftar latihan">
@@ -467,11 +553,22 @@ export default function WorkoutHome() {
             </p>
           )}
 
+          {unfinished && (
+            <p className="lt-stale">
+              <span>
+                Belum selesai: {titleOf(unfinished)},{" "}
+                {unfinished.date === today ? "hari ini" : shortDateLabel(unfinished.date)}.
+              </span>
+              <Link href={`/workout/session/${unfinished.id}`}>Lanjutkan</Link>
+            </p>
+          )}
+
           <h3 className="lt-sub-title">Minggu ini</h3>
           {trainingDays.length ? (
             <ul className="lt-week">
               {trainingDays.map(({ d, i }) => {
-                const done = !!d.session && thisWeekDone.has(d.session.id);
+                const done = doneByIdx[i];
+                const missed = !done && !d.isToday && !!today && i < todayIdx;
                 const selected = i === sel;
                 return (
                   <li key={i}>
@@ -481,9 +578,9 @@ export default function WorkoutHome() {
                       aria-pressed={selected}
                       onClick={() => setSelectedIdx(i)}
                     >
-                      <span className="lt-week-day">{dayName(d.full)}</span>
+                      <span className="lt-week-day">{d.name}</span>
                       <span className="lt-week-name">
-                        {titleCase(d.session!.name)}
+                        {sentenceCase(d.session!.name)}
                       </span>
                       <span
                         className={`lt-status${done ? " done" : d.isToday ? " today" : ""}`}
@@ -495,6 +592,8 @@ export default function WorkoutHome() {
                           </>
                         ) : d.isToday ? (
                           "Hari ini"
+                        ) : missed ? (
+                          "Terlewat"
                         ) : (
                           "Belum"
                         )}
@@ -508,35 +607,39 @@ export default function WorkoutHome() {
             <p className="lt-empty">Atur hari latihan di Pengaturan.</p>
           )}
 
-          <h3 className="lt-sub-title">Otot minggu ini</h3>
+          <h3 className="lt-sub-title">Otot 7 hari terakhir</h3>
           <ul className="lt-muscles" aria-label="Set per kelompok otot, 7 hari terakhir">
-            {muscleBars.map((m) => (
-              <li key={m.key}>
-                <span>{m.label}</span>
-                <span className="lt-bar" aria-hidden="true">
-                  <span style={{ ["--p" as string]: m.ratio } as CSSProperties} />
-                </span>
-                <strong>{m.sets} set</strong>
-              </li>
-            ))}
+            {BAR_GROUPS.map(({ key, label }) => {
+              const sets = bars?.[key] ?? 0;
+              return (
+                <li key={key}>
+                  <span>{label}</span>
+                  <span className="lt-bar" aria-hidden="true">
+                    <span style={{ ["--p" as string]: sets / barMax } as CSSProperties} />
+                  </span>
+                  <strong>{sets} set</strong>
+                </li>
+              );
+            })}
           </ul>
           <p className="lt-foot">
-            Set per kelompok otot dalam 7 hari terakhir. Sekitar 10–20 set
-            seminggu umum dipakai untuk membangun otot.
+            {bars && barTotal === 0
+              ? "Belum ada set tercatat dalam 7 hari terakhir. Set yang kamu selesaikan muncul di sini."
+              : "Set per kelompok otot dalam 7 hari terakhir. Sekitar 10–20 set seminggu umum dipakai untuk membangun otot."}
           </p>
 
           <div className="lt-links">
             <button
               type="button"
               className="mk-text-btn"
-              onClick={() => setSearchOpen(true)}
+              onClick={() => setFreeOpen(true)}
             >
               Catat bebas
             </button>
             <button
               type="button"
               className="mk-text-btn"
-              onClick={() => setModalOpen(true)}
+              onClick={() => setCustomOpen(true)}
             >
               Buat sesi sendiri
             </button>
@@ -546,118 +649,63 @@ export default function WorkoutHome() {
           </div>
         </section>
 
-        {/* SESI SAYA (custom templates) */}
+        <TodayBurn
+          burn={burn}
+          onAdd={() => setActivityOpen(true)}
+          onDelete={removeActivity}
+        />
+
         {templates.length > 0 && (
-          <>
-            <div
-              className="mono"
-              style={{
-                fontSize: 10,
-                letterSpacing: "2px",
-                color: "var(--muted)",
-                margin: "26px 0 10px",
-              }}
-            >
-              SESI SAYA
+          <section className="lt-card" aria-labelledby="lt-tpl-title">
+            <div className="lt-head">
+              <h2 id="lt-tpl-title">Sesi saya</h2>
+              <span className="lt-note">{templates.length} sesi</span>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {templates.map((t) => (
-                <div
-                  key={t.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "13px 15px",
-                    borderRadius: 14,
-                    background: "var(--surface)",
-                    border: "1px solid var(--border)",
-                  }}
-                >
-                  <button
-                    type="button"
-                    className="tap-press"
-                    onClick={() => pickCustom(t)}
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      textAlign: "left",
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      padding: 0,
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        fontSize: 15,
-                        color: "var(--text)",
-                      }}
+            <ul className="lt-tpl">
+              {templates.map((t) => {
+                const running =
+                  activeInProgress?.sessionType === "CUSTOM" &&
+                  activeInProgress.customTemplateId === t.id;
+                return (
+                  <li key={t.id}>
+                    <button
+                      type="button"
+                      className="lt-tpl-start"
+                      onClick={() => pickCustom(t)}
                     >
-                      {t.name}
+                      <span className="lt-sh-row-main">
+                        <strong>{t.name}</strong>
+                        <small>
+                          {t.exercises.length} gerakan · {t.focus || "Latihan bebas"}
+                        </small>
+                      </span>
+                      <span className="lt-sh-act">
+                        {running ? "Lanjutkan" : "Mulai"}
+                      </span>
+                    </button>
+                    <div className="lt-tpl-actions">
+                      <button
+                        type="button"
+                        className="lt-tpl-link"
+                        aria-label={`Ubah nama ${t.name}`}
+                        onClick={() => setRenaming(t)}
+                      >
+                        Ubah nama
+                      </button>
+                      <button
+                        type="button"
+                        className="lt-tpl-link danger"
+                        aria-label={`Hapus ${t.name}`}
+                        onClick={() => setDeleting(t)}
+                      >
+                        Hapus
+                      </button>
                     </div>
-                    <div
-                      className="mono"
-                      style={{
-                        fontSize: 9.5,
-                        color: "var(--muted)",
-                        marginTop: 3,
-                      }}
-                    >
-                      {t.focus || "CUSTOM"} · {t.exercises.length} gerakan
-                    </div>
-                  </button>
-                  {/* Rename — a saved freestyle session gets an auto name from
-                      its machines, which you'll usually want to replace. */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = window.prompt("Ganti nama sesi", t.name);
-                      if (next === null) return;
-                      renameCustomTemplate(t.id, next);
-                      setTemplates(getCustomTemplates());
-                    }}
-                    aria-label={`Ganti nama ${t.name}`}
-                    style={{
-                      flex: "none",
-                      width: 30,
-                      height: 30,
-                      borderRadius: 9,
-                      color: "var(--muted)",
-                      background: "transparent",
-                      border: "none",
-                      cursor: "pointer",
-                      fontSize: 13,
-                    }}
-                  >
-                    ✎
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      deleteCustomTemplate(t.id);
-                      setTemplates(getCustomTemplates());
-                    }}
-                    aria-label={`Hapus ${t.name}`}
-                    style={{
-                      flex: "none",
-                      width: 30,
-                      height: 30,
-                      borderRadius: 9,
-                      color: "var(--muted)",
-                      background: "transparent",
-                      border: "none",
-                      cursor: "pointer",
-                      fontSize: 16,
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          </>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
         )}
       </div>
 
@@ -675,719 +723,126 @@ export default function WorkoutHome() {
           onClose={() => setGuide(null)}
         />
       )}
-      {searchOpen && (
-        <SearchModal
-          onClose={() => setSearchOpen(false)}
-          onLogMachine={(e) => {
-            setSearchOpen(false);
-            logMachine(e);
-          }}
-          onPickSession={(s) => {
-            setSearchOpen(false);
-            const id = startOrResume(s.id);
-            vtNavigate(`/workout/session/${id}`);
-          }}
+      {freeOpen && (
+        <FreeLogSheet
           sessions={programSessions.filter((s) => !isRestSession(s))}
-          pickRank={pickRank}
+          note={freeNote}
+          onClose={() => setFreeOpen(false)}
+          onLogMachine={logMachine}
+          onPickSession={mulai}
         />
       )}
-
-      {modalOpen && (
-        <CustomSessionModal
-          onClose={() => setModalOpen(false)}
+      {customOpen && (
+        <CustomSessionSheet
+          onClose={() => setCustomOpen(false)}
           onSave={handleSaveTemplate}
+        />
+      )}
+      {renaming && (
+        <RenameDialog
+          template={renaming}
+          onClose={() => setRenaming(null)}
+          onSave={(name) => {
+            renameCustomTemplate(renaming.id, name);
+            setTemplates(getCustomTemplates());
+            setRenaming(null);
+            toast("Nama sesi diubah", "success");
+          }}
+        />
+      )}
+      {deleting && (
+        <DeleteDialog
+          template={deleting}
+          onClose={() => setDeleting(null)}
+          onDelete={() => {
+            deleteCustomTemplate(deleting.id);
+            setTemplates(getCustomTemplates());
+            setDeleting(null);
+            toast(`Sesi "${deleting.name}" dihapus`, "success");
+          }}
         />
       )}
     </main>
   );
 }
 
-const ghostBtn: React.CSSProperties = {
-  flex: 1,
-  background: "var(--surface)",
-  border: "1px solid var(--border)",
-  borderRadius: 14,
-  padding: 13,
-  color: "var(--muted)",
-  fontSize: 10,
-  letterSpacing: "1.5px",
-  cursor: "pointer",
-};
-
-const utilBtn: React.CSSProperties = {
-  fontSize: 10,
-  letterSpacing: "1.5px",
-  color: "var(--muted)",
-  background: "transparent",
-  border: "none",
-  cursor: "pointer",
-};
-
-// ---------------- Search modal (machines + sessions) ----------------
-
-function SearchModal({
-  onClose,
-  onLogMachine,
-  onPickSession,
-  sessions,
-  pickRank,
-}: {
-  onClose: () => void;
-  onLogMachine: (e: Equipment) => void;
-  onPickSession: (s: SessionDef) => void;
-  sessions: SessionDef[];
-  pickRank: Map<string, number>;
-}) {
-  const [query, setQuery] = useState("");
-  const q = query.trim().toLowerCase();
-
-  const machines = useMemo(
-    () => (q ? searchEquipment(query, EQUIPMENT, pickRank).slice(0, 8) : []),
-    [query, q, pickRank],
-  );
-  const sessionMatches = useMemo(() => {
-    if (!q) return [];
-    return sessions.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) ||
-        s.focus.toLowerCase().includes(q) ||
-        s.exercises.some((e) => e.name.toLowerCase().includes(q)),
-    );
-  }, [sessions, q]);
-
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 120,
-        background: "rgba(4,3,5,.74)",
-        backdropFilter: "blur(9px)",
-        WebkitBackdropFilter: "blur(9px)",
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "center",
-        padding: "calc(60px + env(safe-area-inset-top)) 18px 18px",
-        animation: "wo-fadein .2s ease",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          animation: "wo-popin .34s cubic-bezier(.34,1.56,.64,1)",
-          width: "100%",
-          maxWidth: 420,
-          maxHeight: "80%",
-          overflowY: "auto",
-          background: "var(--surface)",
-          backdropFilter: "blur(30px) saturate(1.5)",
-          WebkitBackdropFilter: "blur(30px) saturate(1.5)",
-          border: "1px solid var(--border)",
-          borderRadius: 26,
-          padding: "18px 16px 20px",
-          boxShadow:
-            "0 30px 80px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.22),0 0 60px rgba(62,96,213,.1)",
-        }}
-      >
-        <input
-          autoFocus
-          type="search"
-          inputMode="search"
-          placeholder="Cari mesin, sesi, atau gerakan…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="mono"
-          style={{
-            width: "100%",
-            background: "rgba(0,0,0,.3)",
-            border: "1px solid rgba(255,150,120,.3)",
-            borderRadius: 13,
-            padding: "13px 14px",
-            color: "var(--text)",
-            fontSize: 14,
-            outline: "none",
-          }}
-        />
-
-        {!q && (
-          <div
-            className="mono"
-            style={{
-              textAlign: "center",
-              fontSize: 10,
-              color: "var(--muted)",
-              marginTop: 18,
-              lineHeight: 1.6,
-            }}
-          >
-            CATAT CEPAT — latihan bebas, nggak usah ikut program.
-            <br />
-            Ketik mesin apa aja (mis. &ldquo;chest&rdquo;, &ldquo;inner
-            thigh&rdquo;), langsung catat.
-          </div>
-        )}
-
-        {sessionMatches.length > 0 && (
-          <>
-            <div className="mono" style={sectionLabel}>
-              SESI
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {sessionMatches.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  className="tap-press"
-                  onClick={() => onPickSession(s)}
-                  style={resultRow}
-                >
-                  <span style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-                    <span
-                      style={{
-                        display: "block",
-                        fontWeight: 700,
-                        fontSize: 14,
-                        color: "var(--text)",
-                      }}
-                    >
-                      {s.name}
-                    </span>
-                    <span
-                      className="mono"
-                      style={{
-                        display: "block",
-                        fontSize: 9.5,
-                        color: "var(--muted)",
-                        marginTop: 3,
-                      }}
-                    >
-                      {s.focus}
-                    </span>
-                  </span>
-                  <span className="mono" style={pillFire}>
-                    MULAI
-                  </span>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-
-        {machines.length > 0 && (
-          <>
-            <div className="mono" style={sectionLabel}>
-              MESIN · CATAT LANGSUNG
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {machines.map((e) => (
-                <button
-                  key={e.id}
-                  type="button"
-                  className="tap-press"
-                  onClick={() => onLogMachine(e)}
-                  style={resultRow}
-                >
-                  <span style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-                    <span
-                      style={{
-                        display: "block",
-                        fontWeight: 700,
-                        fontSize: 14,
-                        color: "var(--text)",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {e.name}
-                    </span>
-                    <span
-                      className="mono"
-                      style={{
-                        display: "block",
-                        fontSize: 9.5,
-                        color: "var(--muted)",
-                        marginTop: 3,
-                      }}
-                    >
-                      {e.muscleGroup} · {e.category}
-                    </span>
-                  </span>
-                  <span className="mono" style={pillFire}>
-                    ＋ CATAT
-                  </span>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-
-        {q && machines.length === 0 && sessionMatches.length === 0 && (
-          <div
-            className="mono"
-            style={{
-              textAlign: "center",
-              fontSize: 11,
-              color: "var(--muted)",
-              marginTop: 22,
-            }}
-          >
-            Nggak ada yang cocok &ldquo;{query}&rdquo;.
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-const sectionLabel: React.CSSProperties = {
-  fontSize: 9,
-  letterSpacing: "2px",
-  color: "var(--muted)",
-  margin: "18px 0 9px",
-};
-const resultRow: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 10,
-  width: "100%",
-  cursor: "pointer",
-  padding: "12px 14px",
-  borderRadius: 13,
-  background: "var(--surface)",
-  border: "1px solid var(--border)",
-};
-const pillFire: React.CSSProperties = {
-  flex: "none",
-  fontSize: 9.5,
-  fontWeight: 700,
-  letterSpacing: ".1em",
-  color: "#fff",
-  borderRadius: 999,
-  padding: "6px 12px",
-  whiteSpace: "nowrap",
-  background: FIRE,
-  border: "1px solid rgba(255,150,120,.5)",
-};
-
-// ---------------- Custom session modal ----------------
-
-type DraftExercise = {
-  name: string;
-  sets: number;
-  repsLabel: string;
-  targetReps: number;
-  restSec: number;
-  primary: MuscleKey;
-};
-
-type CatalogEntry = { name: string; primary: MuscleKey };
-
-/** Small amber warning shown on coach-required lifts for beginners. */
-function CoachChip() {
-  return (
-    <span
-      className="mono"
-      style={{
-        fontSize: 8,
-        letterSpacing: ".08em",
-        fontWeight: 700,
-        color: "#ffcf8a",
-        background: "rgba(240,180,60,.14)",
-        border: "1px solid rgba(240,180,60,.4)",
-        borderRadius: 999,
-        padding: "2px 6px",
-        marginTop: 4,
-        whiteSpace: "nowrap",
-      }}
-    >
-      PERLU COACH
-    </span>
-  );
-}
-
-function newDraft(name: string, primary: MuscleKey): DraftExercise {
-  return {
-    name,
-    sets: 3,
-    repsLabel: "10",
-    targetReps: 10,
-    restSec: 60,
-    primary,
-  };
-}
-
-function draftToExerciseDef(d: DraftExercise): ExerciseDef {
-  return {
-    name: d.name.trim(),
-    sets: d.sets,
-    repsLabel: d.repsLabel.trim() || String(d.targetReps),
-    targetReps: d.targetReps,
-    increment: 2.5,
-    restSec: d.restSec,
-    primary: [d.primary],
-    secondary: [],
-  };
-}
-
-const GROUP_META: { key: MuscleColorGroup; label: string }[] = [
-  { key: "chest", label: "Dada" },
-  { key: "back", label: "Punggung" },
-  { key: "shoulders", label: "Bahu" },
-  { key: "arms", label: "Lengan" },
-  { key: "legs", label: "Kaki" },
-  { key: "abs", label: "Perut" },
-];
-
-function buildCatalog(): CatalogEntry[] {
-  const seen = new Map<string, CatalogEntry>();
-  for (const s of SESSIONS) {
-    for (const e of s.exercises) {
-      const entry = { name: e.name, primary: e.primary[0] };
-      if (entry.primary && !seen.has(entry.name)) seen.set(entry.name, entry);
-    }
-  }
-  for (const e of EQUIPMENT) {
-    const entry = {
-      name: e.name,
-      primary: muscleFromEquipmentGroup(e.muscleGroup),
-    };
-    if (!seen.has(entry.name)) seen.set(entry.name, entry);
-  }
-  return Array.from(seen.values());
-}
-
-function autoName(groups: MuscleColorGroup[]): string {
-  if (groups.length === 0) return "Custom Session";
-  const labels = groups.map(
-    (g) => GROUP_META.find((m) => m.key === g)?.label ?? g,
-  );
-  return labels.join(" + ");
-}
-
-function CustomSessionModal({
+function RenameDialog({
+  template,
   onClose,
   onSave,
 }: {
+  template: CustomTemplate;
   onClose: () => void;
-  onSave: (t: Omit<CustomTemplate, "id" | "createdAt">) => void;
+  onSave: (name: string) => void;
 }) {
-  const [selectedGroups, setSelectedGroups] = useState<MuscleColorGroup[]>([]);
-  const [drafts, setDrafts] = useState<DraftExercise[]>([]);
-  const [query, setQuery] = useState("");
-  const [nameOverride, setNameOverride] = useState<string | null>(null);
-  const [editingIdx, setEditingIdx] = useState<number | null>(null);
-
-  const catalog = useMemo(buildCatalog, []);
-  const beginner = useMemo(() => inferLevel() === "beginner", []);
-  const demote = useCallback(
-    (list: CatalogEntry[]) =>
-      beginner
-        ? [...list].sort(
-            (a, b) => Number(needsCoach(a.name)) - Number(needsCoach(b.name)),
-          )
-        : list,
-    [beginner],
-  );
-
-  function toggleGroup(g: MuscleColorGroup) {
-    setSelectedGroups((list) =>
-      list.includes(g) ? list.filter((x) => x !== g) : [...list, g],
-    );
-  }
-
-  const added = useMemo(
-    () => new Set(drafts.map((d) => d.name.toLowerCase())),
-    [drafts],
-  );
-
-  const recommendations = useMemo<CatalogEntry[]>(() => {
-    if (selectedGroups.length === 0) return [];
-    const set = new Set<MuscleColorGroup>(selectedGroups);
-    return demote(
-      catalog
-        .filter((c) => set.has(MUSCLE_TO_GROUP[c.primary]))
-        .filter((c) => !added.has(c.name.toLowerCase())),
-    );
-  }, [catalog, selectedGroups, added, demote]);
-
-  const searchMatches = useMemo<CatalogEntry[]>(() => {
-    const qq = query.trim().toLowerCase();
-    if (!qq) return [];
-    return demote(
-      catalog
-        .filter((c) => c.name.toLowerCase().includes(qq))
-        .filter((c) => !added.has(c.name.toLowerCase())),
-    ).slice(0, 12);
-  }, [catalog, query, added, demote]);
-
-  function addEntry(entry: CatalogEntry) {
-    setDrafts((list) => [...list, newDraft(entry.name, entry.primary)]);
-  }
-
-  function removeDraft(i: number) {
-    setDrafts((list) => list.filter((_, idx) => idx !== i));
-    if (editingIdx === i) setEditingIdx(null);
-  }
-
-  function updateDraft(i: number, patch: Partial<DraftExercise>) {
-    setDrafts((list) =>
-      list.map((d, idx) => (idx === i ? { ...d, ...patch } : d)),
-    );
-  }
-
-  const name = nameOverride ?? autoName(selectedGroups);
-  const focusLabel =
-    selectedGroups.length === 0
-      ? "Pilih otot fokus"
-      : selectedGroups
-          .map((g) => GROUP_META.find((m) => m.key === g)?.label ?? g)
-          .join(" · ");
-
-  const canSave = drafts.length > 0;
-
-  function handleSave() {
-    onSave({
-      name: (name.trim() || autoName(selectedGroups)).slice(0, 60),
-      focus: focusLabel,
-      exercises: drafts.map(draftToExerciseDef),
-    });
-  }
-
+  const [name, setName] = useState(template.name);
+  const blank = !name.trim();
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div
-        className="modal wo-modal wo-modal-fast"
-        onClick={(e) => e.stopPropagation()}
+    <SheetFrame variant="dialog" title="Ubah nama sesi" onClose={onClose}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!blank) onSave(name);
+        }}
       >
-        <div className="modal-head wo-modal-head-sticky">
-          <div className="modal-title-block">
-            <input
-              type="text"
-              className="wo-modal-name"
-              value={name}
-              placeholder="Nama sesi"
-              onChange={(e) => setNameOverride(e.target.value)}
-              onFocus={(e) => e.currentTarget.select()}
-            />
-            <div className="wo-modal-focus mono">{focusLabel}</div>
-          </div>
-          <button className="modal-close" onClick={onClose}>
-            ×
-          </button>
-        </div>
-
-        <div className="wo-modal-scroll">
-          <div className="wo-step-label mono">1 · PILIH OTOT</div>
-          <div className="wo-group-grid">
-            {GROUP_META.map((g) => {
-              const on = selectedGroups.includes(g.key);
-              return (
-                <button
-                  key={g.key}
-                  type="button"
-                  className={`wo-group-chip${on ? " on" : ""}`}
-                  onClick={() => toggleGroup(g.key)}
-                >
-                  <span className="wo-group-label">{g.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {selectedGroups.length > 0 && recommendations.length > 0 && (
-            <>
-              <div className="wo-step-label mono">
-                2 · REKOMENDASI · TAP UNTUK TAMBAH
-              </div>
-              <div className="wo-reco-grid">
-                {recommendations.slice(0, 16).map((r) => (
-                  <button
-                    key={r.name}
-                    type="button"
-                    className="wo-reco-chip"
-                    onClick={() => addEntry(r)}
-                  >
-                    <span className="wo-reco-plus">+</span>
-                    <span className="wo-reco-name">{r.name}</span>
-                    <span className="wo-reco-muscle mono">
-                      {MUSCLE_LABEL[r.primary]}
-                    </span>
-                    {beginner && needsCoach(r.name) && <CoachChip />}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-
-          <div className="wo-step-label mono">
-            {selectedGroups.length > 0 ? "3 · " : ""}ATAU CARI APA SAJA
-          </div>
-          <div className="wo-search-row">
-            <input
-              type="search"
-              placeholder="Cari gerakan atau alat"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="wo-modal-search"
-            />
-            {query && (
-              <button
-                type="button"
-                className="wo-search-clear wo-search-clear-inline"
-                onClick={() => setQuery("")}
-                aria-label="Clear"
-              >
-                ×
-              </button>
-            )}
-          </div>
-          {query.trim() && (
-            <div className="wo-reco-grid">
-              {searchMatches.length === 0 && (
-                <div className="wo-reco-empty mono">Nggak ada hasil</div>
-              )}
-              {searchMatches.map((m) => (
-                <button
-                  key={m.name}
-                  type="button"
-                  className="wo-reco-chip"
-                  onClick={() => {
-                    addEntry(m);
-                    setQuery("");
-                  }}
-                >
-                  <span className="wo-reco-plus">+</span>
-                  <span className="wo-reco-name">{m.name}</span>
-                  <span className="wo-reco-muscle mono">
-                    {MUSCLE_LABEL[m.primary]}
-                  </span>
-                  {beginner && needsCoach(m.name) && <CoachChip />}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <div className="wo-step-label mono">
-            {drafts.length > 0
-              ? `DI SESI KAMU (${drafts.length})`
-              : "BELUM ADA YANG DITAMBAH"}
-          </div>
-          <div className="wo-added-list">
-            {drafts.map((d, i) => {
-              const expanded = editingIdx === i;
-              return (
-                <div
-                  key={`${d.name}-${i}`}
-                  className={`wo-added${expanded ? " expanded" : ""}`}
-                >
-                  <div className="wo-added-top">
-                    <button
-                      type="button"
-                      className="wo-added-name"
-                      onClick={() => setEditingIdx(expanded ? null : i)}
-                    >
-                      <span>{d.name}</span>
-                      <span className="wo-added-meta mono">
-                        {d.sets}×{d.repsLabel} · {MUSCLE_LABEL[d.primary]}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      className="wo-added-remove"
-                      onClick={() => removeDraft(i)}
-                      aria-label="Remove"
-                    >
-                      ×
-                    </button>
-                  </div>
-                  {expanded && (
-                    <div className="wo-added-edit">
-                      <label className="wo-draft-mini">
-                        <span className="mono">SETS</span>
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          min={1}
-                          value={d.sets}
-                          onChange={(e) =>
-                            updateDraft(i, {
-                              sets: Math.max(1, Number(e.target.value) || 1),
-                            })
-                          }
-                        />
-                      </label>
-                      <label className="wo-draft-mini">
-                        <span className="mono">REPS</span>
-                        <input
-                          type="text"
-                          value={d.repsLabel}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            const n = parseInt(v, 10);
-                            updateDraft(i, {
-                              repsLabel: v,
-                              targetReps:
-                                Number.isFinite(n) && n > 0 ? n : d.targetReps,
-                            });
-                          }}
-                        />
-                      </label>
-                      <label className="wo-draft-mini">
-                        <span className="mono">REST (S)</span>
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          min={0}
-                          step={15}
-                          value={d.restSec}
-                          onChange={(e) =>
-                            updateDraft(i, {
-                              restSec: Math.max(0, Number(e.target.value) || 0),
-                            })
-                          }
-                        />
-                      </label>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="wo-modal-footer">
-          <button className="save ghost" onClick={onClose}>
+        <label className="lt-sh-field">
+          Nama sesi
+          <input
+            data-autofocus
+            type="text"
+            value={name}
+            maxLength={60}
+            onChange={(e) => setName(e.target.value)}
+            onFocus={(e) => e.currentTarget.select()}
+          />
+        </label>
+        {blank && (
+          <p className="lt-sh-hint" role="alert">
+            Isi nama sesi dulu.
+          </p>
+        )}
+        <div className="lt-sh-actions">
+          <button type="button" className="lt-sh-secondary" onClick={onClose}>
             Batal
           </button>
-          <button className="save" disabled={!canSave} onClick={handleSave}>
-            {canSave ? `Mulai · ${drafts.length}` : "Tambah satu gerakan"}
+          <button type="submit" className="lt-sh-primary" disabled={blank}>
+            Simpan nama
           </button>
         </div>
-      </div>
-    </div>
+      </form>
+    </SheetFrame>
   );
 }
 
-function muscleFromEquipmentGroup(group: string): MuscleKey {
-  const g = group.toUpperCase();
-  if (g.includes("UPPER CHEST")) return "chest";
-  if (g.includes("CHEST")) return "chest";
-  if (g.includes("LATS")) return "lats";
-  if (g.includes("MIDDLE BACK")) return "midBack";
-  if (g.includes("LOWER BACK")) return "midBack";
-  if (g.includes("FRONT DELT")) return "frontDelt";
-  if (g.includes("SIDE DELT")) return "sideDelt";
-  if (g.includes("REAR DELT")) return "rearDelt";
-  if (g.includes("BICEPS")) return "bicep";
-  if (g.includes("TRICEPS")) return "tricep";
-  if (g.includes("QUADS")) return "quad";
-  if (g.includes("HAMSTRINGS")) return "hamstring";
-  if (g.includes("GLUTES")) return "glute";
-  if (g.includes("INNER THIGH")) return "quad";
-  if (g.includes("CALVES")) return "calf";
-  if (g.includes("ABS") || g.includes("LOWER ABS")) return "abs";
-  return "chest";
+function DeleteDialog({
+  template,
+  onClose,
+  onDelete,
+}: {
+  template: CustomTemplate;
+  onClose: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <SheetFrame
+      variant="dialog"
+      title={`Hapus "${template.name}"?`}
+      description="Sesi ini hilang dari daftar. Latihan yang sudah kamu catat tetap ada di riwayat."
+      onClose={onClose}
+    >
+      <div className="lt-sh-actions">
+        <button
+          type="button"
+          className="lt-sh-secondary"
+          data-autofocus
+          onClick={onClose}
+        >
+          Batal
+        </button>
+        <button type="button" className="lt-sh-danger" onClick={onDelete}>
+          Hapus sesi
+        </button>
+      </div>
+    </SheetFrame>
+  );
 }

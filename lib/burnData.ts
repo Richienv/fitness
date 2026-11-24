@@ -9,21 +9,19 @@ import {
   getSession,
   type WorkoutSession,
 } from "./workouts";
-import { getActivities, type ActivityEntry } from "./activity";
+import { getAllActivities, type ActivityEntry } from "./activity";
 import { activityKcal, bodyWeightKg, workoutKcal, type ExerciseBurn } from "./burn";
 import { combineDay } from "./healthImport";
-import { getHealthDay, type StoredHealthDay } from "./health";
+import { getAllHealthDays, type StoredHealthDay } from "./health";
 
 export function readBodyKg(): number {
   return bodyWeightKg(getAllMeasurements(), getProfile().weightKg);
 }
 
-/** "BESARIN DADA" → "Besarin dada". */
+/** "BESARIN DADA" → "Besarin dada". A name the user typed is kept as typed. */
 export function sessionTitle(w: Pick<WorkoutSession, "sessionType" | "customName">): string {
-  const raw =
-    w.sessionType === "CUSTOM"
-      ? w.customName || "Catat bebas"
-      : (getSession(w.sessionType)?.name ?? "Latihan");
+  if (w.sessionType === "CUSTOM") return w.customName || "Catat bebas";
+  const raw = getSession(w.sessionType)?.name ?? "Latihan";
   const lower = raw.toLocaleLowerCase("id-ID");
   return lower.charAt(0).toLocaleUpperCase("id-ID") + lower.slice(1);
 }
@@ -65,25 +63,42 @@ export type DayBurn = {
   healthStepsKcal: number | null;
 };
 
-export function readDayBurn(date: string): DayBurn {
+/**
+ * A reader for many days at once: the stores are read a single time, so a
+ * week of calorie targets (or a streak across months) does not parse
+ * localStorage once per day.
+ */
+export function burnReader(): (date: string) => DayBurn {
   const kg = readBodyKg();
-  const gym = getAllWorkouts()
-    .filter((w) => w.date === date && w.exercises.some((e) => e.sets.length > 0))
-    .map((w) => ({
-      id: w.id,
-      title: sessionTitle(w),
-      completed: !!w.completed,
-      kcal: workoutBurn(w, kg).total,
-    }));
-  const activities = getActivities(date).map((a) => ({ ...a, kcal: activityKcal(a, kg) }));
-  const health = getHealthDay(date);
-  const combined = combineDay(
-    [
-      ...gym.map((g) => ({ key: `gym:${g.id}`, kind: "gym" as const, kcal: g.kcal })),
-      ...activities.map((a) => ({ key: `act:${a.id}`, kind: a.kind, kcal: a.kcal })),
-    ],
-    health,
-    (steps) => activityKcal({ kind: "langkah", steps }, kg),
-  );
-  return { kg, gym, activities, health, ...combined };
+  const workouts = getAllWorkouts();
+  const allActivities = getAllActivities();
+  const healthDays = getAllHealthDays();
+  return (date) => {
+    const gym = workouts
+      .filter((w) => w.date === date && w.exercises.some((e) => e.sets.length > 0))
+      .map((w) => ({
+        id: w.id,
+        title: sessionTitle(w),
+        completed: !!w.completed,
+        kcal: workoutBurn(w, kg).total,
+      }));
+    const activities = allActivities
+      .filter((a) => a.date === date)
+      .sort((a, b) => a.at - b.at)
+      .map((a) => ({ ...a, kcal: activityKcal(a, kg) }));
+    const health = healthDays[date] ?? null;
+    const combined = combineDay(
+      [
+        ...gym.map((g) => ({ key: `gym:${g.id}`, kind: "gym" as const, kcal: g.kcal })),
+        ...activities.map((a) => ({ key: `act:${a.id}`, kind: a.kind, kcal: a.kcal })),
+      ],
+      health,
+      (steps) => activityKcal({ kind: "langkah", steps }, kg),
+    );
+    return { kg, gym, activities, health, ...combined };
+  };
+}
+
+export function readDayBurn(date: string): DayBurn {
+  return burnReader()(date);
 }

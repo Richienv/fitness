@@ -16,7 +16,8 @@ import {
   type MealLog,
 } from "@/lib/store";
 import type { MealType } from "@/lib/presets";
-import { TARGETS, weekNumber } from "@/lib/targets";
+import { weekNumber } from "@/lib/targets";
+import { dayTarget } from "@/lib/dayBudgetData";
 import { useActiveDate, parseDate } from "@/lib/activeDate";
 import { sumNutrition } from "@/lib/nutritionStats";
 import { getMicroTargets, type MicroTargets } from "@/lib/nutritionTargets";
@@ -397,7 +398,7 @@ export default function Dashboard() {
   }, [meals]);
 
   const week = activeDate ? weekNumber(parseDate(activeDate)) : 1;
-  const target = gymDay ? TARGETS.gymDay : TARGETS.restDay;
+  const target = dayTarget(activeDate, { gymDay }).target;
   const dateLine = bahasaDateLine(activeDate);
   const dayType = gymDay ? "HARI GYM" : "HARI REST";
 

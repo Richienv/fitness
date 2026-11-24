@@ -51,10 +51,10 @@ test("a gym set costs more for legs than for arms", () => {
   const bicep = setKcal(["bicep"], 75);
   const squat = setKcal(["quad"], 75);
   const bench = setKcal(["chest"], 75);
-  assert.equal(Math.round(bench), 6);
+  assert.equal(Math.round(bench), 10);
   assert.ok(squat > bench && bench > bicep);
-  // Three sets of bicep curls at 75 kg ≈ 12 active kcal.
-  assert.equal(Math.round(bicep * 3), 12);
+  // Three sets of bicep curls at 75 kg ≈ 21 active kcal.
+  assert.equal(Math.round(bicep * 3), 21);
 });
 
 test("a workout adds up its logged sets, per exercise", () => {
@@ -69,9 +69,9 @@ test("a workout adds up its logged sets, per exercise", () => {
   assert.deepEqual(
     w.perExercise.map((e) => [e.name, e.sets, Math.round(e.kcal)]),
     [
-      ["Bench Press", 3, 17],
-      ["Bicep Curl", 1, 4],
+      ["Bench Press", 3, 30],
+      ["Bicep Curl", 1, 7],
     ],
   );
-  assert.equal(Math.round(w.total), 21);
+  assert.equal(Math.round(w.total), 37);
 });

@@ -5,7 +5,8 @@ import { getAllMeals, gymDayReader, isCustomItem, type MealLog } from "./store";
 import { macrosFor } from "./ingredients";
 import { getAllWorkouts, type WorkoutSession } from "./workouts";
 import { getAllMeasurements } from "./measurements";
-import { TARGETS, todayKey } from "./targets";
+import { todayKey } from "./targets";
+import { dayTargetReader } from "./dayBudgetData";
 import {
   snapshot,
   type DayIntake,
@@ -39,9 +40,9 @@ export function readMotivationInput(
   over: { meals?: MealLog[]; today?: string } = {},
 ): MotivationInput {
   const today = over.today ?? todayKey();
-  const gym = TARGETS.gymDay,
-    rest = TARGETS.restDay;
   const isGymDay = gymDayReader();
+  // Reads the burn stores once for every day the streak logic asks about.
+  const targetFor = dayTargetReader();
   return {
     today,
     intake: intakeByDate(over.meals ?? getAllMeals()),
@@ -54,7 +55,7 @@ export function readMotivationInput(
       .filter((m) => Number(m.weightKg) > 0)
       .map((m) => m.date),
     target: (d) => {
-      const t = isGymDay(d) ? gym : rest;
+      const t = targetFor(d, isGymDay(d)).target;
       return { kcal: t.kcal, protein: t.protein };
     },
     isGymDay,

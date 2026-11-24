@@ -4,6 +4,7 @@
 // All derived from the existing workout store (getAllWorkouts) — no new data.
 
 import { getAllWorkouts } from "./workouts";
+import { previousPerformance } from "./exerciseHistory";
 
 /** YYYY-MM-DD → the day before, computed at UTC noon to dodge TZ drift. */
 export function prevDay(date: string): string {
@@ -37,22 +38,10 @@ export function currentStreak(todayISO: string): number {
 
 export type LastPerf = { weight: number; reps: number; sets: number; date: string };
 
-/** The most recent logged performance for an exercise (by name) — so a machine
- *  row can show "terakhir 40kg × 10". Returns the last set of the latest session
- *  that has any sets for it. */
-export function lastPerformance(exerciseName: string): LastPerf | null {
-  const matches = getAllWorkouts()
-    .filter((w) =>
-      w.exercises.some((e) => e.exerciseName === exerciseName && e.sets.length > 0)
-    )
-    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-  for (const w of matches) {
-    const ex = w.exercises.find(
-      (e) => e.exerciseName === exerciseName && e.sets.length > 0
-    );
-    if (!ex) continue;
-    const last = ex.sets[ex.sets.length - 1];
-    return { weight: last.weight, reps: last.reps, sets: ex.sets.length, date: w.date };
-  }
-  return null;
+/** The most recent logged performance for an exercise (by the exercise actually
+ *  done, so a swapped one counts as its own) — "terakhir 40kg × 10". Pass
+ *  `excludeId` while a session is open so its own sets don't count as history. */
+export function lastPerformance(exerciseName: string, excludeId?: string): LastPerf | null {
+  const p = previousPerformance(getAllWorkouts(), exerciseName, excludeId);
+  return p ? { weight: p.weight, reps: p.reps, sets: p.sets, date: p.date } : null;
 }

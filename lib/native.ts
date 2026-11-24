@@ -7,8 +7,8 @@
 // `window.Capacitor` inside the WKWebView, so the global IS the API — and in a
 // normal browser it is simply undefined and every call below no-ops.
 
-import { TARGETS, todayKey } from "@/lib/targets";
-import { getDaily } from "@/lib/store";
+import { todayKey } from "@/lib/targets";
+import { dayTarget } from "@/lib/dayBudgetData";
 
 type PluginCall = (options: Record<string, unknown>) => Promise<unknown>;
 
@@ -40,7 +40,7 @@ function bridge(): Record<string, PluginCall> | undefined {
 /** Today's personal goal — a gym day and a rest day have different numbers. */
 function todaysTargets(): { kcal: number; protein: number } {
   try {
-    const t = getDaily(todayKey()).gymDay ? TARGETS.gymDay : TARGETS.restDay;
+    const t = dayTarget(todayKey()).target;
     return { kcal: Math.round(t.kcal), protein: Math.round(t.protein) };
   } catch {
     return { kcal: 0, protein: 0 };

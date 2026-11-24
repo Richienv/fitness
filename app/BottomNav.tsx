@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import Icon from "./ui/Icon";
 import { haptic } from "@/lib/haptics";
-import { useVTNavigate } from "@/lib/navigate";
 
 // ── Icons ───────────────────────────────────────────────────────────────────
 //
@@ -125,35 +125,72 @@ const TABS: Tab[] = [
   },
 ];
 
+/** How long a prefetched tab stays warm before it is fetched again. Next keeps
+ *  a prefetch for 5 minutes; refreshing a little sooner means a tap never lands
+ *  on an expired one and has to wait for the server. */
+const WARM_EVERY_MS = 4 * 60 * 1000;
+
 export default function BottomNav() {
   const pathname = usePathname();
-  const vtNavigate = useVTNavigate();
+  const router = useRouter();
+  // The tab you just tapped, shown as selected at once. The URL only changes
+  // when the next screen is ready, and waiting for that made a tap feel dead.
+  const [pending, setPending] = useState<string | null>(null);
 
-  // Which cell the blob sits under. -1 on a route no tab claims, which hides
-  // it rather than parking it on a lie.
-  const activeIndex = TABS.findIndex((t) => t.match(pathname));
+  // Every page here is dynamic (the layout reads the session), so without a
+  // prefetch each tab switch waits for the server: ~1 s on a slow connection.
+  // Fetch all four tabs once, and again when the app returns to the front, so
+  // a tap swaps screens from memory.
+  useEffect(() => {
+    if (["/login", "/register", "/welcome", "/onboarding"].includes(pathname)) return;
+    const warm = () => {
+      for (const t of TABS) router.prefetch(t.href);
+    };
+    warm();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") warm();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    const id = setInterval(warm, WARM_EVERY_MS);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      clearInterval(id);
+    };
+  }, [router, pathname]);
+
+  // The screen changed (or the tap went nowhere): stop pretending.
+  useEffect(() => {
+    setPending(null);
+  }, [pathname]);
+  useEffect(() => {
+    if (!pending) return;
+    const t = setTimeout(() => setPending(null), 4000);
+    return () => clearTimeout(t);
+  }, [pending]);
 
   function nav(href: string, e: React.MouseEvent) {
+    // Let the browser handle new-tab / download clicks.
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
     e.preventDefault();
     if (href === pathname) return;
     haptic("tap");
-    vtNavigate(href);
+    setPending(href);
+    router.push(href);
   }
 
   if (["/login", "/register", "/welcome", "/onboarding"].includes(pathname)) return null;
+  // While logging sets, the screen belongs to the set dock at the bottom.
+  if (/^\/workout\/session\/[^/]+$/.test(pathname)) return null;
 
   return (
-    <nav
-      className="bottom-nav"
-      aria-label="Navigasi utama"
-      style={{ viewTransitionName: "bottom-nav" } as React.CSSProperties}
-    >
+    <nav className="bottom-nav" aria-label="Navigasi utama">
       {TABS.map((t) => {
-        const on = t.match(pathname);
+        const on = pending ? t.href === pending : t.match(pathname);
         return (
           <Link
             key={t.href}
             href={t.href}
+            prefetch
             onClick={(e) => nav(t.href, e)}
             className={`bn-item${on ? " active" : ""}`}
             aria-label={t.label}

@@ -1,0 +1,618 @@
+/* Latihan sheets and dialogs on the calm system (24 Nov 2026).
+   "Catat bebas", "Buat sesi sendiri", the saved-session list and the rename
+   and delete dialogs. Own prefix (lt-sh-), only the global --calm-* tokens, so
+   nothing here depends on the order other stylesheets load in.
+   See docs/plans/2026-11-24-latihan-sheets-and-muscle-count.md. */
+
+/* The few colours the calm tokens do not name: the white surface and the one
+   destructive red (the same values calm.css uses for its delete button). */
+.lt-sh-backdrop,
+.lt-tpl {
+  --lt-surface: #fff;
+  --lt-danger: #b3261e;
+  --lt-danger-line: #ebc4bf;
+  --lt-danger-soft: #fdf3f2;
+}
+
+/* ---------- Frame: backdrop, bottom sheet, centred dialog ---------- */
+.lt-sh-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(20, 24, 40, 0.38);
+}
+.lt-sh-backdrop.dialog {
+  align-items: center;
+  padding: 24px;
+}
+.lt-sh {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 560px;
+  max-height: 100%;
+  overflow: hidden;
+  border-radius: 24px 24px 0 0;
+  background: var(--lt-surface);
+  color: var(--calm-text);
+  font-family: var(--font-dm-sans), "Plus Jakarta Sans", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.4;
+  outline: none;
+}
+.lt-sh.sheet {
+  height: min(calc(100% - max(16px, env(safe-area-inset-top))), 720px);
+}
+.lt-sh.dialog {
+  max-width: 360px;
+  overflow-y: auto;
+  padding: 22px 20px 18px;
+  border-radius: 20px;
+}
+.lt-sh-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 8px 0 20px;
+}
+.lt-sh-head h2,
+.lt-sh-dlg-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  overflow-wrap: anywhere;
+}
+.lt-sh-dlg-title {
+  font-size: 18px;
+}
+.lt-sh-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--calm-muted);
+}
+.lt-sh-close:hover {
+  background: var(--calm-fill);
+}
+.lt-sh-desc {
+  margin: 0;
+  padding: 0 20px 4px;
+  font-size: 14px;
+  color: var(--calm-muted);
+}
+.lt-sh.dialog .lt-sh-desc {
+  padding: 8px 0 0;
+}
+.lt-sh-top {
+  flex: none;
+  padding: 8px 20px 10px;
+}
+.lt-sh-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 20px 20px;
+}
+.lt-sh-foot {
+  flex: none;
+  padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--calm-border);
+  background: var(--lt-surface);
+}
+.lt-sh-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------- Focus: one visible ring, the accent ---------- */
+.lt-sh button:focus-visible,
+.lt-sh a:focus-visible,
+.lt-tpl button:focus-visible,
+.lt-tpl a:focus-visible {
+  outline: 2px solid var(--calm-accent);
+  outline-offset: 2px;
+}
+.lt-sh input:focus-visible {
+  outline: 2px solid var(--calm-accent);
+  outline-offset: 0;
+}
+
+/* ---------- Search field ---------- */
+.lt-sh-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 54px;
+  padding: 0 4px 0 14px;
+  border: 1px solid var(--calm-border);
+  border-radius: 14px;
+  background: var(--lt-surface);
+  color: var(--calm-muted);
+}
+.lt-sh-search:focus-within {
+  border-color: var(--calm-accent);
+  box-shadow: 0 0 0 1px var(--calm-accent);
+}
+.lt-sh-search input {
+  flex: 1;
+  min-width: 0;
+  min-height: 52px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--calm-text);
+  font: inherit;
+  font-size: 16px;
+}
+.lt-sh-search input:focus-visible {
+  outline: 0;
+}
+.lt-sh-search input::-webkit-search-cancel-button,
+.lt-sh-search input::-webkit-search-decoration {
+  appearance: none;
+  display: none;
+}
+.lt-sh-search input::placeholder {
+  color: var(--calm-muted);
+  opacity: 1;
+}
+.lt-sh-clear {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--calm-muted);
+}
+
+/* ---------- Headings, hints, empty states ---------- */
+.lt-sh-h {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin: 20px 0 8px;
+  font-size: 15px;
+  font-weight: 650;
+}
+.lt-sh-h small {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--calm-muted);
+}
+.lt-sh-hint {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--calm-muted);
+}
+.lt-sh-empty {
+  margin: 8px 0 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--calm-fill);
+  color: var(--calm-text);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+/* ---------- Muscle chips (a toggle, so it also shows a check) ---------- */
+.lt-sh-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lt-sh-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--calm-border);
+  border-radius: 999px;
+  background: var(--lt-surface);
+  color: var(--calm-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+.lt-sh-chip[aria-pressed="true"] {
+  border-color: var(--calm-accent);
+  background: var(--calm-accent-soft);
+  color: var(--calm-accent-strong);
+}
+
+/* ---------- Result rows: the whole row is the one tap ---------- */
+.lt-sh-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.lt-sh-list > li + li {
+  border-top: 1px solid var(--calm-border);
+}
+.lt-sh-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.lt-sh-row:active {
+  background: var(--calm-fill);
+}
+.lt-sh-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.lt-sh-row-main strong {
+  font-size: 15px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.lt-sh-row-main small {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--calm-muted);
+}
+.lt-sh-act {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--calm-accent);
+  font-size: 14px;
+  font-weight: 600;
+}
+.lt-sh-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--calm-border);
+  border-radius: 999px;
+  color: var(--calm-muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.lt-sh-more {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--calm-accent);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ---------- Exercises in the session being built ---------- */
+.lt-sh-exlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.lt-sh-chev {
+  display: inline-flex;
+}
+.lt-sh-ex {
+  border: 1px solid var(--calm-border);
+  border-radius: 16px;
+  background: var(--lt-surface);
+}
+.lt-sh-ex + .lt-sh-ex {
+  margin-top: 8px;
+}
+.lt-sh-ex-head {
+  display: flex;
+  align-items: center;
+}
+.lt-sh-ex-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 60px;
+  padding: 8px 4px 8px 14px;
+  border: 0;
+  border-radius: 16px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.lt-sh-ex-remove {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-right: 6px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--calm-muted);
+}
+.lt-sh-ex-remove:hover {
+  background: var(--calm-fill);
+}
+.lt-sh-edit {
+  padding: 0 14px 10px;
+  border-top: 1px solid var(--calm-border);
+}
+.lt-sh-step {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 56px;
+}
+.lt-sh-step + .lt-sh-step {
+  border-top: 1px solid var(--calm-border);
+}
+.lt-sh-step > span:first-child {
+  font-size: 14px;
+  font-weight: 600;
+}
+.lt-sh-stepper {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--calm-border);
+  border-radius: 999px;
+  background: var(--lt-surface);
+}
+.lt-sh-stepper button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--calm-accent);
+}
+.lt-sh-stepper button:disabled {
+  color: var(--calm-muted);
+  opacity: 0.4;
+}
+.lt-sh-stepper output {
+  /* One width for every value, so the - and + never move while tapping. */
+  width: 64px;
+  padding: 0;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Text field ---------- */
+.lt-sh-field {
+  display: block;
+  margin-top: 20px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.lt-sh-field input {
+  display: block;
+  width: 100%;
+  min-height: 52px;
+  margin-top: 6px;
+  padding: 0 14px;
+  border: 1px solid var(--calm-border);
+  border-radius: 14px;
+  background: var(--lt-surface);
+  color: var(--calm-text);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+}
+.lt-sh-field input:focus {
+  border-color: var(--calm-accent);
+  box-shadow: 0 0 0 1px var(--calm-accent);
+}
+
+/* ---------- Buttons: one primary, neutral secondary, one destructive ---------- */
+.lt-sh-primary,
+.lt-sh-secondary,
+.lt-sh-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 16px;
+  border-radius: 14px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 650;
+}
+.lt-sh-primary {
+  border: 1px solid var(--calm-accent);
+  background: var(--calm-accent);
+  color: var(--lt-surface);
+}
+.lt-sh-primary:hover:not(:disabled) {
+  background: var(--calm-accent-strong);
+}
+.lt-sh-primary:disabled {
+  opacity: 1;
+  border-color: var(--calm-border);
+  background: var(--calm-fill);
+  color: var(--calm-muted);
+  cursor: not-allowed;
+}
+.lt-sh-secondary {
+  border: 1px solid var(--calm-border);
+  background: var(--lt-surface);
+  color: var(--calm-text);
+}
+.lt-sh-secondary:hover {
+  background: var(--calm-fill);
+}
+.lt-sh-danger {
+  border: 1px solid var(--lt-danger-line);
+  background: var(--lt-surface);
+  color: var(--lt-danger);
+}
+.lt-sh-danger:hover {
+  background: var(--lt-danger-soft);
+}
+.lt-sh-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 18px;
+}
+.lt-sh-foot .lt-sh-actions {
+  margin-top: 0;
+}
+.lt-sh-foot-text {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--calm-muted);
+  text-align: center;
+}
+.lt-sh-foot-text strong {
+  color: var(--calm-text);
+}
+
+/* ---------- Saved sessions on the home screen ("Sesi saya") ---------- */
+.lt-tpl {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+.lt-tpl > li + li {
+  border-top: 1px solid var(--calm-border);
+}
+.lt-tpl-start {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 60px;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.lt-tpl-start .lt-sh-row-main strong {
+  font-size: 16px;
+}
+.lt-tpl-actions {
+  display: flex;
+  gap: 4px;
+  margin: -4px 0 4px -10px;
+}
+.lt-tpl-link {
+  min-height: 44px;
+  padding: 0 10px;
+  border: 0;
+  background: none;
+  color: var(--calm-accent);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+.lt-tpl-link.danger {
+  color: var(--lt-danger);
+}
+.lt-stale {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 2px 4px 2px 12px;
+  border-radius: 12px;
+  background: var(--calm-fill);
+  color: var(--calm-text);
+  font-size: 14px;
+}
+.lt-stale a {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 10px;
+  color: var(--calm-accent);
+  font-weight: 600;
+}
+
+/* ---------- Motion only when it is welcome ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .lt-sh-backdrop {
+    animation: lt-sh-fade 0.24s ease-out both;
+  }
+  .lt-sh.sheet {
+    animation: lt-sh-up 0.38s cubic-bezier(0.32, 0.72, 0, 1) both;
+  }
+  .lt-sh.dialog {
+    animation: lt-sh-pop 0.3s cubic-bezier(0.32, 0.72, 0, 1) both;
+  }
+  .lt-sh-chev {
+    transition: transform 0.2s ease-out;
+  }
+}
+.lt-sh-chev[data-open="true"] {
+  transform: rotate(180deg);
+}
+@keyframes lt-sh-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes lt-sh-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes lt-sh-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+/* The estimate stays on one line, so "≈ 320 kkal (perkiraan)" never splits. */
+.lt-sh-nowrap {
+  white-space: nowrap;
+}

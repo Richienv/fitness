@@ -1,0 +1,139 @@
+/* Home's main feature: today's estimated fat change (24 Nov 2026). Calm tokens
+   from app/calm.css; one accent, numbers right-aligned and tabular. */
+.eb {
+  margin: 0 0 16px;
+  padding: 18px 16px 14px;
+  border: 1px solid var(--calm-border);
+  border-radius: 20px;
+  background: #fff;
+  color: var(--calm-text);
+}
+.eb h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+.eb-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.eb-tag {
+  font-size: 13px;
+  color: var(--calm-muted);
+}
+.eb-hero {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 10px 0 0;
+}
+.eb-hero strong {
+  font-size: 48px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -1.5px;
+  font-variant-numeric: tabular-nums;
+}
+.eb-hero strong.down {
+  color: var(--calm-accent);
+}
+.eb-hero span {
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--calm-muted);
+}
+.eb-sub,
+.eb-goal,
+.eb-sofar,
+.eb-lead {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--calm-muted);
+}
+.eb-goal {
+  color: var(--calm-accent-strong);
+  font-weight: 600;
+}
+.eb-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  margin-top: 14px;
+  text-decoration: none;
+}
+.eb-rows {
+  margin: 14px 0 0;
+  border-top: 1px solid var(--calm-border);
+}
+.eb-rows > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--calm-border);
+}
+.eb-rows dt {
+  font-size: 15px;
+  font-weight: 600;
+}
+.eb-rows dt small {
+  display: block;
+  margin-top: 1px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--calm-muted);
+}
+.eb-rows dd {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.eb-rows dd small {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--calm-muted);
+}
+.eb-rows .total {
+  border-bottom: 0;
+}
+.eb-rows .total dt,
+.eb-rows .total dd {
+  font-size: 17px;
+  font-weight: 800;
+}
+.eb-how {
+  margin-top: 4px;
+}
+.eb-how summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--calm-accent);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.eb-how summary:focus-visible,
+.eb-cta:focus-visible {
+  outline: 2px solid var(--calm-accent);
+  outline-offset: 2px;
+}
+.eb-how ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--calm-muted);
+}

@@ -18,6 +18,10 @@ function readAll(): Record<string, StoredHealthDay> {
   }
 }
 
+export function getAllHealthDays(): Record<string, StoredHealthDay> {
+  return readAll();
+}
+
 export function getHealthDay(date: string): StoredHealthDay | null {
   return readAll()[date] ?? null;
 }

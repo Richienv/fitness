@@ -83,7 +83,8 @@ import {
 } from "@/lib/foodGroups";
 import { CUISINE_BY_KEY, type CuisineKey } from "@/lib/cuisine";
 import { getDaily } from "@/lib/store";
-import { TARGETS, todayKey } from "@/lib/targets";
+import { todayKey } from "@/lib/targets";
+import { dayTarget } from "@/lib/dayBudgetData";
 import { satuanFor, parseSatuan, baseGrams } from "@/lib/satuan";
 import { modsFor, modDelta, modSummary, type FoodMod } from "@/lib/foodMods";
 import { STAPLE_POPULARITY } from "@/lib/ingredients";
@@ -2207,9 +2208,7 @@ export default function FoodBuilder({
             // food is already on the tray the tray total includes it, so take its
             // current share back out — otherwise editing a portion would make the
             // plate think you had already eaten it.
-            const tgt = getDaily(dateKey).gymDay
-              ? TARGETS.gymDay
-              : TARGETS.restDay;
+            const tgt = dayTarget(dateKey).target;
             const cur = selection[sheet.id] || 0;
             const own = itemMacros(ing, cur, entryMods[sheet.id] ?? []);
             const otherP = tp - own.protein;

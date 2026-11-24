@@ -3,6 +3,7 @@ import Link from "next/link";
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
   type CSSProperties,
 } from "react";
@@ -32,6 +33,9 @@ import {
   type Snapshot,
 } from "@/lib/motivation";
 import { readSnapshot } from "@/lib/motivationData";
+import { dayTarget } from "@/lib/dayBudgetData";
+import { readEnergyView } from "@/lib/energyBalanceData";
+import EnergyBalanceCard from "./EnergyBalanceCard";
 import {
   logUsualMeal,
   readUsualMeal,
@@ -66,6 +70,7 @@ export default function HomePage() {
     [active, setActive] = useState<string | null>(null),
     [date, setDate] = useState(""),
     [snap, setSnap] = useState<Snapshot | null>(null),
+    [bonus, setBonus] = useState(0),
     [hour, setHour] = useState(12);
   const [weigh, setWeigh] = useState<{
       today: string;
@@ -93,6 +98,7 @@ export default function HomePage() {
     // If a record is malformed the HUD steps aside; the quiet links remain.
     try {
       setSnap(readSnapshot({ today: d }));
+      setBonus(dayTarget(d).bonusKcal);
     } catch {
       setSnap(null);
     }
@@ -213,6 +219,20 @@ export default function HomePage() {
       })
     : null;
   const goal = settings.goal;
+  // Re-read whenever the snapshot is (every save, sync or return to the app).
+  const energy = useMemo(
+    () =>
+      snap && date
+        ? readEnergyView(
+            date,
+            snap.kcal,
+            settings.goal?.mode === "weight" ? settings.goal.targetWeight : null,
+          )
+        : null,
+    // bonus changes with training burn, which the view also reads
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [snap, date, settings.goal, bonus],
+  );
   const trend = weight.mean ?? weight.latest?.weightKg ?? null;
   return (
     <main className="lean-home">
@@ -226,7 +246,8 @@ export default function HomePage() {
           <Icon name="settings" size={19} />
         </Link>
       </header>
-      {snap && <HomeHud s={snap} />}
+      {energy && <EnergyBalanceCard view={energy} />}
+      {snap && <HomeHud s={snap} bonus={bonus} />}
       {action && (
         <NextActionCard action={action} onWeigh={openWeigh} onUsual={logUsual} />
       )}

@@ -42,6 +42,10 @@ export function getActivities(date?: string): ActivityEntry[] {
   );
 }
 
+export function getAllActivities(): ActivityEntry[] {
+  return readAll();
+}
+
 export function addActivity(e: Omit<ActivityEntry, "id" | "at">): ActivityEntry {
   const entry: ActivityEntry = { ...e, id: crypto.randomUUID(), at: Date.now() };
   writeAll([...readAll(), entry]);

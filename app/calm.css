@@ -184,6 +184,14 @@ progress::-moz-progress-bar {
 .mk-summary .hud-legend > div {
   gap: 1px;
 }
+.mk-bonus,
+.hud-bonus {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--calm-accent-strong);
+}
 .mk-macros {
   margin: 0;
   font-size: 12.5px;
@@ -1212,4 +1220,48 @@ progress::-moz-progress-bar {
   width: 100%;
   min-height: 48px;
   gap: 6px;
+}
+
+/* Latihan "Hari ini": the food target training adjusts. */
+.lt-food {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--calm-border);
+}
+.lt-food-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.lt-food-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+.lt-food-head strong {
+  font-size: 17px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.lt-food p {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--calm-muted);
+}
+.lt-food-bonus {
+  color: var(--calm-accent-strong);
+  font-weight: 650;
+}
+.lt-food-set {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--calm-muted);
+}
+.lt-food-set .segment button {
+  min-height: 44px;
 }

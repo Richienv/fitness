@@ -1,12 +1,15 @@
 "use client";
 
-// Recovery/volume signal for the "HARI INI" recommendation: how many sets each
-// muscle got today (and this week), read from the existing workout store — no
-// new persistence. Counts at MuscleKey granularity off ExerciseDef.primary[0]
-// (NEVER through MUSCLE_TO_GROUP, which would blur biceps↔triceps into "arms").
+// Recovery/volume signal for the Latihan home: how many sets each muscle got
+// today (and in the last 7 days), read from the existing workout store, with no
+// new persistence. Counts at MuscleKey granularity off the exercise's primary
+// muscle (NEVER through MUSCLE_TO_GROUP, which would blur biceps and triceps
+// into "arms"). The rules for resolving a logged exercise (position, then name,
+// swapped-to muscle, skipped and empty sets ignored) live in lib/trainingLoad.ts
+// so node can test them.
 //
 // Caveat: server-synced completed days store exercises:[] (mergeServerWorkouts),
-// so they contribute nothing — the copy stays soft and only makes positive
+// so they contribute nothing; the copy stays soft and only makes positive
 // "sudah kena" claims when local set data exists.
 
 import type { MuscleKey } from "./muscles";
@@ -14,14 +17,17 @@ import {
   getAllWorkouts,
   getDefForWorkout,
   exerciseDefFromEquipment,
+  SESSIONS,
+  type WorkoutSession,
 } from "./workouts";
 import { EQUIPMENT, type Equipment } from "./equipment";
 import type { MachinePick } from "./machinePicks";
 import { pickScore } from "./machinePicks";
+import { addWorkoutLoad, withinLastDays, type MuscleLoad } from "./trainingLoad";
 
-export type MuscleLoad = Partial<Record<MuscleKey, number>>;
+export type { MuscleLoad };
 
-/** Indonesian body-part label per MuscleKey (for the HARI INI note). */
+/** Indonesian body-part label per MuscleKey (for the suggestion note). */
 const MUSCLE_LABEL: Record<MuscleKey, string> = {
   chest: "dada",
   lats: "punggung",
@@ -39,14 +45,29 @@ const MUSCLE_LABEL: Record<MuscleKey, string> = {
   abs: "perut",
 };
 
-function addLoad(load: MuscleLoad, w: ReturnType<typeof getAllWorkouts>[number]): void {
-  const def = getDefForWorkout(w);
-  const byName = new Map(def.exercises.map((e) => [e.name, e]));
-  for (const ex of w.exercises) {
-    const m = byName.get(ex.exerciseName)?.primary?.[0];
-    if (!m) continue;
-    load[m] = (load[m] ?? 0) + ex.sets.length;
+// Muscle of a named exercise, for a swapped-to name: the programs first, then
+// the machine catalogue. Names the app does not know return undefined and the
+// original exercise's muscle stands in (see muscleOfLog).
+let byName: Map<string, MuscleKey> | null = null;
+function muscleOfName(name: string): MuscleKey | undefined {
+  if (!byName) {
+    byName = new Map();
+    for (const e of EQUIPMENT) {
+      const m = exerciseDefFromEquipment(e).primary[0];
+      if (m) byName.set(e.name.toLowerCase(), m);
+    }
+    // Programs win over the catalogue when both know a name.
+    for (const s of SESSIONS) {
+      for (const e of s.exercises) {
+        if (e.primary[0]) byName.set(e.name.toLowerCase(), e.primary[0]);
+      }
+    }
   }
+  return byName.get(name.trim().toLowerCase());
+}
+
+function addLoad(load: MuscleLoad, w: WorkoutSession): void {
+  addWorkoutLoad(load, w, getDefForWorkout(w).exercises, muscleOfName);
 }
 
 /** Sets per muscle logged on `date` (completed + the active in-progress session). */
@@ -59,12 +80,8 @@ export function setsByMuscleToday(date: string): MuscleLoad {
 /** Sets per muscle over the 7 days ending on `date`. */
 export function setsByMuscleThisWeek(date: string): MuscleLoad {
   const load: MuscleLoad = {};
-  const end = Date.parse(`${date}T12:00:00`);
-  if (Number.isNaN(end)) return load;
-  const start = end - 6 * 86_400_000;
   for (const w of getAllWorkouts()) {
-    const t = Date.parse(`${w.date}T12:00:00`);
-    if (!Number.isNaN(t) && t >= start && t <= end) addLoad(load, w);
+    if (withinLastDays(w.date, date, 7)) addLoad(load, w);
   }
   return load;
 }
@@ -115,7 +132,7 @@ export function suggestToday(date: string, picks: MachinePick[]): TodaySuggestio
     .sort((a, b) => b[1] - a[1]);
   let note: string;
   if (trained.length === 0) {
-    note = "Belum ada latihan hari ini. Mulai dari mesin favoritmu 👇";
+    note = "Belum ada latihan hari ini. Mulai dari mesin favoritmu.";
   } else {
     const hit = MUSCLE_LABEL[trained[0][0]];
     const suggestLabels = Array.from(
@@ -123,8 +140,8 @@ export function suggestToday(date: string, picks: MachinePick[]): TodaySuggestio
     ).filter((l) => l !== hit);
     const alt = suggestLabels.slice(0, 2).join(" atau ");
     note = alt
-      ? `${cap(hit)} udah kena hari ini — coba ${alt}, maks 1-2 mesin lagi.`
-      : `${cap(hit)} udah kena hari ini — santai, maks 1-2 mesin lagi.`;
+      ? `${cap(hit)} sudah kena hari ini. Coba ${alt}, maksimal 1-2 mesin lagi.`
+      : `${cap(hit)} sudah kena hari ini. Santai saja, maksimal 1-2 mesin lagi.`;
   }
 
   return { machines, note };

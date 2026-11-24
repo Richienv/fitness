@@ -12,7 +12,7 @@ import {
   type MealItem,
   type MealLog,
 } from "@/lib/store";
-import { TARGETS } from "@/lib/targets";
+import { dayTarget } from "@/lib/dayBudgetData";
 import { useActiveDate } from "@/lib/activeDate";
 import { getTodaysWorkout } from "@/lib/workouts";
 
@@ -86,7 +86,7 @@ export default function ChecklistPage() {
     [meals]
   );
 
-  const target = gymDay ? TARGETS.gymDay : TARGETS.restDay;
+  const target = dayTarget(activeDate, { gymDay }).target;
   const proteinHit = totals.protein >= target.protein;
 
   function isChecked(item: Item): boolean {

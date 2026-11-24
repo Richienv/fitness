@@ -63,7 +63,8 @@ function status(s: Streak, period: "hari" | "pekan", verb: string) {
   return `${verb} → ${s.count + 1}`;
 }
 
-export default function HomeHud({ s }: { s: Snapshot }) {
+/** `bonus`: kcal training added to today's target (lib/dayBudget), when any. */
+export default function HomeHud({ s, bonus = 0 }: { s: Snapshot; bonus?: number }) {
   const kcalLeft = s.kcalTarget - s.kcal;
   const proteinLeft = Math.max(0, s.proteinTarget - s.protein);
   const proteinDays = s.week.filter((d) => d.proteinHit).length;
@@ -120,6 +121,7 @@ export default function HomeHud({ s }: { s: Snapshot }) {
                 ? `${id(kcalLeft)} kkal tersisa`
                 : `${id(-kcalLeft)} kkal di atas target`}
             </small>
+            {bonus > 0 && <small className="hud-bonus">Termasuk +{id(bonus)} dari latihan</small>}
           </div>
           <div className="protein">
             <span>Protein</span>
