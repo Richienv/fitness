@@ -63,13 +63,23 @@ function status(s: Streak, period: "hari" | "pekan", verb: string) {
   return `${verb} → ${s.count + 1}`;
 }
 
-/** `bonus`: kcal training added to today's target (lib/dayBudget), when any. */
-export default function HomeHud({ s, bonus = 0 }: { s: Snapshot; bonus?: number }) {
+/** `bonus`: kcal training added to today's target (lib/dayBudget), when any.
+ *  `weekOnly` drops the big streak cards and today's rings — those live on the avatar. */
+export default function HomeHud({
+  s,
+  bonus = 0,
+  weekOnly = false,
+}: {
+  s: Snapshot;
+  bonus?: number;
+  weekOnly?: boolean;
+}) {
   const kcalLeft = s.kcalTarget - s.kcal;
   const proteinLeft = Math.max(0, s.proteinTarget - s.protein);
   const proteinDays = s.week.filter((d) => d.proteinHit).length;
   return (
     <section className="hud" aria-label="Posisimu hari ini">
+      {!weekOnly && (
       <div className="hud-streaks">
         <StreakChip
           i={0}
@@ -102,6 +112,8 @@ export default function HomeHud({ s, bonus = 0 }: { s: Snapshot; bonus?: number 
           href="/dashboard/progress"
         />
       </div>
+      )}
+      {!weekOnly && (
       <Link href="/meal" className="hud-today">
         <TodayRings
           kcal={s.kcal}
@@ -135,6 +147,7 @@ export default function HomeHud({ s, bonus = 0 }: { s: Snapshot; bonus?: number 
           </div>
         </div>
       </Link>
+      )}
       <div className="hud-week">
         <div className="hud-week-head">
           <h2>Minggu ini</h2>

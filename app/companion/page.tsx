@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useSession } from "next-auth/react";
 import AvatarPlayer from "./AvatarPlayer";
+import DayProgress from "../dashboard/progress/DayProgress";
 import {
   readCompanion,
   saveCompanion,
@@ -155,10 +156,11 @@ export default function CompanionPage() {
     <main className="lean-home progress-home">
       <header className="lean-header">
         <h1>Progres</h1>
-        <Link href="/settings" className="icon-button" aria-label="Pengaturan">
-          <Icon name="settings" />
+        <Link href="/settings" className="settings-icon-btn" aria-label="Pengaturan">
+          <Icon name="settings" size={18} />
         </Link>
       </header>
+      <DayProgress />
       <div className="character-tabs" aria-label="Preview karakter">
         {(["richie", "renita"] as const).map((p) => (
           <button

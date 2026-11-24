@@ -25,6 +25,7 @@ import {
   WHR_HEALTHY_MAX,
 } from "@/lib/standards";
 import { toast } from "../../Toast";
+import DayProgress from "./DayProgress";
 
 const RATIO_TARGET = 1.45;
 
@@ -163,6 +164,7 @@ export default function ProgressPage() {
         <div className="sub-sub mono">12 WEEK PROGRAM</div>
       </header>
 
+      <DayProgress />
       <div className="progress-stats">
         <div className="ps-row">
           <span className="ps-label mono">WEIGHT</span>

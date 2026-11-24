@@ -14,6 +14,7 @@ import { mergeServerHealth } from "@/lib/health";
 import { syncResolvedTargets } from "@/lib/targetSync";
 import { seedApr13Meals } from "@/lib/mealSeed";
 import { todayKey } from "@/lib/targets";
+import { warmFoodCatalogue } from "@/lib/foodCatalogue";
 
 /** YYYY-MM-DD n days before the given CST date key. */
 function daysBefore(dateKey: string, n: number): string {
@@ -23,13 +24,17 @@ function daysBefore(dateKey: string, n: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
-async function fetchJson<T>(url: string): Promise<T | null> {
+async function fetchJson<T>(url: string, timeoutMs = 8000): Promise<T | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { cache: "no-store" });
+    const res = await fetch(url, { cache: "no-store", signal: controller.signal });
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -117,6 +122,13 @@ export default function ServerSync({ userId }: { userId: string | null }) {
       if (res) console.log("[ServerSync] pushed", res.synced, "foods to DB");
     });
 
+    // Warm food catalogue & static posters during idle so searching food and
+    // switching pages stay instant even when signal drops later.
+    const idleWarm = window.setTimeout(() => {
+      if (cancelled) return;
+      warmFoodCatalogue();
+    }, 350);
+
     // Initial pull — emit a soft refresh if Hermes logged something new.
     // The records are already saved by the time this resolves, so tell the
     // pages even if this effect was torn down meanwhile (Strict Mode runs it
@@ -145,6 +157,7 @@ export default function ServerSync({ userId }: { userId: string | null }) {
 
     return () => {
       cancelled = true;
+      window.clearTimeout(idleWarm);
       document.removeEventListener("visibilitychange", onFocus);
       window.removeEventListener("focus", onFocus);
       clearInterval(interval);

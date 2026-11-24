@@ -25,10 +25,12 @@ export default function TodayBurn({
   burn,
   onAdd,
   onDelete,
+  hideAdd = false,
 }: {
   burn: DayBurn | null;
   onAdd: () => void;
   onDelete: (id: string) => void;
+  hideAdd?: boolean;
 }) {
   const health = burn?.health ?? null;
   const fromHealth = burn?.source === "health";
@@ -121,14 +123,16 @@ export default function TodayBurn({
           ))}
         </ul>
       )}
-      <button type="button" className="secondary-button lt-add" onClick={onAdd}>
-        <Icon name="plus" size={18} />
-        Catat aktivitas
-      </button>
+      {!hideAdd && (
+        <button type="button" className="primary-button lt-add" onClick={onAdd}>
+          <Icon name="plus" size={18} />
+          Catat aktivitas
+        </button>
+      )}
       <p className="lt-foot">
         {fromHealth
-          ? "Total memakai kalori aktif dari Apple Health. Aktivitas yang kamu catat tetap tampil, tapi tidak ditambah lagi supaya tidak terhitung dua kali."
-          : `Kalori aktif, di luar kalori istirahat (seperti Apple Watch). Dihitung dari berat badanmu (${burn ? burn.kg.toLocaleString("id-ID") : "—"} kg), bisa meleset sekitar 20–30%.`}
+          ? "Total dari Apple Health. Catatan manual tetap tampil, tidak dijumlah dua kali."
+          : `Perkiraan kalori aktif dari berat ${burn ? burn.kg.toLocaleString("id-ID") : "—"} kg.`}
       </p>
       <FoodTarget burnKcal={burn?.total ?? 0} />
       <Link href="/settings/health" className="lt-health-link">

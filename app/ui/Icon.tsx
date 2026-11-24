@@ -19,7 +19,12 @@ export type IconName =
   | "medal"
   | "minus"
   | "trend"
-  | "chevron";
+  | "chevron"
+  | "droplet"
+  | "play"
+  | "pause"
+  | "info"
+  | "zap";
 const paths: Record<IconName, React.ReactNode> = {
   scan: (
     <>
@@ -95,6 +100,23 @@ const paths: Record<IconName, React.ReactNode> = {
       <path d="m8.5 10.2-3-7.2h4L12 9m3.5 1.2 3-7.2h-4L13 6.6M12 12.5v5" />
     </>
   ),
+  droplet: (
+    <path d="M12 2.8c-3.8 5.2-6.5 8.4-6.5 11.7a6.5 6.5 0 0 0 13 0c0-3.3-2.7-6.5-6.5-11.7Z" />
+  ),
+  play: <path d="M8 5.5v13l11-6.5Z" fill="currentColor" strokeLinejoin="round" />,
+  pause: (
+    <>
+      <rect x="6.5" y="5.5" width="3.5" height="13" rx="1" fill="currentColor" />
+      <rect x="14" y="5.5" width="3.5" height="13" rx="1" fill="currentColor" />
+    </>
+  ),
+  info: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5m0-8.2h.01" />
+    </>
+  ),
+  zap: <path d="M13 2.5 4.5 13h6.5l-1 8.5L19.5 11H13l0-8.5Z" strokeLinejoin="round" />,
 };
 export default function Icon({
   name,

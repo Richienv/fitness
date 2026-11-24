@@ -125,6 +125,14 @@ const TABS: Tab[] = [
   },
 ];
 
+const EXTRA_PREFETCH_ROUTES = [
+  "/settings",
+  "/dashboard/progress",
+  "/dashboard",
+  "/settings/health",
+  "/settings/advanced",
+];
+
 /** How long a prefetched tab stays warm before it is fetched again. Next keeps
  *  a prefetch for 5 minutes; refreshing a little sooner means a tap never lands
  *  on an expired one and has to wait for the server. */
@@ -139,12 +147,13 @@ export default function BottomNav() {
 
   // Every page here is dynamic (the layout reads the session), so without a
   // prefetch each tab switch waits for the server: ~1 s on a slow connection.
-  // Fetch all four tabs once, and again when the app returns to the front, so
-  // a tap swaps screens from memory.
+  // Fetch all four tabs PLUS settings/progress routes once, and again when the
+  // app returns to the front, so tapping Settings or any tab opens instantly.
   useEffect(() => {
     if (["/login", "/register", "/welcome", "/onboarding"].includes(pathname)) return;
     const warm = () => {
       for (const t of TABS) router.prefetch(t.href);
+      for (const href of EXTRA_PREFETCH_ROUTES) router.prefetch(href);
     };
     warm();
     const onVisible = () => {

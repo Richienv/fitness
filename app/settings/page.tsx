@@ -74,7 +74,12 @@ export default function SettingsPage() {
       </div>
       <button
         className="entry-secondary full"
-        onClick={() => signOut({ callbackUrl: "/login" })}
+        onClick={() => {
+          try {
+            navigator.serviceWorker?.controller?.postMessage("clear-pages");
+          } catch {}
+          void signOut({ callbackUrl: "/login" });
+        }}
       >
         Keluar
       </button>

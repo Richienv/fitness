@@ -240,6 +240,18 @@ summary:focus-visible,
   color: var(--muted);
   font-weight: 400;
 }
+.settings-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #3e60d5 0%, #6a86f0 100%);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(62, 96, 213, 0.28);
+}
 .duo-link {
   display: flex;
   align-items: center;

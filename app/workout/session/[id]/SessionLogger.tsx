@@ -26,7 +26,6 @@ import type { Equipment } from "@/lib/equipment";
 import { isRecord, previousPerformance, suggestNext } from "@/lib/exerciseHistory";
 import { recordMachinePick } from "@/lib/machinePicks";
 import { inferFromLog } from "@/lib/gymInventory";
-import { MUSCLE_KEY_ID } from "@/lib/workoutLabels";
 import { haptic } from "@/lib/haptics";
 import { readSnapshot, stashBefore } from "@/lib/motivationData";
 import { readBodyKg, sessionTitle, workoutBurn } from "@/lib/burnData";
@@ -444,20 +443,19 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                 </span>
               </div>
               <h2 id="lg-focus-title">{nameOf(focusIdx)}</h2>
-              <p className="lg-sub">
-                {MUSCLE_KEY_ID[focusDef.primary[0]] ?? "Otot utama"} · target {focusDef.sets} set ×{" "}
-                {focusDef.repsLabel}
-              </p>
               {focusLog?.swappedTo && (
                 <button type="button" className="lg-link lg-undo-swap" onClick={() => clearSwap(focusIdx)}>
-                  Diganti dari {focusDef.name}. Kembalikan
+                  Kembalikan {focusDef.name}
                 </button>
               )}
-              <p className="lg-last">
-                {prev
-                  ? `Terakhir ${fmtSet(prev.weight, prev.reps)} · ${daysAgoLabel(prev.date, today)}`
-                  : "Belum pernah dicatat. Mulai dari beban yang nyaman."}
-              </p>
+              {prev && (
+                <details className="lg-last-fold">
+                  <summary>Riwayat</summary>
+                  <p>
+                    Terakhir {fmtSet(prev.weight, prev.reps)} · {daysAgoLabel(prev.date, today)}
+                  </p>
+                </details>
+              )}
               {suggestion && (
                 <button
                   type="button"
@@ -469,11 +467,11 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                 </button>
               )}
               <ol className="lg-sets" aria-label="Set tercatat">
-                {Array.from({ length: Math.max(focusDef.sets, focusDone + 1) }).map((_, k) => {
+                {Array.from({ length: focusDone + 1 }).map((_, k) => {
                   const s = focusLog?.sets[k];
                   if (s)
                     return (
-                      <li key={k}>
+                      <li key={k} className="lg-set-enter">
                         <button
                           type="button"
                           className="lg-set"
@@ -486,7 +484,7 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                       </li>
                     );
                   return (
-                    <li key={k}>
+                    <li key={k} className="lg-set-enter">
                       <span className={`lg-set todo${k === focusDone ? " now" : ""}`}>
                         <small>Set {k + 1}</small>
                         {k === focusDone ? "berikutnya" : "belum"}
@@ -516,7 +514,7 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                       <span>
                         <strong>{nameOf(i)}</strong>
                         <small>
-                          {d.sets} set × {d.repsLabel} · {MUSCLE_KEY_ID[d.primary[0]] ?? ""}
+                          {d.sets} set × {d.repsLabel}
                         </small>
                       </span>
                       <span className="lg-state">{n > 0 ? `${n} dari ${d.sets}` : "Mulai"}</span>

@@ -14,13 +14,30 @@ import { scopedKey, setActiveUser } from "@/lib/userScope";
 import { mergeServerMeasurements } from "@/lib/measurements";
 import type { AccountSetup, SetupState } from "@/lib/setup";
 import { rememberAccount } from "@/lib/deviceAccount";
+
 const Context = createContext<
   | (SetupState & { accept: (setup: AccountSetup) => void; offline: boolean })
   | null
 >(null);
+
 export function useAccountSetup() {
   return useContext(Context);
 }
+
+function readCachedSetup(userId: string): SetupState | null {
+  if (typeof window === "undefined") return null;
+  try {
+    setActiveUser(userId);
+    const cached = JSON.parse(
+      localStorage.getItem(scopedKey(SETUP_CACHE_KEY)) || "null",
+    ) as AccountSetup | null;
+    if (cached?.completedAt) {
+      return { person: cached.person, setup: cached, latest: null };
+    }
+  } catch {}
+  return null;
+}
+
 export default function SetupProvider({
   userId,
   children,
@@ -35,6 +52,7 @@ export default function SetupProvider({
     [error, setError] = useState(""),
     [retry, setRetry] = useState(0),
     [offline, setOffline] = useState(false);
+
   const accept = useCallback((setup: AccountSetup) => {
     applySetupToDevice(setup);
     setState((s) => ({
@@ -44,6 +62,7 @@ export default function SetupProvider({
     }));
     window.dispatchEvent(new Event("r2:data"));
   }, []);
+
   useEffect(() => {
     if (!userId) {
       setState(null);
@@ -51,12 +70,25 @@ export default function SetupProvider({
       return;
     }
     setActiveUser(userId);
-    setOwner(null);
     setError("");
-    setOffline(false);
+
+    // Cache-first instant boot: hydrate immediately from localStorage so returning
+    // users never wait on a slow network or see a splash screen before the UI loads.
+    const cached = readCachedSetup(userId);
+    if (cached) {
+      setState(cached);
+      setOwner(userId);
+      setOffline(false);
+    } else {
+      setOwner(null);
+      setOffline(false);
+    }
+
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
+    // Shorter timeout when we already rendered from cache so flaky networks settle quickly.
+    const timer = setTimeout(() => controller.abort(), cached ? 7000 : 12000);
     let current = true;
+
     fetch("/api/setup", { cache: "no-store", signal: controller.signal })
       .then(async (r) => {
         const data = await r.json();
@@ -68,36 +100,41 @@ export default function SetupProvider({
         if (next.latest) mergeServerMeasurements([next.latest]);
         setState(next);
         setOwner(userId);
+        setOffline(false);
       })
       .catch(() => {
         if (!current) return;
-        try {
-          const cached = JSON.parse(
-            localStorage.getItem(scopedKey(SETUP_CACHE_KEY)) || "null",
-          ) as AccountSetup | null;
-          if (cached?.completedAt) {
-            setState({ person: cached.person, setup: cached, latest: null });
-            setOwner(userId);
-            setOffline(true);
-            return;
-          }
-        } catch {}
+        if (cached) {
+          // Already rendered cleanly from device cache — stay usable offline.
+          setOffline(true);
+          return;
+        }
+        const fallback = readCachedSetup(userId);
+        if (fallback) {
+          setState(fallback);
+          setOwner(userId);
+          setOffline(true);
+          return;
+        }
         setError(
           "Data akun belum bisa dimuat. Periksa koneksi lalu coba lagi.",
         );
       })
       .finally(() => clearTimeout(timer));
+
     return () => {
       current = false;
       controller.abort();
       clearTimeout(timer);
     };
   }, [userId, retry]);
+
   const needsSetup = !!userId && owner === userId && state && !state.setup;
   const setupRoute = path === "/onboarding";
   useEffect(() => {
     if (needsSetup && !setupRoute) router.replace("/onboarding");
   }, [needsSetup, setupRoute, router]);
+
   if (!userId) return children;
   if (error)
     return (

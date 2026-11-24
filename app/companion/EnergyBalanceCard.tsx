@@ -249,6 +249,19 @@ export default function EnergyBalanceCard({ view }: { view: EnergyView }) {
         </div>
       </div>
 
+      <div className="eb-water-compare" aria-label="Perbandingan berat tanpa air vs dengan air minum">
+        <div>
+          <small>Berat bersih (tanpa air minum)</small>
+          <strong>{dec(current.weightKg, 2)} kg</strong>
+        </div>
+        <div>
+          <small>
+            Est. timbangan (+{dec(b.waterKg, 2)} L air)
+          </small>
+          <strong>{dec(current.weightWithWaterKg, 2)} kg</strong>
+        </div>
+      </div>
+
       {view.isToday && (
         <div className="eb-rate" aria-label="Kecepatan turun per detik saat tidak makan">
           <div className="eb-rate-head">

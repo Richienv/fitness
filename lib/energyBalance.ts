@@ -47,10 +47,12 @@ export type BalanceInput = {
   activeFromHealth: boolean;
   /** 0..1, how much of the day (China Standard Time) has passed (second-level). */
   dayFraction: number;
+  /** Drinking water logged today in millilitres (1,000 ml = +1.0 kg scale weight). */
+  waterMl?: number;
 };
 
 /** Breakdown of a caloric balance (positive = deficit / weight lost) into
- *  total body weight vs pure fat. */
+ *  total body weight vs pure fat, with and without drinking water mass. */
 export type WeightDelta = {
   /** Positive = deficit (losing), negative = surplus (gaining). */
   kcal: number;
@@ -60,14 +62,18 @@ export type WeightDelta = {
   tissueGrams: number;
   /** Acute glycogen + bound water shift in grams (positive = lost). */
   glycogenWaterGrams: number;
-  /** Total estimated body weight change in grams (tissue + glycogen-water). */
+  /** Total estimated body weight change in grams (tissue + glycogen-water, excluding drank water). */
   bodyGrams: number;
-  /** Total estimated body weight change in kg (positive = lost). */
+  /** Total estimated body weight change in kg (positive = lost, excluding drank water). */
   bodyKg: number;
   /** Pure fat change in kg (positive = lost). */
   fatKg: number;
-  /** Anchor weight minus bodyKg (projected or live body weight in kg). */
+  /** Anchor weight minus bodyKg (projected or live biological body weight without drank water). */
   weightKg: number;
+  /** Physical mass of drinking water logged today in kg (ml / 1000). */
+  waterKg: number;
+  /** Scale weight including drinking water: weightKg + waterKg. */
+  weightWithWaterKg: number;
 };
 
 /** Continuous real-time burn speed while not eating. */
@@ -135,6 +141,9 @@ export type Balance = {
   kgPerWeek: number;
   /** The plan projected day, repeated for a week, in kg of sustainable body tissue. */
   bodyKgPerWeek: number;
+  /** Drinking water logged today in ml and equivalent kg on the scale. */
+  waterMl: number;
+  waterKg: number;
 };
 
 const finite = (n: number) => Number.isFinite(n) && n >= 0;
@@ -142,9 +151,14 @@ const finite = (n: number) => Number.isFinite(n) && n >= 0;
 /** Convert a same-day caloric balance (positive = deficit / weight lost) into
  *  total body weight change (fat + lean tissue + glycogen-bound water) and pure
  *  fat change. Smooth, strictly monotonic, and energy-conserving. */
-export function weightChangeFromKcal(balanceKcal: number, anchorKg: number): WeightDelta {
+export function weightChangeFromKcal(
+  balanceKcal: number,
+  anchorKg: number,
+  waterMl = 0,
+): WeightDelta {
   const kcal = Number.isFinite(balanceKcal) ? balanceKcal : 0;
   const kg = Number.isFinite(anchorKg) && anchorKg > 0 ? anchorKg : 70;
+  const waterKg = finite(waterMl) ? waterMl / 1000 : 0;
   const fatKg = kcal / KCAL_PER_KG_FAT;
   const glycogenKcal =
     GLYCOGEN_MAX_KCAL * Math.tanh((kcal * GLYCOGEN_SHARE) / GLYCOGEN_MAX_KCAL);
@@ -164,6 +178,8 @@ export function weightChangeFromKcal(balanceKcal: number, anchorKg: number): Wei
     bodyKg,
     fatKg,
     weightKg,
+    waterKg,
+    weightWithWaterKg: weightKg + waterKg,
   };
 }
 
@@ -228,10 +244,11 @@ export function energyBalance(i: BalanceInput): Balance | null {
   const balance = burnDay - intake;
   const soFarBurn = normal * frac + active;
   const soFarBalance = soFarBurn - eaten;
+  const waterMl = finite(i.waterMl ?? 0) ? Math.round(i.waterMl ?? 0) : 0;
   const stopBalance = burnDay - eaten;
-  const onPlan = weightChangeFromKcal(balance, i.kg);
-  const stopDelta = weightChangeFromKcal(stopBalance, i.kg);
-  const soFarWeight = weightChangeFromKcal(soFarBalance, i.kg);
+  const onPlan = weightChangeFromKcal(balance, i.kg, waterMl);
+  const stopDelta = weightChangeFromKcal(stopBalance, i.kg, waterMl);
+  const soFarWeight = weightChangeFromKcal(soFarBalance, i.kg, waterMl);
   const rate = burnRatePerSecond(normal, soFarBalance);
   return {
     bmr: Math.round(bmr),
@@ -260,6 +277,8 @@ export function energyBalance(i: BalanceInput): Balance | null {
     rate,
     kgPerWeek: Math.round(((balance * 7) / KCAL_PER_KG_FAT) * 100) / 100,
     bodyKgPerWeek: Math.round(((balance * 7) / KCAL_PER_KG_TISSUE) * 100) / 100,
+    waterMl,
+    waterKg: waterMl / 1000,
   };
 }
 

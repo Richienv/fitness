@@ -59,19 +59,26 @@ export function normalizeCatalogueFoods(raw: unknown): CatalogueFood[] {
   }));
 }
 
-export function readCachedCatalogue(): CatalogueFood[] | null {
+function readCacheEntry(): { foods: CatalogueFood[]; stale: boolean } | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(scopedKey(CACHE_KEY));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Cached;
     if (!parsed || !Number.isFinite(parsed.at) || parsed.at <= 0) return null;
-    if (Date.now() - parsed.at > TTL_MS) return null;
     const foods = normalizeCatalogueFoods(parsed.foods);
-    return foods.length ? foods : null;
+    if (!foods.length) return null;
+    return { foods, stale: Date.now() - parsed.at > TTL_MS };
   } catch {
     return null;
   }
+}
+
+export function readCachedCatalogue(): CatalogueFood[] | null {
+  // Stale-while-revalidate: never throw away a usable offline catalogue just
+  // because 24h passed. Callers get instant data; loadCatalogue() refreshes in
+  // the background when stale.
+  return readCacheEntry()?.foods ?? null;
 }
 
 function writeCache(foods: CatalogueFood[]): void {
@@ -143,12 +150,29 @@ async function fetchCatalogue(): Promise<CatalogueResult> {
  */
 export function loadCatalogue(force = false): Promise<CatalogueResult> {
   if (!force) {
-    const cached = readCachedCatalogue();
-    if (cached) return Promise.resolve({ ok: true, foods: cached, fromCache: true });
+    const entry = readCacheEntry();
+    if (entry) {
+      // Serve immediately from cache; silently revalidate in background when >24h old.
+      if (entry.stale && !inFlight && (typeof navigator === "undefined" || navigator.onLine !== false)) {
+        inFlight = fetchCatalogue().finally(() => {
+          inFlight = null;
+        });
+      }
+      return Promise.resolve({ ok: true, foods: entry.foods, fromCache: true });
+    }
   }
   if (inFlight) return inFlight;
   inFlight = fetchCatalogue().finally(() => {
     inFlight = null;
   });
   return inFlight;
+}
+
+/** Pre-warm the food catalogue into localStorage during idle time on app start
+ *  so opening "Catat makan" is instant even if the network later drops. */
+export function warmFoodCatalogue(): void {
+  if (typeof window === "undefined") return;
+  const entry = readCacheEntry();
+  if (entry && !entry.stale) return;
+  void loadCatalogue(false);
 }

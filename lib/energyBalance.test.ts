@@ -134,3 +134,15 @@ test("mealWeightImpact quantifies each meal's real-time weight, fat, and burn du
   // 600 / 2087 * 1440 ≈ 414 minutes (~6h 54m)
   assert.ok(impact.burnMinutes >= 410 && impact.burnMinutes <= 418);
 });
+
+test("waterMl separates biological body weight (tanpa air) from scale weight (+ air minum)", () => {
+  const dry = energyBalance({ ...richie, eatenKcal: 1200, waterMl: 0 })!;
+  const wet = energyBalance({ ...richie, eatenKcal: 1200, waterMl: 1250 })!;
+  // Biological weight without drinking water is identical
+  assert.equal(wet.stopEating.weightKg, dry.stopEating.weightKg);
+  // Scale weight with drinking water adds exactly 1.25 kg
+  assert.equal(wet.waterMl, 1250);
+  assert.equal(wet.waterKg, 1.25);
+  assert.ok(Math.abs(wet.stopEating.weightWithWaterKg - (dry.stopEating.weightKg + 1.25)) < 1e-6);
+  assert.ok(Math.abs(wet.soFar.weight.weightWithWaterKg - (dry.soFar.weight.weightKg + 1.25)) < 1e-6);
+});

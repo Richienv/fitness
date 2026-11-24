@@ -1,12 +1,6 @@
 "use client";
 import Link from "next/link";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type CSSProperties,
-} from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { getMealsForDate, isCustomItem, type MealLog } from "@/lib/store";
@@ -24,7 +18,7 @@ import {
 import { todayKey } from "@/lib/targets";
 import { useSoftRefresh } from "@/lib/useSoftRefresh";
 import { readCompanion, type CompanionSettings } from "@/lib/companionSettings";
-import { companionProgress, weightSummary } from "@/lib/companionProgress";
+import { companionProgress } from "@/lib/companionProgress";
 import {
   hasChanges,
   mealSlotForHour,
@@ -35,7 +29,9 @@ import {
 import { readSnapshot } from "@/lib/motivationData";
 import { dayTarget } from "@/lib/dayBudgetData";
 import { readEnergyView } from "@/lib/energyBalanceData";
+import { addWaterMl, getWaterMl } from "@/lib/water";
 import EnergyBalanceCard from "./EnergyBalanceCard";
+import HeroAvatarStage from "./HeroAvatarStage";
 import {
   logUsualMeal,
   readUsualMeal,
@@ -47,16 +43,10 @@ import { weighCelebration, weighContext, type WeighIn } from "@/lib/weighIn";
 import { haptic } from "@/lib/haptics";
 import { toast } from "../Toast";
 import ProgressCelebration from "../_motion/ProgressCelebration";
-import AvatarPlayer from "./AvatarPlayer";
 import HomeHud from "./HomeHud";
 import NextActionCard from "./NextActionCard";
 import WeighInSheet from "./WeighInSheet";
 import Icon from "../ui/Icon";
-const kg = (n: number) =>
-  n.toLocaleString("id-ID", {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  });
 export default function HomePage() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -84,7 +74,9 @@ export default function HomePage() {
       mealId: string;
       stamp: number;
       title: string;
-    } | null>(null);
+    } | null>(null),
+    [waterMl, setWaterMl] = useState(0),
+    [detailOpen, setDetailOpen] = useState(false);
   const refresh = useCallback(() => {
     const d = todayKey();
     const h = new Date().getHours();
@@ -103,6 +95,7 @@ export default function HomePage() {
       setSnap(null);
     }
     setMeals(getMealsForDate(d));
+    setWaterMl(getWaterMl(d));
     setMeasurements(getAllMeasurements());
     setWorkouts(getAllWorkouts());
     setActive(getActiveWorkoutId());
@@ -199,9 +192,6 @@ export default function HomePage() {
     },
     [weigh?.today, refresh],
   );
-  const weight = date
-    ? weightSummary(measurements, date)
-    : { latest: null, mean: null, count: 0 };
   const progress = date
     ? companionProgress(settings.goal, measurements, workouts, date)
     : { level: null, fraction: null };
@@ -218,7 +208,6 @@ export default function HomePage() {
         usual,
       })
     : null;
-  const goal = settings.goal;
   // Re-read whenever the snapshot or meals change (every save, sync or return to the app).
   const energy = useMemo(
     () =>
@@ -231,23 +220,69 @@ export default function HomePage() {
         : null,
     // bonus and meals change with training burn and logged meals, which the view also reads
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [snap, date, settings.goal, bonus, meals],
+    [snap, date, settings.goal, bonus, meals, waterMl],
   );
-  const trend = weight.mean ?? weight.latest?.weightKg ?? null;
+  const changeWater = useCallback((delta: number) => {
+    const d = todayKey();
+    setWaterMl(addWaterMl(d, delta));
+    haptic("tap");
+  }, []);
   return (
     <main className="lean-home">
       <h1 className="companion-sr-only">R2 Fit — hari ini</h1>
-      <header className="lean-header">
+      <header className="home-topbar">
         <Link href="/" className="friendly-brand">
           r2<span>fit</span>
         </Link>
-        <Link href="/settings" className="account-link">
-          {name}
-          <Icon name="settings" size={19} />
+        {snap && (
+          <nav className="home-streak-bar" aria-label="Streak">
+            <Link
+              href="/meal"
+              className={`home-streak-item meal${snap.meal.todayDone ? " lit" : ""}`}
+              aria-label={`Catat makan ${snap.meal.count} hari`}
+            >
+              <Icon name="flame" size={15} />
+              {snap.meal.count}
+            </Link>
+            <Link
+              href="/workout"
+              className={`home-streak-item workout${snap.workoutWeeks.todayDone ? " lit" : ""}`}
+              aria-label={`Latihan ${snap.workoutWeeks.count} minggu`}
+            >
+              <Icon name="workout" size={15} />
+              {snap.workoutWeeks.count}
+            </Link>
+            <Link
+              href="/dashboard/progress"
+              className={`home-streak-item weigh${snap.weigh.todayDone ? " lit" : ""}`}
+              aria-label={`Timbang ${snap.weigh.count} hari`}
+            >
+              <Icon name="scale" size={15} />
+              {snap.weigh.count}
+            </Link>
+          </nav>
+        )}
+        <Link href="/settings" className="settings-icon-btn" aria-label={`Pengaturan ${name}`}>
+          <Icon name="settings" size={18} />
         </Link>
       </header>
-      {energy && <EnergyBalanceCard view={energy} />}
-      {snap && <HomeHud s={snap} bonus={bonus} />}
+      <HeroAvatarStage
+        character={settings.character}
+        level={progress.level ?? 1}
+        energy={energy}
+        snap={snap}
+        waterMl={waterMl}
+        onAddWater={changeWater}
+        detailOpen={detailOpen}
+        onToggleDetail={() => setDetailOpen((open) => !open)}
+        onOpenWeigh={openWeigh}
+      />
+      {detailOpen && energy && (
+        <div className="hero-detail-drawer">
+          <EnergyBalanceCard view={energy} />
+        </div>
+      )}
+      {snap && <HomeHud s={snap} bonus={bonus} weekOnly />}
       {action && (
         <NextActionCard action={action} onWeigh={openWeigh} onUsual={logUsual} />
       )}
@@ -271,64 +306,6 @@ export default function HomePage() {
           </button>
         )}
       </nav>
-      <section className="home-avatar">
-        <AvatarPlayer
-          character={settings.character}
-          level={progress.level ?? 1}
-        />
-        <div className="avatar-status">
-          <Link href="/companion">
-            {settings.character === "richie" ? "Richie" : "Renita"}{" "}
-            <span>⌄</span>
-          </Link>
-          <Link href="/companion#goals">
-            {progress.level
-              ? `Level ${progress.level} / 12`
-              : settings.goal
-                ? "Menunggu tren"
-                : "Atur target"}
-          </Link>
-        </div>
-        {goal && (
-          <Link href="/companion#goals" className="avatar-goal">
-            {progress.fraction !== null && (
-              <span className="avatar-goal-bar" aria-hidden="true">
-                <span
-                  style={
-                    {
-                      ["--p" as string]: progress.fraction,
-                    } as CSSProperties
-                  }
-                />
-              </span>
-            )}
-            <span className="avatar-goal-text">
-              {goal.mode === "weight" ? (
-                <>
-                  <span>
-                    {trend !== null
-                      ? `${weight.mean !== null ? "Tren" : "Terakhir"} ${kg(trend)} kg`
-                      : "Belum ada timbangan"}
-                  </span>
-                  <span>
-                    Target{" "}
-                    {goal.targetWeight !== null ? kg(goal.targetWeight) : "—"} kg
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span>Pinggang turun, beban naik</span>
-                  <span>
-                    {progress.fraction !== null
-                      ? `${Math.round(progress.fraction * 100)}% menuju target`
-                      : "Menunggu dua catatan"}
-                  </span>
-                </>
-              )}
-            </span>
-          </Link>
-        )}
-      </section>
       <section className="lean-today">
         <div className="row-between">
           <h2>Hari ini</h2>

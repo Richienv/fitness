@@ -19,6 +19,7 @@ import type { MealType } from "./presets";
 import { getProfile, profileComplete } from "./settings";
 import { getMealsForDate, isCustomItem } from "./store";
 import { todayKey } from "./targets";
+import { getWaterMl } from "./water";
 
 export type MealImpactRow = {
   id: string;
@@ -48,6 +49,8 @@ export type EnergyView =
       meals: MealImpactRow[];
       /** Known physical weight of food logged today (g), for honest scale explanation. */
       foodMassGrams: number;
+      /** Drinking water logged today (ml). */
+      waterMl: number;
     };
 
 const MEAL_LABELS: Record<MealType, string> = {
@@ -77,6 +80,7 @@ export function readEnergyView(
   const burn = readDayBurn(date);
   const kg = readBodyKg();
   const isToday = date === todayKey(now);
+  const waterMl = getWaterMl(date);
   const baseInput: Omit<BalanceInput, "dayFraction"> = {
     sex: p.sex!,
     kg,
@@ -86,6 +90,7 @@ export function readEnergyView(
     targetKcal: dayTarget(date, { burnKcal: burn.total }).target.kcal,
     activeKcal: burn.total,
     activeFromHealth: burn.source === "health",
+    waterMl,
   };
   const balance = energyBalance({
     ...baseInput,
@@ -140,5 +145,6 @@ export function readEnergyView(
     weeks: targetKg ? weeksToGoal(kg, targetKg, balance.bodyKgPerWeek) : null,
     meals,
     foodMassGrams: Math.round(foodMassGrams),
+    waterMl,
   };
 }

@@ -449,6 +449,22 @@ export default function WorkoutHome() {
           </h1>
         </div>
 
+        <button
+          type="button"
+          className="primary-button lt-activity-cta"
+          onClick={() => setActivityOpen(true)}
+        >
+          <Icon name="plus" size={18} />
+          Catat aktivitas
+        </button>
+
+        <TodayBurn
+          burn={burn}
+          onAdd={() => setActivityOpen(true)}
+          onDelete={removeActivity}
+          hideAdd
+        />
+
         <section className="lt-card" aria-labelledby="lt-gym-title">
           <div className="lt-head">
             <h2 id="lt-gym-title">Gym</h2>
@@ -648,12 +664,6 @@ export default function WorkoutHome() {
             </Link>
           </div>
         </section>
-
-        <TodayBurn
-          burn={burn}
-          onAdd={() => setActivityOpen(true)}
-          onDelete={removeActivity}
-        />
 
         {templates.length > 0 && (
           <section className="lt-card" aria-labelledby="lt-tpl-title">

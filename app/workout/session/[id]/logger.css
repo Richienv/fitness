@@ -204,6 +204,32 @@
   padding: 0;
   list-style: none;
 }
+.lg-last-fold {
+  margin-top: 8px;
+}
+.lg-last-fold summary {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--calm-muted);
+  cursor: pointer;
+}
+.lg-last-fold p {
+  margin: 4px 0 0;
+  font-size: 14px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lg-set-enter {
+    animation: lg-set-pop 0.28s ease-out;
+  }
+}
+@keyframes lg-set-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.94);
+  }
+}
 .lg-set {
   display: inline-flex;
   flex-direction: column;
