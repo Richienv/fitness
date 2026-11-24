@@ -348,6 +348,86 @@
 .scan-photo-tools button {
   color: #555;
 }
+.scan-mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 4px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  background: #f3f3f3;
+}
+.scan-mode-tabs button {
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #666;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.scan-mode-tabs button.is-active {
+  background: #fff;
+  color: #202020;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.scan-barcode-pill {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f4f8f5;
+  border: 1px solid #d5e8db;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #254732;
+}
+.scan-quality-warn {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fdf8eb;
+  border: 1px solid #ecd9a8;
+  color: #6d4c0f;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.scan-quality-warn p {
+  margin: 0;
+}
+.scan-quality-warn p + p {
+  margin-top: 4px;
+}
+.scan-conflict {
+  margin: 10px 0;
+  padding: 12px;
+  border-radius: 14px;
+  background: #fdf5f5;
+  border: 1px solid #ecc6c6;
+  color: #6d2424;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.scan-conflict ul {
+  margin: 6px 0 10px;
+  padding-left: 18px;
+}
+.scan-conflict-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.scan-conflict-actions button {
+  min-height: 40px;
+  font-size: 12px;
+  padding: 8px;
+}
+.scan-fallback-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
 @media (max-height: 520px) {
   .builder-header h1 {
     display: none;

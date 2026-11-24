@@ -2,30 +2,38 @@ import {
   LABEL_KEYS,
   type NutritionLabel,
   type LabelKey,
+  type LabelOcrItem,
 } from "./nutritionLabel.ts";
 import type { ImageMethod } from "./nutritionPreprocess.ts";
 export const CORE_NUTRIENTS = ["kcal", "protein", "carbs", "fat"] as const;
 export type VariantPrediction = {
-  method: ImageMethod | "focus" | "scale";
+  method: ImageMethod | "focus" | "scale" | "rotate90" | "rotate270" | "llm";
   confidence: number;
   label: NutritionLabel;
   elapsedMs: number;
   preprocessMs: number;
+  items?: LabelOcrItem[];
 };
 export function nutritionCoreCount(label: NutritionLabel) {
   return CORE_NUTRIENTS.filter((key) => label.values[key] !== null).length;
 }
 function contradictions(label: NutritionLabel) {
   const v = label.values;
+  const refGrams =
+    label.basis?.unit === "g"
+      ? label.basis.amount
+      : label.basis?.unit === "serving" && label.servingSize?.unit === "g"
+        ? label.servingSize.amount * label.basis.amount
+        : null;
   return (
     Number(v.sugar !== null && v.carbs !== null && v.sugar > v.carbs) +
     Number(
       v.saturatedFat !== null && v.fat !== null && v.saturatedFat > v.fat,
     ) +
     Number(
-      label.basis?.unit === "g" &&
+      refGrams !== null &&
         [v.protein, v.carbs, v.fat].every((n) => n !== null) &&
-        v.protein! + v.carbs! + v.fat! > label.basis.amount * 1.1,
+        v.protein! + v.carbs! + v.fat! > refGrams * 1.1,
     )
   );
 }
@@ -35,7 +43,7 @@ function hasUnassignedAmountRow(label: NutritionLabel) {
     .some(
       (line) =>
         !Object.values(label.evidence).includes(line.trim()) &&
-        /^[\s·-]*\d+(?:[.,]\d+)?\s*(?:千焦耳?|kJ|kcal|毫克|mg|克|g)(?![a-z])/i.test(
+        /^[\s·-]*\d+(?:[.,]\d+)?\s*(?:千焦耳?|kJ|kcal|kkal|毫克|mg|克|g)(?![a-z])/i.test(
           line,
         ),
     );
@@ -54,6 +62,7 @@ export function nutritionReadScore(read: VariantPrediction) {
   return (
     nutritionCoreCount(read.label) * 15 +
     (read.label.basis ? 10 : 0) +
+    (read.label.servingSize ? 3 : 0) +
     Math.max(0, Math.min(100, read.confidence)) * 0.2 +
     Math.min(6, extra) -
     Number(hasUnassignedAmountRow(read.label)) * 4 -
@@ -72,6 +81,25 @@ export function labelNeedsRescue(read: VariantPrediction) {
     ) ||
     hasUnassignedAmountRow(read.label)
   );
+}
+/** Decide when Stage 2 LLM structured extraction should assist Stage 1 OCR rules. */
+export function labelNeedsLlmAssist(read: VariantPrediction): boolean {
+  const core = nutritionCoreCount(read.label);
+  if (core < 4) return true;
+  if (!read.label.basis) return true;
+  if (read.confidence < 80) return true;
+  if (
+    read.label.warnings.some(
+      (w) =>
+        w.includes("berbeda") ||
+        w.includes("kurang jelas") ||
+        w.includes("melebihi") ||
+        w.includes("belum terbaca"),
+    )
+  ) {
+    return true;
+  }
+  return false;
 }
 export function bestNutritionPrediction(reads: VariantPrediction[]) {
   if (!reads.length) throw new Error("Belum ada hasil pembacaan.");

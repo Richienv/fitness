@@ -219,7 +219,7 @@ export default function HomePage() {
       })
     : null;
   const goal = settings.goal;
-  // Re-read whenever the snapshot is (every save, sync or return to the app).
+  // Re-read whenever the snapshot or meals change (every save, sync or return to the app).
   const energy = useMemo(
     () =>
       snap && date
@@ -229,9 +229,9 @@ export default function HomePage() {
             settings.goal?.mode === "weight" ? settings.goal.targetWeight : null,
           )
         : null,
-    // bonus changes with training burn, which the view also reads
+    // bonus and meals change with training burn and logged meals, which the view also reads
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [snap, date, settings.goal, bonus],
+    [snap, date, settings.goal, bonus, meals],
   );
   const trend = weight.mean ?? weight.latest?.weightKg ?? null;
   return (

@@ -1,12 +1,19 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createNutritionOcr,
   labelImage,
   type NutritionOcr,
 } from "@/lib/nutritionOcr";
-import { type NutritionLabel } from "@/lib/nutritionLabel";
-import { nutritionCoreCount } from "@/lib/nutritionReadQuality";
+import type { BarcodeProduct } from "@/lib/barcode";
+import type { LabelOcrItem, NutritionLabel } from "@/lib/nutritionLabel";
+import { assessImageQuality, type ImageQuality } from "@/lib/nutritionPreprocess";
+import {
+  labelNeedsLlmAssist,
+  nutritionCoreCount,
+  nutritionReadScore,
+  type VariantPrediction,
+} from "@/lib/nutritionReadQuality";
 import {
   FULL_PHOTO,
   photoCropPixels,
@@ -16,25 +23,86 @@ import {
   readOptimizedNutritionLabel,
   type NutritionScanEvidence,
 } from "@/lib/nutritionReadPipeline";
+import type { ValidatedNutritionResult } from "@/lib/nutritionSchema";
 import type { RecipeFood } from "@/lib/recipes";
 import FriendlySheet from "./FriendlySheet";
 import ManualFoodSheet, { type ManualFoodInitial } from "./ManualFoodSheet";
 import NutritionPhotoCrop from "./NutritionPhotoCrop";
 import Icon from "../ui/Icon";
 
+function toOcrBoxes(items: LabelOcrItem[]) {
+  return items
+    .filter((i) => i.score >= 0.35 && i.poly.length === 4)
+    .slice(0, 80)
+    .map((i) => {
+      const xs = i.poly.map((p) => Math.round(p[0]));
+      const ys = i.poly.map((p) => Math.round(p[1]));
+      return {
+        text: i.text,
+        bbox: [
+          Math.min(...xs),
+          Math.min(...ys),
+          Math.max(...xs),
+          Math.max(...ys),
+        ] as [number, number, number, number],
+        confidence: Math.round(i.score * 100) / 100,
+      };
+    });
+}
+
+async function requestLlmFallback(params: {
+  ocrText: string;
+  items: LabelOcrItem[];
+  imageDataUrl: string;
+  barcode?: string;
+}): Promise<ValidatedNutritionResult | null> {
+  if (typeof navigator !== "undefined" && !navigator.onLine) return null;
+  try {
+    const res = await fetch("/api/foods/scan-label", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ocrText: params.ocrText,
+        boxes: toOcrBoxes(params.items),
+        imageDataUrl: params.imageDataUrl,
+        barcode: params.barcode,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      available?: boolean;
+      result?: ValidatedNutritionResult | null;
+    };
+    return data.available && data.result ? data.result : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function NutritionLabelPanel({
   onClose,
   onAdd,
   initial,
+  barcode,
+  barcodeProduct,
+  onSwitchToBarcode,
 }: {
   onClose: () => void;
   onAdd: (food: RecipeFood) => void;
   initial?: ManualFoodInitial;
+  barcode?: string;
+  barcodeProduct?: BarcodeProduct | null;
+  onSwitchToBarcode?: () => void;
 }) {
   const [photo, setPhoto] = useState<HTMLCanvasElement | null>(null);
   const [preview, setPreview] = useState("");
   const [crop, setCrop] = useState<PhotoCrop>(FULL_PHOTO);
   const [result, setResult] = useState<NutritionLabel | null>(null);
+  const [parsedMeta, setParsedMeta] = useState<{
+    name?: string;
+    brand?: string;
+    source: "ocr_rules" | "ocr_llm";
+  }>({ source: "ocr_rules" });
   const [evidence, setEvidence] = useState<NutritionScanEvidence>();
   const [manual, setManual] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -49,6 +117,7 @@ export default function NutritionLabelPanel({
   const lease = useRef<NutritionOcr | null>(null),
     generation = useRef(0),
     active = useRef(true);
+
   const stopCamera = useCallback(() => {
     stream.current?.getTracks().forEach((t) => t.stop());
     stream.current = null;
@@ -65,6 +134,7 @@ export default function NutritionLabelPanel({
       setStatus("");
     }
   }, []);
+
   useEffect(() => {
     active.current = true;
     const hide = () => {
@@ -82,6 +152,7 @@ export default function NutritionLabelPanel({
       document.removeEventListener("visibilitychange", hide);
     };
   }, [stopCamera, cancel]);
+
   useEffect(() => {
     if (!busy) {
       setElapsed(0);
@@ -94,12 +165,42 @@ export default function NutritionLabelPanel({
       );
     return () => clearInterval(timer);
   }, [busy]);
+
+  // Fast local blur / glare / exposure check on the cropped photo (<10 ms).
+  const photoQuality = useMemo<ImageQuality | null>(() => {
+    if (!photo) return null;
+    try {
+      const region = photoCropPixels(crop, photo.width, photo.height);
+      const probe = document.createElement("canvas");
+      const scale = Math.min(1, 320 / Math.max(region.width, region.height));
+      probe.width = Math.max(16, Math.round(region.width * scale));
+      probe.height = Math.max(16, Math.round(region.height * scale));
+      const ctx = probe.getContext("2d", { willReadFrequently: true });
+      if (!ctx) return null;
+      ctx.drawImage(
+        photo,
+        region.x,
+        region.y,
+        region.width,
+        region.height,
+        0,
+        0,
+        probe.width,
+        probe.height,
+      );
+      return assessImageQuality(ctx.getImageData(0, 0, probe.width, probe.height));
+    } catch {
+      return null;
+    }
+  }, [photo, crop]);
+
   function showPhoto(canvas: HTMLCanvasElement) {
     setPhoto(canvas);
     setPreview(canvas.toDataURL("image/jpeg", 0.93));
     setCrop({ ...FULL_PHOTO });
     setError("");
   }
+
   async function selectImage(file: File | undefined) {
     if (!file) return;
     cancel();
@@ -143,6 +244,7 @@ export default function NutritionLabelPanel({
       if (active.current && current === generation.current) setBusy(false);
     }
   }
+
   async function startCamera() {
     cancel();
     stopCamera();
@@ -189,7 +291,6 @@ export default function NutritionLabelPanel({
       if (!video.current)
         throw new Error("Pratinjau belum tersedia. Gunakan kamera HP.");
       video.current.srcObject = media;
-      // A stream may arrive without producing a playable video on a webview.
       await Promise.race([
         video.current.play(),
         new Promise<never>((_, reject) => {
@@ -218,18 +319,19 @@ export default function NutritionLabelPanel({
       if (timeout) clearTimeout(timeout);
     }
   }
+
   function capture() {
     const v = video.current;
     if (!v?.videoWidth) {
       setError("Gambar kamera belum siap. Coba kamera HP.");
       return;
     }
-    // Keep the full sensor frame. A rigid overlay must not discard table rows.
     const canvas = labelImage(v, v.videoWidth, v.videoHeight);
     cancel();
     stopCamera();
     showPhoto(canvas);
   }
+
   function rotate() {
     if (!photo) return;
     const canvas = document.createElement("canvas");
@@ -241,6 +343,7 @@ export default function NutritionLabelPanel({
     ctx.drawImage(photo, 0, 0);
     showPhoto(canvas);
   }
+
   async function read() {
     if (!photo || busy) return;
     cancel();
@@ -255,7 +358,7 @@ export default function NutritionLabelPanel({
         if (active.current && current === generation.current)
           setStatus(
             stage === "ready"
-              ? "Membaca angka pada label…"
+              ? "Membaca angka pada label (PaddleOCR)…"
               : "Menyiapkan pembaca. Unduhan pertama bisa lebih lama…",
           );
       });
@@ -270,9 +373,9 @@ export default function NutritionLabelPanel({
         photo.height,
         photoCropPixels(crop, photo.width, photo.height),
       );
-      const read = await readOptimizedNutritionLabel(reader, frame, {
+      const readRes = await readOptimizedNutritionLabel(reader, frame, {
         mode: "quality",
-        maxRescues: 2,
+        maxRescues: 3,
         budgetMs: 14000,
         cancelled: () => !active.current || current !== generation.current,
         onProgress: (method) => {
@@ -280,19 +383,84 @@ export default function NutritionLabelPanel({
             setStatus(
               method === "original"
                 ? "Membaca angka pada label…"
-                : "Memperjelas tulisan dan membaca ulang…",
+                : method === "rotate90" || method === "rotate270"
+                  ? "Mencoba orientasi tegak…"
+                  : method === "clahe"
+                    ? "Menyesuaikan kontras lokal (CLAHE)…"
+                    : "Memperjelas tulisan dan membaca ulang…",
             );
         },
       });
       if (!active.current || current !== generation.current) return;
-      if (!nutritionCoreCount(read.label)) {
+
+      let finalLabel = readRes.label;
+      let finalEvidence = readRes.evidence;
+      let finalMeta: { name?: string; brand?: string; source: "ocr_rules" | "ocr_llm" } = {
+        source: "ocr_rules",
+      };
+
+      // Stage 2: Structured LLM fallback ONLY when Stage 1 misses fields, has low
+      // confidence, ambiguous layout/units, or warnings. Gracefully skips if no key is configured.
+      const winnerPred =
+        readRes.evidence.predictions.find(
+          (p) => p.method === readRes.evidence.method,
+        ) ?? readRes.evidence.predictions[0];
+
+      if (winnerPred && labelNeedsLlmAssist(winnerPred)) {
+        setStatus("Merapikan tabel nutrisi dengan bantuan AI…");
+        const llmStart = performance.now();
+        const llm = await requestLlmFallback({
+          ocrText: readRes.label.text,
+          items: readRes.items,
+          imageDataUrl: readRes.croppedDataUrl,
+          barcode,
+        });
+        if (!active.current || current !== generation.current) return;
+        if (llm && nutritionCoreCount(llm.label) > 0) {
+          const llmPred: VariantPrediction = {
+            method: "llm",
+            confidence: llm.confidence,
+            label: llm.label,
+            elapsedMs: performance.now() - llmStart,
+            preprocessMs: 0,
+          };
+          const stage1Score = nutritionReadScore(winnerPred);
+          const llmScore = nutritionReadScore(llmPred);
+          // Prefer LLM when it fills more core fields or yields a higher validation score.
+          if (
+            nutritionCoreCount(llm.label) > nutritionCoreCount(readRes.label) ||
+            llmScore > stage1Score
+          ) {
+            finalLabel = llm.label;
+            finalEvidence = {
+              ...readRes.evidence,
+              method: "llm",
+              confidence: llm.confidence,
+              classification:
+                nutritionCoreCount(llm.label) >= 2
+                  ? "Tabel nutrisi"
+                  : "Label belum lengkap",
+              predictions: [...readRes.evidence.predictions, llmPred],
+              usedLlmFallback: true,
+            };
+            finalMeta = {
+              name: llm.productName ?? undefined,
+              brand: llm.brand ?? undefined,
+              source: "ocr_llm",
+            };
+          }
+        }
+      }
+
+      if (!nutritionCoreCount(finalLabel)) {
         setError(
-          "Angka nutrisi belum terbaca. Crop lebih dekat ke tabel, putar jika menyamping, lalu baca lagi.",
+          "Angka nutrisi belum terbaca. Crop lebih dekat ke tabel, putar jika menyamping, atau hindari silau lalu baca lagi.",
         );
         return;
       }
-      setEvidence(read.evidence);
-      setResult(read.label);
+      setParsedMeta(finalMeta);
+      setEvidence(finalEvidence);
+      setResult(finalLabel);
     } catch (e) {
       if (active.current && current === generation.current)
         setError(
@@ -307,11 +475,13 @@ export default function NutritionLabelPanel({
       if (active.current && current === generation.current) setBusy(false);
     }
   }
+
   function close() {
     cancel();
     stopCamera();
     onClose();
   }
+
   const pickers = (
     <>
       <input
@@ -339,15 +509,32 @@ export default function NutritionLabelPanel({
       />
     </>
   );
+
   if (manual)
-    return <ManualFoodSheet initial={initial} onClose={close} onAdd={onAdd} />;
+    return (
+      <ManualFoodSheet
+        initial={initial}
+        barcode={barcode}
+        barcodeProduct={barcodeProduct}
+        scanSource="manual"
+        onClose={close}
+        onAdd={onAdd}
+      />
+    );
   if (result)
     return (
       <ManualFoodSheet
         label={result}
         preview={evidence?.original}
         scanEvidence={evidence}
-        initial={{ ...initial, name: initial?.name || "Snack" }}
+        barcode={barcode}
+        barcodeProduct={barcodeProduct}
+        scanSource={parsedMeta.source}
+        initial={{
+          ...initial,
+          name: initial?.name || parsedMeta.name || "Snack",
+          brand: initial?.brand || parsedMeta.brand,
+        }}
         onClose={close}
         onAdd={onAdd}
         onRescan={() => {
@@ -357,9 +544,10 @@ export default function NutritionLabelPanel({
         }}
       />
     );
+
   return (
     <FriendlySheet
-      title="Scan label"
+      title="Scan kemasan"
       className="nutrition-scan-sheet"
       onClose={close}
       footer={
@@ -382,7 +570,7 @@ export default function NutritionLabelPanel({
                 </button>
               ) : camera === "ready" ? (
                 <button className="primary-button" onClick={capture}>
-                  Foto & periksa
+                  Foto &amp; periksa
                 </button>
               ) : (
                 <button
@@ -393,7 +581,7 @@ export default function NutritionLabelPanel({
                     cameraInput.current?.click();
                   }}
                 >
-                  Ambil foto
+                  Ambil foto label
                 </button>
               )}
               <div className="scan-dock-row">
@@ -432,6 +620,31 @@ export default function NutritionLabelPanel({
       }
     >
       {pickers}
+      {onSwitchToBarcode && (
+        <div className="scan-mode-tabs" role="tablist" aria-label="Mode pindai">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={false}
+            onClick={() => {
+              cancel();
+              stopCamera();
+              onSwitchToBarcode();
+            }}
+          >
+            Barcode (cepat)
+          </button>
+          <button type="button" role="tab" aria-selected={true} className="is-active">
+            Label nutrisi
+          </button>
+        </div>
+      )}
+      {barcode && (
+        <p className="scan-barcode-pill">
+          Menyambungkan ke barcode <strong>{barcode}</strong> — hasil akan disimpan
+          otomatis agar scan berikutnya instan.
+        </p>
+      )}
       {photo ? (
         <>
           <p className="label-intro">
@@ -444,6 +657,13 @@ export default function NutritionLabelPanel({
             onChange={setCrop}
             disabled={busy}
           />
+          {photoQuality && !photoQuality.ok && (
+            <div className="scan-quality-warn" role="status">
+              {photoQuality.warnings.map((w) => (
+                <p key={w}>{w}</p>
+              ))}
+            </div>
+          )}
           <div className="scan-photo-tools">
             <button className="text-button" disabled={busy} onClick={rotate}>
               Putar 90°
@@ -477,7 +697,7 @@ export default function NutritionLabelPanel({
                 <p>
                   Label Indonesia, English, atau 中文.
                   <br />
-                  Boleh dari kamera atau foto yang sudah ada.
+                  Ratakan kemasan, hindari pantulan cahaya.
                 </p>
               </div>
             )}
@@ -488,7 +708,7 @@ export default function NutritionLabelPanel({
             )}
           </div>
           <p className="label-intro">
-            Dekatkan sampai tulisannya jelas. Hindari pantulan cahaya.
+            Dekatkan sampai tulisannya jelas. Hindari pantulan cahaya &amp; bayangan.
           </p>
           <button
             className="text-button scan-browser-camera"
@@ -513,7 +733,8 @@ export default function NutritionLabelPanel({
         </p>
       )}
       <p className="label-privacy">
-        Foto diproses di perangkatmu. Hasil bisa dikoreksi sebelum disimpan.
+        Pembacaan utama berjalan di perangkatmu (PaddleOCR). Semua hasil bisa
+        dikoreksi sebelum disimpan.
       </p>
     </FriendlySheet>
   );

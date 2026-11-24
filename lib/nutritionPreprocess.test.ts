@@ -88,3 +88,37 @@ test("invalid dimensions are rejected before allocating filters", () => {
     ),
   );
 });
+
+test("CLAHE enhances uneven-lit regions while leaving genuinely flat images intact", async () => {
+  const { assessImageQuality, rescueImageMethods } = await import(
+    "./nutritionPreprocess.ts"
+  );
+  const flat = image(new Array(64).fill(120), 8);
+  const flatOut = preprocessPixels(flat, "clahe");
+  assert.equal(new Set(flatOut.data.filter((_, i) => i % 4 !== 3)).size, 1);
+
+  // Uneven lighting: left half dim text (40 vs 70), right half bright glare (230 vs 250)
+  const unevenVals: number[] = [];
+  for (let y = 0; y < 32; y++) {
+    for (let x = 0; x < 32; x++) {
+      const darkSide = x < 16;
+      const stroke = y % 4 === 0;
+      unevenVals.push(darkSide ? (stroke ? 40 : 75) : stroke ? 220 : 252);
+    }
+  }
+  const uneven = image(unevenVals, 32);
+  const claheOut = preprocessPixels(uneven, "clahe");
+  assert.equal(claheOut.width, 32);
+  assert.equal(claheOut.height, 32);
+  // Dark side contrast between stroke (y=0) and background (y=1) increases substantially
+  const darkDiffBefore = Math.abs(unevenVals[0] - unevenVals[32]);
+  const darkDiffAfter = Math.abs(claheOut.data[0] - claheOut.data[32 * 4]);
+  assert.ok(darkDiffAfter > darkDiffBefore);
+
+  // Quality assessment catches dark and low-contrast photos and prioritizes CLAHE
+  const dark = image(new Array(400).fill(25), 20);
+  const q = assessImageQuality(dark);
+  assert.equal(q.isTooDark, true);
+  assert.equal(q.ok, false);
+  assert.equal(rescueImageMethods(imageStatistics(dark), q)[0], "clahe");
+});

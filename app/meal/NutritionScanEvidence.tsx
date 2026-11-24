@@ -18,15 +18,22 @@ export default function NutritionScanEvidence({
       ? "Fokus tabel"
       : method === "scale"
         ? "Ukuran alternatif"
-        : IMAGE_METHODS[method];
+        : method === "rotate90"
+          ? "Putar otomatis 90°"
+          : method === "rotate270"
+            ? "Putar otomatis 270°"
+            : method === "llm"
+              ? "Bantuan AI terstruktur"
+              : IMAGE_METHODS[method];
+  const winner =
+    evidence.predictions.find((p) => p.method === evidence.method) ??
+    evidence.predictions[0];
   return (
     <details className="label-evidence label-scan-result">
       <summary>
-        Lihat foto & hasil baca (
-        {nutritionCoreCount(
-          evidence.predictions.find((p) => p.method === evidence.method)!.label,
-        )}
-        /4 nutrisi utama)
+        Lihat foto & hasil baca ({winner ? nutritionCoreCount(winner.label) : 0}
+        /4 nutrisi utama
+        {evidence.usedLlmFallback ? " · AI" : ""})
       </summary>
       <div className="label-image-comparison">
         <figure>
@@ -50,8 +57,8 @@ export default function NutritionScanEvidence({
       </div>
       <details className="label-variant-details">
         <summary>Hasil tiap versi ({evidence.predictions.length})</summary>
-        {evidence.predictions.map((prediction) => (
-          <div className="label-variant-result" key={prediction.method}>
+        {evidence.predictions.map((prediction, idx) => (
+          <div className="label-variant-result" key={`${prediction.method}-${idx}`}>
             <strong>
               {methodName(prediction.method)}
               {prediction.method === evidence.method ? " · Terpilih" : ""}

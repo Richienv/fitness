@@ -175,3 +175,71 @@ test("declared 100ml basis survives when only minerals are present", () => {
   assert.equal(product?.kcal, null);
   assert.equal(product?.protein, null);
 });
+
+test("barcode stabilizer requires consecutive matching frames before locking", async () => {
+  const { createBarcodeStabilizer } = await import("./barcode.ts");
+  const stab = createBarcodeStabilizer(2, 2000);
+  assert.equal(stab.push("8991002101234", 1000), null);
+  assert.equal(stab.push("8991002101235", 1200), null); // different barcode resets count
+  assert.equal(stab.push("8991002101235", 1500), "8991002101235"); // 2 consecutive hits lock
+  // Expired gap resets confirmation
+  stab.reset();
+  assert.equal(stab.push("8991002101234", 1000), null);
+  assert.equal(stab.push("8991002101234", 5000), null);
+});
+
+test("serving mass and extended nutrients are extracted from Open Food Facts", () => {
+  const product = parseBarcodeProduct(
+    {
+      product: {
+        code: "8991002101234",
+        product_name_id: "Mie Instan",
+        serving_size: "1 bungkus (85 g)",
+        nutrition_data_per: "100g",
+        nutriments: {
+          "energy-kcal_100g": 450,
+          proteins_100g: 10,
+          carbohydrates_100g: 62,
+          fat_100g: 18,
+          "saturated-fat_100g": 8,
+          fiber_100g: 3,
+          sodium_100g: 1.2, // 1.2 g = 1200 mg
+        },
+      },
+    },
+    "8991002101234",
+  )!;
+  assert.equal(product.servingSizeG, 85);
+  assert.equal(product.sodium, 1200);
+  assert.equal(product.saturatedFat, 8);
+  assert.equal(product.fiber, 3);
+});
+
+test("barcode vs scanned label conflict detection flags meaningful discrepancies", async () => {
+  const { detectBarcodeLabelConflicts } = await import("./barcode.ts");
+  const { parseNutritionLabel } = await import("./nutritionLabel.ts");
+  const product = parseBarcodeProduct(
+    {
+      product: {
+        code: "8991002101234",
+        product_name_id: "Snack",
+        nutrition_data_per: "100g",
+        nutriments: {
+          "energy-kcal_100g": 400,
+          proteins_100g: 10,
+          carbohydrates_100g: 50,
+          fat_100g: 15,
+        },
+      },
+    },
+    "8991002101234",
+  )!;
+  const scanned = parseNutritionLabel(
+    "Per 100 g\nEnergi Total 520 kkal\nProtein 10 g\nKarbohidrat Total 51 g\nLemak Total 28 g",
+  );
+  const conflicts = detectBarcodeLabelConflicts(product, scanned);
+  assert.deepEqual(
+    conflicts.map((c) => c.key),
+    ["kcal", "fat"],
+  );
+});

@@ -1,22 +1,57 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { validBarcode, type BarcodeProduct } from "@/lib/barcode";
+import {
+  createBarcodeStabilizer,
+  validBarcode,
+  type BarcodeProduct,
+} from "@/lib/barcode";
+import {
+  getCachedBarcode,
+  recordScanAudit,
+  saveCachedBarcode,
+} from "@/lib/barcodeCache";
 import type { RecipeFood } from "@/lib/recipes";
 import FriendlySheet from "./FriendlySheet";
 import ManualFoodSheet from "./ManualFoodSheet";
 import NutritionSummary from "./NutritionSummary";
 import Icon from "../ui/Icon";
 import dynamic from "next/dynamic";
+
 const NutritionLabelPanel = dynamic(() => import("./NutritionLabelPanel"), {
   ssr: false,
 });
+
 type CameraControls = { stop: () => void };
+
+type NativeBarcodeDetector = {
+  detect: (source: ImageBitmapSource) => Promise<{ rawValue?: string }[]>;
+};
+
+function createNativeDetector(): NativeBarcodeDetector | null {
+  if (typeof window === "undefined") return null;
+  const Ctor = (
+    window as unknown as {
+      BarcodeDetector?: new (opts?: { formats?: string[] }) => NativeBarcodeDetector;
+    }
+  ).BarcodeDetector;
+  if (!Ctor) return null;
+  try {
+    return new Ctor({
+      formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "itf"],
+    });
+  } catch {
+    return null;
+  }
+}
+
 export default function BarcodePanel({
   onClose,
   onAdd,
+  startInLabel = false,
 }: {
   onClose: () => void;
   onAdd: (food: RecipeFood) => void;
+  startInLabel?: boolean;
 }) {
   const [code, setCode] = useState("");
   const [product, setProduct] = useState<BarcodeProduct | null>(null);
@@ -24,10 +59,10 @@ export default function BarcodePanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [manual, setManual] = useState(false);
-  const [labelScan, setLabelScan] = useState(false);
+  const [labelScan, setLabelScan] = useState(startInLabel);
   const [cameraState, setCameraState] = useState<
     "starting" | "scanning" | "stopped"
-  >("starting");
+  >(startInLabel ? "stopped" : "starting");
   const [snapshot, setSnapshot] = useState("");
   const [scanHint, setScanHint] = useState("");
   const scanning = cameraState !== "stopped";
@@ -35,16 +70,21 @@ export default function BarcodePanel({
   const controls = useRef<CameraControls | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const raf = useRef<ReturnType<typeof setTimeout> | null>(null);
   const generation = useRef(0);
   const scanFound = useRef(false);
+  const stabilizer = useRef(createBarcodeStabilizer(2, 2500));
   const cache = useRef(new Map<string, BarcodeProduct | null>());
   const abort = useRef<AbortController | null>(null);
   const active = useRef(false);
-  const wantsCamera = useRef(true);
+  const wantsCamera = useRef(!startInLabel);
+
   const stopCamera = useCallback(() => {
     generation.current++;
     controls.current?.stop();
     controls.current = null;
+    if (raf.current) clearTimeout(raf.current);
+    raf.current = null;
     stream.current?.getTracks().forEach((t) => t.stop());
     stream.current = null;
     if (timer.current) clearTimeout(timer.current);
@@ -52,10 +92,12 @@ export default function BarcodePanel({
     if (video.current) video.current.srcObject = null;
     if (active.current) setCameraState("stopped");
   }, []);
+
   function pauseCamera() {
     wantsCamera.current = false;
     stopCamera();
   }
+
   const lookup = useCallback(
     async (raw: string, refresh = false) => {
       wantsCamera.current = false;
@@ -70,16 +112,40 @@ export default function BarcodePanel({
         setError("Masukkan 8–14 angka barcode yang tercetak pada kemasan.");
         return;
       }
+
+      // 1. Instant localStorage cache check (works even offline!)
+      if (!refresh) {
+        const localHit = getCachedBarcode(next);
+        if (localHit) {
+          cache.current.set(next, localHit);
+          setProduct(localHit);
+          setAmount(localHit.basis === "serving" ? "1" : "100");
+          recordScanAudit({
+            source: "barcode_cache",
+            barcode: next,
+            coreFields: [
+              localHit.kcal,
+              localHit.protein,
+              localHit.carbs,
+              localHit.fat,
+            ].filter((v) => v !== null).length,
+          });
+          return;
+        }
+      }
+
       if (!navigator.onLine) {
         setError(
-          "Koneksi terputus. Sambungkan internet atau tambah makanan manual.",
+          "Koneksi terputus dan produk belum ada di cache perangkat. Scan label nutrisi atau isi manual.",
         );
         return;
       }
+
       abort.current?.abort();
       const controller = new AbortController();
       abort.current = controller;
       setLoading(true);
+      const started = performance.now();
       try {
         let found: BarcodeProduct | null;
         if (!refresh && cache.current.has(next))
@@ -99,22 +165,40 @@ export default function BarcodePanel({
               data.error || "Database produk belum bisa dihubungi. Coba lagi.",
             );
           } else found = data.product;
-          if (found) cache.current.set(next, found);
-          else cache.current.delete(next);
+          if (found) {
+            cache.current.set(next, found);
+            if (found.kcal !== null) saveCachedBarcode(found);
+          } else cache.current.delete(next);
         }
         if (!controller.signal.aborted && active.current) {
           setProduct(found);
           setAmount(found?.basis === "serving" ? "1" : "100");
-          if (!found)
+          if (found) {
+            recordScanAudit({
+              source:
+                found.source === "openfoodfacts"
+                  ? "openfoodfacts"
+                  : "barcode_cache",
+              barcode: next,
+              coreFields: [
+                found.kcal,
+                found.protein,
+                found.carbs,
+                found.fat,
+              ].filter((v) => v !== null).length,
+              elapsedMs: performance.now() - started,
+            });
+          } else {
             setError(
-              "Barcode terbaca, tetapi produk ini belum ada di Open Food Facts. Scan label nutrisi atau isi manual untuk mencatatnya.",
+              "Barcode terbaca, tetapi produk ini belum ada di database. Scan label nutrisinya agar tersimpan otomatis untuk scan berikutnya.",
             );
+          }
         }
       } catch (e) {
         if (!controller.signal.aborted && active.current)
           setError(
             !navigator.onLine
-              ? "Koneksi terputus. Sambungkan internet atau tambah makanan manual."
+              ? "Koneksi terputus. Scan label nutrisi atau tambah makanan manual."
               : e instanceof Error
                 ? e.message
                 : "Database produk belum bisa dihubungi. Coba lagi.",
@@ -125,6 +209,27 @@ export default function BarcodePanel({
     },
     [stopCamera],
   );
+
+  const captureVideoSnapshot = useCallback(() => {
+    const preview = video.current;
+    if (preview?.videoWidth && preview.videoHeight) {
+      try {
+        const frame = document.createElement("canvas");
+        frame.width = Math.min(preview.videoWidth, 640);
+        frame.height = Math.round(
+          preview.videoHeight * (frame.width / preview.videoWidth),
+        );
+        const context = frame.getContext("2d");
+        if (context) {
+          context.drawImage(preview, 0, 0, frame.width, frame.height);
+          setSnapshot(frame.toDataURL("image/jpeg", 0.8));
+        }
+      } catch {
+        // Never discard a decoded barcode on snapshot failure.
+      }
+    }
+  }, []);
+
   const startCamera = useCallback(async () => {
     wantsCamera.current = true;
     stopCamera();
@@ -137,11 +242,12 @@ export default function BarcodePanel({
     setScanHint("");
     setCameraState("starting");
     scanFound.current = false;
+    stabilizer.current.reset();
     const run = ++generation.current;
     try {
       if (!navigator.mediaDevices?.getUserMedia)
         throw new Error(
-          "Kamera tidak tersedia di browser ini. Masukkan nomor barcode di bawah.",
+          "Kamera tidak tersedia di browser ini. Ketik barcode atau beralih ke tab Label nutrisi.",
         );
       const camera = await navigator.mediaDevices.getUserMedia({
         audio: false,
@@ -156,101 +262,129 @@ export default function BarcodePanel({
         return;
       }
       stream.current = camera;
-      const [
-        { BrowserMultiFormatOneDReader },
-        {
-          DecodeHintType,
-          BarcodeFormat,
-          NotFoundException,
-          ChecksumException,
-          FormatException,
-        },
-      ] = await Promise.all([
-        import("@zxing/browser"),
-        import("@zxing/library"),
-      ]);
-      if (!active.current || run !== generation.current) {
-        camera.getTracks().forEach((t) => t.stop());
-        return;
-      }
       if (!video.current) throw new Error("Pratinjau kamera tidak tersedia.");
-      const hints = new Map();
-      hints.set(DecodeHintType.TRY_HARDER, true);
-      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-        BarcodeFormat.EAN_13,
-        BarcodeFormat.EAN_8,
-        BarcodeFormat.UPC_A,
-        BarcodeFormat.UPC_E,
-        BarcodeFormat.CODE_128,
-        BarcodeFormat.ITF,
-      ]);
-      const reader = new BrowserMultiFormatOneDReader(hints, {
-        delayBetweenScanAttempts: 180,
-        delayBetweenScanSuccess: 500,
-      });
-      const control = await reader.decodeFromStream(
-        camera,
-        video.current,
-        (result, err, c) => {
-          if (
-            !active.current ||
-            scanFound.current ||
-            run !== generation.current
-          )
+
+      const onDecodedCandidate = (rawCode: string, stopFn: () => void) => {
+        if (!active.current || scanFound.current || run !== generation.current)
+          return;
+        // Require 2 consecutive identical frames before triggering lookup.
+        const locked = stabilizer.current.push(rawCode);
+        if (!locked) {
+          setScanHint(`Memastikan barcode ${rawCode}… tahan sebentar.`);
+          return;
+        }
+        scanFound.current = true;
+        captureVideoSnapshot();
+        stopFn();
+        void lookup(locked);
+      };
+
+      // Prefer hardware-accelerated native BarcodeDetector when available (~6-8 fps),
+      // falling back to @zxing/browser everywhere else.
+      const nativeDetector = createNativeDetector();
+      if (nativeDetector) {
+        video.current.srcObject = camera;
+        await video.current.play();
+        if (!active.current || run !== generation.current) return;
+        setCameraState("scanning");
+        const poll = async () => {
+          if (!active.current || scanFound.current || run !== generation.current)
             return;
-          if (
-            err &&
-            !(err instanceof NotFoundException) &&
-            !(err instanceof ChecksumException) &&
-            !(err instanceof FormatException)
-          ) {
-            wantsCamera.current = false;
-            c.stop();
-            stopCamera();
-            setError(
-              "Pemindaian terhenti. Coba kamera lagi atau ketik nomor barcode.",
-            );
-            return;
-          }
-          if (!result) return;
-          const read = result.getText();
-          if (!validBarcode(read)) return;
-          scanFound.current = true;
-          // Freeze this frame before the decoder releases the video stream.
-          // This stays in memory; only the barcode number goes to the lookup API.
-          const preview = video.current;
-          if (preview?.videoWidth && preview.videoHeight) {
+          const v = video.current;
+          if (v && v.readyState >= 2 && v.videoWidth > 0) {
             try {
-              const frame = document.createElement("canvas");
-              frame.width = Math.min(preview.videoWidth, 640);
-              frame.height = Math.round(
-                preview.videoHeight * (frame.width / preview.videoWidth),
+              const found = await nativeDetector.detect(v);
+              const hit = found.find(
+                (f) => f.rawValue && validBarcode(f.rawValue.replace(/\s/g, "")),
               );
-              const context = frame.getContext("2d");
-              if (context) {
-                context.drawImage(preview, 0, 0, frame.width, frame.height);
-                setSnapshot(frame.toDataURL("image/jpeg", 0.8));
+              if (hit?.rawValue) {
+                onDecodedCandidate(hit.rawValue, () => {
+                  if (raf.current) clearTimeout(raf.current);
+                  raf.current = null;
+                });
+                if (scanFound.current) return;
               }
             } catch {
-              // A preview failure must not discard a successfully decoded barcode.
+              // Ignore single-frame detection errors.
             }
           }
-          c.stop();
-          void lookup(read);
-        },
-      );
-      if (!active.current || run !== generation.current) {
-        control.stop();
-        return;
+          raf.current = setTimeout(() => void poll(), 140);
+        };
+        raf.current = setTimeout(() => void poll(), 140);
+      } else {
+        const [
+          { BrowserMultiFormatOneDReader },
+          {
+            DecodeHintType,
+            BarcodeFormat,
+            NotFoundException,
+            ChecksumException,
+            FormatException,
+          },
+        ] = await Promise.all([
+          import("@zxing/browser"),
+          import("@zxing/library"),
+        ]);
+        if (!active.current || run !== generation.current) {
+          camera.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        const hints = new Map();
+        hints.set(DecodeHintType.TRY_HARDER, true);
+        hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+          BarcodeFormat.EAN_13,
+          BarcodeFormat.EAN_8,
+          BarcodeFormat.UPC_A,
+          BarcodeFormat.UPC_E,
+          BarcodeFormat.CODE_128,
+          BarcodeFormat.ITF,
+        ]);
+        const reader = new BrowserMultiFormatOneDReader(hints, {
+          delayBetweenScanAttempts: 150,
+          delayBetweenScanSuccess: 300,
+        });
+        const control = await reader.decodeFromStream(
+          camera,
+          video.current,
+          (result, err, c) => {
+            if (
+              !active.current ||
+              scanFound.current ||
+              run !== generation.current
+            )
+              return;
+            if (
+              err &&
+              !(err instanceof NotFoundException) &&
+              !(err instanceof ChecksumException) &&
+              !(err instanceof FormatException)
+            ) {
+              wantsCamera.current = false;
+              c.stop();
+              stopCamera();
+              setError(
+                "Pemindaian terhenti. Coba kamera lagi atau beralih ke Label nutrisi.",
+              );
+              return;
+            }
+            if (!result) return;
+            onDecodedCandidate(result.getText(), () => c.stop());
+          },
+        );
+        if (!active.current || run !== generation.current) {
+          control.stop();
+          return;
+        }
+        controls.current = control;
+        setCameraState("scanning");
       }
-      controls.current = control;
-      setCameraState("scanning");
+
       timer.current = setTimeout(() => {
         if (active.current && run === generation.current)
           setScanHint(
-            "Tambah cahaya dan pastikan seluruh barcode terlihat. Scan tetap berjalan.",
+            "Tambah cahaya dan pastikan seluruh barcode terlihat, atau ketuk tab Label nutrisi.",
           );
-      }, 15000);
+      }, 12000);
     } catch (e) {
       if (!active.current || run !== generation.current) return;
       wantsCamera.current = false;
@@ -258,17 +392,18 @@ export default function BarcodePanel({
       const name = e instanceof Error ? e.name : "";
       setError(
         name === "NotAllowedError"
-          ? "Izin kamera ditolak. Izinkan kamera di pengaturan browser atau ketik barcode."
+          ? "Izin kamera ditolak. Izinkan kamera di browser, ketik barcode, atau beralih ke tab Label nutrisi."
           : name === "NotFoundError"
-            ? "Kamera tidak ditemukan. Ketik nomor barcode dari kemasan."
+            ? "Kamera tidak ditemukan. Ketik barcode atau foto label nutrisi."
             : name === "NotReadableError"
-              ? "Kamera sedang digunakan aplikasi lain. Tutup aplikasi itu atau ketik barcode."
+              ? "Kamera sedang dipakai aplikasi lain. Tutup aplikasi itu atau ketik barcode."
               : e instanceof Error
                 ? e.message
-                : "Kamera belum bisa dibuka. Ketik nomor barcode di bawah.",
+                : "Kamera belum bisa dibuka. Ketik nomor barcode atau foto label nutrisi.",
       );
     }
-  }, [lookup, stopCamera]);
+  }, [lookup, stopCamera, captureVideoSnapshot]);
+
   useEffect(() => {
     active.current = true;
     if (!manual && !labelScan && wantsCamera.current && !document.hidden)
@@ -285,6 +420,7 @@ export default function BarcodePanel({
       document.removeEventListener("visibilitychange", visibility);
     };
   }, [manual, labelScan, startCamera, stopCamera]);
+
   const basis =
     product?.basis === "serving"
       ? "per sajian"
@@ -299,25 +435,46 @@ export default function BarcodePanel({
   };
   const complete = product && Object.values(nutrition).every((v) => v !== null);
   const valid = complete && quantity > 0 && Number.isFinite(quantity);
+
+  function openLabelTab() {
+    pauseCamera();
+    abort.current?.abort();
+    setLoading(false);
+    setLabelScan(true);
+  }
+
   if (labelScan)
     return (
       <NutritionLabelPanel
-        onClose={() => setLabelScan(false)}
+        onClose={() => onClose()}
         onAdd={onAdd}
+        barcode={validBarcode(code) ? code : undefined}
+        barcodeProduct={product}
         initial={
-          product && !product.nameMissing ? { name: product.name } : undefined
+          product && !product.nameMissing
+            ? { name: product.name, brand: product.brand }
+            : undefined
         }
+        onSwitchToBarcode={() => {
+          setLabelScan(false);
+          wantsCamera.current = true;
+        }}
       />
     );
+
   if (manual)
     return (
       <ManualFoodSheet
         onClose={() => setManual(false)}
         onAdd={onAdd}
+        barcode={validBarcode(code) ? code : undefined}
+        barcodeProduct={product}
+        scanSource="manual"
         initial={
           product
             ? {
                 name: product.name,
+                brand: product.brand,
                 ...nutrition,
                 unit:
                   product.basis === "serving"
@@ -328,28 +485,33 @@ export default function BarcodePanel({
         }
       />
     );
+
   return (
     <FriendlySheet
-      title="Scan barcode"
+      title="Scan kemasan"
+      className="nutrition-scan-sheet"
       onClose={() => {
         pauseCamera();
         onClose();
       }}
     >
+      <div className="scan-mode-tabs" role="tablist" aria-label="Mode pindai">
+        <button type="button" role="tab" aria-selected={true} className="is-active">
+          Barcode (cepat)
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={false}
+          onClick={openLabelTab}
+        >
+          Label nutrisi
+        </button>
+      </div>
       <p className="quiet">
-        Arahkan kamera ke barcode. Produk dicari otomatis begitu terbaca.
+        Arahkan ke barcode dulu — lebih cepat &amp; akurat. Kalau belum terdaftar,
+        tinggal lanjut scan tabel nutrisinya.
       </p>
-      <button
-        className="secondary-button"
-        onClick={() => {
-          pauseCamera();
-          abort.current?.abort();
-          setLoading(false);
-          setLabelScan(true);
-        }}
-      >
-        Scan label nutrisi
-      </button>
       <div
         className={`barcode-camera${scanning ? " scanning" : ""}${snapshot ? " captured" : ""}`}
       >
@@ -377,7 +539,7 @@ export default function BarcodePanel({
           : cameraState === "starting"
             ? "Izinkan kamera jika browser meminta izin."
             : cameraState === "scanning"
-              ? scanHint || "Scan aktif. Tidak perlu menekan tombol."
+              ? scanHint || "Scan barcode aktif (konfirmasi 2 frame otomatis)."
               : code
                 ? `Barcode: ${code}`
                 : "Kamera berhenti."}
@@ -393,16 +555,28 @@ export default function BarcodePanel({
       )}
       {error && (
         <div className="status-message" role="status">
-          {error}
-          {validBarcode(code) && (
+          <p>{error}</p>
+          <div className="scan-fallback-actions">
             <button
-              className="text-button"
-              disabled={loading}
-              onClick={() => void lookup(code, true)}
+              type="button"
+              className="primary-button"
+              onClick={openLabelTab}
             >
-              Coba cari produk lagi
+              {validBarcode(code)
+                ? "Scan label nutrisi kemasan ini"
+                : "Foto label nutrisi"}
             </button>
-          )}
+            {validBarcode(code) && (
+              <button
+                type="button"
+                className="text-button"
+                disabled={loading}
+                onClick={() => void lookup(code, true)}
+              >
+                Cari ulang di Open Food Facts
+              </button>
+            )}
+          </div>
         </div>
       )}
       {product && (
@@ -417,16 +591,24 @@ export default function BarcodePanel({
           {product.brand && <p>{product.brand}</p>}
           <p className="quiet">
             Sumber:{" "}
-            <a
-              href={`https://world.openfoodfacts.org/product/${product.code}`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Open Food Facts
-            </a>
+            {product.source === "user_confirmed" ? (
+              <strong>Cache R2 Fit (terverifikasi)</strong>
+            ) : (
+              <a
+                href={`https://world.openfoodfacts.org/product/${product.code}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open Food Facts{product.source === "cache" ? " (cache)" : ""}
+              </a>
+            )}
           </p>
           <p className="quiet">
-            {product.serving ? `Sajian pada kemasan: ${product.serving}. ` : ""}
+            {product.serving
+              ? `Sajian pada kemasan: ${product.serving}. `
+              : product.servingSizeG
+                ? `Takaran saji: ${product.servingSizeG} g. `
+                : ""}
             Acuan nutrisi {basis}.
           </p>
           <label className="field-label">
@@ -445,36 +627,74 @@ export default function BarcodePanel({
             caption="Jumlah yang akan dicatat"
           />
           {!complete && (
-            <p className="status-message">
-              Produk ditemukan, tetapi data nutrisi belum lengkap di Open Food
-              Facts. Scan label nutrisi untuk melengkapi sebelum mencatat.
-            </p>
+            <div className="status-message">
+              <p>
+                Produk ditemukan, tetapi data nutrisi belum lengkap. Scan label
+                nutrisi untuk melengkapi dan menyimpan ke cache.
+              </p>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={openLabelTab}
+              >
+                Scan label nutrisi untuk melengkapi
+              </button>
+            </div>
           )}
-          <button
-            className="primary-button"
-            disabled={!valid}
-            onClick={() => {
-              if (!valid || !product) return;
-              onAdd({
-                id: `barcode_${product.code}_${crypto.randomUUID()}`,
-                name: `${product.name}${product.brand ? ` · ${product.brand}` : ""}`,
-                unit:
-                  product.basis === "serving"
-                    ? `${quantity} sajian`
-                    : `${quantity} ${product.basis}`,
-                kcal: nutrition.kcal!,
-                protein: nutrition.protein!,
-                carbs: nutrition.carbs!,
-                fat: nutrition.fat!,
-                ...(product.basis === "g" ? { gramsPerUnit: quantity } : {}),
-                ...(product.sugar === null
-                  ? {}
-                  : { sugar: product.sugar * multiplier }),
-              });
-            }}
-          >
-            Tambahkan ke pilihan makan
-          </button>
+          {complete && (
+            <>
+              <button
+                className="primary-button"
+                disabled={!valid}
+                onClick={() => {
+                  if (!valid || !product) return;
+                  const gramsPerUnit =
+                    product.basis === "g"
+                      ? quantity
+                      : product.basis === "serving" && product.servingSizeG
+                        ? quantity * product.servingSizeG
+                        : undefined;
+                  onAdd({
+                    id: `barcode_${product.code}_${crypto.randomUUID()}`,
+                    name: `${product.name}${product.brand ? ` · ${product.brand}` : ""}`,
+                    unit:
+                      product.basis === "serving"
+                        ? `${quantity} sajian`
+                        : `${quantity} ${product.basis}`,
+                    kcal: nutrition.kcal!,
+                    protein: nutrition.protein!,
+                    carbs: nutrition.carbs!,
+                    fat: nutrition.fat!,
+                    ...(gramsPerUnit ? { gramsPerUnit } : {}),
+                    ...(product.sugar == null
+                      ? {}
+                      : { sugar: product.sugar * multiplier }),
+                    ...(product.sodium == null
+                      ? {}
+                      : { sodium: product.sodium * multiplier }),
+                    ...(product.salt == null
+                      ? {}
+                      : { salt: product.salt * multiplier }),
+                    ...(product.saturatedFat == null
+                      ? {}
+                      : { saturatedFat: product.saturatedFat * multiplier }),
+                    ...(product.fiber == null
+                      ? {}
+                      : { fiber: product.fiber * multiplier }),
+                  });
+                }}
+              >
+                Tambahkan ke pilihan makan
+              </button>
+              <button
+                type="button"
+                className="text-button"
+                onClick={openLabelTab}
+              >
+                Angka beda dengan kemasan? Scan label untuk perbaiki
+              </button>
+            </>
+          )}
         </section>
       )}
       <details

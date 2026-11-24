@@ -1,5 +1,5 @@
-/* Home's main feature: today's estimated fat change (24 Nov 2026). Calm tokens
-   from app/calm.css; one accent, numbers right-aligned and tabular. */
+/* Home's main feature: real-time body weight & fat change per second and per
+   meal. Calm tokens from app/calm.css; tabular numbers throughout. */
 .eb {
   margin: 0 0 16px;
   padding: 18px 16px 14px;
@@ -15,42 +15,212 @@
 }
 .eb-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
 }
 .eb-tag {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--calm-muted);
+}
+.eb-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--calm-accent-soft, #eef7f1);
+  color: var(--calm-accent);
+  font-size: 12px;
+  font-weight: 650;
+}
+.eb-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--calm-accent);
+  animation: eb-pulse 1.8s ease-in-out infinite;
+}
+@keyframes eb-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.8);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .eb-dot {
+    animation: none;
+  }
+}
+.eb-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: 6px;
+  margin-top: 12px;
+  padding: 4px;
+  border-radius: 12px;
+  background: #f5f5f5;
+}
+.eb-tabs button {
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--calm-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+.eb-tabs button.is-active {
+  background: #fff;
+  color: var(--calm-text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.eb-mode-hint {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: var(--calm-muted);
+}
+.eb-hero-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 6px;
 }
 .eb-hero {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  margin: 10px 0 0;
+  gap: 7px;
+  margin: 0;
 }
 .eb-hero strong {
-  font-size: 48px;
-  line-height: 1;
+  font-size: 40px;
+  line-height: 1.05;
   font-weight: 800;
-  letter-spacing: -1.5px;
+  letter-spacing: -1.4px;
   font-variant-numeric: tabular-nums;
 }
 .eb-hero strong.down {
   color: var(--calm-accent);
 }
+.eb-hero strong.up {
+  color: #b44332;
+}
 .eb-hero span {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 650;
+  color: var(--calm-muted);
+}
+.eb-est-weight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: #f8f8f7;
+  border: 1px solid var(--calm-border);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.eb-est-weight small {
+  font-size: 11px;
+  color: var(--calm-muted);
+}
+.eb-est-weight strong {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.eb-est-weight strong small {
+  font-size: 12px;
+  font-weight: 600;
+}
+.eb-est-weight span {
+  font-size: 11px;
+  color: var(--calm-muted);
+}
+.eb-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+.eb-pill {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #fafaf9;
+  border: 1px solid var(--calm-border);
+  font-variant-numeric: tabular-nums;
+}
+.eb-pill small {
+  display: block;
+  font-size: 11.5px;
+  color: var(--calm-muted);
+}
+.eb-pill strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 18px;
+  font-weight: 800;
+}
+.eb-pill strong.down {
+  color: var(--calm-accent);
+}
+.eb-pill span {
+  display: block;
+  margin-top: 1px;
+  font-size: 11.5px;
+  color: var(--calm-muted);
+}
+.eb-rate {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #f6faf7;
+  border: 1px solid #d9ece0;
+  font-variant-numeric: tabular-nums;
+}
+.eb-rate-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.eb-rate-head span {
+  color: var(--calm-muted);
+  font-weight: 600;
+}
+.eb-rate-head strong {
+  color: var(--calm-accent);
+  font-size: 14px;
+  font-weight: 800;
+}
+.eb-rate-detail {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--calm-text);
+}
+.eb-rate-detail.quiet {
+  font-size: 11.5px;
   color: var(--calm-muted);
 }
 .eb-sub,
 .eb-goal,
-.eb-sofar,
 .eb-lead {
-  margin: 8px 0 0;
-  font-size: 14px;
+  margin: 10px 0 0;
+  font-size: 13.5px;
   line-height: 1.5;
   color: var(--calm-muted);
 }
@@ -66,6 +236,84 @@
   margin-top: 14px;
   text-decoration: none;
 }
+.eb-meals {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--calm-border);
+}
+.eb-meals-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.eb-meals-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+.eb-meals-head span {
+  font-size: 12px;
+  color: var(--calm-muted);
+  font-variant-numeric: tabular-nums;
+}
+.eb-meals-empty {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--calm-muted);
+}
+.eb-meal-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.eb-meal-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  background: #fafaf9;
+  border: 1px solid var(--calm-border);
+}
+.eb-meal-info {
+  min-width: 0;
+}
+.eb-meal-info strong {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.eb-meal-info strong small {
+  font-weight: 500;
+  color: var(--calm-muted);
+}
+.eb-meal-info span {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--calm-muted);
+}
+.eb-meal-impact {
+  flex: none;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.eb-meal-impact strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+  color: #b44332;
+}
+.eb-meal-impact small {
+  display: block;
+  font-size: 11.5px;
+  color: var(--calm-muted);
+}
 .eb-rows {
   margin: 14px 0 0;
   border-top: 1px solid var(--calm-border);
@@ -75,31 +323,31 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  min-height: 52px;
+  min-height: 48px;
   padding: 8px 0;
   border-bottom: 1px solid var(--calm-border);
 }
 .eb-rows dt {
-  font-size: 15px;
+  font-size: 14.5px;
   font-weight: 600;
 }
 .eb-rows dt small {
   display: block;
   margin-top: 1px;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
   color: var(--calm-muted);
 }
 .eb-rows dd {
   margin: 0;
-  font-size: 17px;
+  font-size: 16.5px;
   font-weight: 700;
   text-align: right;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 .eb-rows dd small {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--calm-muted);
 }
@@ -108,7 +356,7 @@
 }
 .eb-rows .total dt,
 .eb-rows .total dd {
-  font-size: 17px;
+  font-size: 16.5px;
   font-weight: 800;
 }
 .eb-how {
@@ -119,12 +367,13 @@
   align-items: center;
   min-height: 44px;
   color: var(--calm-accent);
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
 }
 .eb-how summary:focus-visible,
-.eb-cta:focus-visible {
+.eb-cta:focus-visible,
+.eb-tabs button:focus-visible {
   outline: 2px solid var(--calm-accent);
   outline-offset: 2px;
 }
@@ -133,7 +382,7 @@
   padding-left: 18px;
   display: grid;
   gap: 8px;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.5;
   color: var(--calm-muted);
 }

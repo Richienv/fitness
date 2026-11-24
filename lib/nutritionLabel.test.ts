@@ -336,3 +336,34 @@ test("actual curved snack geometry keeps energy and grams on their own rows", as
   assert.equal(lays.values.kcal, 160);
   assert.equal(lays.values.fat, 10);
 });
+
+test("Indonesian Takaran Saji mass, split lines, dual kJ/kcal and OCR typos parse reliably", () => {
+  const label = parseNutritionLabel(`INFORMASI NILAI GIZI
+Takaran Saji 1 bungkus (35 g)
+Jumlah per sajian %AKG
+Energi Total 160 kkal (670 kJ) 7%
+Lemak Total
+7 g 10%
+Protein 4 g 7%
+Karbohldrat Total 20 g 6%
+Gula < 1 g
+Natrlum 210 mg 14%`);
+  assert.deepEqual(label.basis, { amount: 1, unit: "serving" });
+  assert.deepEqual(label.servingSize, { amount: 35, unit: "g" });
+  assert.equal(label.values.kcal, 160);
+  assert.equal(label.energyKj, 670);
+  assert.equal(label.values.fat, 7);
+  assert.equal(label.values.protein, 4);
+  assert.equal(label.values.carbs, 20);
+  assert.equal(label.values.sugar, 1);
+  assert.equal(label.values.sodium, 210);
+});
+
+test("plausibility guards warn on >950 kcal/100g, zero macros with energy, and extreme sodium", () => {
+  const bogus = parseNutritionLabel(
+    "Per 100 g\nEnergi 1800 kkal\nProtein 0 g\nKarbohidrat 0 g\nLemak 0 g\nNatrium 6500 mg",
+  );
+  assert.ok(bogus.warnings.some((w) => w.includes("batas wajar")));
+  assert.ok(bogus.warnings.some((w) => w.includes("semua makro terbaca 0")));
+  assert.ok(bogus.warnings.some((w) => w.includes("Natrium terbaca sangat tinggi")));
+});

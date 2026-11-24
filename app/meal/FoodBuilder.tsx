@@ -38,7 +38,7 @@ import { prettyFoodName } from "@/lib/foodDisplayName";
 import { loadCatalogue, clearCatalogueCache } from "@/lib/foodCatalogue";
 import { prepare as prepareSearch, searchPrepared } from "@/lib/foodSearch";
 import RecipeComposer from "./RecipeComposer";
-import NutritionLabelPanel from "./NutritionLabelPanel";
+import BarcodePanel from "./BarcodePanel";
 import ManualFoodSheet from "./ManualFoodSheet";
 import { scaleNutritionExtras } from "@/lib/nutritionLabel";
 import SearchField from "./SearchField";
@@ -2173,7 +2173,7 @@ export default function FoodBuilder({
         />
       )}
       {labelOpen && (
-        <NutritionLabelPanel
+        <BarcodePanel
           onClose={() => setLabelOpen(false)}
           onAdd={addComputedFood}
         />
