@@ -50,6 +50,44 @@
 .dp-forecast li span { font-size: 11px; color: var(--muted, #677086); }
 .dp-forecast li strong { font-size: 13px; font-variant-numeric: tabular-nums; }
 .dp-goal { margin-top: 8px !important; font-weight: 650; }
+.dp-range { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.dp-presets { display: flex; gap: 6px; width: 100%; }
+.dp-presets button {
+  flex: 1;
+  min-height: 32px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 999px;
+  background: #f4f6fb;
+  color: #3a4258;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.dp-presets button.is-on { background: #3e60d5; color: #fff; }
+.dp-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; }
+.dp-dates label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted, #677086);
+}
+.dp-dates input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 40px;
+  padding: 0 8px;
+  border: 1px solid var(--border, #e4e7f0);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--text, #22283a);
+  font: inherit;
+  font-size: 14px;
+}
 .dp-chart { margin: 12px 0 0; }
 .dp-legend {
   display: flex;
@@ -59,7 +97,25 @@
   font-size: 12px;
   font-weight: 650;
 }
-.dp-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.dp-legend button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: #f4f6fb;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.dp-legend button.is-off {
+  color: #98a0b3;
+  background: transparent;
+}
 .dp-legend small { color: var(--muted, #677086); font-size: 11px; font-weight: 500; }
 .dp-legend i {
   width: 14px;

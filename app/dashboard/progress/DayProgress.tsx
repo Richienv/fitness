@@ -39,55 +39,109 @@ function seriesMax(days: DailyProgressRow[], key: (typeof SERIES)[number]["key"]
   return Math.max(1, ...days.map((d) => d[key]));
 }
 
+function shiftDate(date: string, days: number) {
+  return new Date(Date.parse(`${date}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+function clampDate(date: string, min: string, max: string) {
+  if (date < min) return min;
+  if (date > max) return max;
+  return date;
+}
+
+function spanDays(from: string, to: string) {
+  return Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / 86_400_000) + 1;
+}
+
+function xForDate(date: string, from: string, to: string) {
+  const start = Date.parse(`${from}T12:00:00Z`);
+  const end = Date.parse(`${to}T12:00:00Z`);
+  const innerW = CHART.w - CHART.padX * 2;
+  if (end <= start) return CHART.w / 2;
+  const t = Date.parse(`${date}T12:00:00Z`);
+  return CHART.padX + ((t - start) / (end - start)) * innerW;
+}
+
+function axisLabel(date: string) {
+  return new Date(`${date}T12:00:00Z`).toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  });
+}
+
 function coords(
   days: DailyProgressRow[],
   key: (typeof SERIES)[number]["key"],
+  from: string,
+  to: string,
   ceiling?: number,
 ) {
   const max = ceiling ?? seriesMax(days, key);
-  const innerW = CHART.w - CHART.padX * 2;
   const innerH = CHART.h - CHART.padY * 2;
-  return days.map((d, i) => {
-    const x =
-      days.length === 1
-        ? CHART.w / 2
-        : CHART.padX + (i / (days.length - 1)) * innerW;
-    const y = CHART.padY + innerH - (d[key] / max) * innerH;
-    return { x, y };
-  });
+  return days.map((d) => ({
+    x: xForDate(d.date, from, to),
+    y: CHART.padY + innerH - (d[key] / max) * innerH,
+  }));
 }
 
 function TrendChart({
   days,
   today,
+  from,
+  to,
   selected,
   onSelect,
 }: {
   days: DailyProgressRow[];
   today: string;
+  from: string;
+  to: string;
   selected: string;
   onSelect: (date: string) => void;
 }) {
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const toggle = (key: string) => {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else if (next.size < SERIES.length - 1) next.add(key);
+      return next;
+    });
+  };
   const plotted = useMemo(() => {
-    const kcalMax = Math.max(seriesMax(days, "kcalIn"), seriesMax(days, "totalBurnKcal"));
-    return SERIES.map((s) => ({
+    const kcalKeys = (["kcalIn", "totalBurnKcal"] as const).filter((key) => !hidden.has(key));
+    const kcalMax = kcalKeys.length
+      ? Math.max(...kcalKeys.map((key) => seriesMax(days, key)))
+      : 1;
+    return SERIES.filter((s) => !hidden.has(s.key)).map((s) => ({
       ...s,
-      pts: coords(days, s.key, s.key === "proteinG" ? undefined : kcalMax),
+      pts: coords(days, s.key, from, to, s.key === "proteinG" ? undefined : kcalMax),
     }));
-  }, [days]);
-  const ticks = [0, Math.floor((days.length - 1) / 2), days.length - 1].filter(
-    (v, i, all) => all.indexOf(v) === i,
-  );
+  }, [days, hidden, from, to]);
+  const showProteinNote = plotted.some((s) => s.key === "proteinG") && plotted.length > 1;
+  const span = spanDays(from, to);
+  const mid = shiftDate(from, Math.floor((span - 1) / 2));
+  const ticks = from === to ? [from] : span <= 4 ? [from, to] : [from, mid, to];
   return (
     <figure className="dp-chart">
       <figcaption className="dp-legend">
-        {SERIES.map((s) => (
-          <span key={s.key}>
-            <i style={{ background: s.color }} />
-            {s.label} {s.unit}
-          </span>
-        ))}
-        <small>Protein skala gram sendiri</small>
+        {SERIES.map((s) => {
+          const off = hidden.has(s.key);
+          return (
+            <button
+              key={s.key}
+              type="button"
+              className={off ? "is-off" : undefined}
+              aria-pressed={!off}
+              onClick={() => toggle(s.key)}
+            >
+              <i style={{ background: off ? "#c5c9d4" : s.color }} />
+              {s.label}
+            </button>
+          );
+        })}
+        {showProteinNote && <small>Protein skala gram sendiri</small>}
       </figcaption>
       <svg viewBox={`0 0 ${CHART.w} ${CHART.h}`} role="img" aria-label="Grafik makan, protein, dan kalori terbakar">
         {[0.25, 0.5, 0.75].map((g) => {
@@ -116,11 +170,12 @@ function TrendChart({
         ))}
         {days.map((d, i) => {
           const on = d.date === selected;
-          const slot =
-            days.length < 2
-              ? 36
-              : (CHART.w - CHART.padX * 2) / (days.length - 1);
-          const hit = Math.max(16, Math.min(28, slot * 0.9));
+          const x = xForDate(d.date, from, to);
+          const neighbors = days
+            .filter((other) => other.date !== d.date)
+            .map((other) => Math.abs(xForDate(other.date, from, to) - x));
+          const gap = neighbors.length ? Math.min(...neighbors) : 36;
+          const hit = Math.max(14, Math.min(28, gap * 0.85));
           return (
             <g
               key={d.date}
@@ -139,15 +194,15 @@ function TrendChart({
             >
               {on && (
                 <line
-                  x1={plotted[0].pts[i].x}
-                  x2={plotted[0].pts[i].x}
+                  x1={x}
+                  x2={x}
                   y1={CHART.padY}
                   y2={CHART.h - CHART.padY}
                   className="dp-guide"
                 />
               )}
               <rect
-                x={plotted[0].pts[i].x - hit / 2}
+                x={x - hit / 2}
                 y={8}
                 width={hit}
                 height={CHART.h - 16}
@@ -169,9 +224,9 @@ function TrendChart({
         })}
       </svg>
       <div className="dp-axis">
-        {ticks.map((i) => (
-          <span key={days[i].date} style={{ left: `${(plotted[0].pts[i].x / CHART.w) * 100}%` }}>
-            {dayLabel(days[i].date, today)}
+        {ticks.map((date) => (
+          <span key={date} style={{ left: `${(xForDate(date, from, to) / CHART.w) * 100}%` }}>
+            {axisLabel(date)}
           </span>
         ))}
       </div>
@@ -233,6 +288,8 @@ export default function DayProgress() {
   const [data, setData] = useState<ProgressInsightsData | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [showDays, setShowDays] = useState(false);
+  const [from, setFrom] = useState<string | null>(null);
+  const [to, setTo] = useState<string | null>(null);
   const refresh = useCallback(() => {
     try {
       setData(readProgressInsights(session?.user?.name));
@@ -249,7 +306,25 @@ export default function DayProgress() {
   const logged = rows.filter(
     (r) => r.mealCount > 0 || r.weightKg !== null || r.workoutCount > 0 || r.waterMl > 0,
   );
-  const chartDays = logged.slice(0, 14).reverse();
+  const earliest = logged.at(-1)?.date ?? today;
+  const latest = logged[0]?.date ?? today;
+  const rangeTo = clampDate(to ?? latest, earliest, latest);
+  const rangeFrom = clampDate(from ?? earliest, earliest, rangeTo);
+  const ranged = logged.filter((r) => r.date >= rangeFrom && r.date <= rangeTo);
+  const chartDays = [...ranged].reverse();
+  const span = spanDays(rangeFrom, rangeTo);
+  const preset =
+    rangeFrom === earliest && rangeTo === latest
+      ? "all"
+      : rangeTo === latest && (span === 7 || span === 14 || span === 30)
+        ? String(span)
+        : "";
+  const setRange = (start: string, end: string) => {
+    const nextTo = clampDate(end, earliest, latest);
+    const nextFrom = clampDate(start, earliest, nextTo);
+    setFrom(nextFrom);
+    setTo(nextTo);
+  };
   const activeDate = chartDays.some((d) => d.date === selected)
     ? selected
     : chartDays.at(-1)?.date ?? null;
@@ -302,16 +377,69 @@ export default function DayProgress() {
           Catat makan beberapa hari supaya prediksi “kalau gini terus” bisa dihitung.
         </p>
       )}
+      {logged.length > 0 && (
+        <div className="dp-range">
+          <div className="dp-presets" role="group" aria-label="Durasi">
+            {(
+              [
+                ["7", 7],
+                ["14", 14],
+                ["30", 30],
+                ["all", 0],
+              ] as const
+            ).map(([id, days]) => (
+              <button
+                key={id}
+                type="button"
+                className={preset === id ? "is-on" : undefined}
+                aria-pressed={preset === id}
+                onClick={() =>
+                  setRange(id === "all" ? earliest : shiftDate(latest, 1 - days), latest)
+                }
+              >
+                {id === "all" ? "Semua" : `${days} hari`}
+              </button>
+            ))}
+          </div>
+          <div className="dp-dates">
+            <label>
+              Dari
+              <input
+                type="date"
+                min={earliest}
+                max={rangeTo}
+                value={rangeFrom}
+                onChange={(e) => e.target.value && setRange(e.target.value, rangeTo)}
+              />
+            </label>
+            <label>
+              Sampai
+              <input
+                type="date"
+                min={rangeFrom}
+                max={latest}
+                value={rangeTo}
+                onChange={(e) => e.target.value && setRange(rangeFrom, e.target.value)}
+              />
+            </label>
+          </div>
+        </div>
+      )}
       {chartDays.length > 0 && (
         <>
           <TrendChart
             days={chartDays}
             today={today}
+            from={rangeFrom}
+            to={rangeTo}
             selected={activeDate ?? ""}
             onSelect={setSelected}
           />
           {active && <DayBreakdown row={active} today={today} />}
         </>
+      )}
+      {logged.length > 0 && chartDays.length === 0 && (
+        <p className="dp-empty">Tidak ada catatan di rentang ini.</p>
       )}
       {logged.length === 0 ? (
         <p className="dp-empty">Belum ada berat, makan, atau latihan tercatat.</p>
@@ -327,7 +455,7 @@ export default function DayProgress() {
           </button>
           {showDays && (
         <ul className="dp-days">
-          {logged.slice(0, 21).map((r) => (
+          {ranged.map((r) => (
             <li key={r.date} className={r.date === activeDate ? "is-on" : undefined}>
               <div className="dp-day-top">
                 <strong>{dayLabel(r.date, today)}</strong>
