@@ -45,22 +45,45 @@ summary:focus-visible,
 .lean-home {
   max-width: 560px;
   margin: auto;
-  padding: calc(20px + env(safe-area-inset-top)) 24px
-    calc(110px + env(safe-area-inset-bottom));
+  padding: calc(20px + env(safe-area-inset-top, 0px)) 24px
+    calc(110px + env(safe-area-inset-bottom, 0px));
   min-height: 100dvh;
   background: linear-gradient(180deg, #f2f5fd 0%, #f7f8fd 30%, #ffffff 68%);
+}
+.lean-home.progress-home {
+  padding: calc(max(env(safe-area-inset-top, 0px), 12px) + 14px) 18px
+    calc(112px + env(safe-area-inset-bottom, 0px));
+}
+.lean-home.progress-home::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top, 0px);
+  z-index: 40;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(242, 245, 253, 0.94) 0%,
+    rgba(242, 245, 253, 0.72) 72%,
+    rgba(242, 245, 253, 0) 100%
+  );
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 .lean-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   min-height: 44px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 .lean-header h1 {
   font-family: inherit;
-  font-size: 26px;
-  letter-spacing: -1px;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.9px;
 }
 .account-link {
   display: flex;
@@ -325,6 +348,27 @@ summary:focus-visible,
   font-size: 11.5px;
   color: var(--muted);
 }
+.progress-avatar-section {
+  padding: 14px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(24, 34, 68, 0.035);
+  margin-bottom: 12px;
+}
+.progress-avatar-section .progress-readout {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.progress-avatar-section .character-setting {
+  margin-top: 12px;
+}
+.progress-avatar-section .character-tabs {
+  margin-bottom: 0;
+}
 .progress-readout {
   display: flex;
   align-items: center;
@@ -353,8 +397,10 @@ summary:focus-visible,
   flex: 1;
   min-height: 48px;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  font-size: 12px;
+  border-radius: 14px;
+  background: #fff;
+  font-size: 12.5px;
+  font-weight: 650;
 }
 .goal-details {
   border-top: 1px solid var(--border);
@@ -435,6 +481,10 @@ summary:focus-visible,
   .lean-home {
     padding-left: 18px;
     padding-right: 18px;
+  }
+  .lean-home.progress-home {
+    padding-left: 14px;
+    padding-right: 14px;
   }
   .avatar-player {
     height: 260px;

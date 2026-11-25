@@ -3,7 +3,8 @@
 // measurements, workouts, activities, Apple Health, and water into day-by-day
 // rows + a live "kalau gini terus" trajectory projection.
 import { burnReader, readBodyKg } from "./burnData";
-import { macrosFor } from "./ingredients";
+import { sumNutrition } from "./nutritionStats";
+import { getMicroTargets } from "./nutritionTargets";
 import { getAllMeasurements } from "./measurements";
 import {
   buildDailyProgressRows,
@@ -13,13 +14,21 @@ import {
   type ProgressProjection,
 } from "./progressAnalytics";
 import { getProfile, profileComplete } from "./settings";
-import { getAllMeals, isCustomItem } from "./store";
-import { todayKey } from "./targets";
+import { getAllMeals } from "./store";
+import { TARGETS, todayKey } from "./targets";
 import { getAllWater } from "./water";
 import { getAllWorkouts } from "./workouts";
 import { getAllActivities } from "./activity";
 import { getAllHealthDays } from "./health";
 import { readCompanion } from "./companionSettings";
+
+export type ProgressTargets = {
+  kcal: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  sugarCapG: number;
+};
 
 export type ProgressInsightsData = {
   today: string;
@@ -27,6 +36,7 @@ export type ProgressInsightsData = {
   projection: ProgressProjection | null;
   anchorKg: number;
   targetKg: number | null;
+  targets: ProgressTargets;
 };
 
 export function readProgressInsights(userName?: string | null): ProgressInsightsData {
@@ -38,6 +48,16 @@ export function readProgressInsights(userName?: string | null): ProgressInsights
     companion.goal?.mode === "weight" && companion.goal.targetWeight
       ? companion.goal.targetWeight
       : null;
+
+  const baseTarget = TARGETS.gymDay;
+  const microTargets = getMicroTargets();
+  const targets: ProgressTargets = {
+    kcal: baseTarget.kcal,
+    proteinG: baseTarget.protein,
+    carbsG: baseTarget.carbs,
+    fatG: baseTarget.fat,
+    sugarCapG: microTargets.sugar > 0 ? microTargets.sugar : 30,
+  };
 
   const meals = getAllMeals();
   const measurements = getAllMeasurements();
@@ -57,10 +77,19 @@ export function readProgressInsights(userName?: string | null): ProgressInsights
   for (const d of Object.keys(healthDays)) dates.add(d);
   for (const d of Object.keys(waterMap)) if (waterMap[d] > 0) dates.add(d);
 
-  // Pre-index meals & measurements by date so we only loop once.
+  // Pre-index meals by date using sumNutrition so custom items & library macros stay aligned.
   const mealsByDate = new Map<
     string,
-    { kcal: number; protein: number; carbs: number; fat: number; count: number }
+    {
+      kcal: number;
+      protein: number;
+      carbs: number;
+      fat: number;
+      sugar: number;
+      fiber: number;
+      sodium: number;
+      count: number;
+    }
   >();
   for (const m of meals) {
     if (!m.date || m.items.length === 0) continue;
@@ -69,23 +98,20 @@ export function readProgressInsights(userName?: string | null): ProgressInsights
       protein: 0,
       carbs: 0,
       fat: 0,
+      sugar: 0,
+      fiber: 0,
+      sodium: 0,
       count: 0,
     };
     acc.count += 1;
-    for (const item of m.items) {
-      if (isCustomItem(item)) {
-        acc.kcal += item.kcal || 0;
-        acc.protein += item.protein || 0;
-        acc.carbs += item.carbs || 0;
-        acc.fat += item.fat || 0;
-      } else {
-        const mac = macrosFor(item.id, item.qty);
-        acc.kcal += mac.kcal;
-        acc.protein += mac.protein;
-        acc.carbs += mac.carbs;
-        acc.fat += mac.fat;
-      }
-    }
+    const n = sumNutrition([m]);
+    acc.kcal += Number.isFinite(n.kcal) ? n.kcal : 0;
+    acc.protein += Number.isFinite(n.protein) ? n.protein : 0;
+    acc.carbs += Number.isFinite(n.carbs) ? n.carbs : 0;
+    acc.fat += Number.isFinite(n.fat) ? n.fat : 0;
+    acc.sugar += Number.isFinite(n.sugar) ? n.sugar : 0;
+    acc.fiber += Number.isFinite(n.fiber) ? n.fiber : 0;
+    acc.sodium += Number.isFinite(n.na) ? n.na : 0;
     mealsByDate.set(m.date, acc);
   }
 
@@ -107,6 +133,9 @@ export function readProgressInsights(userName?: string | null): ProgressInsights
       proteinG: meal?.protein ?? 0,
       carbsG: meal?.carbs ?? 0,
       fatG: meal?.fat ?? 0,
+      sugarG: meal?.sugar ?? 0,
+      fiberG: meal?.fiber ?? 0,
+      sodiumMg: meal?.sodium ?? 0,
       mealCount: meal?.count ?? 0,
       activeBurnKcal: burn.total,
       activeFromHealth: burn.source === "health",
@@ -125,8 +154,8 @@ export function readProgressInsights(userName?: string | null): ProgressInsights
         }
       : null;
 
-  const rows = buildDailyProgressRows(inputs, profileInput).slice(0, 60);
+  const rows = buildDailyProgressRows(inputs, profileInput).slice(0, 180);
   const projection = buildProgressProjection(rows, anchorKg, targetKg, today);
 
-  return { today, rows, projection, anchorKg, targetKg };
+  return { today, rows, projection, anchorKg, targetKg, targets };
 }

@@ -173,33 +173,35 @@ export default function CompanionPage() {
         </Link>
       </header>
       <DayProgress />
-      <div className="progress-readout">
-        <span>Progres akun {session?.user?.name?.split(" ")[0] ?? ""}</span>
-        <strong>
-          {progress.level
-            ? `Level ${progress.level} / 12`
-            : "Belum terkalibrasi"}
-        </strong>
-      </div>
-      <div className="character-setting">
-        <div className="character-setting-head">
-          <span>Avatar beranda</span>
-          <small>Kostum level berikutnya rahasia — cek bayangannya di Beranda</small>
+      <section className="progress-avatar-section" aria-label="Profil dan koleksi avatar">
+        <div className="progress-readout">
+          <span>Progres akun {session?.user?.name?.split(" ")[0] ?? ""}</span>
+          <strong>
+            {progress.level
+              ? `Level ${progress.level} / 12`
+              : "Belum terkalibrasi"}
+          </strong>
         </div>
-        <div className="character-tabs" aria-label="Pilih avatar beranda">
-          {(["richie", "renita"] as const).map((p) => (
-            <button
-              key={p}
-              type="button"
-              aria-pressed={settings.character === p}
-              onClick={() => useCharacter(p)}
-            >
-              {p === "richie" ? "Richie" : "Renita"}
-              {settings.character === p ? " · Dipakai" : ""}
-            </button>
-          ))}
+        <div className="character-setting">
+          <div className="character-setting-head">
+            <span>Avatar beranda</span>
+            <small>Kostum level berikutnya rahasia — cek bayangannya di Beranda</small>
+          </div>
+          <div className="character-tabs" aria-label="Pilih avatar beranda">
+            {(["richie", "renita"] as const).map((p) => (
+              <button
+                key={p}
+                type="button"
+                aria-pressed={settings.character === p}
+                onClick={() => useCharacter(p)}
+              >
+                {p === "richie" ? "Richie" : "Renita"}
+                {settings.character === p ? " · Dipakai" : ""}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      </section>
       {(() => {
         const activeLevel = Math.min(selectedLevel, unlockedLevel);
         const meta = getAvatarLevelMeta(settings.character, activeLevel);
