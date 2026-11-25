@@ -7,7 +7,59 @@
 }
 
 .shadow-deck.variant-tray {
-  margin: 10px 0 14px;
+  margin: 4px 0 14px;
+  gap: 6px;
+}
+
+.shadow-deck.variant-tray .shadow-deck-head {
+  padding: 0;
+}
+
+.shadow-deck.variant-tray .shadow-deck-title {
+  font-size: 12px;
+}
+
+.shadow-deck.variant-tray .shadow-deck-pill {
+  font-size: 10.5px;
+  padding: 2px 7px;
+}
+
+.shadow-deck.variant-tray .shadow-card {
+  padding: 8px 9px 8px 11px;
+  border-radius: 14px;
+  gap: 8px;
+}
+
+.shadow-deck.variant-tray .shadow-card-kicker {
+  font-size: 10.5px;
+  gap: 5px;
+}
+
+.shadow-deck.variant-tray .shadow-badge {
+  padding: 1.5px 6px;
+  font-size: 10.5px;
+}
+
+.shadow-deck.variant-tray .shadow-card-title {
+  font-size: 13.5px;
+}
+
+.shadow-deck.variant-tray .shadow-card-metrics {
+  font-size: 11.5px;
+}
+
+.shadow-deck.variant-tray .shadow-btn-check {
+  min-width: 38px;
+  height: 38px;
+  padding: 0 9px;
+  border-radius: 11px;
+}
+
+.shadow-deck.variant-tray .shadow-btn-edit,
+.shadow-deck.variant-tray .shadow-btn-dismiss {
+  min-width: 32px;
+  height: 32px;
+  border-radius: 10px;
 }
 
 .shadow-deck.variant-workout {
@@ -239,15 +291,6 @@
 .shadow-btn-edit:active,
 .shadow-btn-dismiss:active {
   transform: scale(0.92);
-}
-
-.shadow-deck.variant-tray .shadow-card {
-  padding: 9px 10px 9px 12px;
-  border-radius: 15px;
-}
-
-.shadow-deck.variant-tray .shadow-card-title {
-  font-size: 13.5px;
 }
 
 /* ── Quick Edit Bottom Sheet ── */

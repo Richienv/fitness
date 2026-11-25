@@ -6,6 +6,7 @@ import {
   decayWeight,
   FOOD_HALF_LIFE_DAYS,
   foodNodeId,
+  isCondimentLikeFood,
   macroBudgetFit,
   normalizeHabitGraph,
   recordMealEvent,
@@ -500,4 +501,107 @@ test("normalizeHabitGraph recovers safely from malformed inputs", () => {
   assert.ok(gCorrupt.nodes["food:test"]);
   assert.equal(gCorrupt.edges["broken"], undefined);
   assert.equal(gCorrupt.edges["food:test|EATEN_AT|slot:lunch"]?.weight, 1.5);
+});
+
+test("empty-tray shadow recommendations filter out standalone sauces/condiments and never contradict slot vs time", () => {
+  const g = createHabitGraph("richie", NOW);
+  const creamySauce: HabitFoodSnapshot = {
+    foodKey: "custom:creamy sauce in wrap",
+    name: "Creamy sauce in wrap",
+    grams: 25,
+    kcal: 75,
+    protein: 0.5,
+    carbs: 3,
+    fat: 7,
+  };
+  const soySauce: HabitFoodSnapshot = {
+    foodKey: "soy-sauce",
+    name: "Soy sauce",
+    grams: 15,
+    kcal: 10,
+    protein: 1,
+    carbs: 1,
+    fat: 0,
+  };
+
+  assert.equal(isCondimentLikeFood(creamySauce), true);
+  assert.equal(isCondimentLikeFood(soySauce), true);
+  assert.equal(isCondimentLikeFood(dadaAyam), false);
+
+  // User logged Creamy sauce in wrap once late at night (23:00) in lunch slot,
+  // and previously paired it with Dada Ayam.
+  recordMealEvent(g, {
+    eventId: "sauce-only",
+    date: "2026-11-24",
+    mealType: "lunch",
+    at: NOW - DAY_MS,
+    hour: 23,
+    dayType: "gym",
+    items: [creamySauce],
+  });
+  recordMealEvent(g, {
+    eventId: "chicken-with-sauce",
+    date: "2026-11-24",
+    mealType: "lunch",
+    at: NOW - DAY_MS + 1000,
+    hour: 23,
+    dayType: "gym",
+    items: [dadaAyam, creamySauce],
+  });
+
+  // 1) Empty tray at 23:00 viewing "lunch" slot:
+  // - Creamy sauce standalone MUST be filtered out
+  // - Badge "Cocok untuk makan siang" / "Sering di makan siang" MUST NEVER pair with "jam larut malam"
+  const emptyTrayLunchAtNight = scoreMealRecommendations(g, {
+    now: NOW,
+    hour: 23,
+    mealSlot: "lunch",
+    dayType: "gym",
+    remainingKcal: 900,
+    remainingProtein: 80,
+    kcalTarget: 2200,
+    proteinTarget: 175,
+    currentPlateFoodKeys: [],
+    limit: 5,
+  });
+
+  assert.equal(
+    emptyTrayLunchAtNight.some(
+      (r) =>
+        r.targetNodeId === foodNodeId(creamySauce.foodKey) ||
+        r.targetNodeId === comboNodeId("lunch", [creamySauce]) ||
+        Boolean(r.meal && r.meal.items.every((it) => isCondimentLikeFood(it))),
+    ),
+    false,
+    "standalone condiment should not appear on empty tray",
+  );
+  for (const rec of emptyTrayLunchAtNight) {
+    assert.equal(
+      /larut malam|pagi buta/i.test(rec.reason),
+      false,
+      `contradictory reason for lunch badge: ${rec.badge} / ${rec.reason}`,
+    );
+  }
+
+  // 2) With Dada Ayam ALREADY on the tray, Creamy sauce IS allowed as a PAIRED_WITH add-on!
+  const withChickenOnPlate = scoreMealRecommendations(g, {
+    now: NOW,
+    hour: 12,
+    mealSlot: "lunch",
+    dayType: "gym",
+    remainingKcal: 700,
+    remainingProtein: 40,
+    kcalTarget: 2200,
+    proteinTarget: 175,
+    currentPlateFoodKeys: [dadaAyam.foodKey],
+    limit: 5,
+  });
+  assert.ok(
+    withChickenOnPlate.some(
+      (r) =>
+        r.kind === "paired_addon" &&
+        r.targetNodeId === foodNodeId(creamySauce.foodKey),
+    ),
+    "expected paired condiment to surface when main food is on plate",
+  );
 });

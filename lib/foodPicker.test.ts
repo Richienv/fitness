@@ -7,7 +7,13 @@ import { openingChoice, stableOptionOrder } from "./foodPicker.ts";
 import { normalizeFoodPicks, recordFoodPick, getFoodPicks } from "./foodPicks.ts";
 import { normalizeAffinity, recordAffinity, topAffinity } from "./foodAffinity.ts";
 import { setActiveUser } from "./userScope.ts";
-import { normalizeCatalogueFoods } from "./foodCatalogue.ts";
+import {
+  CACHE_KEY,
+  MIN_CATALOGUE_COUNT,
+  SCHEMA_VERSION,
+  isCatalogueEntryStale,
+  normalizeCatalogueFoods,
+} from "./foodCatalogue.ts";
 
 const now = 1_000_000_000;
 const foods = [
@@ -60,11 +66,29 @@ test("corrupt history and non-finite affinity cannot poison ranking", () => {
 
 test("corrupt catalogue rows are discarded without losing healthy rows", () => {
   assert.deepEqual(normalizeCatalogueFoods({ foods: "bad" }), []);
-  const rows = normalizeCatalogueFoods([null, { sourceCode: "broken" }, { sourceCode: "bad-number", name: "Ayam", energy_kcal: "200" }, { sourceCode: "good", name: "Ayam", energy_kcal: 200, popularity: NaN, portionG: -1 }]);
+  const rows = normalizeCatalogueFoods([null, { sourceCode: "broken" }, { sourceCode: "bad-number", name: "Ayam", energy_kcal: "200" }, { sourceCode: "good", name: "Ayam", energy_kcal: 200, state: "Olahan", popularity: NaN, portionG: -1 }]);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].sourceCode, "good");
+  assert.equal(rows[0].state, "Olahan");
   assert.equal(rows[0].popularity, null);
   assert.equal(rows[0].portionG, null);
+});
+
+test("catalogue cache v4 flags stale schema or under-4800 caches for silent refresh", () => {
+  assert.equal(CACHE_KEY, "richie.foodCatalogue.v4");
+  const freshNow = 1_700_000_000_000;
+  assert.equal(
+    isCatalogueEntryStale({ v: SCHEMA_VERSION, at: freshNow, count: 4871 }, freshNow),
+    false,
+  );
+  assert.equal(
+    isCatalogueEntryStale({ v: SCHEMA_VERSION, at: freshNow, count: MIN_CATALOGUE_COUNT - 1 }, freshNow),
+    true,
+  );
+  assert.equal(
+    isCatalogueEntryStale({ v: 3, at: freshNow, count: 4871 }, freshNow),
+    true,
+  );
 });
 
 test("equal scores have stable id ties even if catalogue input reverses", () => {

@@ -16,6 +16,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getUserId } from "@/lib/session";
 import { CUISINES, cuisineOf, type CuisineKey } from "@/lib/cuisine";
+import { invalidateDbFoodOverlayCache } from "@/lib/serverFoodDb";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -167,6 +168,7 @@ export async function POST(req: Request) {
           });
       }
     }
+    if (imported > 0) invalidateDbFoodOverlayCache();
 
     return NextResponse.json(
       { ok: true, data: { imported, failed: errors.length, errors: errors.slice(0, 50) } },

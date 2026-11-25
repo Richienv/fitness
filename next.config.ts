@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const config: NextConfig = {
   reactStrictMode: true,
+  outputFileTracingIncludes: {
+    "/api/foods/**": ["./data/*.csv"],
+  },
   async headers() {
     return [
       {

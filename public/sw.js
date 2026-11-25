@@ -10,7 +10,7 @@
  *   /api/* → never intercepted (client stores handle localStorage caching).
  */
 
-const VERSION = "v7-avatars-v3";
+const VERSION = "v8-food-search-overhaul";
 const STATIC_CACHE = `r2fit-static-${VERSION}`;
 const SHELL_CACHE = `r2fit-shell-${VERSION}`;
 const PAGE_CACHE = `r2fit-pages-${VERSION}`;

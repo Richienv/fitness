@@ -28,6 +28,9 @@
   --accent3: var(--calm-accent-strong);
   --border: var(--calm-border);
 }
+.food-builder {
+  --bg: #f6f8fb;
+}
 
 /* ---------- Buttons: one primary, neutral secondary, accent links ---------- */
 .primary-button,
@@ -1329,7 +1332,7 @@ progress::-moz-progress-bar {
   padding: 13px 16px;
   border-radius: 14px;
   border: 1px dashed var(--calm-accent);
-  background: rgba(255, 107, 53, 0.08);
+  background: var(--calm-accent-soft);
   color: var(--calm-text);
   text-align: left;
   font: inherit;

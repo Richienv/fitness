@@ -14,6 +14,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getUserId } from "@/lib/session";
+import { invalidateDbFoodOverlayCache } from "@/lib/serverFoodDb";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -108,6 +109,7 @@ export async function POST(req: Request) {
       create: { sourceCode, ...data },
       update: data,
     });
+    invalidateDbFoodOverlayCache();
 
     return NextResponse.json(
       { ok: true, data: { sourceCode: food.sourceCode, name: food.name } },

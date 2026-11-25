@@ -48,7 +48,7 @@ summary:focus-visible,
   padding: calc(20px + env(safe-area-inset-top)) 24px
     calc(110px + env(safe-area-inset-bottom));
   min-height: 100dvh;
-  background: #fff;
+  background: linear-gradient(180deg, #f2f5fd 0%, #f7f8fd 30%, #ffffff 68%);
 }
 .lean-header {
   display: flex;
@@ -252,13 +252,18 @@ summary:focus-visible,
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   flex-shrink: 0;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #3e60d5 0%, #6a86f0 100%);
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(62, 96, 213, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.58);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.84);
+  color: #47526d;
+  box-shadow:
+    0 3px 12px rgba(28, 40, 76, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 .duo-link {
   display: flex;
@@ -473,7 +478,7 @@ summary:focus-visible,
 .home-topbar-right {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .door-topbar-btn {
@@ -481,17 +486,21 @@ summary:focus-visible,
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 38px;
-  padding: 0 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(217, 119, 6, 0.24);
-  background: linear-gradient(135deg, #fffbeb 0%, #fff1f2 100%);
-  color: #92400e;
+  height: 34px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(217, 119, 6, 0.16);
+  background: rgba(255, 250, 241, 0.56);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  color: #8c4a10;
   font: inherit;
-  font-size: 13px;
-  font-weight: 740;
+  font-size: 12.5px;
+  font-weight: 720;
   cursor: pointer;
-  box-shadow: 0 3px 10px rgba(245, 158, 11, 0.14);
+  box-shadow:
+    0 3px 12px rgba(180, 115, 35, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
   transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease;
 }
 
@@ -500,12 +509,12 @@ summary:focus-visible,
 }
 
 .door-topbar-btn.is-lit {
-  border-color: rgba(245, 158, 11, 0.68);
-  background: linear-gradient(135deg, #fef3c7 0%, #ffe4e6 100%);
+  border-color: rgba(245, 158, 11, 0.65);
+  background: linear-gradient(135deg, rgba(254, 243, 199, 0.88) 0%, rgba(255, 228, 230, 0.88) 100%);
   color: #9a3412;
   box-shadow:
-    0 0 0 2px rgba(251, 191, 36, 0.28),
-    0 6px 20px rgba(245, 158, 11, 0.34);
+    0 0 0 2px rgba(251, 191, 36, 0.24),
+    0 6px 20px rgba(245, 158, 11, 0.3);
 }
 
 .door-sign-dot {
@@ -525,15 +534,18 @@ summary:focus-visible,
   padding: 10px 14px;
   border-radius: 16px;
   border: 1px solid rgba(245, 158, 11, 0.45);
-  background: linear-gradient(135deg, rgba(254, 243, 199, 0.95) 0%, rgba(255, 228, 230, 0.92) 100%);
+  background: linear-gradient(135deg, rgba(254, 243, 199, 0.78) 0%, rgba(255, 228, 230, 0.76) 100%);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
   color: #7c2d12;
   font: inherit;
   font-size: 13.5px;
   text-align: left;
   cursor: pointer;
   box-shadow:
-    0 0 0 1px rgba(251, 191, 36, 0.2),
-    0 8px 24px rgba(245, 158, 11, 0.22);
+    0 0 0 1px rgba(251, 191, 36, 0.18),
+    0 8px 24px rgba(245, 158, 11, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
   transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -666,6 +678,9 @@ summary:focus-visible,
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  .lean-home .home-topbar {
+    animation: homeTopbarIn 0.36s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
   .lean-home .hud,
   .lean-home .next-action,
   .lean-home .quiet-actions,
@@ -688,6 +703,39 @@ summary:focus-visible,
   .presence-sign-lit.active-glow .presence-lantern {
     display: inline-block;
     animation: lanternPulse 1.7s ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lean-home .home-topbar,
+  .lean-home .hud,
+  .lean-home .next-action,
+  .lean-home .quiet-actions,
+  .lean-home .lean-today,
+  .lean-home .duo-doorway-wrap,
+  .presence-sign-lit.active-glow,
+  .presence-sign-lit.active-glow .presence-lantern,
+  .door-topbar-btn.is-lit .door-sign-dot {
+    animation: none;
+  }
+  .door-topbar-btn,
+  .presence-sign-lit,
+  .duo-doorway-btn,
+  .lean-today .lean-record,
+  .quiet-actions a,
+  .quiet-actions button {
+    transition: none;
+  }
+}
+
+@keyframes homeTopbarIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -5px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
   }
 }
 

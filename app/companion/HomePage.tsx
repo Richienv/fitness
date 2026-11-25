@@ -439,24 +439,24 @@ export default function HomePage() {
               className={`home-streak-item meal${snap.meal.todayDone ? " lit" : ""}`}
               aria-label={`Catat makan ${snap.meal.count} hari`}
             >
-              <Icon name="flame" size={15} />
-              {snap.meal.count}
+              <Icon name="flame" size={13} />
+              <span>{snap.meal.count}</span>
             </Link>
             <Link
               href="/workout"
               className={`home-streak-item workout${snap.workoutWeeks.todayDone ? " lit" : ""}`}
               aria-label={`Latihan ${snap.workoutWeeks.count} minggu`}
             >
-              <Icon name="workout" size={15} />
-              {snap.workoutWeeks.count}
+              <Icon name="workout" size={13} />
+              <span>{snap.workoutWeeks.count}</span>
             </Link>
             <Link
               href="/dashboard/progress"
               className={`home-streak-item weigh${snap.weigh.todayDone ? " lit" : ""}`}
               aria-label={`Timbang ${snap.weigh.count} hari`}
             >
-              <Icon name="scale" size={15} />
-              {snap.weigh.count}
+              <Icon name="scale" size={13} />
+              <span>{snap.weigh.count}</span>
             </Link>
           </nav>
         )}
@@ -471,12 +471,12 @@ export default function HomePage() {
             }
             onClick={() => openPartnerRoom(activeVisitor?.user.id)}
           >
-            <Icon name="door" size={16} />
+            <Icon name="door" size={15} />
             <span className="door-btn-label">Intip</span>
             {isSignLit && <span className="door-sign-dot" aria-hidden="true" />}
           </button>
           <Link href="/settings" className="settings-icon-btn" aria-label={`Pengaturan ${name}`}>
-            <Icon name="settings" size={18} />
+            <Icon name="settings" size={16} />
           </Link>
         </div>
       </header>

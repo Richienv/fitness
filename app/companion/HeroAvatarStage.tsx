@@ -1,13 +1,13 @@
 "use client";
-// Minimalist floating HUD overlaid on the paused-by-default turntable avatar.
-// - Top-center above avatar head: anchor weight (red strikethrough) → projected weight
-//   with instant toggle between "Tanpa air" (biological) and "+ Air" (scale weight).
-// - Top-right corner: Detail trigger opening full EnergyBalance breakdown.
-// - Floating translucent icon+number chips: live per-second deficit, active workout burn,
-//   calories/protein eaten, and interactive water tracker (+250 ml / −250 ml).
-// - Bottom-right: Play/Pause toggle for the avatar (paused by default).
+// Minimalist frosted-glass HUD overlaid on the collectible level avatar.
+// - Top bar: quiet Live status pill (left) + frosted Detail trigger (right).
+// - Top-center above avatar head: anchor weight → projected weight
+//   with sliding frosted toggle between "Tanpa air" and "+ Air".
+// - Balanced 2-left / 2-right orbital frosted chips:
+//   Left: Live deficit & Active workout burn.
+//   Right: Makan/protein progress & interactive Water tracker (+250 ml / −250 ml).
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { dayFractionCST, energyBalance } from "@/lib/energyBalance";
 import type { EnergyView } from "@/lib/energyBalanceData";
 import {
@@ -58,6 +58,27 @@ export default function HeroAvatarStage({
   const [viewLevel, setViewLevel] = useState(unlockedLevel);
   const [includeWater, setIncludeWater] = useState(false);
   const [tick, setTick] = useState<number | null>(null);
+  const [waterPulsed, setWaterPulsed] = useState(false);
+  const waterPopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (waterPopTimerRef.current) clearTimeout(waterPopTimerRef.current);
+    };
+  }, []);
+
+  const handleWaterDelta = (deltaMl: number) => {
+    onAddWater(deltaMl);
+    if (waterPopTimerRef.current) clearTimeout(waterPopTimerRef.current);
+    setWaterPulsed(false);
+    requestAnimationFrame(() => {
+      setWaterPulsed(true);
+      waterPopTimerRef.current = setTimeout(() => {
+        setWaterPulsed(false);
+        waterPopTimerRef.current = null;
+      }, 340);
+    });
+  };
 
   useEffect(() => {
     setViewLevel(unlockedLevel);
@@ -143,19 +164,25 @@ export default function HeroAvatarStage({
 
   return (
     <section className="hero-stage" aria-label="Ringkasan berat dan progres real time">
-      {/* Top-right Detail trigger */}
-      <button
-        type="button"
-        className={`hero-detail-btn${detailOpen ? " is-open" : ""}`}
-        onClick={onToggleDetail}
-        aria-expanded={detailOpen}
-        aria-label={detailOpen ? "Tutup detail perhitungan" : "Lihat detail perhitungan"}
-      >
-        <Icon name="info" size={15} />
-        <span>{detailOpen ? "Tutup" : "Detail"}</span>
-      </button>
+      {/* Dedicated utility strip: quiet status badge left, frosted Detail trigger right */}
+      <div className="hero-stage-top">
+        <span className={`hero-live-badge${isToday ? " is-live" : ""}`}>
+          <span className="hero-live-dot" aria-hidden="true" />
+          <span>{isToday ? "Live" : "Proyeksi"}</span>
+        </span>
+        <button
+          type="button"
+          className={`hero-detail-btn${detailOpen ? " is-open" : ""}`}
+          onClick={onToggleDetail}
+          aria-expanded={detailOpen}
+          aria-label={detailOpen ? "Tutup detail perhitungan" : "Lihat detail perhitungan"}
+        >
+          <Icon name="info" size={14} />
+          <span>{detailOpen ? "Tutup" : "Detail"}</span>
+        </button>
+      </div>
 
-      {/* Top-center directly above avatar head: 76,1 (red strikethrough) → 75,9 kg */}
+      {/* Top-center focal readout above avatar head */}
       <div className="hero-head-weight">
         {anchorKg !== null && targetWeightNow !== null && live ? (
           <>
@@ -190,38 +217,51 @@ export default function HeroAvatarStage({
                   <strong>{dec(live.stopEating.weightKg, 2)} kg</strong>
                 </span>
               ) : (
-                <span>
-                  {deltaKg !== null && Math.abs(deltaKg) >= 0.005
-                    ? `${deltaKg > 0 ? "−" : "+"}${dec(Math.abs(deltaKg), 2)} kg`
-                    : "≈ 0,00 kg"}{" "}
-                  kalau stop makan
+                <>
+                  <span>
+                    {deltaKg !== null && Math.abs(deltaKg) >= 0.005
+                      ? `${deltaKg > 0 ? "−" : "+"}${dec(Math.abs(deltaKg), 2)} kg`
+                      : "≈ 0,00 kg"}{" "}
+                    kalau stop makan
+                  </span>
                   {nowDeltaKg !== null && isToday && (
-                    <>
-                      {" "}
-                      ·{" "}
+                    <span className="hero-live-pill">
                       <em className="hero-live-tick">
                         {nowDeltaKg >= 0 ? "−" : "+"}
                         {dec(Math.abs(nowDeltaKg), 4)} kg
                       </em>{" "}
                       skrg
-                    </>
+                    </span>
                   )}
-                </span>
+                </>
               )}
             </div>
 
-            <div className="hero-water-switch" role="group" aria-label="Mode berat air minum">
+            <div
+              className={`hero-water-switch${includeWater ? " is-water" : ""}`}
+              role="group"
+              aria-label="Mode berat air minum"
+            >
+              <span className="hero-water-thumb" aria-hidden="true" />
               <button
                 type="button"
                 className={!includeWater ? "is-active" : undefined}
-                onClick={() => setIncludeWater(false)}
+                aria-pressed={!includeWater}
+                onClick={() => {
+                  if (includeWater) haptic("tap");
+                  setIncludeWater(false);
+                }}
               >
                 Tanpa air
               </button>
               <button
                 type="button"
                 className={includeWater ? "is-active" : undefined}
-                onClick={() => setIncludeWater(true)}
+                aria-pressed={includeWater}
+                onClick={() => {
+                  if (!includeWater) haptic("tap");
+                  setIncludeWater(true);
+                }}
               >
                 + Air{waterMl > 0 ? ` (${dec(waterL, 1)}L)` : ""}
               </button>
@@ -234,7 +274,7 @@ export default function HeroAvatarStage({
         )}
       </div>
 
-      {/* Turntable Avatar — paused by default, playable via floating pill or drag; locked levels show mystery silhouette */}
+      {/* Avatar canvas with symmetrical 2-left / 2-right orbital HUD; locked levels show mystery silhouette */}
       <div className={`hero-avatar-canvas${isLocked ? " is-locked" : ""}`}>
         <AvatarPlayer
           character={character}
@@ -306,17 +346,18 @@ export default function HeroAvatarStage({
           </div>
         )}
 
-        {/* Floating left HUD chips (compact icon + number, translucent over avatar) */}
+        {/* Orbital left HUD: Energy out (Deficit + Workout burn) */}
         <div className="hero-hud-left" aria-hidden={isLocked || undefined}>
           {live && (
             <button
               type="button"
-              className="hero-chip tone-deficit"
+              className="hero-chip tone-deficit slot-tl"
               onClick={onToggleDetail}
+              tabIndex={isLocked ? -1 : undefined}
               aria-label="Defisit detik ini"
             >
               <span className="hero-chip-ico">
-                <Icon name="zap" size={14} />
+                <Icon name="zap" size={13} />
               </span>
               <span className="hero-chip-body">
                 <strong>
@@ -330,9 +371,14 @@ export default function HeroAvatarStage({
           )}
 
           {live && (
-            <Link href="/workout" className="hero-chip tone-burn" aria-label="Olahraga hari ini">
+            <Link
+              href="/workout"
+              className="hero-chip tone-burn slot-bl"
+              tabIndex={isLocked ? -1 : undefined}
+              aria-label="Olahraga hari ini"
+            >
               <span className="hero-chip-ico">
-                <Icon name="workout" size={14} />
+                <Icon name="workout" size={13} />
               </span>
               <span className="hero-chip-body">
                 <strong>
@@ -343,11 +389,19 @@ export default function HeroAvatarStage({
               </span>
             </Link>
           )}
+        </div>
 
+        {/* Orbital right HUD: Intake & Hydration (Makan/Protein + Air Minum) */}
+        <div className="hero-hud-right" aria-hidden={isLocked || undefined}>
           {snap && (
-            <Link href="/meal" className="hero-chip tone-meal" aria-label="Makan hari ini">
+            <Link
+              href="/meal"
+              className="hero-chip tone-meal slot-tr"
+              tabIndex={isLocked ? -1 : undefined}
+              aria-label="Makan hari ini"
+            >
               <span className="hero-chip-ico">
-                <Icon name="meal" size={14} />
+                <Icon name="meal" size={13} />
               </span>
               <span className="hero-chip-body">
                 <strong>
@@ -366,14 +420,14 @@ export default function HeroAvatarStage({
               </span>
             </Link>
           )}
-        </div>
 
-        {/* Floating right HUD: Water quick tracker */}
-        <div className="hero-hud-right" aria-hidden={isLocked || undefined}>
-          <div className="hero-water-chip" aria-label={`Air minum ${waterMl} ml`}>
+          <div
+            className={`hero-water-chip slot-br${waterPulsed ? " is-pulsed" : ""}`}
+            aria-label={`Air minum ${waterMl} ml`}
+          >
             <div className="hero-water-top">
               <span className="hero-chip-ico water">
-                <Icon name="droplet" size={14} />
+                <Icon name="droplet" size={13} />
               </span>
               <span className="hero-chip-body">
                 <strong>
@@ -394,7 +448,7 @@ export default function HeroAvatarStage({
                 <button
                   type="button"
                   className="hero-water-minus"
-                  onClick={() => onAddWater(-250)}
+                  onClick={() => handleWaterDelta(-250)}
                   tabIndex={isLocked ? -1 : undefined}
                   aria-label="Kurangi 250 ml air"
                 >
@@ -404,7 +458,7 @@ export default function HeroAvatarStage({
               <button
                 type="button"
                 className="hero-water-plus"
-                onClick={() => onAddWater(250)}
+                onClick={() => handleWaterDelta(250)}
                 tabIndex={isLocked ? -1 : undefined}
                 aria-label="Tambah 250 ml air"
               >

@@ -540,49 +540,12 @@ progress::-moz-progress-bar {
   max-width: 680px;
   margin: 0 auto;
 }
-.builder-header {
-  padding: calc(12px + env(safe-area-inset-top)) 20px 12px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg);
-  flex: none;
-}
-.builder-header h1 {
-  font-size: 25px;
-  margin: 12px 0 15px;
-}
-.meal-select select {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: #fff;
-  min-height: 44px;
-  padding: 8px 10px;
-  font-size: 13px;
-}
-.builder-tools {
-  display: flex;
-  gap: 7px;
-  margin-top: 10px;
-  flex-wrap: wrap;
-}
-.builder-tools button {
-  font-size: 12px;
-  gap: 5px;
-}
-.builder-tools .soft-button {
-  padding: 8px 10px;
-}
 .builder-scroll {
   overflow-y: auto;
   min-height: 0;
   flex: 1;
-  padding: 16px 20px 30px;
+  padding: 14px 16px 28px;
   overscroll-behavior: contain;
-}
-.builder-footer {
-  flex: none;
-  padding: 12px 20px calc(14px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--border);
-  background: var(--bg);
 }
 .builder-tray {
   padding: 16px;

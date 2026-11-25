@@ -18,7 +18,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
 } from "react";
 import { useSheetBack } from "@/lib/backSheet";
 import { haptic } from "@/lib/haptics";
@@ -43,13 +42,23 @@ import BarcodePanel from "./BarcodePanel";
 import ManualFoodSheet from "./ManualFoodSheet";
 import { scaleNutritionExtras } from "@/lib/nutritionLabel";
 import SearchField from "./SearchField";
-import { useVisibleViewport } from "@/lib/useVisibleViewport";
 import NutritionSummary from "./NutritionSummary";
 import Icon from "../ui/Icon";
 import type { RecipeFood } from "@/lib/recipes";
 import PortionSheet from "./picker/PortionSheet";
 import PickerHome, { type TileView, type UsualChip } from "./picker/PickerHome";
 import FacetRows, { type VariantChip } from "./picker/FacetRows";
+import {
+  FOOD_CATEGORIES,
+  matchesFoodCategory,
+  searchCatalogueWithAliases,
+  suggestRelaxedFoods,
+  type FoodCategoryKey,
+} from "@/lib/foodCategoryFilter";
+import {
+  dedupeQuickPickItems,
+  quickPickDisplayName,
+} from "@/lib/quickPickChips";
 import { buildFamilies, type Family, type Picks } from "@/lib/foodFamilies";
 import {
   applyPick,
@@ -177,6 +186,7 @@ type DbFoodRow = {
   sourceCode: string;
   name: string;
   nameEn?: string | null;
+  state?: string | null;
   foodGroup?: string | null;
   cuisine?: string | null;
   portionG?: number | null;
@@ -187,6 +197,13 @@ type DbFoodRow = {
   carb_g: number | null;
   sugar_g?: number | null;
 };
+
+function mapCatalogueState(s: string | null | undefined): FoodState {
+  const v = (s ?? "").trim().toLowerCase();
+  if (v === "mentah" || v === "raw") return "mentah";
+  if (v === "olahan" || v === "matang" || v === "cooked") return "matang";
+  return null;
+}
 
 /** A DB row's cuisine tag if valid, else null (grouping falls back to name). */
 function rowCuisine(c: string | null | undefined): CuisineKey | undefined {
@@ -460,7 +477,11 @@ export default function FoodBuilder({
   const [manualSeedName, setManualSeedName] = useState<string | undefined>(
     undefined,
   );
-  const [searchError, setSearchError] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<FoodCategoryKey>("all");
+  const [categoryExpanded, setCategoryExpanded] = useState(false);
+  const [secondaryPanel, setSecondaryPanel] = useState<"saved" | "groups" | null>(
+    null,
+  );
   const [overrides, setOverrides] = useState<Record<string, MacroPatch>>({});
   const [customFoods, setCustomFoods] = useState<BuilderFood[]>([]);
   const [shadowTick, setShadowTick] = useState(0);
@@ -534,12 +555,12 @@ export default function FoodBuilder({
   const [allFoods, setAllFoods] = useState<BuilderFood[] | null>(null);
   const [loadingAll, setLoadingAll] = useState(false);
   const [catalogueError, setCatalogueError] = useState<string | null>(null);
-  const viewport = useVisibleViewport();
   const searchRef = useRef<HTMLInputElement | null>(null);
   const builderRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
+    setCategoryExpanded(false);
     builderRef.current?.querySelector(".builder-scroll")?.scrollTo({ top: 0 });
-  }, [query]);
+  }, [query, activeCategory]);
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
     builderRef.current?.focus({ preventScroll: true });
@@ -585,40 +606,38 @@ export default function FoodBuilder({
     setConsumedToday({ kcal, protein, carbs, fat });
   }, [dateKey]);
 
-  // Live search against the shared food DB (TKPI + custom + libraries).
-  // Debounced; per-100g values map to a "100 g" unit so the qty math and the
-  // save path work unchanged.
+  // Background search merge against /api/foods/search (captures any extra
+  // DB-contributed USER: rows and household measures). Never wipes local
+  // matches or flashes error banners while typing on iOS Safari.
   useEffect(() => {
-    // The words that name food: "ayam air fryer" asks the server for "ayam".
     const term = parseFoodQuery(query.trim()).text;
-    setSearchError(null);
     if (term.length < 2) {
       setDbResults([]);
       setSearching(false);
       return;
     }
-    // Flip to "searching" right away so the spinner pops immediately, before the
-    // debounce + network, and drop the previous query's DB rows so they never
-    // linger under the spinner. (Instant local matches stay — they're correct.)
     setSearching(true);
-    setDbResults([]);
-    let cancelled = false;
+    const controller = new AbortController();
     const t = setTimeout(() => {
-      fetch(`/api/foods/search?q=${encodeURIComponent(term)}`)
+      fetch(`/api/foods/search?q=${encodeURIComponent(term)}`, {
+        signal: controller.signal,
+      })
         .then((r) => {
-          if (!r.ok)
-            throw new Error(
-              "Pencarian online belum tersedia. Hasil yang tersimpan tetap bisa dipakai.",
-            );
+          if (!r.ok) return null;
           return r.json();
         })
         .then((data) => {
-          if (cancelled) return;
+          if (controller.signal.aborted) return;
+          if (!data) {
+            setSearching(false);
+            return;
+          }
           const rows: DbFoodRow[] = data?.data?.foods ?? [];
           const mapped: BuilderFood[] = rows.map((f) => ({
             id: f.sourceCode,
             name: prettyFoodName(f.name),
             englishName: f.nameEn ?? undefined,
+            state: mapCatalogueState(f.state),
             sugar: f.sugar_g ?? undefined,
             foodGroup: f.foodGroup ?? undefined,
             cuisine: rowCuisine(f.cuisine),
@@ -635,7 +654,7 @@ export default function FoodBuilder({
             fat: f.fat_g ?? 0,
             carbs: f.carb_g ?? 0,
             gramsPerUnit: 100,
-            step: 0.1, // ±10 g nudges (gramsPerUnit 100)
+            step: 0.1,
             portionG: f.portionG ?? undefined,
             servings: f.servings ?? [],
           }));
@@ -643,13 +662,6 @@ export default function FoodBuilder({
           setSearching(false);
           setDbCache((c) => {
             const next = { ...c };
-            // MERGE, don't replace. The catalogue load caches the full row;
-            // this search result is a thinner projection of the same food, and
-            // assigning it wholesale dropped every field the search endpoint
-            // doesn't return. That is how sugar reached the tray as 0 even
-            // after the catalogue started shipping it: typing the query
-            // overwrote the good entry with a poorer one. Undefined values
-            // must never win over a value we already have.
             for (const m of mapped) {
               const prev = next[m.id];
               if (!prev) {
@@ -667,44 +679,27 @@ export default function FoodBuilder({
           });
         })
         .catch(() => {
-          if (!cancelled) {
+          if (!controller.signal.aborted) {
             setSearching(false);
-            setSearchError(
-              navigator.onLine
-                ? "Pencarian online belum tersedia. Hasil tersimpan tetap bisa dipakai."
-                : "Koneksi terputus. Cari makanan tersimpan atau tambah manual.",
-            );
           }
         });
-    }, 250);
+    }, 220);
     return () => {
-      cancelled = true;
+      controller.abort();
       clearTimeout(t);
     };
   }, [query]);
 
   // Load the shared catalogue once, via lib/foodCatalogue (cached on device).
-  //
-  // The previous version listed `loadingAll` in its own dependency array AND
-  // set it, so React ran the cleanup — cancelling the in-flight request —
-  // before it could resolve. loadingAll stayed true, allFoods stayed null, and
-  // the spinner ran forever. A ref guard can't be re-entered that way.
   const catalogueTried = useRef(false);
-  const runCatalogueLoad = useCallback((force: boolean) => {
-    catalogueTried.current = true;
-    setLoadingAll(true);
-    setCatalogueError(null);
-    loadCatalogue(force).then((res) => {
-      setLoadingAll(false);
-      if (!res.ok) {
-        setCatalogueError(res.message);
-        return;
-      }
-      const mapped: BuilderFood[] = res.foods.map((f) => ({
+  const applyCatalogueRows = useCallback(
+    (rows: import("@/lib/foodCatalogue").CatalogueFood[]) => {
+      const mapped: BuilderFood[] = rows.map((f) => ({
         id: f.sourceCode,
         name: prettyFoodName(f.name),
         englishName: f.nameEn ?? undefined,
         aliases: f.aliases ?? undefined,
+        state: mapCatalogueState(f.state),
         foodGroup: f.foodGroup ?? undefined,
         cuisine: rowCuisine(f.cuisine),
         unit: "100 g",
@@ -716,11 +711,8 @@ export default function FoodBuilder({
         protein: f.protein_g ?? 0,
         fat: f.fat_g ?? 0,
         carbs: f.carb_g ?? 0,
-        // Saved inline on every item, so it reaches Skor Sehat's sugar term.
         sugar: f.sugar_g ?? undefined,
         gramsPerUnit: 100,
-        // A real serving beats a flat 100 g: "1 bungkus · 185 g · 380 kkal"
-        // is the number someone eats, and it is what the source measured.
         portionG: f.portionG ?? undefined,
         popularity: f.popularity ?? undefined,
         step: 0.1,
@@ -728,13 +720,31 @@ export default function FoodBuilder({
       setAllFoods(mapped);
       setDbCache((c) => {
         const next = { ...c };
-        // Current catalogue rows supersede old pick snapshots (including their
-        // real serving weight). History remembers ids, not obsolete nutrition.
         for (const m of mapped) next[m.id] = { ...next[m.id], ...m };
         return next;
       });
-    });
-  }, []);
+    },
+    [],
+  );
+
+  const runCatalogueLoad = useCallback(
+    (force: boolean) => {
+      catalogueTried.current = true;
+      setLoadingAll(true);
+      setCatalogueError(null);
+      loadCatalogue(force, (fresh) => {
+        applyCatalogueRows(fresh);
+      }).then((res) => {
+        setLoadingAll(false);
+        if (!res.ok) {
+          setCatalogueError(res.message);
+          return;
+        }
+        applyCatalogueRows(res.foods);
+      });
+    },
+    [applyCatalogueRows],
+  );
 
   useEffect(() => {
     if (catalogueTried.current) return;
@@ -1140,6 +1150,10 @@ export default function FoodBuilder({
     }
     if (newGroup) {
       setNewGroup(null);
+      return true;
+    }
+    if (secondaryPanel) {
+      setSecondaryPanel(null);
       return true;
     }
     if (browseOpen) {
@@ -1588,24 +1602,31 @@ export default function FoodBuilder({
     chips: [],
   });
   useEffect(() => {
-    const habit = predictor
+    const orderedHabit = predictor
       .orderLeaves([...familyIndex.families.values()].flatMap((f) => f.leaves))
       .filter((l) => predictor.foodEvidence(l.food.id) > 0)
-      .slice(0, 6)
       .map((l) => l.food);
-    const chosen =
-      habit.length > 0 ? habit : STAPLES.filter((f) => f.favorite).slice(0, 4);
-    setUsual({
-      title: habit.length > 0 ? BLABEL[activeMeal] : "FAVORIT",
-      chips: chosen.map((f) => ({
-        id: f.id,
-        name: f.name,
-        kcal: itemMacros(
-          f,
-          portionModel(f, satuanFor(f).portionG).defaultG /
-            portionModel(f, satuanFor(f).portionG).unitG,
-        ).kcal,
+    const fallbackFavs = STAPLES.filter((f) => f.favorite);
+    const candidates = orderedHabit.length > 0 ? orderedHabit : fallbackFavs;
+    const chosen = dedupeQuickPickItems(
+      candidates.map((f) => ({
+        ...f,
+        name: quickPickDisplayName(f.name),
       })),
+      6,
+    );
+    setUsual({
+      title: orderedHabit.length > 0 ? BLABEL[activeMeal] : "FAVORIT",
+      chips: chosen.map((f) => {
+        const model = portionModel(f, satuanFor(f).portionG);
+        const macros = itemMacros(f, model.defaultG / model.unitG);
+        return {
+          id: f.id,
+          name: quickPickDisplayName(f.name),
+          kcal: macros.kcal,
+          protein: macros.protein,
+        };
+      }),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMeal, predictor, familyIndex]);
@@ -1692,86 +1713,101 @@ export default function FoodBuilder({
   // deeper costs a larger sort, not a larger scan.
   const RANK_LIMIT = 400;
   const SHOW_LIMIT = 60;
-  const dbPool = prepareSearch(dbResults);
-  // When nothing matches every word, search the longest leading part that
-  // finds something, and say so ("ayam kremes spesial" → "ayam kremes").
+  const dbPool = useMemo(() => prepareSearch(dbResults), [dbResults]);
   const searchText = !q
     ? ""
     : (relaxQuery(
         parsedQ.text,
         (t) =>
-          searchPrepared(searchPool, t, { limit: 1 }).length > 0 ||
-          searchPrepared(dbPool, t, { limit: 1 }).length > 0,
+          searchCatalogueWithAliases(searchPool, t, { limit: 1 }).length > 0 ||
+          searchCatalogueWithAliases(dbPool, t, { limit: 1 }).length > 0,
       ) ?? parsedQ.text);
-  const searchFlatRaw: BuilderFood[] = searchText
-    ? searchPrepared(searchPool, searchText, {
-        limit: RANK_LIMIT,
+
+  const unfilteredSearchMatches: BuilderFood[] = (() => {
+    if (!searchText) return [];
+    const rawHits = searchCatalogueWithAliases(searchPool, searchText, {
+      limit: RANK_LIMIT,
+      affinity,
+      suppression,
+    }).concat(
+      searchCatalogueWithAliases(dbPool, searchText, {
+        limit: 30,
         affinity,
         suppression,
-      })
-        .map((r) => r.food)
-        .concat(
-          searchPrepared(dbPool, searchText, {
-            limit: 30,
-            affinity,
-            suppression,
-          }).map((r) => r.food),
-        )
-    : [];
-  const searchFlat: BuilderFood[] = (() => {
-    if (!q) return searchFlatRaw;
-    // De-dupe only. What used to live here was a HARD PARTITION — every food
-    // the user had ever picked, concatenated above every food they hadn't,
-    // regardless of relevance. It was the only way to make a signal worth 0.3
-    // points visible against a BM25 total near 3.9, and it bought that
-    // visibility by making relevance irrelevant: a food tapped once months ago
-    // outranked an exact name match, and "Telur balado is still showing even
-    // though the user never picked it" was the direct consequence.
-    //
-    // Behaviour is a scored FEATURE now (lib/foodAffinity), applied inside the
-    // ranker and capped at +40%, with an exact-name lock above it. Ordering
-    // here would fight that.
+      }),
+    );
     const seen = new Set<string>();
     const out: BuilderFood[] = [];
-    for (const f of searchFlatRaw) {
+    for (const f of rawHits) {
       if (seen.has(f.id)) continue;
       seen.add(f.id);
       out.push(f);
     }
-    return out.slice(0, SHOW_LIMIT);
+    return out;
   })();
+
+  const filteredSearchMatches: BuilderFood[] =
+    activeCategory === "all"
+      ? unfilteredSearchMatches
+      : unfilteredSearchMatches.filter((f) =>
+          matchesFoodCategory(f, activeCategory),
+        );
+
+  const searchFlat: BuilderFood[] = filteredSearchMatches.slice(0, SHOW_LIMIT);
+  const searchResultCount = searchFlat.length;
+
+  const didYouMean: BuilderFood[] = useMemo(() => {
+    if (!q || filteredSearchMatches.length > 0) return [];
+    const catMatches =
+      activeCategory === "all"
+        ? []
+        : suggestRelaxedFoods(searchPool, parsedQ.text || q, {
+            limit: 4,
+            filter: (f) => matchesFoodCategory(f, activeCategory),
+          });
+    if (catMatches.length > 0) return catMatches;
+    return suggestRelaxedFoods(searchPool, parsedQ.text || q, { limit: 4 });
+  }, [q, filteredSearchMatches.length, activeCategory, searchPool, parsedQ.text]);
+
+  const categoryBrowseItems: BuilderFood[] = useMemo(() => {
+    if (q || activeCategory === "all") return [];
+    const seen = new Set<string>();
+    const list: BuilderFood[] = [];
+    for (const f of merged.concat(allFoods ?? [])) {
+      if (f.missingNutrition || seen.has(f.id)) continue;
+      if (!matchesFoodCategory(f, activeCategory)) continue;
+      seen.add(f.id);
+      list.push(applyOv(f));
+    }
+    list.sort(
+      (a, b) =>
+        (b.popularity ?? 0) - (a.popularity ?? 0) ||
+        a.name.length - b.name.length ||
+        a.name.localeCompare(b.name, "id"),
+    );
+    return list;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, activeCategory, customFoods, groups, allFoods, overrides]);
+
   // Record what the user was actually SHOWN, once the query settles.
-  //
-  // Debounced hard on purpose: typing "telur" fires five renders, and counting
-  // each as its own impression would make a food look ignored five times for
-  // one glance. 900ms is roughly "stopped typing and looked".
   const shownRef = useRef<string>("");
   useEffect(() => {
     if (!q || searchFlat.length === 0) return;
     const t = window.setTimeout(() => {
-      // Only the rows plausibly on screen. Counting rank 50 as "shown and
-      // declined" would be a lie about what the user ever saw.
-      const key = `${q}|${searchFlat.length}`;
+      const key = `${q}|${activeCategory}|${searchFlat.length}`;
       if (shownRef.current === key) return;
       shownRef.current = key;
       recordImpressions(searchFlat.slice(0, 8).map((f) => f.id));
     }, 900);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, searchFlat.length]);
+  }, [q, activeCategory, searchFlat.length]);
 
-  const searchResultCount = searchFlat.length;
   // A one-word query groups by what the word means (the food, its dishes,
   // dishes with it), with what this user picks most in its own group on top.
   const searchGroups = (() => {
-    if (!searchText) return null;
-    const seen = new Set<string>();
-    const unique = searchFlatRaw.filter((f) => {
-      if (seen.has(f.id)) return false;
-      seen.add(f.id);
-      return true;
-    });
-    return groupResults(unique, searchText, {
+    if (!searchText || filteredSearchMatches.length < 6) return null;
+    return groupResults(filteredSearchMatches, searchText, {
       affinity,
       preferRaw: parsedQ.wantsRaw || parsedQ.method === "airfry",
     });
@@ -1928,38 +1964,60 @@ export default function FoodBuilder({
     const ing = applyOv(raw);
     const preview = servingPreview(ing, satuanFor(ing));
     const m = preview.macros;
+    const st = foodState(ing);
+    const subtitle = (() => {
+      if (ing.zh && !ing.name.includes(ing.zh)) {
+        return ing.pinyin ? `${ing.zh} · ${ing.pinyin}` : ing.zh;
+      }
+      if (ing.englishName) {
+        const normMain = ing.name.toLowerCase();
+        const normEn = ing.englishName.toLowerCase();
+        if (!normMain.includes(normEn) && !normEn.includes(normMain)) {
+          return ing.englishName;
+        }
+      }
+      return null;
+    })();
+    const inTray = (selection[ing.id] || 0) > 0;
     return (
       <button
         key={ing.id}
-        className="food-result"
+        type="button"
+        className={`food-result${inTray ? " is-selected" : ""}`}
         aria-label={
-          selection[ing.id]
+          inTray
             ? `${ing.name}, sudah dipilih. Ubah porsi`
             : `Tambah ${ing.name}`
         }
         onClick={() => quickAdd(ing.id)}
       >
-        <span>
-          <strong>
-            {ing.name}
-            {foodState(ing) === "mentah" && !/mentah|raw/i.test(ing.name) && (
-              <em className="state-tag">mentah</em>
-            )}
-          </strong>
-          <small>
-            {preview.description} ·{" "}
-            {ing.missingNutrition
-              ? "Nutrisi belum lengkap"
-              : `${Math.round(m.kcal)} kkal`}
-          </small>
+        <div className="food-result-main">
+          <div className="food-result-title-row">
+            <strong>{ing.name}</strong>
+            {st === "mentah" && <span className="state-tag is-raw">Mentah</span>}
+            {st === "matang" && <span className="state-tag is-cooked">Matang</span>}
+          </div>
+          {subtitle && <span className="food-result-sub">{subtitle}</span>}
+          <div className="food-result-meta">
+            <span className="food-kcal-pill">
+              {ing.missingNutrition
+                ? "Nutrisi belum lengkap"
+                : `${Math.round(m.kcal)} kkal · ${round1(m.protein)} g prot`}
+            </span>
+            <span className="food-portion-chip">{preview.description}</span>
+          </div>
           {!ing.missingNutrition && (
             <span className="macro-line">
-              Protein {round1(m.protein)} g · Karbohidrat {round1(m.carbs)} g ·
-              Lemak {round1(m.fat)} g
+              Karbo {round1(m.carbs)} g · Lemak {round1(m.fat)} g
             </span>
           )}
+        </div>
+        <span
+          className={`food-result-add${inTray ? " is-added" : ""}`}
+          aria-hidden="true"
+        >
+          <Icon name={inTray ? "check" : "plus"} size={18} />
         </span>
-        <Icon name="plus" />
       </button>
     );
   };
@@ -1971,7 +2029,6 @@ export default function FoodBuilder({
         tabIndex={-1}
         className="food-builder"
         style={{
-          ...viewport,
           visibility:
             recipeOpen || labelOpen || manualOpen ? "hidden" : "visible",
         }}
@@ -2017,10 +2074,20 @@ export default function FoodBuilder({
         }}
       >
         <header className="builder-header">
-          <div className="row-between">
-            <button className="text-button" onClick={onClose}>
-              Kembali
+          <div className="builder-topbar">
+            <button
+              type="button"
+              className="builder-back-btn"
+              onClick={onClose}
+            >
+              <Icon
+                name="arrow"
+                size={16}
+                style={{ transform: "rotate(180deg)" }}
+              />
+              <span>Kembali</span>
             </button>
+            <h1>Catat makan</h1>
             <label className="meal-select">
               <span className="sr-only">Waktu makan</span>
               <select
@@ -2035,160 +2102,412 @@ export default function FoodBuilder({
               </select>
             </label>
           </div>
-          <h1>Catat makan</h1>
+
+          <SearchField
+            value={query}
+            onChange={(val) => {
+              setQuery(val);
+              if (val && browseOpen) setBrowseOpen(false);
+              if (val && secondaryPanel) setSecondaryPanel(null);
+            }}
+            inputRef={searchRef}
+            label="Cari makanan"
+            placeholder="Cari 4.870+ makanan (daging babi, ayam, nasi…)"
+            loading={(loadingAll && !allFoods) || searching}
+          />
+
+          <div
+            className="builder-quick-actions"
+            role="group"
+            aria-label="Cara catat lain"
+          >
+            <button
+              type="button"
+              className="builder-action-pill"
+              onClick={() => setRecipeOpen(true)}
+            >
+              <Icon name="pot" size={15} />
+              <span>Racik</span>
+            </button>
+            <button
+              type="button"
+              className="builder-action-pill is-accent"
+              onClick={() => setLabelOpen(true)}
+            >
+              <Icon name="scan" size={15} />
+              <span>Scan label</span>
+            </button>
+            <button
+              type="button"
+              className="builder-action-pill"
+              onClick={() => openNewFood(null, query.trim() || undefined)}
+            >
+              <Icon name="plus" size={15} />
+              <span>Tambah cepat</span>
+            </button>
+          </div>
+
+          <div
+            className="category-pills"
+            role="tablist"
+            aria-label="Filter kategori makanan"
+          >
+            {FOOD_CATEGORIES.map((cat) => {
+              const active = activeCategory === cat.key;
+              return (
+                <button
+                  key={cat.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={`category-pill${active ? " is-active" : ""}`}
+                  onClick={() => {
+                    setActiveCategory(cat.key);
+                    setBrowseOpen(false);
+                    setSecondaryPanel(null);
+                  }}
+                >
+                  {cat.label}
+                </button>
+              );
+            })}
+          </div>
         </header>
         <div className="builder-scroll">
-          {count > 0 && !query && (
-            <section className="builder-tray">
-              <div className="row-between">
-                <h2>Pilihan makan ({count})</h2>
-                <button
-                  className="text-button"
-                  onClick={() =>
-                    setNamingTemplate({ name: "Menu biasa", emoji: "" })
-                  }
-                >
-                  Simpan menu
-                </button>
-              </div>
-              <NutritionSummary
-                values={{ kcal: tk, protein: tp, carbs: tc, fat: tf }}
-              />
-              {traySelected.map(({ id, ing, qty }) => {
-                const model = portionModel(ing, satuanFor(ing).portionG);
-                const n = itemMacros(ing, qty, entryMods[id] ?? []);
-                const amount =
-                  model.mode === "grams"
-                    ? `${Math.round(model.unitG * qty)} g`
-                    : /^1\s/.test(ing.unit)
-                      ? `${round1(qty)} ${unitBahasa(ing.unit.slice(2))}`
-                      : `${round1(qty)} × ${unitBahasa(ing.unit)}`;
-                const mods = modSummary(entryMods[id] ?? []);
-                const label = foodLabel(ing);
-                return (
-                  <div className="tray-food" key={id}>
-                    <div className="tray-main">
-                      <strong>{label}</strong>
-                      <small>
-                        {Math.round(n.kcal)} kkal · {round1(n.protein)} g
-                        protein
-                        {mods ? ` · ${mods}` : ""}
-                      </small>
+          {count > 0 &&
+            !query &&
+            activeCategory === "all" &&
+            !browseOpen &&
+            !secondaryPanel && (
+              <section className="builder-tray">
+                <div className="row-between">
+                  <h2>Pilihan makan ({count})</h2>
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() =>
+                      setNamingTemplate({ name: "Menu biasa", emoji: "" })
+                    }
+                  >
+                    Simpan menu
+                  </button>
+                </div>
+                <NutritionSummary
+                  values={{ kcal: tk, protein: tp, carbs: tc, fat: tf }}
+                />
+                {traySelected.map(({ id, ing, qty }) => {
+                  const model = portionModel(ing, satuanFor(ing).portionG);
+                  const n = itemMacros(ing, qty, entryMods[id] ?? []);
+                  const amount =
+                    model.mode === "grams"
+                      ? `${Math.round(model.unitG * qty)} g`
+                      : /^1\s/.test(ing.unit)
+                        ? `${round1(qty)} ${unitBahasa(ing.unit.slice(2))}`
+                        : `${round1(qty)} × ${unitBahasa(ing.unit)}`;
+                  const mods = modSummary(entryMods[id] ?? []);
+                  const label = foodLabel(ing);
+                  return (
+                    <div className="tray-food" key={id}>
+                      <div className="tray-main">
+                        <strong>{label}</strong>
+                        <small>
+                          {Math.round(n.kcal)} kkal · {round1(n.protein)} g
+                          protein
+                          {mods ? ` · ${mods}` : ""}
+                        </small>
+                      </div>
+                      <div
+                        className="tray-qty"
+                        role="group"
+                        aria-label={`Porsi ${label}`}
+                      >
+                        <button
+                          type="button"
+                          aria-label={`Kurangi ${label}`}
+                          onClick={() => stepTray(id, -1)}
+                        >
+                          <Icon name="minus" size={18} />
+                        </button>
+                        <button
+                          type="button"
+                          className="tray-amount"
+                          aria-label={`Ubah porsi ${label}, sekarang ${amount}`}
+                          onClick={() => openPortionSheet(id)}
+                        >
+                          {amount}
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Tambah porsi ${label}`}
+                          onClick={() => stepTray(id, 1)}
+                        >
+                          <Icon name="plus" size={18} />
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        className="icon-button"
+                        aria-label={`Hapus ${label} dari pilihan`}
+                        onClick={() => bRemove(id)}
+                      >
+                        <Icon name="close" />
+                      </button>
+                      {model.mode === "grams" && (
+                        <button
+                          type="button"
+                          className="text-button tray-edit"
+                          onClick={() => openEdit(id)}
+                        >
+                          Edit nilai gizi
+                        </button>
+                      )}
                     </div>
-                    <div
-                      className="tray-qty"
-                      role="group"
-                      aria-label={`Porsi ${label}`}
-                    >
-                      <button
-                        type="button"
-                        aria-label={`Kurangi ${label}`}
-                        onClick={() => stepTray(id, -1)}
-                      >
-                        <Icon name="minus" size={18} />
-                      </button>
-                      <button
-                        type="button"
-                        className="tray-amount"
-                        aria-label={`Ubah porsi ${label}, sekarang ${amount}`}
-                        onClick={() => openPortionSheet(id)}
-                      >
-                        {amount}
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Tambah porsi ${label}`}
-                        onClick={() => stepTray(id, 1)}
-                      >
-                        <Icon name="plus" size={18} />
-                      </button>
-                    </div>
-                    <button
-                      className="icon-button"
-                      aria-label={`Hapus ${label} dari pilihan`}
-                      onClick={() => bRemove(id)}
-                    >
-                      <Icon name="close" />
-                    </button>
-                    {model.mode === "grams" && (
-                      <button
-                        className="text-button tray-edit"
-                        onClick={() => openEdit(id)}
-                      >
-                        Edit nilai gizi
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </section>
-          )}
+                  );
+                })}
+              </section>
+            )}
           {addedFlash && (
             <p className="status-message" role="status">
               {addedFlash.name} ditambahkan ke pilihan makan.
             </p>
           )}
-          {!q && !browseOpen && trayShadows.length > 0 && (
-            <ShadowRecommendations
-              offers={trayShadows}
-              variant="tray"
-              title={count > 0 ? "Sering ditambah bareng ini" : "Tombol Bayangan"}
-              subtitle={count > 0 ? "Pasangan" : "1 ketuk ✓"}
-              onConfirm={(o) => applyShadowToTray(o)}
-              onQuickEdit={(o) => setEditingShadow(o)}
-              onDismiss={(o) => {
-                dismissShadowOffer(o.targetNodeId);
-                setShadowTick((t) => t + 1);
-              }}
-            />
-          )}
-          {searchError && (
-            <p className="status-message" role="status">
-              {searchError}
-            </p>
-          )}
-          {!q && !browseOpen && (
+          {!q &&
+            activeCategory === "all" &&
+            !browseOpen &&
+            !secondaryPanel &&
+            trayShadows.length > 0 && (
+              <ShadowRecommendations
+                offers={trayShadows}
+                variant="tray"
+                title={
+                  count > 0 ? "Sering ditambah bareng ini" : "Tombol Bayangan"
+                }
+                subtitle={count > 0 ? "Pasangan" : "1 ketuk ✓"}
+                onConfirm={(o) => applyShadowToTray(o)}
+                onQuickEdit={(o) => setEditingShadow(o)}
+                onDismiss={(o) => {
+                  dismissShadowOffer(o.targetNodeId);
+                  setShadowTick((t) => t + 1);
+                }}
+              />
+            )}
+          {!q && activeCategory === "all" && !browseOpen && (
             <PickerHome
               mealLabel={BLABEL[activeMeal]}
               usual={usual.chips}
+              catalogueCount={allFoods?.length ?? 0}
+              savedCount={templates.length}
+              groupsCount={groups.length}
+              activeSecondary={secondaryPanel}
               loading={loadingAll && !allFoods}
-              error={catalogueError}
+              error={allFoods ? null : catalogueError}
               onRetry={() => {
                 clearCatalogueCache();
                 runCatalogueLoad(true);
               }}
               onUsual={quickAdd}
-              onMore={() => setBrowseOpen(true)}
-              onImport={() => {
-                if (
-                  count &&
-                  !window.confirm(
-                    "Pilihan makan belum disimpan. Pindah ke impor?",
-                  )
-                )
-                  return;
-                window.location.href = "/meal/import";
+              onMore={() => {
+                setSecondaryPanel(null);
+                setBrowseOpen(true);
               }}
-              onGroup={() => setNewGroup({ name: "", emoji: "" })}
+              onToggleSaved={() =>
+                setSecondaryPanel((cur) => (cur === "saved" ? null : "saved"))
+              }
+              onToggleGroups={() =>
+                setSecondaryPanel((cur) => (cur === "groups" ? null : "groups"))
+              }
             />
           )}
-          {q && count > 0 && (
+          {!q &&
+            activeCategory === "all" &&
+            !browseOpen &&
+            secondaryPanel === "saved" && (
+              <section className="secondary-drawer" aria-label="Menu tersimpan">
+                <div className="row-between">
+                  <h2>Menu tersimpan ({templates.length})</h2>
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => setSecondaryPanel(null)}
+                  >
+                    Tutup
+                  </button>
+                </div>
+                {templates.length === 0 ? (
+                  <p className="quiet">
+                    Belum ada menu tersimpan. Tambahkan beberapa makanan ke
+                    pilihan, lalu tekan <strong>Simpan menu</strong>.
+                  </p>
+                ) : (
+                  templates.map((t) => (
+                    <div className="saved-menu-row" key={t.id}>
+                      <button
+                        type="button"
+                        className="food-result"
+                        onClick={() => applyTemplate(t)}
+                      >
+                        <div className="food-result-main">
+                          <strong>{t.name}</strong>
+                          <div className="food-result-meta">
+                            <span className="food-kcal-pill">
+                              {templateKcal(t)} kkal
+                            </span>
+                            <span className="food-portion-chip">
+                              {t.items.length} item
+                            </span>
+                          </div>
+                        </div>
+                        <span className="food-result-add" aria-hidden="true">
+                          <Icon name="plus" size={18} />
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-button"
+                        aria-label={`Hapus menu ${t.name}`}
+                        onClick={() => removeTemplate(t.id)}
+                      >
+                        <Icon name="close" />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </section>
+            )}
+          {!q &&
+            activeCategory === "all" &&
+            !browseOpen &&
+            secondaryPanel === "groups" && (
+              <section className="secondary-drawer" aria-label="Grup saya">
+                <div className="row-between">
+                  <h2>Grup makanan saya ({groups.length})</h2>
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => setSecondaryPanel(null)}
+                  >
+                    Tutup
+                  </button>
+                </div>
+                <div className="secondary-drawer-actions">
+                  <button
+                    type="button"
+                    className="soft-button"
+                    onClick={() => setNewGroup({ name: "", emoji: "" })}
+                  >
+                    <Icon name="plus" size={15} />
+                    <span>Buat grup baru</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => {
+                      if (
+                        count &&
+                        !window.confirm(
+                          "Pilihan makan belum disimpan. Pindah ke impor?",
+                        )
+                      )
+                        return;
+                      window.location.href = "/meal/import";
+                    }}
+                  >
+                    Impor daftar JSON
+                  </button>
+                </div>
+                {groups.length === 0 ? (
+                  <p className="quiet">
+                    Simpan menu warung atau kantin favoritmu ke dalam grup biar
+                    besok tinggal pilih.
+                  </p>
+                ) : (
+                  groups.map((g) => (
+                    <div className="group-drawer-block" key={g.id}>
+                      <div className="row-between">
+                        <h3>
+                          {g.emoji ? `${g.emoji} ` : ""}
+                          {g.name} ({g.foods.length})
+                        </h3>
+                        <button
+                          type="button"
+                          className="text-button"
+                          onClick={() => openNewFood(g.id)}
+                        >
+                          + Isi makanan
+                        </button>
+                      </div>
+                      {g.foods.map(renderResultRow)}
+                    </div>
+                  ))
+                )}
+              </section>
+            )}
+          {(q || activeCategory !== "all") && count > 0 && (
             <button
               type="button"
               className="tray-peek"
-              onClick={() => setQuery("")}
+              onClick={() => {
+                setQuery("");
+                setActiveCategory("all");
+                setBrowseOpen(false);
+                setSecondaryPanel(null);
+              }}
             >
               <span>
                 Sudah dipilih {count} · {Math.round(tk)} kkal
               </span>
-              <span>Lihat</span>
+              <span>Lihat pilihan</span>
             </button>
+          )}
+          {!q && activeCategory !== "all" && !browseOpen && (
+            <section className="search-results" aria-live="polite">
+              <div className="row-between">
+                <h2>
+                  {
+                    FOOD_CATEGORIES.find((c) => c.key === activeCategory)
+                      ?.label
+                  }{" "}
+                  · {categoryBrowseItems.length}
+                </h2>
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => setActiveCategory("all")}
+                >
+                  Semua kategori
+                </button>
+              </div>
+              {(categoryExpanded
+                ? categoryBrowseItems
+                : categoryBrowseItems.slice(0, 60)
+              ).map(renderResultRow)}
+              {!categoryExpanded && categoryBrowseItems.length > 60 && (
+                <button
+                  type="button"
+                  className="secondary-button category-load-more"
+                  onClick={() => setCategoryExpanded(true)}
+                >
+                  Tampilkan semua {categoryBrowseItems.length} makanan
+                </button>
+              )}
+              {categoryBrowseItems.length === 0 && (
+                <div className="not-found-card">
+                  <strong>Belum ada item di kategori ini</strong>
+                  <p>Coba ketik kata kunci di pencarian atas.</p>
+                </div>
+              )}
+            </section>
           )}
           {q && (
             <section className="search-results" aria-live="polite">
               <div className="row-between">
-                <h2>Hasil pencarian</h2>
-                {searching && <span className="quiet">Mencari…</span>}
+                <h2>
+                  Hasil pencarian
+                  {searchResultCount > 0 ? ` (${searchResultCount})` : ""}
+                </h2>
+                {loadingAll && !allFoods && (
+                  <span className="quiet">Memuat katalog…</span>
+                )}
               </div>
               {searchHint && <p className="search-hint">{searchHint}</p>}
               {searchGroups
@@ -2204,11 +2523,13 @@ export default function FoodBuilder({
                           {g.title}
                           <span>{g.items.length}</span>
                         </h3>
-                        {(open ? g.items.slice(0, SHOW_LIMIT) : g.items.slice(0, 4)).map(
-                          renderResultRow,
-                        )}
+                        {(open
+                          ? g.items.slice(0, SHOW_LIMIT)
+                          : g.items.slice(0, 4)
+                        ).map(renderResultRow)}
                         {g.items.length > 4 && (
                           <button
+                            type="button"
                             className="text-button"
                             aria-expanded={open}
                             onClick={() => toggleGroup(g.key)}
@@ -2229,64 +2550,85 @@ export default function FoodBuilder({
                   onClick={() => openNewFood(null, query.trim())}
                 >
                   <span>
-                    <strong>Tambah “{query.trim()}” sebagai makanan baru</strong>
-                    <small>Cukup isi nama &amp; kalori — 1 ketuk langsung catat</small>
+                    <strong>
+                      + Tambah “{query.trim()}” (Cepat)
+                    </strong>
+                    <small>
+                      Tidak ketemu versi persisnya? Isi nama &amp; kalori — 1
+                      ketuk langsung catat
+                    </small>
                   </span>
                   <Icon name="plus" size={18} />
                 </button>
               )}
-              {searchResultCount === 0 && !searching && (
-                <div className="empty-note">
-                  <p>Makanan “{query.trim()}” belum ditemukan.</p>
+              {searchResultCount === 0 && !(loadingAll && !allFoods) && (
+                <div className="not-found-card">
+                  <div className="not-found-head">
+                    <span className="not-found-ico" aria-hidden="true">
+                      <Icon name="search" size={18} />
+                    </span>
+                    <div>
+                      <strong>
+                        Makanan “{query.trim()}” belum ada di katalog
+                      </strong>
+                      <p>
+                        Kamu bisa tambah cepat dalam 1 ketuk, scan label
+                        kemasan, atau racik dari bahan.
+                      </p>
+                    </div>
+                  </div>
+                  {activeCategory !== "all" &&
+                    unfilteredSearchMatches.length > 0 && (
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => setActiveCategory("all")}
+                      >
+                        Lihat {unfilteredSearchMatches.length} hasil di Semua
+                        kategori
+                      </button>
+                    )}
                   <button
+                    type="button"
                     className="primary-button"
                     onClick={() => openNewFood(null, query.trim())}
                   >
-                    Tambah “{query.trim()}” sebagai makanan baru
+                    + Tambah “{query.trim()}” (Cepat)
                   </button>
-                  <button
-                    className="text-button"
-                    onClick={() => setRecipeOpen(true)}
-                  >
-                    Racik dari bahan
-                  </button>
+                  <div className="not-found-secondary">
+                    <button
+                      type="button"
+                      className="soft-button"
+                      onClick={() => setLabelOpen(true)}
+                    >
+                      <Icon name="scan" size={15} />
+                      <span>Scan label</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="soft-button"
+                      onClick={() => setRecipeOpen(true)}
+                    >
+                      <Icon name="pot" size={15} />
+                      <span>Racik</span>
+                    </button>
+                  </div>
+                  {didYouMean.length > 0 && (
+                    <div className="did-you-mean">
+                      <span>Mungkin maksudmu…</span>
+                      {didYouMean.map(renderResultRow)}
+                    </div>
+                  )}
                 </div>
               )}
             </section>
           )}
-          {!q && templates.length > 0 && (
-            <details className="saved-menus">
-              <summary>Menu tersimpan ({templates.length})</summary>
-              {templates.map((t) => (
-                <div className="row-between" key={t.id}>
-                  <button
-                    className="food-result"
-                    onClick={() => applyTemplate(t)}
-                  >
-                    <span>
-                      <strong>{t.name}</strong>
-                      <small>
-                        {t.items.length} makanan · {templateKcal(t)} kkal
-                      </small>
-                    </span>
-                    <Icon name="plus" />
-                  </button>
-                  <button
-                    className="icon-button"
-                    aria-label={`Hapus menu ${t.name}`}
-                    onClick={() => removeTemplate(t.id)}
-                  >
-                    <Icon name="close" />
-                  </button>
-                </div>
-              ))}
-            </details>
-          )}
           {browseOpen && (
-            <section>
+            <section className="browse-drawer">
               <div className="row-between">
                 <h2>Semua makanan</h2>
                 <button
+                  type="button"
                   className="text-button"
                   onClick={() => setBrowseOpen(false)}
                 >
@@ -2296,15 +2638,30 @@ export default function FoodBuilder({
               {browseSections.map((sec) => (
                 <section key={sec.key}>
                   <button
+                    type="button"
                     className="browse-heading"
                     onClick={sec.onToggle}
                     aria-expanded={sec.open}
                   >
-                    {sec.name.toLocaleLowerCase()} · {sec.countLabel}
+                    <span>
+                      {sec.name.toLocaleLowerCase()} · {sec.countLabel}
+                    </span>
+                    <Icon
+                      name="chevron"
+                      size={16}
+                      style={{
+                        transform: sec.open ? "rotate(180deg)" : "none",
+                        transition: "transform 0.16s ease",
+                      }}
+                    />
                   </button>
                   {sec.open && sec.items.map(renderResultRow)}
                   {sec.canAdd && (
-                    <button className="text-button" onClick={sec.onAddFood}>
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={sec.onAddFood}
+                    >
                       Tambah makanan ke grup
                     </button>
                   )}
@@ -2313,32 +2670,17 @@ export default function FoodBuilder({
             </section>
           )}
         </div>
-        <footer className="builder-footer thumb-dock">
-          <SearchField
-            value={query}
-            onChange={setQuery}
-            inputRef={searchRef}
-            loading={searching}
-          />
-          <div className="builder-tools">
-            <button className="soft-button" onClick={() => setRecipeOpen(true)}>
-              <Icon name="pot" />
-              Racik
-            </button>
-            <button className="soft-button" onClick={() => setLabelOpen(true)}>
-              <Icon name="scan" />
-              Scan label
-            </button>
-            <button className="text-button" onClick={() => openNewFood(null)}>
-              Manual
-            </button>
-          </div>
-          {count > 0 && (
-            <button className="primary-button" onClick={saveBuilderMeal}>
+        {count > 0 && (
+          <footer className="builder-footer builder-save-dock">
+            <button
+              type="button"
+              className="primary-button"
+              onClick={saveBuilderMeal}
+            >
               Simpan {count} makanan · {Math.round(tk)} kkal
             </button>
-          )}
-        </footer>
+          </footer>
+        )}
       </div>
       {recipeOpen && (
         <RecipeComposer

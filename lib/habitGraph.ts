@@ -241,6 +241,38 @@ const SLOT_LABEL: Record<MealType, string> = {
   dinner: "Makan malam",
 };
 
+const SLOT_COHERENT_BUCKETS: Record<MealType, readonly TimeBucket[]> = {
+  breakfast: ["early_morning", "morning"],
+  lunch: ["midday", "afternoon"],
+  snack: ["morning", "afternoon", "evening", "late_night"],
+  dinner: ["evening", "late_night"],
+};
+
+const CONDIMENT_WORD_RE =
+  /\b(sauce|saus|kecap|sambal|sambel|oil|minyak|dressing|mayo|mayonnaise|mayones|mustard|ketchup|vinegar|cuka|garam|salt|pepper|lada|merica|bumbu|seasoning|syrup|sirup|selai|jam|mentega|butter|margarine|margarin|gravy|chutney|tare|ponzu|dipping)\b/i;
+
+const CONDIMENT_LEAD_RE =
+  /^(?:extra\s+|creamy\s+|sweet\s+|spicy\s+|garlic\s+|chili\s+|chilli\s+|sesame\s+|soy\s+|oyster\s+|peanut\s+|salad\s+|cheese\s+|bbq\s+)?(sauce|saus|kecap|sambal|sambel|oil|minyak|dressing|mayo|mayonnaise|mayones|bumbu|dip|gravy|ketchup|mustard)\b/i;
+
+/**
+ * True for standalone sauces, oils, dips, and tiny (<50g / <95kcal) condiment
+ * entries that should not be recommended on an empty tray — only surfaced as
+ * PAIRED_WITH add-ons once a main food is already on the plate.
+ */
+export function isCondimentLikeFood(
+  food: Pick<HabitFoodSnapshot, "name" | "grams" | "kcal">,
+): boolean {
+  const name = (food.name ?? "").trim();
+  if (!name) return false;
+  if (CONDIMENT_LEAD_RE.test(name)) return true;
+  if (!CONDIMENT_WORD_RE.test(name)) return false;
+  const grams = Number(food.grams) || 0;
+  const kcal = Number(food.kcal) || 0;
+  if (grams > 0 && grams < 50) return true;
+  if (grams === 0 && kcal <= 95) return true;
+  return false;
+}
+
 const WEEKDAY_LABEL = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 
 export function timeBucketForHour(hour: number): TimeBucket {
@@ -742,7 +774,33 @@ function foodPortionLabel(f: HabitFoodSnapshot): string {
   return "1 porsi";
 }
 
-function comboFrequencyLabel(count: number, slot: MealType, bucket: TimeBucket, isPair: boolean, pairBase?: string): {
+function pickCoherentTimeBucket(
+  slot: MealType,
+  currentBucket: TimeBucket,
+  timesByDst: Record<string, { weight: number; count: number }>,
+): TimeBucket | null {
+  const coherent = new Set(SLOT_COHERENT_BUCKETS[slot]);
+  let bestRecorded: TimeBucket | null = null;
+  let bestWeight = -1;
+  for (const [dst, val] of Object.entries(timesByDst)) {
+    const b = dst.slice(5) as TimeBucket;
+    if (coherent.has(b) && val.weight > bestWeight) {
+      bestWeight = val.weight;
+      bestRecorded = b;
+    }
+  }
+  if (bestRecorded) return bestRecorded;
+  return coherent.has(currentBucket) ? currentBucket : null;
+}
+
+function comboFrequencyLabel(
+  count: number,
+  slot: MealType,
+  coherentBucket: TimeBucket | null,
+  isPair: boolean,
+  pairBase?: string,
+  slotCount = 0,
+): {
   badge: string;
   reason: string;
 } {
@@ -753,21 +811,48 @@ function comboFrequencyLabel(count: number, slot: MealType, bucket: TimeBucket, 
     };
   }
   const slotWord = SLOT_LABEL[slot];
+  if (coherentBucket) {
+    if (count >= 3) {
+      return {
+        badge: `${slotWord} biasanya`,
+        reason: `Biasanya jam ${BUCKET_LABEL[coherentBucket]} · ${count}× tercatat`,
+      };
+    }
+    if (count === 2) {
+      return {
+        badge: `Sering di ${slotWord.toLowerCase()}`,
+        reason: `Sering jam ${BUCKET_LABEL[coherentBucket]} · ${count}×`,
+      };
+    }
+    return {
+      badge: `Cocok untuk ${slotWord.toLowerCase()}`,
+      reason:
+        slotCount > 0
+          ? `Pernah dicatat jam ${BUCKET_LABEL[coherentBucket]}`
+          : `Pas untuk ${slotWord.toLowerCase()} · jam ${BUCKET_LABEL[coherentBucket]}`,
+    };
+  }
+
+  // Fallback when current clock or recorded time disagrees with the selected slot
+  // (e.g. checking "Makan siang" late at night) — never emit contradictory time copy.
   if (count >= 3) {
     return {
-      badge: `${slotWord} biasanya`,
-      reason: `Biasanya jam ${BUCKET_LABEL[bucket]} · ${count}× tercatat`,
+      badge: `${slotWord} andalan`,
+      reason: `${count}× tercatat di riwayatmu`,
     };
   }
   if (count === 2) {
     return {
       badge: `Sering di ${slotWord.toLowerCase()}`,
-      reason: `Sering jam ${BUCKET_LABEL[bucket]} · ${count}×`,
+      reason: `Pernah dicatat ${count}× untuk ${slotWord.toLowerCase()}`,
     };
   }
   return {
     badge: `Cocok untuk ${slotWord.toLowerCase()}`,
-    reason: `Pernah dicatat jam ${BUCKET_LABEL[bucket]}`,
+    reason:
+      slotCount > 0
+        ? `Pernah dicatat untuk ${slotWord.toLowerCase()}`
+        : `Sesuai porsi ${slotWord.toLowerCase()}`,
   };
 }
 
@@ -780,6 +865,7 @@ export function scoreMealRecommendations(
   const currentBucket = timeBucketForHour(ctx.hour);
   const currentPlate = new Set(ctx.currentPlateFoodKeys ?? []);
   const plateFoodNodeIds = [...currentPlate].map(foodNodeId);
+  const hasPlateFood = currentPlate.size > 0;
 
   const candidates: ShadowRecommendation[] = [];
 
@@ -788,6 +874,8 @@ export function scoreMealRecommendations(
     if (node.kind !== "meal_combo" || !node.payload) continue;
     const payload = node.payload as HabitComboPayload;
     if (!payload.items?.length) continue;
+    // Empty tray should never recommend a condiment-only entry.
+    if (!hasPlateFood && payload.items.every((it) => isCondimentLikeFood(it))) continue;
 
     const fb = feedbackFactor(graph, node.id, now);
     if (fb.blocked) continue;
@@ -831,7 +919,15 @@ export function scoreMealRecommendations(
       (ctx.slotAlreadyLogged ? 0.68 : 1.0);
 
     const count = Math.max(slotCount, node.reinforcements);
-    const { badge, reason } = comboFrequencyLabel(count, ctx.mealSlot, currentBucket, false);
+    const coherentBucket = pickCoherentTimeBucket(ctx.mealSlot, currentBucket, times.byDst);
+    const { badge, reason } = comboFrequencyLabel(
+      count,
+      ctx.mealSlot,
+      coherentBucket,
+      false,
+      undefined,
+      slotCount,
+    );
     const budgetHint =
       ctx.remainingProtein >= 20 && payload.protein >= 20
         ? `${reason} · pas ${Math.round(payload.protein)} g protein`
@@ -882,6 +978,11 @@ export function scoreMealRecommendations(
       }
     }
     const isPaired = bestPairWeight > 0.35;
+    // Skip standalone sauces/condiments on an empty tray; only allow them as pairings
+    // when a main food is already in the tray/plate.
+    if (isCondimentLikeFood(food) && (!hasPlateFood || !isPaired)) continue;
+    // Skip single foods that belong clearly to another meal slot unless paired.
+    if (!isPaired && slotW === 0 && slots.total > 1.8) continue;
 
     // When a full combo wasn't logged yet, single foods slightly trail combos unless strongly paired or higher frequency.
     let timeFit = 0.2;
@@ -905,7 +1006,15 @@ export function scoreMealRecommendations(
 
     const rawScore = baseScore * budget * fb.multiplier;
     const count = isPaired ? Math.max(bestPairCount, slotCount) : Math.max(slotCount, node.reinforcements);
-    const { badge, reason } = comboFrequencyLabel(count, ctx.mealSlot, currentBucket, isPaired, bestPairName);
+    const coherentBucket = pickCoherentTimeBucket(ctx.mealSlot, currentBucket, times.byDst);
+    const { badge, reason } = comboFrequencyLabel(
+      count,
+      ctx.mealSlot,
+      coherentBucket,
+      isPaired,
+      bestPairName,
+      slotCount,
+    );
     const singleCombo: HabitComboPayload = {
       slot: ctx.mealSlot,
       items: [food],
