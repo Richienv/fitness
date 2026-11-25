@@ -92,6 +92,14 @@ summary:focus-visible,
 .avatar-art:active {
   cursor: grabbing;
 }
+.avatar-player.is-locked .avatar-art {
+  cursor: default;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  filter: brightness(0) contrast(1.15) drop-shadow(0 4px 14px rgba(0, 0, 0, 0.32));
+}
 .avatar-duo {
   height: 240px;
 }
@@ -294,22 +302,23 @@ summary:focus-visible,
   color: var(--text);
   font-weight: 700;
 }
-.level-picker {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 6px;
+.character-setting {
+  margin-top: 16px;
 }
-.level-picker button {
-  font: inherit;
+.character-setting-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+.character-setting-head span {
   font-size: 13px;
-  min-height: 44px;
-  background: #f3f4f9;
-  color: var(--muted);
-  border-radius: 10px;
+  font-weight: 700;
+  color: var(--text);
 }
-.level-picker button[aria-pressed="true"] {
-  background: var(--accent);
-  color: white;
+.character-setting-head small {
+  font-size: 11.5px;
+  color: var(--muted);
 }
 .progress-readout {
   display: flex;
@@ -458,4 +467,555 @@ summary:focus-visible,
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* Home UI polish, GPU-accelerated stagger & Door ("Sign Nyala") presence */
+.home-topbar-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.door-topbar-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(217, 119, 6, 0.24);
+  background: linear-gradient(135deg, #fffbeb 0%, #fff1f2 100%);
+  color: #92400e;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 740;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(245, 158, 11, 0.14);
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease;
+}
+
+.door-topbar-btn:active {
+  transform: scale(0.94);
+}
+
+.door-topbar-btn.is-lit {
+  border-color: rgba(245, 158, 11, 0.68);
+  background: linear-gradient(135deg, #fef3c7 0%, #ffe4e6 100%);
+  color: #9a3412;
+  box-shadow:
+    0 0 0 2px rgba(251, 191, 36, 0.28),
+    0 6px 20px rgba(245, 158, 11, 0.34);
+}
+
+.door-sign-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #f43f5e;
+  box-shadow: 0 0 8px rgba(244, 63, 94, 0.9);
+}
+
+.presence-sign-lit {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 12px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  background: linear-gradient(135deg, rgba(254, 243, 199, 0.95) 0%, rgba(255, 228, 230, 0.92) 100%);
+  color: #7c2d12;
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+  box-shadow:
+    0 0 0 1px rgba(251, 191, 36, 0.2),
+    0 8px 24px rgba(245, 158, 11, 0.22);
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.presence-sign-lit:active {
+  transform: scale(0.98);
+}
+
+.presence-lantern {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.presence-sign-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presence-sign-cta {
+  font-size: 12px;
+  font-weight: 760;
+  color: #b45309;
+  white-space: nowrap;
+}
+
+.duo-doorway-wrap {
+  margin-top: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.duo-doorway-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 15px;
+  border-radius: 20px;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  background: linear-gradient(135deg, #fffcf5 0%, #fff7f8 100%);
+  color: #1f2937;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.045);
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease;
+}
+
+.duo-doorway-btn:active {
+  transform: scale(0.985);
+}
+
+.duo-doorway-wrap.is-lit .duo-doorway-btn {
+  border-color: rgba(245, 158, 11, 0.65);
+  background: linear-gradient(135deg, #fef3c7 0%, #ffe4e6 100%);
+  box-shadow:
+    0 0 0 2px rgba(251, 191, 36, 0.22),
+    0 12px 28px rgba(245, 158, 11, 0.26);
+}
+
+.duo-door-ico {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  color: #b45309;
+}
+
+.duo-door-ico.is-lit {
+  background: linear-gradient(135deg, #f59e0b, #fb7185);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(244, 63, 94, 0.35);
+}
+
+.duo-doorway-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.duo-doorway-copy strong {
+  font-size: 14px;
+  font-weight: 760;
+  letter-spacing: -0.01em;
+}
+
+.duo-doorway-copy small {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.duo-doorway-wrap .duo-link {
+  margin-top: 0;
+  padding: 10px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: #fff;
+  text-decoration: none;
+  color: var(--text);
+}
+
+.duo-doorway-wrap .duo-link span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.duo-doorway-wrap .duo-link small {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.lean-today .lean-record,
+.quiet-actions a,
+.quiet-actions button {
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.18s ease;
+}
+
+.lean-today .lean-record:active,
+.quiet-actions a:active,
+.quiet-actions button:active {
+  transform: scale(0.975);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lean-home .hud,
+  .lean-home .next-action,
+  .lean-home .quiet-actions,
+  .lean-home .lean-today,
+  .lean-home .duo-doorway-wrap {
+    animation: homeCardRise 0.44s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .lean-home .hud { animation-delay: 40ms; }
+  .lean-home .next-action { animation-delay: 90ms; }
+  .lean-home .quiet-actions { animation-delay: 130ms; }
+  .lean-home .lean-today { animation-delay: 165ms; }
+  .lean-home .duo-doorway-wrap { animation-delay: 200ms; }
+
+  .door-topbar-btn.is-lit .door-sign-dot {
+    animation: lanternPulse 1.5s ease-in-out infinite;
+  }
+  .presence-sign-lit.active-glow {
+    animation: signBannerIn 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .presence-sign-lit.active-glow .presence-lantern {
+    display: inline-block;
+    animation: lanternPulse 1.7s ease-in-out infinite;
+  }
+}
+
+@keyframes homeCardRise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes signBannerIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes lanternPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.72;
+    transform: scale(1.22);
+  }
+}
+
+/* ---------- V3 Collectible Avatar Showcase & 12-Level Gallery ---------- */
+.avatar-showcase {
+  position: relative;
+  height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  isolation: isolate;
+}
+
+.avatar-aura {
+  position: absolute;
+  width: 240px;
+  height: 240px;
+  border-radius: 999px;
+  background: var(--avatar-aura, radial-gradient(circle, rgba(148,163,184,0.2) 0%, transparent 70%));
+  z-index: 0;
+  pointer-events: none;
+}
+
+.avatar-stage-btn {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.avatar-stage-img {
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  user-select: none;
+  filter: drop-shadow(0 12px 18px rgba(26, 36, 68, 0.14));
+}
+
+.avatar-showcase.is-locked .avatar-stage-btn {
+  cursor: default;
+  pointer-events: none;
+}
+
+.avatar-showcase.is-locked .avatar-stage-img {
+  filter: brightness(0) contrast(1.15) drop-shadow(0 4px 14px rgba(0, 0, 0, 0.32));
+  animation: none !important;
+  pointer-events: none;
+}
+
+.avatar-stage-wrap {
+  position: relative;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 10px;
+  padding: 12px 6px 8px;
+  border-radius: 26px;
+  background: radial-gradient(ellipse 85% 65% at 50% 68%, #edf1fc 0%, #f7f8fc 60%, #ffffff 100%);
+  border: 1px solid rgba(62, 96, 213, 0.08);
+}
+
+.avatar-stage-wrap.single {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 12px;
+}
+
+.avatar-stage-nav {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid rgba(25, 32, 56, 0.1);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text);
+  font: inherit;
+  font-size: 22px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.avatar-stage-nav:active {
+  transform: scale(0.92);
+}
+
+.avatar-meta-card {
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  border-radius: 18px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 14px rgba(34, 40, 58, 0.04);
+}
+
+.avatar-meta-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.avatar-tier-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 760;
+  letter-spacing: 0.01em;
+}
+
+.avatar-use-btn {
+  min-height: 36px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 0;
+  background: #edf1ff;
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 720;
+  cursor: pointer;
+}
+
+.avatar-meta-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.avatar-meta-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.avatar-meta-sub span {
+  font-weight: 680;
+  color: var(--text);
+}
+
+.level-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.level-thumb-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 5px 8px;
+  border-radius: 14px;
+  border: 1.5px solid var(--border);
+  background: #f8f9fd;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.level-thumb-btn:active {
+  transform: scale(0.95);
+}
+
+.level-thumb-btn.is-selected {
+  border-color: var(--accent);
+  background: #edf1ff;
+  box-shadow: 0 4px 14px rgba(62, 96, 213, 0.18);
+}
+
+.level-thumb-btn.is-locked {
+  opacity: 0.72;
+  cursor: default;
+  background: #f3f4f9;
+}
+
+.level-thumb-btn.is-locked img {
+  filter: brightness(0) contrast(1.1);
+  opacity: 0.72;
+}
+
+.level-thumb-num {
+  font-size: 10.5px;
+  font-weight: 780;
+  letter-spacing: 0.02em;
+}
+
+.level-thumb-btn.is-selected .level-thumb-num {
+  color: var(--accent);
+}
+
+.level-thumb-btn img {
+  width: 58px;
+  height: 76px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.level-thumb-name {
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.2;
+  text-align: center;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.level-thumb-btn.is-selected .level-thumb-name {
+  color: var(--text);
+}
+
+@media (max-width: 360px) {
+  .level-picker-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .avatar-stage-img {
+    animation:
+      avatarSwapIn 0.36s cubic-bezier(0.22, 1, 0.36, 1) both,
+      avatarFloat 3.6s ease-in-out 0.36s infinite;
+  }
+  .avatar-stage-btn.is-bouncing .avatar-stage-img {
+    animation: avatarTapBounce 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .avatar-showcase.tier-legendaris .avatar-aura,
+  .avatar-showcase.tier-keren .avatar-aura {
+    animation: avatarAuraPulse 3.2s ease-in-out infinite;
+  }
+}
+
+@keyframes avatarSwapIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes avatarFloat {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -5px, 0);
+  }
+}
+
+@keyframes avatarTapBounce {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  28% {
+    transform: translate3d(0, -14px, 0) scale(1.06);
+  }
+  58% {
+    transform: translate3d(0, 2px, 0) scale(0.97);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes avatarAuraPulse {
+  0%, 100% {
+    opacity: 0.85;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
 }

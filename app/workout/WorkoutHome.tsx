@@ -69,6 +69,16 @@ import FreeLogSheet from "./FreeLogSheet";
 import CustomSessionSheet from "./CustomSessionSheet";
 import SheetFrame from "./SheetFrame";
 import "./sheets-calm.css";
+import {
+  acceptWorkoutShadow,
+  dismissShadowOffer,
+  getWorkoutShadowOffers,
+} from "@/lib/habitGraphData";
+import type { ShadowRecommendation } from "@/lib/habitGraph";
+import ShadowRecommendations from "../ui/ShadowRecommendations";
+import ShadowQuickEditSheet, {
+  type WorkoutQuickEditResult,
+} from "../ui/ShadowQuickEditSheet";
 
 // Monday-first weekday names (Bahasa) and the Date.getDay() value of each.
 const DOW_NAME = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
@@ -88,11 +98,8 @@ function isRestSession(s: SessionDef): boolean {
   return s.id === "FEM_REST" || s.primaryMuscles.length === 0;
 }
 
-/** The burn estimate knows sets and reps, not minutes: a timed block
- *  ("40 min" on a treadmill) would count as one tiny set. Leave it out. */
-const isTimed = (e: ExerciseDef) => /\b(min|menit)\b/i.test(e.repsLabel);
 function plannedKcal(exercises: ExerciseDef[], kg: number): number {
-  return plannedWorkoutKcal(exercises.filter((e) => !isTimed(e)), kg).total;
+  return plannedWorkoutKcal(exercises, kg).total;
 }
 
 type WeekDay = {
@@ -121,6 +128,8 @@ export default function WorkoutHome() {
   const [guide, setGuide] = useState<{ name: string; sets?: string } | null>(null);
   const [renaming, setRenaming] = useState<CustomTemplate | null>(null);
   const [deleting, setDeleting] = useState<CustomTemplate | null>(null);
+  const [shadowTick, setShadowTick] = useState(0);
+  const [editingShadow, setEditingShadow] = useState<ShadowRecommendation | null>(null);
   // A tap on a result starts a session and navigates; a second tap while the
   // next screen loads must not start another one.
   const starting = useRef(false);
@@ -413,6 +422,58 @@ export default function WorkoutHome() {
     ? `Alat yang kamu pilih ditambahkan ke "${titleOf(activeInProgress)}" yang sedang berjalan.`
     : null;
 
+  const workoutShadows = useMemo<ShadowRecommendation[]>(() => {
+    if (!today || activeInProgress) return [];
+    try {
+      return getWorkoutShadowOffers({
+        date: today,
+        activeWorkoutId: null,
+        limit: 2,
+      });
+    } catch {
+      return [];
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [today, activeInProgress, workouts, burn, shadowTick]);
+
+  const confirmWorkoutShadow = useCallback(
+    (offer: ShadowRecommendation, edit?: WorkoutQuickEditResult) => {
+      if (!today) return;
+      const res = acceptWorkoutShadow(offer, { date: today, ...(edit ?? {}) });
+      setEditingShadow(null);
+      if (!res) return;
+      haptic("success");
+      toast(`✓ ${res.title} · ≈ ${fmt(res.kcal)} kkal`, "success");
+      refresh();
+      setShadowTick((t) => t + 1);
+    },
+    [today, refresh],
+  );
+
+  const dismissWorkoutShadow = useCallback((offer: ShadowRecommendation) => {
+    dismissShadowOffer(offer.targetNodeId);
+    setShadowTick((t) => t + 1);
+  }, []);
+
+  const startLiveShadow = useCallback(
+    (offer: ShadowRecommendation) => {
+      setEditingShadow(null);
+      if (starting.current) return;
+      const w = offer.workout;
+      if (!w) return;
+      if (w.sessionType && w.sessionType !== "CUSTOM") {
+        go(`/workout/session/${startOrResume(w.sessionType as SessionType)}`);
+        return;
+      }
+      if (w.customTemplateId) {
+        const tpl = templates.find((t) => t.id === w.customTemplateId);
+        if (tpl) pickCustom(tpl);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [templates, today, activeInProgress],
+  );
+
   return (
     <main
       className="page-rise"
@@ -464,6 +525,18 @@ export default function WorkoutHome() {
           <Icon name="plus" size={18} />
           Catat aktivitas
         </button>
+
+        {workoutShadows.length > 0 && (
+          <ShadowRecommendations
+            offers={workoutShadows}
+            variant="workout"
+            title="Tombol Bayangan"
+            subtitle="1 ketuk ✓"
+            onConfirm={(o) => confirmWorkoutShadow(o)}
+            onQuickEdit={(o) => setEditingShadow(o)}
+            onDismiss={dismissWorkoutShadow}
+          />
+        )}
 
         <section className="lt-card" aria-labelledby="lt-gym-title">
           <div className="lt-head">
@@ -770,6 +843,14 @@ export default function WorkoutHome() {
             setDeleting(null);
             toast(`Sesi "${deleting.name}" dihapus`, "success");
           }}
+        />
+      )}
+      {editingShadow && (
+        <ShadowQuickEditSheet
+          offer={editingShadow}
+          onClose={() => setEditingShadow(null)}
+          onSaveWorkout={confirmWorkoutShadow}
+          onStartLiveWorkout={startLiveShadow}
         />
       )}
     </main>

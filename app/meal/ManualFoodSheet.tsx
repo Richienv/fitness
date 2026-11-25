@@ -1,10 +1,11 @@
 "use client";
-import { useState, useId, useMemo } from "react";
+import { useState, useId, useMemo, useRef } from "react";
 import FriendlySheet from "./FriendlySheet";
 import NutritionSummary from "./NutritionSummary";
 import NutritionScanEvidence from "./NutritionScanEvidence";
 import type { NutritionScanEvidence as ScanEvidence } from "@/lib/nutritionReadPipeline";
 import type { RecipeFood } from "@/lib/recipes";
+import { estimateKcalFromMacros } from "@/lib/userFoods";
 import {
   detectBarcodeLabelConflicts,
   type BarcodeProduct,
@@ -20,11 +21,13 @@ import {
   type LabelKey,
   type NutritionLabel,
 } from "@/lib/nutritionLabel";
+
 export type ManualFoodInitial = Partial<Record<LabelKey, number | null>> & {
   name?: string;
   brand?: string;
   unit?: string;
 };
+
 const labels: Record<LabelKey, string> = {
   kcal: "Kalori (kkal)",
   protein: "Protein (g)",
@@ -37,11 +40,23 @@ const labels: Record<LabelKey, string> = {
   transFat: "Lemak trans (g)",
   fiber: "Serat (g)",
 };
+
 const core = ["kcal", "protein", "carbs", "fat"] as const;
+
+const SERVING_PRESETS = [
+  { unit: "1 porsi", weight: "" },
+  { unit: "100g", weight: "100" },
+  { unit: "1 potong", weight: "120" },
+  { unit: "1 mangkuk", weight: "250" },
+] as const;
+
 export default function ManualFoodSheet({
   onClose,
   onAdd,
+  onQuickLog,
   initial,
+  initialName,
+  trayCount = 0,
   label,
   preview,
   scanEvidence,
@@ -52,7 +67,10 @@ export default function ManualFoodSheet({
 }: {
   onClose: () => void;
   onAdd: (food: RecipeFood) => void;
+  onQuickLog?: (food: RecipeFood) => void;
   initial?: ManualFoodInitial;
+  initialName?: string;
+  trayCount?: number;
   label?: NutritionLabel;
   preview?: string;
   scanEvidence?: ScanEvidence;
@@ -62,10 +80,19 @@ export default function ManualFoodSheet({
   scanSource?: "ocr_rules" | "ocr_llm" | "manual";
 }) {
   const formId = useId();
-  const [name, setName] = useState(initial?.name ?? "");
-  const [brand, setBrand] = useState(initial?.brand ?? barcodeProduct?.brand ?? "");
+  const submitModeRef = useRef<"primary" | "tray">("primary");
+  const quickMode = !label;
+
+  const [name, setName] = useState(
+    barcodeProduct?.name ?? initial?.name ?? initialName ?? "",
+  );
+  const [brand, setBrand] = useState(
+    barcodeProduct?.brand ?? initial?.brand ?? "",
+  );
   const [unit, setUnit] = useState(initial?.unit ?? "1 porsi");
-  const [weight, setWeight] = useState("");
+  const [weight, setWeight] = useState(
+    label?.servingSize?.amount?.toString() ?? "",
+  );
   const [servingMass, setServingMass] = useState(
     (
       label?.servingSize?.amount ??
@@ -122,40 +149,101 @@ export default function ManualFoodSheet({
 
   const numberValid = (s: string) =>
     s.trim() !== "" && Number.isFinite(Number(s)) && Number(s) >= 0;
+
+  const hasAnyMacro = ["protein", "carbs", "fat"].some(
+    (k) => values[k as LabelKey].trim() !== "",
+  );
+  const macrosValid = (["protein", "carbs", "fat"] as const).every(
+    (k) => values[k].trim() === "" || numberValid(values[k]),
+  );
+  const macroNumbers = {
+    protein: values.protein.trim() === "" ? 0 : Number(values.protein),
+    carbs: values.carbs.trim() === "" ? 0 : Number(values.carbs),
+    fat: values.fat.trim() === "" ? 0 : Number(values.fat),
+  };
+  const autoKcal = estimateKcalFromMacros(
+    macroNumbers.protein,
+    macroNumbers.fat,
+    macroNumbers.carbs,
+  );
+  const usingAutoKcal =
+    quickMode && values.kcal.trim() === "" && hasAnyMacro && macrosValid;
+  const effectiveQuickKcal =
+    values.kcal.trim() !== ""
+      ? numberValid(values.kcal)
+        ? Number(values.kcal)
+        : null
+      : usingAutoKcal
+        ? autoKcal
+        : null;
+
   const multiplier = label ? Number(consumed) / Number(basisAmount) : 1;
-  const valid =
-    name.trim() &&
-    core.every((k) => numberValid(values[k])) &&
-    LABEL_KEYS.every((k) => values[k] === "" || numberValid(values[k])) &&
-    (label
-      ? basisConfirmed &&
-        Number(basisAmount) > 0 &&
-        Number(consumed) > 0 &&
-        Number.isFinite(multiplier)
-      : unit.trim() &&
-        (weight === "" ||
-          (Number(weight) > 0 && Number.isFinite(Number(weight)))));
+  const valid = label
+    ? Boolean(
+        name.trim() &&
+          core.every((k) => numberValid(values[k])) &&
+          LABEL_KEYS.every((k) => values[k] === "" || numberValid(values[k])) &&
+          basisConfirmed &&
+          Number(basisAmount) > 0 &&
+          Number(consumed) > 0 &&
+          Number.isFinite(multiplier),
+      )
+    : Boolean(
+        name.trim() &&
+          effectiveQuickKcal !== null &&
+          macrosValid &&
+          LABEL_KEYS.every((k) => values[k] === "" || numberValid(values[k])) &&
+          unit.trim() &&
+          (weight === "" ||
+            (Number(weight) > 0 && Number.isFinite(Number(weight)))),
+      );
+
   const extras = Object.fromEntries(
     LABEL_KEYS.filter(
       (k) => !core.includes(k as (typeof core)[number]) && values[k] !== "",
     ).map((k) => [k, Number(values[k])]),
   );
 
-  const parsedServingMass = numberValid(servingMass) && Number(servingMass) > 0
-    ? Number(servingMass)
-    : null;
+  const parsedServingMass =
+    numberValid(servingMass) && Number(servingMass) > 0
+      ? Number(servingMass)
+      : null;
+
+  const canOneTapLog = quickMode && Boolean(onQuickLog) && trayCount === 0;
 
   return (
     <FriendlySheet
-      title={label ? "Periksa label nutrisi" : "Tambah makanan manual"}
+      title={label ? "Periksa label nutrisi" : "Tambah makanan cepat"}
       onClose={onClose}
       footer={
         <div className="scan-review-actions">
-          <button className="primary-button" form={formId} disabled={!valid}>
+          <button
+            className="primary-button"
+            form={formId}
+            disabled={!valid}
+            onClick={() => {
+              submitModeRef.current = "primary";
+            }}
+          >
             {barcode
               ? "Simpan & tambahkan ke makan"
-              : "Tambahkan ke pilihan makan"}
+              : canOneTapLog
+                ? "Simpan & langsung catat"
+                : "Tambahkan ke pilihan makan"}
           </button>
+          {canOneTapLog && (
+            <button
+              type="submit"
+              form={formId}
+              className="text-button"
+              disabled={!valid}
+              onClick={() => {
+                submitModeRef.current = "tray";
+              }}
+            >
+              Simpan & tambah ke makan saja
+            </button>
+          )}
           {onRescan && (
             <button type="button" className="text-button" onClick={onRescan}>
               Scan label lagi
@@ -227,18 +315,31 @@ export default function ManualFoodSheet({
               ? Number(weight)
               : undefined;
 
-          onAdd({
+          const payload: RecipeFood = {
             id: `${barcode ? `barcode_${barcode}` : "manual"}_${crypto.randomUUID()}`,
             name: `${name.trim()}${brand.trim() ? ` · ${brand.trim()}` : ""}`,
             unit: label
               ? `${Number(consumed)} ${basisUnit === "serving" ? "sajian" : basisUnit}`
               : unit.trim(),
-            ...(Object.fromEntries(
-              core.map((k) => [k, Number(values[k]) * multiplier]),
-            ) as Pick<RecipeFood, "kcal" | "protein" | "carbs" | "fat">),
+            ...(label
+              ? (Object.fromEntries(
+                  core.map((k) => [k, Number(values[k]) * multiplier]),
+                ) as Pick<RecipeFood, "kcal" | "protein" | "carbs" | "fat">)
+              : {
+                  kcal: effectiveQuickKcal ?? 0,
+                  protein: macroNumbers.protein,
+                  carbs: macroNumbers.carbs,
+                  fat: macroNumbers.fat,
+                }),
             ...scaleNutritionExtras(extras, multiplier),
             ...(gramsPerUnit ? { gramsPerUnit } : {}),
-          });
+          };
+
+          if (canOneTapLog && submitModeRef.current === "primary" && onQuickLog) {
+            onQuickLog(payload);
+            return;
+          }
+          onAdd(payload);
         }}
       >
         <p className="quiet">
@@ -246,7 +347,7 @@ export default function ManualFoodSheet({
             ? barcode
               ? `Barcode ${barcode} akan disimpan otomatis ke cache produk setelah kamu konfirmasi.`
               : "Isi porsi yang kamu makan, lalu cek angka dari label."
-            : "Masukkan nutrisi dari label atau sumber yang kamu pakai. Angka berikut untuk satu porsi acuan."}
+            : "Cukup isi nama & kalori (atau isi P/K/L untuk hitung kalori otomatis). Tersimpan ke daftar makananmu."}
         </p>
         {label && scanEvidence && (
           <NutritionScanEvidence evidence={scanEvidence} text={label.text} />
@@ -304,9 +405,10 @@ export default function ManualFoodSheet({
             Nama makanan
             <input
               required
+              autoFocus={quickMode && !initialName}
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Beri nama produk"
+              placeholder="Mis. Nasi campur kantin, Protein bar"
             />
           </label>
           {barcode && (
@@ -320,24 +422,22 @@ export default function ManualFoodSheet({
             </label>
           )}
         </div>
-        {label && (
-          <label>
-            Jumlah yang dimakan (
-            {basisUnit === "serving" ? "sajian" : basisUnit})
-            <input
-              required
-              type="number"
-              min="0.1"
-              step="any"
-              value={consumed}
-              placeholder="Isi porsi yang kamu makan"
-              inputMode="decimal"
-              onChange={(e) => setConsumed(e.target.value)}
-            />
-          </label>
-        )}
         {label ? (
           <>
+            <label>
+              Jumlah yang dimakan (
+              {basisUnit === "serving" ? "sajian" : basisUnit})
+              <input
+                required
+                type="number"
+                min="0.1"
+                step="any"
+                value={consumed}
+                placeholder="Isi porsi yang kamu makan"
+                inputMode="decimal"
+                onChange={(e) => setConsumed(e.target.value)}
+              />
+            </label>
             <div className="form-columns">
               <label>
                 Angka pada label per
@@ -390,49 +490,112 @@ export default function ManualFoodSheet({
                 dikonversi ke kkal (kJ ÷ 4,184). Persentase NRV / AKG tidak digunakan.
               </p>
             )}
+            <div className="form-columns">
+              {core.map((k) => (
+                <label key={k}>
+                  {labels[k]}
+                  <input
+                    required
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={values[k]}
+                    placeholder="Belum terbaca"
+                    inputMode="decimal"
+                    onChange={(e) => setValues({ ...values, [k]: e.target.value })}
+                  />
+                </label>
+              ))}
+            </div>
           </>
         ) : (
-          <div className="form-columns">
+          <>
+            <div className="quick-serving-field">
+              <span className="quick-field-label">Porsi ({unit})</span>
+              <div className="quick-unit-chips" role="group" aria-label="Pilih porsi">
+                {SERVING_PRESETS.map((p) => {
+                  const active = unit.trim().toLowerCase() === p.unit;
+                  return (
+                    <button
+                      key={p.unit}
+                      type="button"
+                      className={`quick-unit-chip${active ? " active" : ""}`}
+                      onClick={() => {
+                        setUnit(p.unit);
+                        setWeight(p.weight);
+                      }}
+                    >
+                      {p.unit}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <label>
-              Porsi acuan
+              Kalori ({usingAutoKcal ? "otomatis dari P/K/L" : "kkal"})
               <input
-                required
-                value={unit}
-                onChange={(e) => setUnit(e.target.value)}
-              />
-            </label>
-            <label>
-              Berat porsi (g, opsional)
-              <input
-                type="number"
-                min="0.1"
-                step="any"
-                value={weight}
-                onChange={(e) => setWeight(e.target.value)}
-                placeholder="Belum diketahui"
-              />
-            </label>
-          </div>
-        )}
-        <div className="form-columns">
-          {core.map((k) => (
-            <label key={k}>
-              {labels[k]}
-              <input
-                required
                 type="number"
                 min="0"
                 step="any"
-                value={values[k]}
-                placeholder="Belum terbaca"
+                autoFocus={Boolean(initialName)}
+                value={values.kcal}
+                placeholder={
+                  usingAutoKcal
+                    ? `${autoKcal} (otomatis)`
+                    : "Mis. 250 (kosongkan jika isi P/K/L)"
+                }
                 inputMode="decimal"
-                onChange={(e) => setValues({ ...values, [k]: e.target.value })}
+                onChange={(e) => setValues({ ...values, kcal: e.target.value })}
               />
             </label>
-          ))}
-        </div>
+            <div className="quick-macros-grid">
+              {(["protein", "carbs", "fat"] as const).map((k) => (
+                <label key={k}>
+                  {k === "protein" ? "Protein (g)" : k === "carbs" ? "Karbo (g)" : "Lemak (g)"}
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={values[k]}
+                    placeholder="0"
+                    inputMode="decimal"
+                    onChange={(e) => setValues({ ...values, [k]: e.target.value })}
+                  />
+                </label>
+              ))}
+            </div>
+          </>
+        )}
         <details className="label-extra">
-          <summary>Gula, natrium, dan nutrisi lain</summary>
+          <summary>
+            {quickMode
+              ? "Detail lengkap (satuan kustom, berat, gula, natrium, serat)"
+              : "Gula, natrium, dan nutrisi lain"}
+          </summary>
+          {quickMode && (
+            <div className="form-columns" style={{ marginBottom: 10 }}>
+              <label>
+                Satuan kustom
+                <input
+                  required
+                  value={unit}
+                  onChange={(e) => setUnit(e.target.value)}
+                  placeholder="Mis. 1 porsi"
+                />
+              </label>
+              <label>
+                Berat porsi (g, opsional)
+                <input
+                  type="number"
+                  min="0.1"
+                  step="any"
+                  value={weight}
+                  onChange={(e) => setWeight(e.target.value)}
+                  placeholder="Belum diketahui"
+                />
+              </label>
+            </div>
+          )}
           <div className="form-columns">
             {LABEL_KEYS.filter(
               (k) => !core.includes(k as (typeof core)[number]),
@@ -464,23 +627,33 @@ export default function ManualFoodSheet({
           )}
         </details>
         <NutritionSummary
-          values={
-            Object.fromEntries(
-              core.map((k) => [
-                k,
-                values[k] === "" || !Number.isFinite(multiplier)
+          values={{
+            kcal:
+              label
+                ? values.kcal === "" || !Number.isFinite(multiplier)
                   ? null
-                  : Number(values[k]) * multiplier,
-              ]),
-            ) as {
-              kcal: number | null;
-              protein: number | null;
-              carbs: number | null;
-              fat: number | null;
-            }
-          }
+                  : Number(values.kcal) * multiplier
+                : effectiveQuickKcal,
+            protein: label
+              ? values.protein === "" || !Number.isFinite(multiplier)
+                ? null
+                : Number(values.protein) * multiplier
+              : macroNumbers.protein,
+            carbs: label
+              ? values.carbs === "" || !Number.isFinite(multiplier)
+                ? null
+                : Number(values.carbs) * multiplier
+              : macroNumbers.carbs,
+            fat: label
+              ? values.fat === "" || !Number.isFinite(multiplier)
+                ? null
+                : Number(values.fat) * multiplier
+              : macroNumbers.fat,
+          }}
           caption={
-            label ? "Jumlah yang akan dicatat" : "Nutrisi satu porsi acuan"
+            label
+              ? "Jumlah yang akan dicatat"
+              : `Ringkasan · ${unit.trim() || "1 porsi"}`
           }
         />
       </form>

@@ -80,6 +80,13 @@ export async function canView(viewerId: string, targetId: string): Promise<boole
   return !!row;
 }
 
+export function isMissingRelationError(err: unknown): boolean {
+  const code = (err as { code?: string } | null)?.code;
+  if (code === "P2021" || code === "P2022") return true;
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  return /roomvisit|habitgraphstate|habit_graph|does not exist|no such table|undefined table/i.test(msg);
+}
+
 export type DaySummary = {
   user: PublicUser;
   name: string;
@@ -90,6 +97,8 @@ export type DaySummary = {
   fat: number;
   /** Needed by Skor Sehat ("gula rendah", weight 20). */
   sugar: number;
+  lastActivityAt?: string | null;
+  lastActivityLabel?: string | null;
   meals: { id: string; mealType: string; kcal: number; items: string[]; photoUrl: string | null }[];
   /** Machine count is the headline training metric, not volume. */
   workouts: { sessionType: string; totalVolume: number; machines: number; location: string | null; exercises: string[] }[];
@@ -119,7 +128,7 @@ export async function daySummaries(
     }),
     db.mealEntry.findMany({
       where: { userId: { in: userIds }, date },
-      select: { id: true, userId: true, mealType: true, items: true, totals: true, photoUrl: true },
+      select: { id: true, userId: true, mealType: true, items: true, totals: true, photoUrl: true, createdAt: true },
       orderBy: { createdAt: "asc" },
     }),
     db.workoutSession.findMany({
@@ -129,18 +138,29 @@ export async function daySummaries(
         sessionType: true,
         totalVolume: true,
         location: true,
+        createdAt: true,
         exercises: { select: { name: true } },
       },
       orderBy: { createdAt: "asc" },
     }),
     db.cardioSession.findMany({
       where: { userId: { in: userIds }, date },
-      select: { userId: true, kind: true, distanceM: true, durationSec: true, location: true },
+      select: { userId: true, kind: true, distanceM: true, durationSec: true, location: true, startedAt: true },
       orderBy: { startedAt: "asc" },
     }),
   ]);
 
   const byUser = new Map<string, DaySummary>();
+  const latestByUser = new Map<string, { ms: number; iso: string; label: string }>();
+  const recordLatest = (userId: string, dt: Date | null | undefined, label: string) => {
+    if (!dt) return;
+    const ms = dt.getTime();
+    const prev = latestByUser.get(userId);
+    if (!prev || ms >= prev.ms) {
+      latestByUser.set(userId, { ms, iso: dt.toISOString(), label });
+    }
+  };
+
   for (const u of users) {
     byUser.set(u.id, {
       user: publicUser(u),
@@ -151,6 +171,8 @@ export async function daySummaries(
       carbs: 0,
       fat: 0,
       sugar: 0,
+      lastActivityAt: null,
+      lastActivityLabel: null,
       meals: [],
       workouts: [],
       cardio: [],
@@ -166,6 +188,7 @@ export async function daySummaries(
     s.carbs += num(t.carbs);
     s.fat += num(t.fat);
     s.sugar += num(t.sugar);
+    recordLatest(m.userId, m.createdAt, `Makan (${m.mealType})`);
     const rawItems = Array.isArray(m.items) ? (m.items as ItemLike[]) : [];
     s.meals.push({
       id: m.id,
@@ -187,6 +210,7 @@ export async function daySummaries(
   for (const w of workouts) {
     const s = byUser.get(w.userId);
     if (!s) continue;
+    recordLatest(w.userId, w.createdAt, `Latihan (${w.sessionType})`);
     s.workouts.push({
       sessionType: w.sessionType,
       totalVolume: Math.round(w.totalVolume),
@@ -200,6 +224,7 @@ export async function daySummaries(
   for (const c of cardio) {
     const s = byUser.get(c.userId);
     if (!s) continue;
+    recordLatest(c.userId, c.startedAt, `Kardio (${c.kind})`);
     s.cardio.push({
       kind: c.kind,
       distanceM: c.distanceM ?? 0,
@@ -208,12 +233,17 @@ export async function daySummaries(
     });
   }
 
-  return Array.from(byUser.values()).map((s) => ({
-    ...s,
-    kcal: Math.round(s.kcal),
-    protein: Math.round(s.protein),
-    carbs: Math.round(s.carbs),
-    fat: Math.round(s.fat),
-    sugar: Math.round(s.sugar),
-  }));
+  return Array.from(byUser.values()).map((s) => {
+    const latest = latestByUser.get(s.user.id);
+    return {
+      ...s,
+      lastActivityAt: latest?.iso ?? null,
+      lastActivityLabel: latest?.label ?? null,
+      kcal: Math.round(s.kcal),
+      protein: Math.round(s.protein),
+      carbs: Math.round(s.carbs),
+      fat: Math.round(s.fat),
+      sugar: Math.round(s.sugar),
+    };
+  });
 }

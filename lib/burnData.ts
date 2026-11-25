@@ -10,9 +10,16 @@ import {
   type WorkoutSession,
 } from "./workouts";
 import { getAllActivities, type ActivityEntry } from "./activity";
-import { activityKcal, bodyWeightKg, workoutKcal, type ExerciseBurn } from "./burn";
+import {
+  activityKcal,
+  bodyWeightKg,
+  workoutKcal,
+  type ExerciseBurn,
+  type WorkoutBurnBreakdown,
+} from "./burn";
 import { combineDay } from "./healthImport";
 import { getAllHealthDays, type StoredHealthDay } from "./health";
+import { defForLog } from "./trainingLoad";
 
 export function readBodyKg(): number {
   return bodyWeightKg(getAllMeasurements(), getProfile().weightKg);
@@ -26,22 +33,25 @@ export function sessionTitle(w: Pick<WorkoutSession, "sessionType" | "customName
   return lower.charAt(0).toLocaleUpperCase("id-ID") + lower.slice(1);
 }
 
-/** A session's estimate. Logged exercises line up with the session's own
- *  list by position, the same way the summary page reads them. */
+/** A session's estimate using actual logged weights, reps, sets, and movement profile. */
 export function workoutBurn(
   w: WorkoutSession,
   kg = readBodyKg(),
-): { total: number; perExercise: ExerciseBurn[] } {
+): { total: number; perExercise: ExerciseBurn[]; breakdown: WorkoutBurnBreakdown } {
   const def = getDefForWorkout(w);
   return workoutKcal(
     w.exercises
       .filter((e) => !e.skipped)
       .map((e) => {
         const i = w.exercises.indexOf(e);
-        const d = def.exercises[i] ?? def.exercises.find((x) => x.name === e.exerciseName);
+        const d = defForLog(def.exercises, e, i) as
+          | (typeof def.exercises)[number]
+          | undefined;
         return {
           name: e.swappedTo || d?.name || e.exerciseName,
           primary: d?.primary ?? [],
+          secondary: d?.secondary ?? [],
+          restSec: d?.restSec,
           sets: e.sets,
         };
       }),
@@ -51,7 +61,13 @@ export function workoutBurn(
 
 export type DayBurn = {
   kg: number;
-  gym: { id: string; title: string; completed: boolean; kcal: number }[];
+  gym: {
+    id: string;
+    title: string;
+    completed: boolean;
+    kcal: number;
+    tonnageKg: number;
+  }[];
   activities: (ActivityEntry & { kcal: number })[];
   total: number;
   /** "health" when Apple Health active energy is the total. */
@@ -76,12 +92,16 @@ export function burnReader(): (date: string) => DayBurn {
   return (date) => {
     const gym = workouts
       .filter((w) => w.date === date && w.exercises.some((e) => e.sets.length > 0))
-      .map((w) => ({
-        id: w.id,
-        title: sessionTitle(w),
-        completed: !!w.completed,
-        kcal: workoutBurn(w, kg).total,
-      }));
+      .map((w) => {
+        const b = workoutBurn(w, kg);
+        return {
+          id: w.id,
+          title: sessionTitle(w),
+          completed: !!w.completed,
+          kcal: b.total,
+          tonnageKg: Math.round(b.breakdown.tonnageKg),
+        };
+      });
     const activities = allActivities
       .filter((a) => a.date === date)
       .sort((a, b) => a.at - b.at)

@@ -33,6 +33,7 @@ import {
   type CustomMealItem,
 } from "@/lib/store";
 import { contributeFood } from "@/lib/foodContribute";
+import { getSavedCustomFoods, saveCustomFood } from "@/lib/userFoods";
 import { foodLabel } from "@/lib/foodLabel";
 import { prettyFoodName } from "@/lib/foodDisplayName";
 import { loadCatalogue, clearCatalogueCache } from "@/lib/foodCatalogue";
@@ -110,6 +111,16 @@ import {
   type MealTemplate,
   type TemplateItem,
 } from "@/lib/mealTemplates";
+import {
+  getMealShadowOffers,
+  dismissShadowOffer,
+} from "@/lib/habitGraphData";
+import { confirmShadowInGraph } from "@/lib/habitGraphStore";
+import type { ShadowRecommendation } from "@/lib/habitGraph";
+import ShadowRecommendations from "../ui/ShadowRecommendations";
+import ShadowQuickEditSheet, {
+  type MealQuickEditResult,
+} from "../ui/ShadowQuickEditSheet";
 
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
 const MONO = "var(--font-dm-sans), sans-serif";
@@ -446,9 +457,14 @@ export default function FoodBuilder({
   const [labelOpen, setLabelOpen] = useState(startInLabel);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualGroup, setManualGroup] = useState<string | null>(null);
+  const [manualSeedName, setManualSeedName] = useState<string | undefined>(
+    undefined,
+  );
   const [searchError, setSearchError] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<string, MacroPatch>>({});
   const [customFoods, setCustomFoods] = useState<BuilderFood[]>([]);
+  const [shadowTick, setShadowTick] = useState(0);
+  const [editingShadow, setEditingShadow] = useState<ShadowRecommendation | null>(null);
   const [groups, setGroups] = useState<FoodGroup[]>([]);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
     all: true,
@@ -530,10 +546,14 @@ export default function FoodBuilder({
     return () => opener?.focus({ preventScroll: true });
   }, []);
 
-  // Persisted custom "libraries" + saved meal templates (localStorage).
+  // Persisted custom "libraries" + saved custom foods + meal templates (localStorage).
   useEffect(() => {
     setGroups(getFoodGroups());
     setTemplates(getMealTemplates());
+    const savedCustom = getSavedCustomFoods();
+    if (savedCustom.length > 0) {
+      setCustomFoods(savedCustom.map((f) => ({ ...f, group: "custom" })));
+    }
   }, []);
 
   // Everything the suggestion engine needs, read once. It's all storage work,
@@ -1027,6 +1047,82 @@ export default function FoodBuilder({
     setTemplates(getMealTemplates());
   }
 
+  const applyShadowToTray = (
+    offer: ShadowRecommendation,
+    edit?: MealQuickEditResult,
+  ) => {
+    const combo = edit?.combo ?? offer.meal;
+    if (!combo || !combo.items.length) return;
+    if (edit?.slot && edit.slot !== activeMeal) setActiveMeal(edit.slot);
+    setEditingShadow(null);
+    haptic("success");
+
+    const stagedFoods: BuilderFood[] = [];
+    const nextQtyMap: Record<string, number> = {};
+
+    for (const s of combo.items) {
+      const libIng = s.ingredientId
+        ? INGREDIENTS.find((i) => i.id === s.ingredientId)
+        : undefined;
+      if (libIng) {
+        const qty = s.qty && s.qty > 0 ? s.qty : 1;
+        nextQtyMap[libIng.id] = qty;
+        continue;
+      }
+      const existing =
+        dbCache[s.foodKey] ?? allFoods?.find((f) => f.id === s.foodKey);
+      if (existing) {
+        if (existing.gramsPerUnit === 100 && s.grams > 0) {
+          nextQtyMap[existing.id] = qtyFromGrams(100, s.grams);
+        } else {
+          nextQtyMap[existing.id] = s.qty && s.qty > 0 ? s.qty : 1;
+        }
+        stagedFoods.push(existing);
+        continue;
+      }
+      const customEntry: BuilderFood = {
+        id: s.foodKey,
+        name: s.name,
+        unit: s.portionLabel || (s.grams > 0 ? `${Math.round(s.grams)} g` : "1 porsi"),
+        group: "custom",
+        kcal: s.kcal,
+        protein: s.protein,
+        fat: s.fat,
+        carbs: s.carbs,
+        ...(s.sugar != null ? { sugar: s.sugar } : {}),
+        ...(s.grams > 0 ? { gramsPerUnit: s.grams } : {}),
+        step: 0.25,
+      };
+      stagedFoods.push(customEntry);
+      nextQtyMap[customEntry.id] = 1;
+    }
+
+    if (stagedFoods.length > 0) {
+      setDbCache((c) => {
+        const next = { ...c };
+        for (const f of stagedFoods) {
+          if (!next[f.id]) next[f.id] = f;
+        }
+        return next;
+      });
+    }
+    setSelection((sel) => {
+      const next = { ...sel };
+      for (const [id, qVal] of Object.entries(nextQtyMap)) {
+        next[id] = Math.round(((next[id] || 0) + qVal) * 1000) / 1000;
+      }
+      return next;
+    });
+    confirmShadowInGraph(offer.targetNodeId, Date.now());
+    setShadowTick((t) => t + 1);
+    const lastId = Object.keys(nextQtyMap).at(-1) ?? null;
+    setJustId(lastId);
+    setAddTick((x) => x + 1);
+    setAddedFlash((f) => ({ name: combo.label, tick: (f?.tick ?? 0) + 1 }));
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => setAddedFlash(null), 1400);
+  };
+
   // Hardware/browser back mirrors the UI: close an inner sheet first, then
   // the browse layer, and only then leave the builder.
   useSheetBack(true, () => {
@@ -1131,13 +1227,33 @@ export default function FoodBuilder({
       sugarPct: sugarFull != null ? 100 : undefined,
     });
   };
-  const openNewFood = (groupId: string | null = null) => {
+  const openNewFood = (groupId: string | null = null, seedName?: string) => {
     setManualGroup(groupId);
+    setManualSeedName(seedName?.trim() || undefined);
     setManualOpen(true);
   };
-  function addComputedFood(food: RecipeFood, ingredients?: RecipeFood[]) {
+  function persistCustomFoodItem(food: RecipeFood): BuilderFood {
     const added: BuilderFood = { ...food, group: "custom" };
-    setCustomFoods((prev) => [...prev, added]);
+    saveCustomFood(food);
+    setCustomFoods((prev) => [added, ...prev.filter((x) => x.id !== added.id)]);
+    if (food.kcal > 0 && food.name.trim()) {
+      const grams = food.gramsPerUnit || 100;
+      const f = 100 / grams;
+      contributeFood(
+        food.name.trim(),
+        {
+          kcal: round1(food.kcal * f),
+          protein: round1(food.protein * f),
+          fat: round1(food.fat * f),
+          carbs: round1(food.carbs * f),
+        },
+        grams,
+      );
+    }
+    return added;
+  }
+  function addComputedFood(food: RecipeFood, ingredients?: RecipeFood[]) {
+    const added = persistCustomFoodItem(food);
     if (manualOpen && manualGroup) {
       addFoodToGroup(manualGroup, added);
       setGroups(getFoodGroups());
@@ -1152,8 +1268,34 @@ export default function FoodBuilder({
     setLabelOpen(false);
     setManualOpen(false);
     setManualGroup(null);
+    setManualSeedName(undefined);
     setQuery("");
     haptic("success");
+  }
+  function quickLogCustomFood(food: RecipeFood) {
+    const added = persistCustomFoodItem(food);
+    learnPick([added]);
+    const item: CustomMealItem = {
+      custom: true,
+      name: food.name,
+      grams: food.gramsPerUnit ?? 0,
+      portionLabel: `1 × ${food.unit}`,
+      kcal: food.kcal,
+      protein: food.protein,
+      fat: food.fat,
+      carbs: food.carbs,
+      ...scaleNutritionExtras(food, 1),
+    };
+    haptic("success");
+    invalidateHistoryStats();
+    const before = getAllMeals();
+    saveMeal({ date: dateKey, mealType: activeMeal, items: [item] });
+    setManualOpen(false);
+    setManualGroup(null);
+    setManualSeedName(undefined);
+    setQuery("");
+    onSaved?.(before);
+    onClose();
   }
 
   // Portion is the anchor: typing grams recomputes kcal + macros from density.
@@ -1341,6 +1483,19 @@ export default function FoodBuilder({
   // What is already on the tray, which is what makes "nasi goreng usually
   // comes with telur" learnable and usable.
   const platedIds = useMemo(() => Object.keys(selection), [selection]);
+  const trayShadows = useMemo<ShadowRecommendation[]>(() => {
+    try {
+      return getMealShadowOffers({
+        date: dateKey,
+        mealSlot: activeMeal,
+        currentPlateFoodKeys: platedIds,
+        limit: 2,
+      });
+    } catch {
+      return [];
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateKey, activeMeal, platedIds, shadowTick]);
   const affinity = useMemo(() => {
     // One-time upgrade of the legacy {count,last} picks store, so an existing
     // user's six months of history is not thrown away.
@@ -1829,6 +1984,7 @@ export default function FoodBuilder({
           labelOpen ||
           manualOpen ||
           !!editing ||
+          !!editingShadow ||
           !!namingTemplate ||
           !!newGroup
         }
@@ -1972,6 +2128,20 @@ export default function FoodBuilder({
               {addedFlash.name} ditambahkan ke pilihan makan.
             </p>
           )}
+          {!q && !browseOpen && trayShadows.length > 0 && (
+            <ShadowRecommendations
+              offers={trayShadows}
+              variant="tray"
+              title={count > 0 ? "Sering ditambah bareng ini" : "Tombol Bayangan"}
+              subtitle={count > 0 ? "Pasangan" : "1 ketuk ✓"}
+              onConfirm={(o) => applyShadowToTray(o)}
+              onQuickEdit={(o) => setEditingShadow(o)}
+              onDismiss={(o) => {
+                dismissShadowOffer(o.targetNodeId);
+                setShadowTick((t) => t + 1);
+              }}
+            />
+          )}
           {searchError && (
             <p className="status-message" role="status">
               {searchError}
@@ -2052,14 +2222,27 @@ export default function FoodBuilder({
                     );
                   })
                 : searchFlat.map(renderResultRow)}
+              {searchResultCount > 0 && query.trim().length >= 2 && (
+                <button
+                  type="button"
+                  className="search-quick-add"
+                  onClick={() => openNewFood(null, query.trim())}
+                >
+                  <span>
+                    <strong>Tambah “{query.trim()}” sebagai makanan baru</strong>
+                    <small>Cukup isi nama &amp; kalori — 1 ketuk langsung catat</small>
+                  </span>
+                  <Icon name="plus" size={18} />
+                </button>
+              )}
               {searchResultCount === 0 && !searching && (
                 <div className="empty-note">
-                  <p>Makanan “{query}” belum ditemukan.</p>
+                  <p>Makanan “{query.trim()}” belum ditemukan.</p>
                   <button
-                    className="secondary-button"
-                    onClick={() => openNewFood(null)}
+                    className="primary-button"
+                    onClick={() => openNewFood(null, query.trim())}
                   >
-                    Tambah makanan manual
+                    Tambah “{query.trim()}” sebagai makanan baru
                   </button>
                   <button
                     className="text-button"
@@ -2180,11 +2363,15 @@ export default function FoodBuilder({
       )}
       {manualOpen && (
         <ManualFoodSheet
+          initialName={manualSeedName}
+          trayCount={count}
           onClose={() => {
             setManualOpen(false);
             setManualGroup(null);
+            setManualSeedName(undefined);
           }}
           onAdd={addComputedFood}
+          onQuickLog={quickLogCustomFood}
         />
       )}
 
@@ -2961,6 +3148,14 @@ export default function FoodBuilder({
       ) : null}
 
       {/* The composer. Mounted last so it sits above every other sheet. */}
+      {editingShadow && (
+        <ShadowQuickEditSheet
+          offer={editingShadow}
+          submitLabel="Tambah ke pilihan ✓"
+          onClose={() => setEditingShadow(null)}
+          onSaveMeal={applyShadowToTray}
+        />
+      )}
     </>
   );
 }

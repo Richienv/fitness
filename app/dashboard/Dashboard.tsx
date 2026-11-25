@@ -22,6 +22,7 @@ import { useActiveDate, parseDate } from "@/lib/activeDate";
 import { sumNutrition } from "@/lib/nutritionStats";
 import { getMicroTargets, type MicroTargets } from "@/lib/nutritionTargets";
 import { useSoftRefresh } from "@/lib/useSoftRefresh";
+import { useReducedMotion } from "@/lib/useReducedMotion";
 import { renderNutritionCard, shareBlob } from "@/lib/shareCards";
 import { haptic } from "@/lib/haptics";
 import { getProfile, getSettings, type Profile } from "@/lib/settings";
@@ -67,8 +68,13 @@ const MEALS: { type: MealType; label: string }[] = [
 
 /** Eases a 0→1 reveal factor on mount so bars/rings animate up like the ref. */
 function useReveal(): number {
+  const reduced = useReducedMotion();
   const [t, setT] = useState(0);
   useEffect(() => {
+    if (reduced) {
+      setT(1);
+      return;
+    }
     let raf = 0;
     let cur = 0;
     const tick = () => {
@@ -82,8 +88,8 @@ function useReveal(): number {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, []);
-  return t;
+  }, [reduced]);
+  return reduced ? 1 : t;
 }
 
 function toggleStyle(active: boolean): CSSProperties {
@@ -147,6 +153,7 @@ function BarRow({
   t: number;
   last?: boolean;
 }) {
+  const reduced = useReducedMotion();
   const shown = value * t;
   const safeTarget = target || 1;
   const pct = Math.max(0, Math.min(100, (shown / safeTarget) * 100));
@@ -196,29 +203,30 @@ function BarRow({
         <div
           style={{
             position: "absolute",
-            top: 0,
-            left: 0,
-            bottom: 0,
-            width: `${pct}%`,
+            inset: 0,
             borderRadius: 999,
             overflow: "hidden",
+            transformOrigin: "left center",
+            transform: `scaleX(${Math.max(0, Math.min(1, pct / 100))})`,
             background: over ? "linear-gradient(90deg,#ff5a3c,#ee2f1f)" : grad,
-            transition: "width .6s cubic-bezier(.16,1,.3,1)",
+            transition: reduced ? "none" : "transform .6s cubic-bezier(.16,1,.3,1)",
             boxShadow: hot ? `0 0 10px ${glow}` : "none",
           }}
         >
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: "45%",
-              height: "100%",
-              background:
-                "linear-gradient(100deg,transparent,rgba(255,255,255,.6),transparent)",
-              animation: `barSheen 4.2s ${delay}s ease-in-out infinite`,
-            }}
-          />
+          {!reduced && (
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "45%",
+                height: "100%",
+                background:
+                  "linear-gradient(100deg,transparent,rgba(255,255,255,.6),transparent)",
+                animation: `barSheen 4.2s ${delay}s ease-in-out infinite`,
+              }}
+            />
+          )}
         </div>
       </div>
     </div>

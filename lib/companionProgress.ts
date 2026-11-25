@@ -121,3 +121,110 @@ export function companionProgress(
     (Math.min(...(waist as number[])) + Math.min(...(lift as number[]))) / 2;
   return { level: 1 + Math.floor(fraction * 11 + 1e-8), fraction };
 }
+
+export type LevelUnlockRequirement =
+  | {
+      kind: "weight";
+      level: number;
+      fraction: number;
+      requiredKg: number;
+      remainingKg: number | null;
+      direction: "loss" | "gain";
+      /** True when currentKg was used because 3-weigh-in baselineWeight isn't calibrated yet. */
+      estimated: boolean;
+      /** True when currentKg already passed requiredKg (awaiting two stable 7-day means). */
+      alreadyReached: boolean;
+    }
+  | {
+      kind: "recomp";
+      level: number;
+      fraction: number;
+      requiredWaistCm: number;
+      requiredLiftKg: number;
+      exercise: string;
+      reps: number;
+    }
+  | {
+      kind: "unconfigured";
+      level: number;
+      fraction: number;
+    };
+
+/**
+ * Exact target threshold needed to unlock `targetLevel` (1..12), matching
+ * `companionProgress`'s `level = 1 + Math.floor(fraction * 11 + 1e-8)` curve.
+ */
+export function unlockRequirementForLevel(
+  goal: CompanionGoal | null,
+  targetLevel: number,
+  currentKg?: number | null,
+): LevelUnlockRequirement {
+  const rawLevel = Number.isFinite(targetLevel) ? Math.round(targetLevel) : 1;
+  const level = Math.max(1, Math.min(12, rawLevel));
+  const fraction = (level - 1) / 11;
+  if (!goal) return { kind: "unconfigured", level, fraction };
+
+  const targetWeight = positive(goal.targetWeight) ? goal.targetWeight : null;
+  const baselineWeight = positive(goal.baselineWeight) ? goal.baselineWeight : null;
+  const latestKg = positive(currentKg) ? currentKg : null;
+
+  if (targetWeight !== null) {
+    let startKg: number | null = null;
+    let estimated = false;
+    if (baselineWeight !== null && targetWeight !== baselineWeight) {
+      startKg = baselineWeight;
+    } else if (
+      baselineWeight === null &&
+      latestKg !== null &&
+      targetWeight !== latestKg
+    ) {
+      startKg = latestKg;
+      estimated = true;
+    }
+    if (startKg !== null) {
+      const requiredKg = startKg + fraction * (targetWeight - startKg);
+      const direction = targetWeight < startKg ? "loss" : "gain";
+      const remainingKg =
+        latestKg !== null ? Math.abs(latestKg - requiredKg) : null;
+      const alreadyReached =
+        latestKg !== null &&
+        (direction === "loss"
+          ? latestKg <= requiredKg + 1e-6
+          : latestKg >= requiredKg - 1e-6);
+      return {
+        kind: "weight",
+        level,
+        fraction,
+        requiredKg,
+        remainingKg,
+        direction,
+        estimated,
+        alreadyReached,
+      };
+    }
+  }
+
+  if (
+    goal.mode === "recomp" &&
+    positive(goal.baselineWaist) &&
+    positive(goal.targetWaist) &&
+    goal.targetWaist !== goal.baselineWaist &&
+    positive(goal.baselineLift) &&
+    positive(goal.targetLift) &&
+    goal.targetLift !== goal.baselineLift
+  ) {
+    return {
+      kind: "recomp",
+      level,
+      fraction,
+      requiredWaistCm:
+        goal.baselineWaist + fraction * (goal.targetWaist - goal.baselineWaist),
+      requiredLiftKg:
+        goal.baselineLift + fraction * (goal.targetLift - goal.baselineLift),
+      exercise: goal.exercise || "Latihan",
+      reps: positive(goal.reps) ? Math.round(goal.reps) : 8,
+    };
+  }
+
+  return { kind: "unconfigured", level, fraction };
+}

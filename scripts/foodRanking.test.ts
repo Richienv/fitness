@@ -81,3 +81,23 @@ test("popularity is never negative", () => {
     assert.ok(computePopularity(r, "CUSTOM") >= 0, `${r.code} went negative`);
   }
 });
+
+test("deep_everyday_pack search text, English names, and pork cut vs offal ranking", () => {
+  const deep = parseFoodCsv(readFileSync(join(DATA, "deep_everyday_pack.csv"), "utf8"));
+  assert.equal(deep.length, 354);
+  const byDeep = (code: string): FoodRow => {
+    const row = deep.find((r) => r.code === code);
+    assert.ok(row, `missing ${code}`);
+    return row;
+  };
+
+  for (const r of deep) {
+    assert.ok(computePopularity(r, "CUSTOM") >= 0, `${r.code} went negative`);
+  }
+
+  const collar = byDeep("dfr-pork-collar-grilled");
+  const intestine = byDeep("dfr-pork-intestine-fried");
+  assert.ok(computePopularity(collar, "CUSTOM") > computePopularity(intestine, "CUSTOM"));
+  assert.equal(extractNameEn(collar), "Grilled Pork Collar");
+  assert.ok(buildSearchText(collar).includes("toroniku"));
+});

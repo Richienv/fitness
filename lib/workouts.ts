@@ -4,6 +4,8 @@ import type { MuscleKey, MuscleColorGroup } from "./muscles";
 import { MUSCLE_TO_GROUP } from "./muscles";
 import { scopedKey } from "./userScope";
 import type { Equipment } from "./equipment";
+import { getExerciseProfile, workoutKcal } from "./burn";
+import { learnWorkoutToGraph } from "./habitGraphStore";
 
 export type SessionType =
   | "PUSH_A"
@@ -416,6 +418,63 @@ function postWorkoutRemote(w: WorkoutSession): void {
   }).catch(() => {});
 }
 
+function notifyWorkoutToHabitGraph(w: WorkoutSession): void {
+  try {
+    const def = getDefForWorkout(w);
+    const rawName = w.sessionType === "CUSTOM" ? w.customName || "Sesi bebas" : (getSession(w.sessionType)?.name ?? "Latihan");
+    const lower = rawName.toLocaleLowerCase("id-ID");
+    const title = w.sessionType === "CUSTOM" ? rawName : lower.charAt(0).toLocaleUpperCase("id-ID") + lower.slice(1);
+    const exercises = def.exercises.map((d, idx) => {
+      const logged = w.exercises[idx];
+      const setsCount = logged && logged.sets.length > 0 ? logged.sets.length : d.sets;
+      const topWeight = logged?.sets.reduce((m, s) => Math.max(m, s.weight), 0) || undefined;
+      return {
+        name: logged?.swappedTo || d.name,
+        sets: setsCount,
+        repsLabel: d.repsLabel,
+        targetReps: d.targetReps,
+        weightKg: topWeight,
+      };
+    });
+    const estKcal = Math.round(
+      workoutKcal(
+        w.exercises
+          .filter((e) => !e.skipped)
+          .map((e, idx) => ({
+            name: e.swappedTo || def.exercises[idx]?.name || e.exerciseName,
+            primary: def.exercises[idx]?.primary ?? [],
+            secondary: def.exercises[idx]?.secondary ?? [],
+            restSec: def.exercises[idx]?.restSec,
+            sets: e.sets,
+          })),
+        70,
+      ).total,
+    );
+    const setsCount = exercises.reduce((s, e) => s + e.sets, 0);
+    const durationMin = w.durationMin || Math.max(20, Math.round(setsCount * 2.4));
+    learnWorkoutToGraph({
+      eventId: `workout:${w.id}`,
+      date: w.date,
+      at: w.endedAt ?? w.startedAt,
+      dayType: w.sessionType === "FEM_REST" ? "rest" : "gym",
+      payload: {
+        kind: "session",
+        title,
+        sessionType: w.sessionType,
+        customTemplateId: w.customTemplateId,
+        customFocus: w.customFocus,
+        setsCount,
+        exercisesCount: exercises.length,
+        durationMin,
+        estimatedKcal: estKcal,
+        exercises,
+      },
+    });
+  } catch {
+    // non-fatal
+  }
+}
+
 export function saveWorkout(w: WorkoutSession): void {
   const all = getAllWorkouts();
   const idx = all.findIndex((x) => x.id === w.id);
@@ -423,7 +482,10 @@ export function saveWorkout(w: WorkoutSession): void {
   else all.push(w);
   write(WORKOUTS_KEY, all);
   // Only completed sessions go to the shared DB — in-progress sets stay local.
-  if (w.completed) postWorkoutRemote(w);
+  if (w.completed) {
+    postWorkoutRemote(w);
+    notifyWorkoutToHabitGraph(w);
+  }
 }
 
 export function getActiveWorkoutId(): string | null {
@@ -488,16 +550,19 @@ function muscleFromGroup(group: string): MuscleKey {
   return "chest";
 }
 
-/** Build a loggable exercise from an equipment item, with sensible defaults. */
+/** Build a loggable exercise from an equipment item, with sensible biomechanical defaults. */
 export function exerciseDefFromEquipment(e: Equipment): ExerciseDef {
+  const primary = muscleFromGroup(e.muscleGroup);
+  const profile = getExerciseProfile(e.name, [primary]);
+  const isCardio = e.category === "CARDIO" || profile.loadMode === "timed_min";
   return {
     name: e.name,
-    sets: 3,
-    repsLabel: "10",
-    targetReps: 10,
-    increment: 2.5,
-    restSec: 60,
-    primary: [muscleFromGroup(e.muscleGroup)],
+    sets: isCardio ? 1 : 3,
+    repsLabel: isCardio ? "20 min" : "10",
+    targetReps: isCardio ? 20 : 10,
+    increment: profile.incrementKg > 0 ? profile.incrementKg : 2.5,
+    restSec: profile.defaultRestSec > 0 ? profile.defaultRestSec : 60,
+    primary: [primary],
     secondary: [],
   };
 }

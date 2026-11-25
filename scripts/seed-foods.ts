@@ -71,6 +71,10 @@ const TASKS: SeedTask[] = [
   // The last gaps the probe reported: soto lamongan, garang asem, mangut lele,
   // oseng mercon, tahu gejrot, mie kocok, kupat tahu, laksa bogor.
   { file: "pack_jawa.csv", source: "CUSTOM", prefix: "JAWA:" },
+  // Curated everyday pork cuts, meats, eggs, staples, veggies, drinks & campus meals.
+  { file: "pack_everyday.csv", source: "CUSTOM", prefix: "DAY:" },
+  // Deep-researched everyday international, pork, campus & beverage food database.
+  { file: "deep_everyday_pack.csv", source: "CUSTOM", prefix: "DFR:" },
   // Donated Indonesian food database v1.1 — 2641 rows after reconciliation,
   // keyed on its own stable slug. Seeds LAST so nothing else can overwrite it;
   // rows it supersedes were removed from the packs above rather than left to
@@ -114,7 +118,7 @@ async function main() {
   // Bump RANKING_VERSION whenever scripts/foodRanking scoring changes so a
   // deploy that adds no new rows still re-seeds once to recompute popularity /
   // searchText. Tracked via an ActivityLog marker.
-  const RANKING_VERSION = 3;
+  const RANKING_VERSION = 5;
   let rankingStale = false;
   let existing: number | null = null;
   let missingIndex = 0;

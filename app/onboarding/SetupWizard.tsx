@@ -472,7 +472,7 @@ export default function SetupWizard() {
           <>
             <div className="setup-review-avatar">
               <img
-                src={`/avatars/v2/${account.person}-level-01-poster.webp`}
+                src={`/avatars/v3/${account.person}-level-01.webp`}
                 width="90"
                 height="120"
                 alt=""

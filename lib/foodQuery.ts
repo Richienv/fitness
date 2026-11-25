@@ -9,8 +9,9 @@
 //    contain chicken, interleaved. Results now group by what the word means.
 //  · raw chicken was shown as just "Dada ayam": raw or cooked is read from the
 //    food so the list can say "mentah".
-import { normalize, tokenize } from "./foodSearch.ts";
-import { spellingVariants } from "./indonesian.ts";
+import { expandCjkQuery, normalize, tokenize } from "./foodSearch.ts";
+export { expandCjkQuery };
+import { indonesianAliases, spellingVariants } from "./indonesian.ts";
 
 export type CookMethod = "airfry" | "panggang";
 export type ParsedQuery = {
@@ -100,6 +101,8 @@ const PLAIN = new Set(
     "fillet filet giling cincang segar utuh potong potongan irisan tanpa " +
     "dengan isi kampung broiler negeri organik ras putih merah hitam coklat " +
     "ungu purple mentah frozen beku tawar biasa kecil besar sedang ekor butir " +
+    "samcan kapsim has dalam luar iga chop loin tenderloin belly shoulder ribs " +
+    "rib sirloin sengkel polos kupas pork lean " +
     "breast thigh wing wings drumstick mince minced skinless boneless whole " +
     "white brown raw fresh lean ground slice sliced plain"
   ).split(" "),
@@ -111,9 +114,9 @@ const SAME_FOOD_EN = new Set(
     "salmon tuna shrimp prawn squid oat oats potato banana milk"
   ).split(" "),
 );
-// Heads that mean "this food, that cut": "Daging ayam", "Dada ayam rebus".
+// Heads that mean "this food, that cut": "Daging ayam", "Dada ayam rebus", "Iga babi".
 const CUT_HEAD = new Set(
-  "daging dada paha sayap ceker hati ampela kulit fillet filet kepala leher potongan irisan".split(" "),
+  "daging dada paha sayap ceker hati ampela kulit fillet filet kepala leher potongan irisan iga".split(" "),
 );
 // Dish names that put the main ingredient second: "Opor ayam" is a chicken
 // dish, while "Mie ayam" or "Soto ayam" are noodles and soup that contain it.
@@ -156,7 +159,11 @@ export function groupResults<
   const tokens = tokenize(query);
   if (tokens.length !== 1) return null;
   const t = tokens[0];
-  const family = new Set([t, ...spellingVariants(t)]);
+  const family = new Set([
+    t,
+    ...spellingVariants(t),
+    ...indonesianAliases(t).filter((w) => !w.includes(" ")),
+  ]);
   const seen = new Set<string>();
   const unique = items.filter((f) => {
     const k = normalize(f.name);

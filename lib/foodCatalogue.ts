@@ -34,9 +34,8 @@ export type CatalogueFood = {
   popularity?: number | null;
 };
 
-// v2: rows now carry `popularity`. A v1 cache has none, and serving it for a day
-// would leave the prior flat for everyone who already opened the app.
-const CACHE_KEY = "richie.foodCatalogue.v2";
+// v3: includes `deep_everyday_pack.csv` (DFR:) + expanded multilingual aliases.
+const CACHE_KEY = "richie.foodCatalogue.v3";
 /** A day. The catalogue only changes on re-seed or JSON import, and a stale
  *  row is far less bad than a spinner. */
 const TTL_MS = 24 * 60 * 60 * 1000;

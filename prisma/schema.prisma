@@ -46,10 +46,13 @@ model User {
   // `followers` = rows where someone asked to follow this user.
   following    Follow[]         @relation("FollowRequester")
   followers    Follow[]         @relation("FollowTarget")
-  cardio       CardioSession[]
-  badges       UserBadge[]
-  mealLikes    MealLike[]
-  mealComments MealComment[]
+  cardio        CardioSession[]
+  badges        UserBadge[]
+  mealLikes     MealLike[]
+  mealComments  MealComment[]
+  roomVisitsOut RoomVisit[]     @relation("RoomVisitor")
+  roomVisitsIn  RoomVisit[]     @relation("RoomHost")
+  habitGraph    HabitGraphState?
 }
 
 // Cardio is tracked separately from lifting: it has distance/pace/place rather
@@ -361,4 +364,33 @@ model LoginAttempt {
   attempts  Int      @default(1)
   expiresAt DateTime
   @@index([expiresAt])
+}
+
+// Ephemeral presence + sweet knock/nudge while viewing an accepted partner's live progress room.
+model RoomVisit {
+  id         String    @id @default(cuid())
+  visitorId  String
+  visitor    User      @relation("RoomVisitor", fields: [visitorId], references: [id], onDelete: Cascade)
+  hostId     String
+  host       User      @relation("RoomHost", fields: [hostId], references: [id], onDelete: Cascade)
+  lastSeenAt DateTime  @default(now())
+  nudgeText  String?
+  nudgeAt    DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([visitorId, hostId])
+  @@index([hostId, lastSeenAt])
+  @@index([hostId, nudgeAt])
+}
+
+// Per-user real-time Habit Graph memory snapshot powering Shadow Recommendations ("Tombol Bayangan").
+// Optional additive table: API routes degrade cleanly to localStorage if not yet pushed.
+model HabitGraphState {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  version   Int      @default(1)
+  graph     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

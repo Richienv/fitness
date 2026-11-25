@@ -95,7 +95,10 @@ export default function TodayBurn({
               </span>
               <span className="lt-row-text">
                 <strong>Gym · {g.title}</strong>
-                <small>{g.completed ? "Selesai" : "Sedang berlangsung"}</small>
+                <small>
+                  {g.completed ? "Selesai" : "Sedang berlangsung"}
+                  {g.tonnageKg > 0 ? ` · ${fmt(g.tonnageKg)} kg volume` : ""}
+                </small>
               </span>
               {kcalCell(`gym:${g.id}`, g.kcal)}
               <span aria-hidden="true" />

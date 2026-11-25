@@ -7,7 +7,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseFoodCsv, clampCopper, type FoodRow } from "./foodCsv.ts";
 import {
@@ -98,4 +98,28 @@ test("custom foods carry portionGCooked", () => {
   const cf001 = byCode(custom, "CF001");
   assert.equal(cf001.portionGCooked, 323.0);
   assert.ok(cf001.note && cf001.note.length > 0);
+});
+
+test("deep_everyday_pack parses cleanly with NULL blanks, portions, and zero duplicate codes across data/*.csv", () => {
+  const deep = parseFoodCsv(readFileSync(join(DATA, "deep_everyday_pack.csv"), "utf8"));
+  assert.equal(deep.length, 354);
+
+  const collar = byCode(deep, "dfr-pork-collar-raw");
+  assert.equal(collar.portionGCooked, 120);
+  // Blank mineral cell in CSV stays null rather than 0
+  assert.equal(collar.nutrients.copper_mg, null);
+
+  const fanqie = byCode(deep, "dfr-zh-fanqie-chaodan-rice");
+  assert.equal(fanqie.portionGCooked, 400);
+  assert.ok(fanqie.aliases?.includes("fanqie chaodan"));
+
+  const seen = new Map<string, string>();
+  for (const file of readdirSync(DATA).filter((f) => f.endsWith(".csv")).sort()) {
+    const rows = parseFoodCsv(readFileSync(join(DATA, file), "utf8"));
+    for (const r of rows) {
+      const prev = seen.get(r.code);
+      assert.equal(prev, undefined, `duplicate code ${r.code} in ${file} and ${prev}`);
+      seen.set(r.code, file);
+    }
+  }
 });

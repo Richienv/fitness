@@ -42,6 +42,24 @@ const STAPLES = [
   "jeruk",
   "alpukat",
   "sayur",
+  "babi",
+  "pork",
+  "samcan",
+  "dada",
+  "paha",
+  "fillet",
+  "salmon",
+  "brokoli",
+  "oat",
+  "bayam",
+  "kangkung",
+  "iga",
+  "matcha",
+  "malatang",
+  "tofu",
+  "dori",
+  "yogurt",
+  "whey",
 ];
 
 /** Offal / obscure cuts most people never log — matched as whole words in the
@@ -146,9 +164,10 @@ export function computePopularity(row: FoodRow, source: string): number {
 
   if (row.foodGroup && GROUP_BOOST[row.foodGroup]) p += GROUP_BOOST[row.foodGroup];
 
-  // Sink offal / obscure cuts so everyday foods surface first.
+  // Sink offal / obscure cuts & pure lard/fats so everyday meat cuts surface first.
   const words = n.split(/[^a-z0-9]+/);
   if (OFFAL.some((o) => words.includes(o))) p -= 50;
+  if (row.foodGroup === "Lemak" || words.includes("lemak") || words.includes("lard")) p -= 45;
 
   return Math.max(0, p);
 }

@@ -139,3 +139,20 @@ test("English-named staples group by their Indonesian name", () => {
   assert.deepEqual(g.find((x) => x.key === "bahan")!.items.map((i) => i.id), ["nasi", "white"]);
   assert.deepEqual(g.find((x) => x.key === "masakan")!.items.map((i) => i.id), ["uduk", "goreng"]);
 });
+
+test("pork and babi group cuts cleanly under bahan and dishes under masakan", () => {
+  const porkPool: F[] = [
+    { id: "cut", name: "Daging Babi", aliases: "pork daging babi" },
+    { id: "samcan", name: "Babi Samcan / Pork Belly (Mentah)", aliases: "samcan pork belly" },
+    { id: "hasdalam", name: "Daging Babi Has Dalam (Tenderloin)", aliases: "pork tenderloin has dalam babi" },
+    { id: "goreng", name: "Babi Goreng (Fried Pork)", aliases: "fried pork" },
+    { id: "kecap", name: "Babi Kecap", aliases: "pork sweet soy" },
+    { id: "bakmi", name: "Bakmi Babi", aliases: "pork noodles" },
+  ];
+  const gBabi = groupResults(porkPool, "babi")!;
+  const gPork = groupResults(porkPool, "pork")!;
+  assert.ok(gBabi.find((x) => x.key === "bahan")!.items.some((i) => i.id === "cut"));
+  assert.ok(gBabi.find((x) => x.key === "bahan")!.items.some((i) => i.id === "hasdalam"));
+  assert.ok(gPork.find((x) => x.key === "bahan")!.items.some((i) => i.id === "cut"));
+  assert.ok(gPork.find((x) => x.key === "masakan")!.items.some((i) => i.id === "kecap"));
+});

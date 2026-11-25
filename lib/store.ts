@@ -7,6 +7,8 @@ import { scopedKey } from "./userScope";
 import { getSettings } from "./settings";
 import { contributeFood } from "./foodContribute";
 import type { NutritionExtras } from "./nutritionLabel";
+import { learnMealToGraph } from "./habitGraphStore";
+import type { HabitFoodSnapshot } from "./habitGraph";
 
 export type CustomMealItem = NutritionExtras & {
   custom: true;
@@ -192,6 +194,56 @@ function stampItems(items: MealItem[], now: number): MealItem[] {
   return items.map((it) => (it.addedAt != null ? it : { ...it, addedAt: now }));
 }
 
+function notifyMealToHabitGraph(date: string, mealType: MealType, items: MealItem[], now: number, mealId: string): void {
+  try {
+    const snapshots: HabitFoodSnapshot[] = items.map((it) => {
+      if (isCustomItem(it)) {
+        const clean = it.name.trim();
+        return {
+          foodKey: `custom:${clean.toLowerCase()}`,
+          name: clean,
+          grams: it.grams || 0,
+          qty: 1,
+          portionLabel: it.portionLabel || (it.grams > 0 ? `${Math.round(it.grams)} g` : "1 porsi"),
+          kcal: Number(it.kcal) || 0,
+          protein: Number(it.protein) || 0,
+          carbs: Number(it.carbs) || 0,
+          fat: Number(it.fat) || 0,
+          ...(it.sugar != null ? { sugar: it.sugar } : {}),
+        };
+      }
+      const ing = getIngredient(it.id);
+      const m = macrosFor(it.id, it.qty);
+      const grams = ing?.gramsPerUnit ? Math.round(ing.gramsPerUnit * it.qty) : 0;
+      return {
+        foodKey: it.id,
+        ingredientId: it.id,
+        name: ing?.name ?? it.id,
+        grams,
+        qty: it.qty,
+        unit: ing?.unit,
+        portionLabel: grams > 0 ? `${grams} g` : ing?.unit ? `${Math.round(it.qty * 10) / 10} × ${ing.unit}` : `${it.qty}×`,
+        kcal: m.kcal,
+        protein: m.protein,
+        carbs: m.carbs,
+        fat: m.fat,
+        ...(ing?.sugar != null ? { sugar: ing.sugar * it.qty } : {}),
+      };
+    });
+    const dayType = getDaily(date).gymDay ? "gym" : "rest";
+    learnMealToGraph({
+      eventId: `meal:${mealId}:${now}`,
+      date,
+      mealType,
+      at: now,
+      dayType,
+      items: snapshots,
+    });
+  } catch {
+    // non-fatal: Habit Graph learning never blocks meal persistence
+  }
+}
+
 export function saveMeal(log: Omit<MealLog, "id" | "loggedAt">): MealLog {
   const now = Date.now();
   const items = stampItems(log.items, now);
@@ -204,6 +256,7 @@ export function saveMeal(log: Omit<MealLog, "id" | "loggedAt">): MealLog {
     existing.loggedAt = now;
     write(MEALS_KEY, all);
     postMeal(existing);
+    notifyMealToHabitGraph(log.date, log.mealType, items, now, existing.id);
     return existing;
   }
   const entry: MealLog = {
@@ -215,6 +268,7 @@ export function saveMeal(log: Omit<MealLog, "id" | "loggedAt">): MealLog {
   all.push(entry);
   write(MEALS_KEY, all);
   postMeal(entry);
+  notifyMealToHabitGraph(log.date, log.mealType, items, now, entry.id);
   return entry;
 }
 

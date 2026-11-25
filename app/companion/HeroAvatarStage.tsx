@@ -10,10 +10,16 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { dayFractionCST, energyBalance } from "@/lib/energyBalance";
 import type { EnergyView } from "@/lib/energyBalanceData";
-import type { Character } from "@/lib/companionProgress";
+import {
+  unlockRequirementForLevel,
+  type Character,
+  type CompanionGoal,
+} from "@/lib/companionProgress";
 import type { Snapshot } from "@/lib/motivation";
+import { haptic } from "@/lib/haptics";
 import AvatarPlayer from "./AvatarPlayer";
 import Icon from "../ui/Icon";
+import { getAvatarLevelMeta, TIER_META } from "@/lib/avatarLevels";
 import "./hero-stage.css";
 
 const idInt = (n: number) => Math.round(Math.abs(n)).toLocaleString("id-ID");
@@ -26,6 +32,8 @@ const dec = (n: number, d = 1) =>
 export default function HeroAvatarStage({
   character,
   level,
+  goal,
+  currentKg,
   energy,
   snap,
   waterMl,
@@ -36,6 +44,8 @@ export default function HeroAvatarStage({
 }: {
   character: Character;
   level: number;
+  goal: CompanionGoal | null;
+  currentKg: number | null;
   energy: EnergyView | null;
   snap: Snapshot | null;
   waterMl: number;
@@ -44,8 +54,37 @@ export default function HeroAvatarStage({
   onToggleDetail: () => void;
   onOpenWeigh: () => void;
 }) {
+  const unlockedLevel = Math.max(1, Math.min(12, Math.round(level)));
+  const [viewLevel, setViewLevel] = useState(unlockedLevel);
   const [includeWater, setIncludeWater] = useState(false);
   const [tick, setTick] = useState<number | null>(null);
+
+  useEffect(() => {
+    setViewLevel(unlockedLevel);
+  }, [unlockedLevel, character]);
+
+  const isLocked = viewLevel > unlockedLevel;
+  const isPeeking = viewLevel !== unlockedLevel;
+  const unlockReq = useMemo(
+    () =>
+      isLocked ? unlockRequirementForLevel(goal, viewLevel, currentKg) : null,
+    [isLocked, goal, viewLevel, currentKg],
+  );
+
+  const stepLevel = (delta: number) => {
+    setViewLevel((prev) => {
+      const next = Math.max(1, Math.min(12, prev + delta));
+      if (next !== prev) haptic("tap");
+      return next;
+    });
+  };
+
+  const resetToUnlocked = () => {
+    if (viewLevel !== unlockedLevel) {
+      haptic("tap");
+      setViewLevel(unlockedLevel);
+    }
+  };
 
   const isToday = energy?.status === "ok" && energy.isToday;
 
@@ -195,17 +234,80 @@ export default function HeroAvatarStage({
         )}
       </div>
 
-      {/* Turntable Avatar — paused by default, playable via floating pill or drag */}
-      <div className="hero-avatar-canvas">
+      {/* Turntable Avatar — paused by default, playable via floating pill or drag; locked levels show mystery silhouette */}
+      <div className={`hero-avatar-canvas${isLocked ? " is-locked" : ""}`}>
         <AvatarPlayer
           character={character}
-          level={level}
+          level={viewLevel}
+          locked={isLocked}
           autoPlay={false}
           minimalControls
         />
 
+        {isLocked && unlockReq && (
+          <div className="hero-locked-overlay" role="status" aria-live="polite">
+            <div className="hero-locked-head">
+              <span className="hero-locked-badge">
+                <Icon name="lock" size={14} />
+                <strong>LOCKED</strong>
+              </span>
+              <span className="hero-locked-level">Level {viewLevel}</span>
+            </div>
+
+            {unlockReq.kind === "weight" && (
+              <>
+                <p className="hero-locked-target">
+                  Capai {dec(unlockReq.requiredKg, 1)} kg buat unlock
+                </p>
+                {unlockReq.remainingKg !== null &&
+                !unlockReq.alreadyReached &&
+                unlockReq.remainingKg >= 0.05 ? (
+                  <span className="hero-locked-sub">
+                    Tinggal {dec(unlockReq.remainingKg, 1)} kg lagi
+                  </span>
+                ) : unlockReq.remainingKg !== null &&
+                  unlockReq.alreadyReached ? (
+                  <span className="hero-locked-sub">
+                    Pertahankan tren 7 hari di{" "}
+                    {unlockReq.direction === "loss" ? "≤" : "≥"}{" "}
+                    {dec(unlockReq.requiredKg, 1)} kg
+                  </span>
+                ) : unlockReq.estimated ? (
+                  <span className="hero-locked-sub">
+                    Estimasi dari berat terakhir · 3× timbang/minggu
+                  </span>
+                ) : null}
+              </>
+            )}
+
+            {unlockReq.kind === "recomp" && (
+              <>
+                <p className="hero-locked-target">
+                  Capai pinggang {dec(unlockReq.requiredWaistCm, 1)} cm &amp;{" "}
+                  {unlockReq.exercise} {dec(unlockReq.requiredLiftKg, 1)} kg ×{" "}
+                  {unlockReq.reps} buat unlock
+                </p>
+                <span className="hero-locked-sub">
+                  Target rekomposisi bertahan
+                </span>
+              </>
+            )}
+
+            {unlockReq.kind === "unconfigured" && (
+              <>
+                <p className="hero-locked-target">
+                  Atur target berat buat unlock
+                </p>
+                <Link href="/companion#goals" className="hero-locked-cta">
+                  Atur target →
+                </Link>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Floating left HUD chips (compact icon + number, translucent over avatar) */}
-        <div className="hero-hud-left">
+        <div className="hero-hud-left" aria-hidden={isLocked || undefined}>
           {live && (
             <button
               type="button"
@@ -253,13 +355,21 @@ export default function HeroAvatarStage({
                   <small>/{idInt(snap.kcalTarget)}</small>
                 </strong>
                 <em>{idInt(snap.protein)}g protein</em>
+                <span className="hero-chip-meter" aria-hidden="true">
+                  <span
+                    className="hero-chip-meter-fill meal"
+                    style={{
+                      transform: `scaleX(${Math.min(1, snap.kcalTarget > 0 ? snap.kcal / snap.kcalTarget : 0)})`,
+                    }}
+                  />
+                </span>
               </span>
             </Link>
           )}
         </div>
 
         {/* Floating right HUD: Water quick tracker */}
-        <div className="hero-hud-right">
+        <div className="hero-hud-right" aria-hidden={isLocked || undefined}>
           <div className="hero-water-chip" aria-label={`Air minum ${waterMl} ml`}>
             <div className="hero-water-top">
               <span className="hero-chip-ico water">
@@ -273,12 +383,19 @@ export default function HeroAvatarStage({
                 <em>+{dec(waterL, 2)} kg</em>
               </span>
             </div>
+            <span className="hero-chip-meter water" aria-hidden="true">
+              <span
+                className="hero-chip-meter-fill water"
+                style={{ transform: `scaleX(${Math.min(1, waterMl / 2500)})` }}
+              />
+            </span>
             <div className="hero-water-btns">
               {waterMl > 0 && (
                 <button
                   type="button"
                   className="hero-water-minus"
                   onClick={() => onAddWater(-250)}
+                  tabIndex={isLocked ? -1 : undefined}
                   aria-label="Kurangi 250 ml air"
                 >
                   −
@@ -288,6 +405,7 @@ export default function HeroAvatarStage({
                 type="button"
                 className="hero-water-plus"
                 onClick={() => onAddWater(250)}
+                tabIndex={isLocked ? -1 : undefined}
                 aria-label="Tambah 250 ml air"
               >
                 +250
@@ -295,11 +413,73 @@ export default function HeroAvatarStage({
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Bottom-left subtle level tag */}
-        <Link href="/companion" className="hero-level-pill">
-          {character === "richie" ? "Richie" : "Renita"} · Lv {level}
-        </Link>
+      {/* Bottom peek bar: Prev / Next to check next mystery silhouette, or Kembali to current level */}
+      <div className="hero-peek-bar" aria-label="Jelajahi level avatar">
+        <button
+          type="button"
+          className="hero-peek-btn"
+          onClick={() => stepLevel(-1)}
+          disabled={viewLevel <= 1}
+          aria-label="Level sebelumnya"
+        >
+          <span aria-hidden="true">‹</span>
+        </button>
+
+        <div className="hero-peek-center">
+          {(() => {
+            const meta = getAvatarLevelMeta(character, viewLevel);
+            const tier = TIER_META[meta.tier];
+            return (
+              <Link
+                href="/companion"
+                className={`hero-level-pill${isLocked ? " is-locked" : ""}`}
+              >
+                {isLocked ? (
+                  <>
+                    <Icon name="lock" size={12} />
+                    <span>
+                      {character === "richie" ? "Richie" : "Renita"} · Lv {viewLevel} / 12 · Rahasia
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span
+                      className="hero-level-dot"
+                      style={{ backgroundColor: tier.accent }}
+                      aria-hidden="true"
+                    />
+                    <span>
+                      {character === "richie" ? "Richie" : "Renita"} · Lv {meta.level} ·{" "}
+                      <strong>{meta.title}</strong>
+                    </span>
+                  </>
+                )}
+              </Link>
+            );
+          })()}
+          {isPeeking && (
+            <button
+              type="button"
+              className="hero-peek-reset"
+              onClick={resetToUnlocked}
+              aria-label={`Kembali ke level aktif (Level ${unlockedLevel})`}
+            >
+              Kembali · Lv {unlockedLevel}
+            </button>
+          )}
+        </div>
+
+        <button
+          type="button"
+          className="hero-peek-btn"
+          onClick={() => stepLevel(1)}
+          disabled={viewLevel >= 12}
+          aria-label="Cek level berikutnya"
+        >
+          <span aria-hidden="true">›</span>
+        </button>
       </div>
     </section>
   );

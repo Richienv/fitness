@@ -54,7 +54,18 @@ import {
   undoUsualMeal,
   type UsualOffer,
 } from "@/lib/usualMealData";
+import {
+  acceptMealShadow,
+  dismissShadowOffer,
+  getMealShadowOffers,
+  undoAcceptedMealShadow,
+} from "@/lib/habitGraphData";
+import type { ShadowRecommendation } from "@/lib/habitGraph";
 import ProgressCelebration from "../_motion/ProgressCelebration";
+import ShadowRecommendations from "../ui/ShadowRecommendations";
+import ShadowQuickEditSheet, {
+  type MealQuickEditResult,
+} from "../ui/ShadowQuickEditSheet";
 
 /** A blank editor draft; may or may not carry an id (edit vs. add). */
 type EditDraft = (QuickLogEntry | Omit<QuickLogEntry, "id">) & { id?: string };
@@ -384,6 +395,8 @@ export default function MealHome({
     mealId: string;
     stamp: number;
   } | null>(null);
+  const [shadowTick, setShadowTick] = useState(0);
+  const [editingShadow, setEditingShadow] = useState<ShadowRecommendation | null>(null);
   const closeCelebration = useCallback(() => {
     setCelebration(null);
     setUsualUndo(null);
@@ -610,13 +623,59 @@ export default function MealHome({
     reloadFromStore();
   }, [usualOffer, activeDate, celebrateMeal, reloadFromStore]);
   const undoUsual = useCallback(() => {
-    if (usualUndo) undoUsualMeal(usualUndo.mealId, usualUndo.stamp);
+    if (usualUndo) {
+      undoUsualMeal(usualUndo.mealId, usualUndo.stamp);
+      undoAcceptedMealShadow(usualUndo.mealId, usualUndo.stamp);
+    }
     setCelebration(null);
     setUsualUndo(null);
     haptic("tap");
     reloadFromStore();
+    setShadowTick((t) => t + 1);
     toast(`${celebration?.title.replace(" tercatat", "") ?? "Catatan"} dibatalkan`, "success");
   }, [usualUndo, celebration, reloadFromStore]);
+
+  const mealShadows = useMemo<ShadowRecommendation[]>(() => {
+    if (!loaded || !activeDate) return [];
+    try {
+      return getMealShadowOffers({
+        date: activeDate,
+        mealSlot: nowSlot ?? inferMealType(),
+        limit: 3,
+      });
+    } catch {
+      return [];
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, activeDate, nowSlot, allMeals, gymDay, shadowTick]);
+
+  const confirmMealShadow = useCallback(
+    (offer: ShadowRecommendation, edit?: MealQuickEditResult) => {
+      if (!activeDate) return;
+      const before = getAllMeals();
+      const res = acceptMealShadow(offer, {
+        date: activeDate,
+        mealType: edit?.slot,
+        customCombo: edit?.combo,
+      });
+      setEditingShadow(null);
+      if (!res) return;
+      haptic("success");
+      if (celebrateMeal(before)) {
+        setUsualUndo({ mealId: res.mealId, stamp: res.stamp });
+      } else {
+        toast(`✓ ${res.label} · +${res.kcal} kkal`, "success");
+      }
+      reloadFromStore();
+      setShadowTick((t) => t + 1);
+    },
+    [activeDate, celebrateMeal, reloadFromStore],
+  );
+
+  const dismissMealShadow = useCallback((offer: ShadowRecommendation) => {
+    dismissShadowOffer(offer.targetNodeId);
+    setShadowTick((t) => t + 1);
+  }, []);
 
   const mealNames: Record<MealType, string> = {
     breakfast: "Sarapan",
@@ -705,6 +764,17 @@ export default function MealHome({
         <h2 className="mk-section-title" id="mk-quick-title">
           Catat cepat
         </h2>
+        {mealShadows.length > 0 && (
+          <ShadowRecommendations
+            offers={mealShadows}
+            variant="meal"
+            title="Tombol Bayangan"
+            subtitle="Habit Graph"
+            onConfirm={(o) => confirmMealShadow(o)}
+            onQuickEdit={(o) => setEditingShadow(o)}
+            onDismiss={dismissMealShadow}
+          />
+        )}
         <div className="mk-chips">
           {usualOffer && (
             <button className="mk-chip usual" onClick={logUsual}>
@@ -1242,6 +1312,13 @@ export default function MealHome({
             setPickerOpen(false);
           }}
           onClose={() => setPickerOpen(false)}
+        />
+      )}
+      {editingShadow && (
+        <ShadowQuickEditSheet
+          offer={editingShadow}
+          onClose={() => setEditingShadow(null)}
+          onSaveMeal={confirmMealShadow}
         />
       )}
     </main>

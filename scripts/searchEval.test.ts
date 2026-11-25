@@ -86,3 +86,46 @@ test("search stays fast enough to run per keystroke", () => {
   // a target.
   assert.ok(per < 20, `search took ${per.toFixed(1)}ms per query (budget 20ms in CI)`);
 });
+
+test("pork queries surface everyday pork cuts and dishes immediately", () => {
+  const prepared = prepare(pool);
+  const topIds = (q: string, n = 8) =>
+    searchPrepared(prepared, q, { limit: n }).map((r) => r.food.id);
+
+  assert.ok(topIds("daging babi", 5).includes("day-daging-babi"));
+  assert.ok(!topIds("daging babi", 5).includes("KR003")); // not lard
+  assert.ok(topIds("babi", 5).includes("day-babi"));
+  assert.ok(topIds("babi", 8).some((id) => id.includes("babi")));
+  assert.ok(topIds("pork", 8).some((id) => id.includes("babi") || id.includes("pork")));
+  assert.ok(topIds("pork", 10).includes("day-babi") || topIds("pork", 10).includes("day-daging-babi"));
+  assert.ok(topIds("samcan", 6).some((id) => id.includes("samcan")));
+  assert.ok(topIds("has dalam", 6).some((id) => id.includes("has-dalam")));
+  assert.ok(topIds("babi cincang", 6).some((id) => id.includes("cincang")));
+  assert.ok(topIds("bakut", 5).some((id) => id.includes("bakut")));
+});
+
+test("mega deep everyday pack loads all 354 foods and ranks everyday ID/EN/Pinyin/CJK queries", () => {
+  const dfrFoods = pool.filter((p) => p.id.startsWith("dfr-"));
+  assert.equal(dfrFoods.length, 354);
+
+  const prepared = prepare(pool);
+  const top = (q: string, n = 8) => searchPrepared(prepared, q, { limit: n }).map((r) => r.food);
+  const topIds = (q: string, n = 8) => top(q, n).map((f) => f.id);
+
+  assert.ok(topIds("fanqie chao dan", 5).some((id) => id.includes("fanqie-chaodan")));
+  assert.ok(topIds("番茄炒蛋", 5).some((id) => id.includes("fanqie-chaodan")));
+  assert.ok(topIds("malatang", 5).some((id) => id.includes("malatang")));
+  assert.ok(topIds("麻辣烫", 5).some((id) => id.includes("malatang")));
+  assert.ok(topIds("matcha", 6).some((id) => id.includes("matcha")));
+  assert.ok(topIds("kopi susu", 6).some((r) => {
+    const f = r.toLowerCase();
+    return f.includes("kopi") || f.includes("latte") || f.includes("luckin");
+  }));
+  assert.ok(top("dada ayam", 5).some((f) => f.name.toLowerCase().includes("dada ayam")));
+  assert.ok(top("telur", 5).some((f) => f.name.toLowerCase().includes("telur")));
+  assert.ok(top("nasi putih", 5).some((f) => f.name.toLowerCase().includes("nasi")));
+  assert.ok(top("mie", 8).some((f) => {
+    const n = f.name.toLowerCase();
+    return n.includes("mie") || n.includes("bakmi") || n.includes("mi ");
+  }));
+});

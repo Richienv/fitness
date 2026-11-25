@@ -20,6 +20,13 @@ import { getAllMeasurements, type Measurement } from "@/lib/measurements";
 import { getAllWorkouts, type WorkoutSession } from "@/lib/workouts";
 import { todayKey } from "@/lib/targets";
 import { useSoftRefresh } from "@/lib/useSoftRefresh";
+import {
+  avatarImageSrc,
+  getAvatarLevelMeta,
+  RENITA_LEVELS,
+  RICHIE_LEVELS,
+  TIER_META,
+} from "@/lib/avatarLevels";
 import Icon from "../ui/Icon";
 
 export default function CompanionPage() {
@@ -28,9 +35,7 @@ export default function CompanionPage() {
     character: "richie",
     goal: null,
   });
-  const [character, setCharacter] = useState<Character>("richie"),
-    [level, setLevel] = useState(1),
-    [rows, setRows] = useState<Measurement[]>([]),
+  const [rows, setRows] = useState<Measurement[]>([]),
     [workouts, setWorkouts] = useState<WorkoutSession[]>([]),
     [date, setDate] = useState("");
   const [mode, setMode] = useState<"weight" | "recomp">("recomp"),
@@ -39,7 +44,8 @@ export default function CompanionPage() {
     [liftTarget, setLiftTarget] = useState(""),
     [exercise, setExercise] = useState(""),
     [reps, setReps] = useState("8"),
-    [message, setMessage] = useState("");
+    [message, setMessage] = useState(""),
+    [selectedLevel, setSelectedLevel] = useState(1);
   const refresh = useCallback(() => {
     setRows(getAllMeasurements());
     setWorkouts(getAllWorkouts());
@@ -49,7 +55,6 @@ export default function CompanionPage() {
   useEffect(() => {
     refresh();
     const s = readCompanion(session?.user?.name);
-    setCharacter(s.character);
     setMode(s.goal?.mode ?? (s.character === "renita" ? "weight" : "recomp"));
     setWeightTarget(
       String(s.goal?.targetWeight ?? (s.character === "renita" ? 43 : "")),
@@ -66,6 +71,10 @@ export default function CompanionPage() {
   const progress = date
     ? companionProgress(settings.goal, rows, workouts, date)
     : { level: null, fraction: null };
+  const unlockedLevel = progress.level ?? 1;
+  useEffect(() => {
+    setSelectedLevel(unlockedLevel);
+  }, [unlockedLevel, settings.character]);
   const names = [
     ...new Set(
       workouts.flatMap((w) =>
@@ -142,11 +151,14 @@ export default function CompanionPage() {
       );
     }
   }
-  function useCharacter() {
+  function useCharacter(nextCharacter: Character) {
+    if (settings.character === nextCharacter) return;
     try {
-      saveCompanion({ ...settings, character });
+      const next = { ...settings, character: nextCharacter };
+      saveCompanion(next);
+      setSettings(next);
       setMessage(
-        `Avatar ${character === "richie" ? "Richie" : "Renita"} dipakai. Catatan akun tetap sama.`,
+        `Avatar ${nextCharacter === "richie" ? "Richie" : "Renita"} dipakai. Catatan akun tetap sama.`,
       );
     } catch {
       setMessage("Avatar belum tersimpan. Coba lagi.");
@@ -161,40 +173,6 @@ export default function CompanionPage() {
         </Link>
       </header>
       <DayProgress />
-      <div className="character-tabs" aria-label="Preview karakter">
-        {(["richie", "renita"] as const).map((p) => (
-          <button
-            key={p}
-            aria-pressed={character === p}
-            onClick={() => setCharacter(p)}
-          >
-            {p === "richie" ? "Richie" : "Renita"}
-          </button>
-        ))}
-      </div>
-      <AvatarPlayer key={character} character={character} level={level} />
-      <div className="avatar-status">
-        <span>Preview level {level} / 12</span>
-        <button onClick={useCharacter}>
-          {settings.character === character ? "Dipakai" : "Gunakan avatar"}
-        </button>
-      </div>
-      <div className="level-picker" aria-label="Dua belas level ilustrasi">
-        {Array.from({ length: 12 }, (_, i) => (
-          <button
-            key={i}
-            aria-pressed={level === i + 1}
-            aria-label={`Preview level ${i + 1}`}
-            onClick={() => setLevel(i + 1)}
-          >
-            {i + 1}
-          </button>
-        ))}
-      </div>
-      <p className="lean-note">
-        Preview bentuk ilustratif. Pilihan level di sini tidak mengubah progres
-        akun.
-      </p>
       <div className="progress-readout">
         <span>Progres akun {session?.user?.name?.split(" ")[0] ?? ""}</span>
         <strong>
@@ -203,6 +181,136 @@ export default function CompanionPage() {
             : "Belum terkalibrasi"}
         </strong>
       </div>
+      <div className="character-setting">
+        <div className="character-setting-head">
+          <span>Avatar beranda</span>
+          <small>Kostum level berikutnya rahasia — cek bayangannya di Beranda</small>
+        </div>
+        <div className="character-tabs" aria-label="Pilih avatar beranda">
+          {(["richie", "renita"] as const).map((p) => (
+            <button
+              key={p}
+              type="button"
+              aria-pressed={settings.character === p}
+              onClick={() => useCharacter(p)}
+            >
+              {p === "richie" ? "Richie" : "Renita"}
+              {settings.character === p ? " · Dipakai" : ""}
+            </button>
+          ))}
+        </div>
+      </div>
+      {(() => {
+        const activeLevel = Math.min(selectedLevel, unlockedLevel);
+        const meta = getAvatarLevelMeta(settings.character, activeLevel);
+        const tier = TIER_META[meta.tier];
+        const allLevels =
+          settings.character === "renita" ? RENITA_LEVELS : RICHIE_LEVELS;
+        return (
+          <>
+            <div className={`avatar-stage-wrap${unlockedLevel <= 1 ? " single" : ""}`}>
+              {unlockedLevel > 1 && (
+                <button
+                  type="button"
+                  className="avatar-stage-nav"
+                  aria-label="Level terbuka sebelumnya"
+                  onClick={() =>
+                    setSelectedLevel(
+                      activeLevel <= 1 ? unlockedLevel : activeLevel - 1,
+                    )
+                  }
+                >
+                  ‹
+                </button>
+              )}
+              <AvatarPlayer
+                key={settings.character}
+                character={settings.character}
+                level={activeLevel}
+              />
+              {unlockedLevel > 1 && (
+                <button
+                  type="button"
+                  className="avatar-stage-nav"
+                  aria-label="Level terbuka berikutnya"
+                  onClick={() =>
+                    setSelectedLevel(
+                      activeLevel >= unlockedLevel ? 1 : activeLevel + 1,
+                    )
+                  }
+                >
+                  ›
+                </button>
+              )}
+            </div>
+            <div className="avatar-meta-card">
+              <div className="avatar-meta-head">
+                <span
+                  className="avatar-tier-badge"
+                  style={{ color: tier.accent, backgroundColor: tier.softBg }}
+                >
+                  Lv {meta.level} · {tier.label}
+                </span>
+                <span className="quiet" style={{ fontSize: 12, fontWeight: 650 }}>
+                  Koleksi {unlockedLevel}/12 terbuka
+                </span>
+              </div>
+              <h2 className="avatar-meta-title">{meta.title}</h2>
+              <p className="avatar-meta-sub">
+                {meta.subtitle} · <span>{meta.companion}</span>
+              </p>
+            </div>
+            <div className="level-picker-grid" aria-label="Koleksi 12 level avatar">
+              {allLevels.map((item) => {
+                const isUnlocked = item.level <= unlockedLevel;
+                const itemTier = TIER_META[item.tier];
+                const selected = isUnlocked && activeLevel === item.level;
+                return (
+                  <button
+                    key={item.level}
+                    type="button"
+                    disabled={!isUnlocked}
+                    className={`level-thumb-btn${selected ? " is-selected" : ""}${
+                      !isUnlocked ? " is-locked" : ""
+                    }`}
+                    aria-pressed={isUnlocked ? selected : undefined}
+                    aria-label={
+                      isUnlocked
+                        ? `Lihat level ${item.level}: ${item.title}`
+                        : `Level ${item.level} terkunci`
+                    }
+                    onClick={() => {
+                      if (isUnlocked) setSelectedLevel(item.level);
+                    }}
+                  >
+                    <span
+                      className="level-thumb-num"
+                      style={
+                        !isUnlocked || selected
+                          ? undefined
+                          : { color: itemTier.accent }
+                      }
+                    >
+                      Lv {item.level}
+                    </span>
+                    <img
+                      src={avatarImageSrc(settings.character, item.level)}
+                      alt=""
+                      width={72}
+                      height={96}
+                      loading="lazy"
+                      decoding="async"
+                    />
+                    <span className="level-thumb-name">
+                      {isUnlocked ? item.title : "???"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        );
+      })()}
       <div className="lean-facts">
         <Link href="/dashboard/progress">
           <span>Berat terakhir</span>

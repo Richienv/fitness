@@ -26,10 +26,17 @@ import type { Equipment } from "@/lib/equipment";
 import { isRecord, previousPerformance, suggestNext } from "@/lib/exerciseHistory";
 import { recordMachinePick } from "@/lib/machinePicks";
 import { inferFromLog } from "@/lib/gymInventory";
+import { getProfile } from "@/lib/settings";
 import { haptic } from "@/lib/haptics";
 import { readSnapshot, stashBefore } from "@/lib/motivationData";
 import { readBodyKg, sessionTitle, workoutBurn } from "@/lib/burnData";
-import { plannedWorkoutKcal } from "@/lib/burn";
+import {
+  defaultWorkingWeightKg,
+  estimated1RM,
+  getExerciseProfile,
+  plannedWorkoutKcal,
+  setBurnDetails,
+} from "@/lib/burn";
 import Icon from "../../../ui/Icon";
 import ExerciseGuide from "../../ExerciseGuide";
 import { AddSheet, FinishSheet, SetEditSheet, Stepper, SwapSheet, fmtNum } from "./LoggerParts";
@@ -110,6 +117,8 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
 
   // Everything done before today's session: "last time" and the record to beat.
   const history = useMemo(() => (loaded ? getAllWorkouts() : []), [loaded]);
+  const bodyKg = useMemo(() => (loaded ? readBodyKg() : 70), [loaded]);
+  const profileSex = useMemo(() => (loaded ? getProfile().sex : undefined), [loaded]);
 
   // Rest countdown. Beeps and vibrates once at zero.
   useEffect(() => {
@@ -143,13 +152,28 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
     }
     return { done, total, volume: workoutVolume(workout) };
   }, [workout, allDefs]);
-  const kcal = useMemo(() => (workout ? workoutBurn(workout).total : 0), [workout]);
-  // What the whole plan should burn, so the number on screen has something to
-  // grow towards. Exercises added mid-session are part of the plan.
-  const plannedKcal = useMemo(
-    () => (loaded && allDefs.length ? plannedWorkoutKcal(allDefs, readBodyKg()).total : 0),
-    [loaded, allDefs],
+  const burnResult = useMemo(
+    () => (workout ? workoutBurn(workout, bodyKg) : null),
+    [workout, bodyKg],
   );
+  const kcal = burnResult?.total ?? 0;
+  // What the whole plan should burn, seeded with each exercise's previous
+  // working weight (or biomechanical default) so target vs actual stay grounded.
+  const plannedKcal = useMemo(() => {
+    if (!loaded || !allDefs.length) return 0;
+    return plannedWorkoutKcal(
+      allDefs.map((d, i) => {
+        const name = workout?.exercises[i]?.swappedTo ?? d.name;
+        const p = previousPerformance(history, name, workoutId);
+        return {
+          ...d,
+          name,
+          defaultWeight: p?.weight ?? defaultWorkingWeightKg(name, bodyKg, d.primary, profileSex),
+        };
+      }),
+      bodyKg,
+    ).total;
+  }, [loaded, allDefs, workout, history, workoutId, bodyKg, profileSex]);
   const allDone = totals.total > 0 && totals.done >= totals.total;
   const progressPct = totals.total > 0 ? Math.round((totals.done / totals.total) * 100) : 0;
 
@@ -167,27 +191,115 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
   const focusDef = allDefs[focusIdx];
   const focusLog = workout?.exercises[focusIdx];
   const focusDone = focusLog?.sets.length ?? 0;
+  const focusName = focusDef ? nameOf(focusIdx) : "";
+  const focusProfile = useMemo(
+    () => (focusDef ? getExerciseProfile(focusName, focusDef.primary) : null),
+    [focusDef, focusName],
+  );
+  const focusStepKg =
+    focusDef?.increment && focusDef.increment > 0
+      ? focusDef.increment
+      : focusProfile?.incrementKg && focusProfile.incrementKg > 0
+        ? focusProfile.incrementKg
+        : 2.5;
+  const isTimedFocus =
+    focusProfile?.loadMode === "timed_min" ||
+    focusProfile?.loadMode === "timed_sec" ||
+    focusProfile?.loadMode === "steps";
 
   const prev = useMemo(
-    () => (focusDef ? previousPerformance(history, nameOf(focusIdx), workoutId) : null),
-    // nameOf reads the swap, which is part of `workout`
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [history, focusIdx, workout, workoutId],
+    () => (focusDef ? previousPerformance(history, focusName, workoutId) : null),
+    [history, focusDef, focusName, workoutId],
   );
   const suggestion = useMemo(
     () => (focusDef && focusDone === 0 ? suggestNext(prev, focusDef) : null),
     [prev, focusDef, focusDone],
   );
 
+  const defaultStagedW = useMemo(() => {
+    if (!focusDef) return 0;
+    if (prev && (prev.weight > 0 || focusProfile?.loadMode === "bodyweight")) return prev.weight;
+    return defaultWorkingWeightKg(focusName, bodyKg, focusDef.primary, profileSex);
+  }, [focusDef, prev, focusProfile, focusName, bodyKg, profileSex]);
+
   // Fill the dock: the last set of this exercise today, else last time, else
-  // the target reps at no weight.
+  // a realistic exercise default at target reps.
   useEffect(() => {
     if (!workout || !focusDef) return;
     const last = focusLog?.sets[focusLog.sets.length - 1];
     if (last) setStaged({ w: last.weight, reps: last.reps });
-    else setStaged({ w: prev?.weight ?? 0, reps: prev?.reps ?? focusDef.targetReps });
+    else setStaged({ w: defaultStagedW, reps: prev?.reps ?? focusDef.targetReps });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusIdx, focusDone, workout?.id, prev?.weight, prev?.reps]);
+  }, [focusIdx, focusDone, workout?.id, defaultStagedW, prev?.reps]);
+
+  const stagedBurn = useMemo(() => {
+    if (!focusDef || staged.reps <= 0) return null;
+    return setBurnDetails({
+      name: focusName,
+      primary: focusDef.primary,
+      secondary: focusDef.secondary,
+      weight: staged.w,
+      reps: staged.reps,
+      restSec: focusDef.restSec,
+      bodyKg,
+    });
+  }, [focusDef, focusName, staged.w, staged.reps, bodyKg]);
+
+  const focusInsights = useMemo(() => {
+    const sets = (focusLog?.sets ?? []).filter((s) => s.reps > 0);
+    const doneBurn = sets.reduce(
+      (sum, s) =>
+        sum +
+        setBurnDetails({
+          name: focusName,
+          primary: focusDef?.primary,
+          secondary: focusDef?.secondary,
+          weight: s.weight,
+          reps: s.reps,
+          restSec: focusDef?.restSec,
+          bodyKg,
+        }).kcal,
+      0,
+    );
+    const tonnage = sets.reduce(
+      (sum, s) =>
+        sum +
+        setBurnDetails({
+          name: focusName,
+          primary: focusDef?.primary,
+          secondary: focusDef?.secondary,
+          weight: s.weight,
+          reps: s.reps,
+          restSec: focusDef?.restSec,
+          bodyKg,
+        }).tonnageKg,
+      0,
+    );
+    let bestE1RM = 0;
+    for (const s of sets) {
+      const e = estimated1RM(s.weight, s.reps);
+      if (e > bestE1RM) bestE1RM = e;
+    }
+    const prevE1RM = prev ? estimated1RM(prev.best.weight, prev.best.reps) : 0;
+    const stagedE1RM = estimated1RM(staged.w, staged.reps);
+    return {
+      doneBurn,
+      tonnage: Math.round(tonnage),
+      bestE1RM: bestE1RM || stagedE1RM,
+      isLiveE1RM: bestE1RM > 0,
+      prevE1RM,
+    };
+  }, [focusLog?.sets, focusName, focusDef, bodyKg, prev, staged.w, staged.reps]);
+
+  const quickWeights = useMemo(() => {
+    if (!focusDef || isTimedFocus) return [];
+    if (focusProfile?.loadMode === "bodyweight") return [0, 5, 10, 15];
+    const anchor = staged.w > 0 ? staged.w : defaultStagedW || 20;
+    const step = focusStepKg;
+    const raw = [anchor - step * 2, anchor - step, anchor, anchor + step, anchor + step * 2]
+      .map((x) => Math.max(step, Math.round(x * 10) / 10));
+    return Array.from(new Set(raw)).slice(0, 4);
+  }, [focusDef, isTimedFocus, focusProfile, staged.w, defaultStagedW, focusStepKg]);
 
   function commit(next: WorkoutSession) {
     saveWorkout(next);
@@ -399,9 +511,22 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
             {totals.done} dari {totals.total} set · {fmtKg(totals.volume)} kg
           </p>
           {plannedKcal > 0 && (
-            <p className="lg-burn">
-              Terbakar ≈ {fmtKg(kcal)} dari ≈ {fmtKg(Math.max(plannedKcal, kcal))} kkal (perkiraan)
-            </p>
+            <div className="lg-burn-wrap">
+              <p className="lg-burn">
+                Terbakar ≈ {fmtKg(kcal)} dari ≈ {fmtKg(Math.max(plannedKcal, kcal))} kkal (perkiraan)
+              </p>
+              {burnResult && kcal > 0 && (
+                <details className="lg-burn-details">
+                  <summary>Rincian</summary>
+                  <p>
+                    Mekanik {fmtNum(burnResult.breakdown.mechanicalKcal)} · Metabolik{" "}
+                    {fmtNum(burnResult.breakdown.metabolicKcal)} · EPOC{" "}
+                    {fmtNum(burnResult.breakdown.epocKcal)} kkal · Tonase{" "}
+                    {fmtKg(burnResult.breakdown.tonnageKg)} kg
+                  </p>
+                </details>
+              )}
+            </div>
           )}
           <div
             className="lg-progress"
@@ -443,6 +568,31 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                 </span>
               </div>
               <h2 id="lg-focus-title">{nameOf(focusIdx)}</h2>
+              <div className="lg-insight-pills" aria-label="Metrik gerakan">
+                <span className="lg-pill">
+                  {focusProfile?.compound ? "Compound" : "Isolasi"}
+                  {focusProfile?.loadMode === "per_hand" ? " · 2× DB" : ""}
+                  {focusProfile?.unilateral ? " · per sisi" : ""}
+                </span>
+                {focusInsights.bestE1RM > 0 && (
+                  <span className="lg-pill">
+                    {focusInsights.isLiveE1RM ? "e1RM" : "Target e1RM"} ≈ {fmtNum(focusInsights.bestE1RM)} kg
+                    {focusInsights.prevE1RM > 0 && focusInsights.isLiveE1RM && focusInsights.bestE1RM > focusInsights.prevE1RM
+                      ? ` (+${fmtNum(focusInsights.bestE1RM - focusInsights.prevE1RM)})`
+                      : ""}
+                  </span>
+                )}
+                {focusInsights.tonnage > 0 && (
+                  <span className="lg-pill">Volume {fmtKg(focusInsights.tonnage)} kg</span>
+                )}
+                {(focusInsights.doneBurn > 0 || (stagedBurn && stagedBurn.kcal > 0)) && (
+                  <span className="lg-pill accent">
+                    {focusInsights.doneBurn > 0
+                      ? `≈ ${fmtNum(focusInsights.doneBurn)} kkal`
+                      : `Set ini ≈ ${fmtNum(stagedBurn!.kcal)} kkal`}
+                  </span>
+                )}
+              </div>
               {focusLog?.swappedTo && (
                 <button type="button" className="lg-link lg-undo-swap" onClick={() => clearSwap(focusIdx)}>
                   Kembalikan {focusDef.name}
@@ -613,19 +763,52 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
                 </button>
               </p>
             )}
+            {quickWeights.length > 0 && (
+              <div className="lg-quick-weights" role="group" aria-label="Pilihan cepat beban">
+                {quickWeights.map((w) => (
+                  <button
+                    key={w}
+                    type="button"
+                    className={`lg-qchip${Math.abs(staged.w - w) < 0.05 ? " is-active" : ""}`}
+                    onClick={() => {
+                      haptic("tap");
+                      setStaged((s) => ({ ...s, w }));
+                    }}
+                  >
+                    {fmtNum(w)} kg
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="lg-steppers">
               <Stepper
-                label="Beban (kg)"
+                label={
+                  focusProfile?.loadMode === "per_hand"
+                    ? "Beban per DB (kg)"
+                    : focusProfile?.loadMode === "assisted"
+                      ? "Bantuan mesin (kg)"
+                      : focusProfile?.loadMode === "bodyweight"
+                        ? "Beban tambahan (kg)"
+                        : "Beban (kg)"
+                }
                 value={staged.w}
-                step={focusDef.increment || 1}
+                step={focusStepKg}
                 unit="kg"
                 decimal
                 onChange={(w) => setStaged((s) => ({ ...s, w }))}
               />
               <Stepper
-                label="Reps"
+                label={
+                  focusProfile?.loadMode === "timed_min"
+                    ? "Menit"
+                    : focusProfile?.loadMode === "timed_sec"
+                      ? "Detik"
+                      : focusProfile?.unilateral
+                        ? "Reps / sisi"
+                        : "Reps"
+                }
                 value={staged.reps}
-                step={1}
+                step={focusProfile?.loadMode === "timed_sec" ? 5 : 1}
                 onChange={(reps) => setStaged((s) => ({ ...s, reps }))}
               />
             </div>
@@ -636,6 +819,7 @@ export default function SessionLogger({ workoutId }: { workoutId: string }) {
               onClick={logSet}
             >
               Catat set {focusDone + 1}
+              {stagedBurn && stagedBurn.kcal > 0 ? ` · ≈ ${Math.round(stagedBurn.kcal)} kkal` : ""}
             </button>
           </>
         ) : (

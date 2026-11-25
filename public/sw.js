@@ -10,7 +10,7 @@
  *   /api/* → never intercepted (client stores handle localStorage caching).
  */
 
-const VERSION = "v6-fast-cache";
+const VERSION = "v7-avatars-v3";
 const STATIC_CACHE = `r2fit-static-${VERSION}`;
 const SHELL_CACHE = `r2fit-shell-${VERSION}`;
 const PAGE_CACHE = `r2fit-pages-${VERSION}`;
@@ -65,6 +65,7 @@ function isImmutableAsset(url) {
       url.pathname.startsWith("/_next/static/") ||
       url.pathname.startsWith("/icons/") ||
       url.pathname.startsWith("/avatars/v2/") ||
+      url.pathname.startsWith("/avatars/v3/") ||
       url.pathname.startsWith("/avatars/welcome-v1/") ||
       url.pathname.startsWith("/ocr/")
     );

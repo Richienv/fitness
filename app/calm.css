@@ -1277,3 +1277,74 @@ progress::-moz-progress-bar {
 .lt-food-set .segment button {
   min-height: 44px;
 }
+
+/* Frictionless Quick Add & inline search custom-food CTA */
+.quick-serving-field {
+  display: grid;
+  gap: 8px;
+}
+.quick-field-label {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--calm-muted);
+}
+.quick-unit-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.quick-unit-chip {
+  min-height: 38px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--calm-border);
+  background: var(--calm-fill);
+  color: var(--calm-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.16s var(--ease-ios, ease), background-color 0.16s ease, border-color 0.16s ease;
+}
+.quick-unit-chip:active {
+  transform: scale(0.96);
+}
+.quick-unit-chip.active {
+  background: var(--calm-accent);
+  border-color: var(--calm-accent);
+  color: #fff;
+}
+.quick-macros-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.search-quick-add {
+  margin-top: 14px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 16px;
+  border-radius: 14px;
+  border: 1px dashed var(--calm-accent);
+  background: rgba(255, 107, 53, 0.08);
+  color: var(--calm-text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: transform 0.16s ease, background-color 0.16s ease;
+}
+.search-quick-add:active {
+  transform: scale(0.985);
+}
+.search-quick-add strong {
+  font-size: 14px;
+  font-weight: 680;
+}
+.search-quick-add small {
+  display: block;
+  font-size: 12px;
+  color: var(--calm-muted);
+}

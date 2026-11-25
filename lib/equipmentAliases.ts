@@ -40,12 +40,15 @@ const SYNONYM_GROUPS: string[][] = [
   ["row", "rowing"],
   ["pulldown", "pull", "down"],
   ["press", "tekan"],
-  ["curl"],
+  ["curl", "bisep", "bicep", "biceps", "barbell curl"],
   ["extension", "ekstensi"],
   ["raise", "lateral"],
   ["dip", "dips"],
   ["kickback"],
-  ["squat", "jongkok"],
+  ["squat", "jongkok", "kaki"],
+  ["deadlift", "rdl", "hinge"],
+  ["overhead", "ohp", "military"],
+  ["hip thrust", "glute bridge"],
   ["cardio", "kardio", "treadmill", "lari", "sepeda", "bike", "cycling"],
 ];
 

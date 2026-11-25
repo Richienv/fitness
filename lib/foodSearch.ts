@@ -40,11 +40,97 @@ export type SearchableFood = {
 
 /** lowercase, strip diacritics, collapse punctuation to spaces. Must agree
  *  with the seed-time normalizer so client and server rank the same text. */
+const CJK_RE = /[\u4e00-\u9fff]/;
+
+// Ordered longest-first so specific dishes match before shorter ingredient terms.
+const CJK_FOOD_MAP: ReadonlyArray<readonly [string, string]> = [
+  ["番茄炒蛋盖浇饭", "fanqie chaodan rice"],
+  ["少油番茄炒蛋", "fanqie chaodan low oil"],
+  ["番茄炒蛋", "fanqie chaodan"],
+  ["骨汤麻辣烫", "malatang bone broth"],
+  ["番茄麻辣烫", "malatang tomato"],
+  ["素食麻辣烫", "malatang veggie"],
+  ["麻辣香锅", "mala xiangguo"],
+  ["麻辣烫", "malatang"],
+  ["红烧肉盖浇饭", "hongshao rou rice"],
+  ["红烧肉", "hongshao rou"],
+  ["回锅肉盖浇饭", "huiguo rou rice"],
+  ["回锅肉", "huiguo rou"],
+  ["鱼香肉丝盖浇饭", "yuxiang rousi rice"],
+  ["鱼香肉丝", "yuxiang rousi"],
+  ["宫保鸡丁", "gongbao"],
+  ["青椒肉丝", "qingjiao rousi"],
+  ["糖醋排骨", "tangcu paigu"],
+  ["黄焖鸡米饭", "huangmen ji mifan"],
+  ["黄焖鸡", "huangmen ji"],
+  ["素麻婆豆腐", "mapo tofu meatless"],
+  ["麻婆豆腐", "mapo tofu"],
+  ["白切鸡", "baiqie ji"],
+  ["口水鸡", "koushui ji"],
+  ["烧腊双拼饭", "shaola rice"],
+  ["烧鸭饭", "shaoya fan"],
+  ["卤肉饭", "lurou fan"],
+  ["卤肉燥", "lurou"],
+  ["酸菜鱼", "suancai yu"],
+  ["黑椒牛柳", "heijiao niuliu"],
+  ["兰州拉面", "lanzhou"],
+  ["沙县", "shaxian"],
+  ["煎饼果子", "jianbing"],
+  ["肉夹馍", "roujiamo"],
+  ["生煎包", "shengjianbao"],
+  ["鲜肉大包", "roubao"],
+  ["小笼包", "xiaolongbao"],
+  ["水饺", "shuijiao"],
+  ["锅贴", "guotie"],
+  ["小馄饨", "xiaohuntun"],
+  ["大馄饨", "dahuntun"],
+  ["馄饨", "wonton"],
+  ["无糖豆浆", "doujiang unsweetened"],
+  ["甜豆浆", "doujiang sweetened"],
+  ["豆浆", "doujiang"],
+  ["油条", "youtiao"],
+  ["白面馒头", "mantou plain"],
+  ["馒头", "mantou"],
+  ["皮蛋瘦肉粥", "pitan pork congee"],
+  ["瑞幸生椰拿铁", "luckin coconut latte"],
+  ["瑞幸", "luckin"],
+  ["霸王茶姬", "chagee"],
+  ["蜜雪冰城", "mixue"],
+  ["抹茶燕麦拿铁", "matcha oat latte"],
+  ["抹茶", "matcha"],
+  ["燕麦拿铁", "oat latte"],
+  ["乌龙茶", "oolong"],
+  ["茉莉花茶", "jasmine"],
+  ["松阪肉", "pork collar"],
+  ["猪颈肉", "pork collar"],
+  ["五花肉", "pork belly"],
+  ["猪肉", "daging babi pork"],
+  ["鸡胸肉", "chicken breast"],
+  ["鸡蛋", "telur egg"],
+  ["白米饭", "nasi putih white rice"],
+];
+
+/**
+ * Bridge Chinese characters (Pinyin / Indonesian / English) before ASCII normalization
+ * would otherwise strip them. Fast-paths non-CJK inputs with a single regex check.
+ */
+export function expandCjkQuery(raw: string): string {
+  if (!CJK_RE.test(raw)) return raw;
+  let out = raw;
+  for (const [zh, ascii] of CJK_FOOD_MAP) {
+    if (out.includes(zh)) {
+      out = out.split(zh).join(` ${ascii} `);
+    }
+  }
+  return out;
+}
+
 export function normalize(s: string): string {
-  return s
+  const expanded = CJK_RE.test(s) ? expandCjkQuery(s) : s;
+  return expanded
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }

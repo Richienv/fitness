@@ -87,10 +87,16 @@ const SATUAN_RULES: { re: RegExp; label: string; grams: number }[] = [
   { re: /\bes teh\b/, label: "1 gelas", grams: 300 },
   { re: /\bkopi|kopi susu\b/, label: "1 gelas", grams: 250 },
 
+  // Pork & meat cuts before the generic meat rule.
+  { re: /\b(iga babi|pork ribs|bakut|baikut)\b/, label: "1 porsi", grams: 180 },
+  { re: /\b(bacon|ham)\b/, label: "2 lembar", grams: 40 },
+  { re: /\b(sosis|lapcheong|lapciong)\b/, label: "1 potong", grams: 60 },
+  { re: /\b(babi|pork|samcan|kapsim|char siu|siobak|pork chop)\b/, label: "1 porsi", grams: 120 },
+
   // Generic shapes, so the rest of the catalogue still reads like food.
   { re: /\b(bubur|sop|soup|kuah|mie|bihun|kwetiau|ramen)\b/, label: "1 mangkok", grams: 250 },
   { re: /\b(teh|jus|susu|air|minuman|kopi|latte|americano|smoothie)\b/, label: "1 gelas", grams: 250 },
-  { re: /\b(ayam|ikan|daging|sapi|bebek|rendang|dendeng)\b/, label: "1 potong", grams: 120 },
+  { re: /\b(ayam|ikan|daging|sapi|babi|pork|bebek|rendang|dendeng)\b/, label: "1 potong", grams: 120 },
   { re: /\b(apel|jeruk|mangga|pir|alpukat|buah)\b/, label: "1 buah", grams: 150 },
   { re: /\b(roti|kue|donat|biskuit)\b/, label: "1 potong", grams: 60 },
   { re: /\b(kerupuk|keripik|snack)\b/, label: "1 bungkus", grams: 40 },

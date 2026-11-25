@@ -24,7 +24,11 @@ export type IconName =
   | "play"
   | "pause"
   | "info"
-  | "zap";
+  | "zap"
+  | "door"
+  | "heart"
+  | "edit"
+  | "lock";
 const paths: Record<IconName, React.ReactNode> = {
   scan: (
     <>
@@ -117,6 +121,29 @@ const paths: Record<IconName, React.ReactNode> = {
     </>
   ),
   zap: <path d="M13 2.5 4.5 13h6.5l-1 8.5L19.5 11H13l0-8.5Z" strokeLinejoin="round" />,
+  door: (
+    <>
+      <path d="M5 21V5a2 2 0 0 1 2-2h7.5A1.5 1.5 0 0 1 16 4.5V21" />
+      <path d="M3 21h18" />
+      <path d="M16 7l3.5 1.4V21" />
+      <circle cx="12.5" cy="12.5" r="0.9" fill="currentColor" stroke="none" />
+    </>
+  ),
+  heart: (
+    <path d="M12 20.4s-6.8-4.3-8.6-8.3C2.1 9.1 3.7 5.5 7 5.1c2-.2 3.7.9 5 2.7 1.3-1.8 3-2.9 5-2.7 3.3.4 4.9 4 3.6 7-1.8 4-8.6 8.3-8.6 8.3Z" />
+  ),
+  edit: (
+    <>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </>
+  ),
+  lock: (
+    <>
+      <rect x="4.5" y="11" width="15" height="10" rx="2.5" />
+      <path d="M8 11V7.5a4 4 0 0 1 8 0V11" />
+    </>
+  ),
 };
 export default function Icon({
   name,

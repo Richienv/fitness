@@ -15,6 +15,7 @@ import { syncResolvedTargets } from "@/lib/targetSync";
 import { seedApr13Meals } from "@/lib/mealSeed";
 import { todayKey } from "@/lib/targets";
 import { warmFoodCatalogue } from "@/lib/foodCatalogue";
+import { syncHabitGraphFromServer } from "@/lib/habitGraphStore";
 
 /** YYYY-MM-DD n days before the given CST date key. */
 function daysBefore(dateKey: string, n: number): string {
@@ -139,6 +140,7 @@ export default function ServerSync({ userId }: { userId: string | null }) {
         softRefresh();
       }
     });
+    void syncHabitGraphFromServer();
 
     // Re-pull when the tab regains focus (came back from Telegram).
     const onFocus = () => {

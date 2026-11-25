@@ -24,6 +24,7 @@ import {
 } from "@/lib/motivation";
 import { readSnapshot, takeBefore } from "@/lib/motivationData";
 import { useSheetBack } from "@/lib/backSheet";
+import { estimated1RM } from "@/lib/burn";
 import { readBodyKg, workoutBurn } from "@/lib/burnData";
 import { dayTarget } from "@/lib/dayBudgetData";
 import ProgressCelebration from "../../../../_motion/ProgressCelebration";
@@ -111,6 +112,9 @@ type Row = {
   name: string;
   sets: SetLog[];
   kcal: number | null;
+  tonnageKg: number;
+  e1rm: number;
+  e1rmDelta: number | null;
   record: { now: SetLog; before: SetLog } | null;
 };
 
@@ -189,14 +193,20 @@ export default function SessionComplete({ workoutId }: { workoutId: string }) {
       }
       // The burn list holds the same exercises in the same order.
       let kcal: number | null = null;
+      let tonnageKg = 0;
       if (!log.skipped) {
         const b = burn?.perExercise[burnAt++];
-        if (b && b.sets === sets.length) kcal = b.kcal;
+        if (b && b.sets === sets.length) {
+          kcal = b.kcal;
+          tonnageKg = Math.round(b.tonnageKg);
+        }
       }
       // A record: the best set beat everything done before in this exercise.
       let record: Row["record"] = null;
       const now = best(sets);
+      const e1rm = sets.reduce((m, s) => Math.max(m, estimated1RM(s.weight, s.reps)), 0);
       let before: SetLog | null = null;
+      let beforeE1rm = 0;
       for (const w of earlier) {
         for (const e of w.exercises) {
           if ((e.swappedTo || e.exerciseName) !== name) continue;
@@ -204,10 +214,15 @@ export default function SessionComplete({ workoutId }: { workoutId: string }) {
           if (done.length === 0) continue;
           const b = best(done);
           if (!before || setScore(b) > setScore(before)) before = b;
+          for (const s of done) {
+            const e1 = estimated1RM(s.weight, s.reps);
+            if (e1 > beforeE1rm) beforeE1rm = e1;
+          }
         }
       }
       if (before && setScore(now) > setScore(before)) record = { now, before };
-      rows.push({ name, sets, kcal, record });
+      const e1rmDelta = beforeE1rm > 0 && e1rm > 0 ? Math.round((e1rm - beforeE1rm) * 10) / 10 : null;
+      rows.push({ name, sets, kcal, tonnageKg, e1rm, e1rmDelta, record });
       if (planned) {
         for (const m of planned.primary) muscle.set(m, (muscle.get(m) ?? 0) + sets.length);
         for (const m of planned.secondary)
@@ -415,7 +430,13 @@ export default function SessionComplete({ workoutId }: { workoutId: string }) {
                 <li key={`${r.name}-${i}`} className="lt-sum-row">
                   <strong>{r.name}</strong>
                   <span className="lt-sum-kcal">{r.kcal !== null ? kcalText(r.kcal) : ""}</span>
-                  <p className="lt-sum-detail">{setsLine(r.sets)}</p>
+                  <p className="lt-sum-detail">
+                    {setsLine(r.sets)}
+                    {r.tonnageKg > 0 ? ` · ${nf(r.tonnageKg, 0)} kg volume` : ""}
+                    {r.e1rm > 0
+                      ? ` · e1RM ≈ ${nf(r.e1rm)} kg${r.e1rmDelta !== null && r.e1rmDelta !== 0 ? ` (${r.e1rmDelta > 0 ? "+" : ""}${nf(r.e1rmDelta)})` : ""}`
+                      : ""}
+                  </p>
                   {r.record && (
                     <p className="lt-sum-record">
                       Rekor baru: {fmtSet(r.record.now)} (sebelumnya {fmtSet(r.record.before)})
@@ -437,9 +458,10 @@ export default function SessionComplete({ workoutId }: { workoutId: string }) {
                   <span>{kcalText(burnTotal)}</span>
                 </p>
                 <p className="lt-sum-note">
-                  Perkiraan dari jumlah set, otot yang dilatih dan berat badanmu (
-                  {nf(summary.kg)} kg), bisa meleset sekitar 20–30%. Sudah masuk ke
-                  &quot;Hari ini&quot; di Latihan.
+                  Kerja mekanik ≈ {nf(burn.breakdown.mechanicalKcal)} kkal · Metabolik &amp;
+                  pemulihan ≈ {nf(burn.breakdown.metabolicKcal)} kkal · EPOC afterburn ≈{" "}
+                  {nf(burn.breakdown.epocKcal)} kkal. Dihitung dari beban aktual, repetisi, profil
+                  gerakan, dan berat badanmu ({nf(summary.kg)} kg).
                 </p>
                 {eat && eat.eatBack > 0 && (
                   <>

@@ -84,7 +84,9 @@ export const VOCAB: Record<FacetAxis, string[]> = {
     "fried", "grilled", "boiled", "steamed", "roasted", "baked",
   ],
   cut: [
-    "paha atas", "paha bawah", "dada", "paha", "sayap", "kepala", "ceker", "usus",
+    "paha atas", "paha bawah", "has luar", "pork belly", "pork shoulder", "pork loin",
+    "samcan", "kapsim", "chop", "ribs", "belly", "shoulder", "loin", "sengkel",
+    "dada", "paha", "sayap", "kepala", "ceker", "usus",
     "hati", "ampela", "kulit", "fillet", "filet", "tulang", "iga", "sirloin",
     "tenderloin", "has dalam", "sandung lamur", "brisket", "breast", "thigh", "wing",
     "drumstick", "leg",
@@ -231,6 +233,7 @@ const ENGLISH_WORDS = new Set([
   "large","clear","mixed","spicy","fresh","plain","light","dark","extra","hot","cold","iced","fried",
   "grilled","boiled","steamed","roasted","baked","crispy","raw","frozen","dried","sodium","free",
   "egg","eggs","rice","chicken","beef","pork","fish","shrimp","prawn","noodle","noodles","soup","sauce",
+  "loin","tenderloin","belly","shoulder","chop","ribs","rib","minced","ground","bacon","ham","sausage","scrambled","lean",
   "milk","bread","coffee","tea","latte","water","juice","butter","cheese","potato","tomato","mushroom",
   "yogurt","tofu","tempeh","banana","apple","bar","powder","scoop","steak","slice","mince","jerky",
   "chips","burger","sandwich","salad","pepper","bean","beans","oyster","drop","cream","cake","roll",

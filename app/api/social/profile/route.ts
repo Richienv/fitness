@@ -45,15 +45,16 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url);
+    const userId = (url.searchParams.get("userId") ?? "").trim();
     const username = normalizeUsername(url.searchParams.get("username") ?? "").replace(/[^a-z0-9_]/g, "");
     const raw = url.searchParams.get("date") ?? "";
     const date = DATE_RE.test(raw) ? raw : todayKey();
-    if (!username) {
+    if (!username && !userId) {
       return NextResponse.json({ ok: false, error: "bad-request" }, { status: 400, headers: noStore });
     }
 
     const target = await db.user.findFirst({
-      where: { username },
+      where: userId ? { id: userId } : { username },
       select: { id: true, name: true, username: true, email: true, heightCm: true },
     });
     if (!target) {
