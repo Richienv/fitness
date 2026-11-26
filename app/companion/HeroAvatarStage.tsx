@@ -7,7 +7,7 @@
 //   Left: Live deficit & Active workout burn.
 //   Right: Makan/protein progress & interactive Water tracker (+250 ml / −250 ml).
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { dayFractionCST, energyBalance } from "@/lib/energyBalance";
 import type { EnergyView } from "@/lib/energyBalanceData";
 import {
@@ -17,6 +17,7 @@ import {
 } from "@/lib/companionProgress";
 import type { Snapshot } from "@/lib/motivation";
 import { haptic } from "@/lib/haptics";
+import { useSecondTick } from "@/lib/useSecondTick";
 import AvatarPlayer from "./AvatarPlayer";
 import Icon from "../ui/Icon";
 import { getAvatarLevelMeta, TIER_META } from "@/lib/avatarLevels";
@@ -30,7 +31,90 @@ const dec = (n: number, d = 1) =>
     maximumFractionDigits: d,
   });
 
-export default function HeroAvatarStage({
+function useLiveEnergyBalance(energy: EnergyView | null, waterMl: number) {
+  const isToday = energy?.status === "ok" && energy.isToday;
+  const tick = useSecondTick(Boolean(isToday));
+  return useMemo(() => {
+    if (!energy || energy.status !== "ok") return null;
+    if (!energy.isToday || tick === null) {
+      if (waterMl === energy.waterMl) return energy.balance;
+      return (
+        energyBalance({
+          ...energy.input,
+          waterMl,
+          dayFraction: energy.isToday ? dayFractionCST() : 1,
+        }) ?? energy.balance
+      );
+    }
+    return (
+      energyBalance({
+        ...energy.input,
+        waterMl,
+        dayFraction: dayFractionCST(new Date(tick)),
+      }) ?? energy.balance
+    );
+  }, [energy, tick, waterMl]);
+}
+
+const LiveNowWeightPill = memo(function LiveNowWeightPill({
+  energy,
+  waterMl,
+}: {
+  energy: EnergyView;
+  waterMl: number;
+}) {
+  const live = useLiveEnergyBalance(energy, waterMl);
+  const nowDeltaKg = live ? live.soFar.weight.bodyKg : null;
+  if (nowDeltaKg === null) return null;
+  return (
+    <span className="hero-live-pill">
+      <em className="hero-live-tick">
+        {nowDeltaKg >= 0 ? "−" : "+"}
+        {dec(Math.abs(nowDeltaKg), 4)} kg
+      </em>{" "}
+      skrg
+    </span>
+  );
+});
+
+const LiveDeficitChip = memo(function LiveDeficitChip({
+  energy,
+  waterMl,
+  isLocked,
+  onToggleDetail,
+}: {
+  energy: EnergyView;
+  waterMl: number;
+  isLocked: boolean;
+  onToggleDetail: () => void;
+}) {
+  const live = useLiveEnergyBalance(energy, waterMl);
+  if (!live) return null;
+  const nowDeficit = live.soFar.balanceExact;
+  return (
+    <button
+      type="button"
+      className="hero-chip tone-deficit slot-tl"
+      onClick={onToggleDetail}
+      tabIndex={isLocked ? -1 : undefined}
+      aria-label="Defisit detik ini"
+    >
+      <span className="hero-chip-ico">
+        <Icon name="zap" size={13} />
+      </span>
+      <span className="hero-chip-body">
+        <strong>
+          {nowDeficit >= 0 ? "−" : "+"}
+          {idInt(nowDeficit)}
+          <small> kkal</small>
+        </strong>
+        <em>−{dec(live.rate.bodyGramsPerHour, 0)} g/jam</em>
+      </span>
+    </button>
+  );
+});
+
+function HeroAvatarStage({
   character,
   level,
   highestLevel,
@@ -68,7 +152,6 @@ export default function HeroAvatarStage({
   const unlockedLevel = Math.max(1, Math.min(12, Math.round(level)));
   const [viewLevel, setViewLevel] = useState(unlockedLevel);
   const [includeWater, setIncludeWater] = useState(false);
-  const [tick, setTick] = useState<number | null>(null);
   const [waterPulsed, setWaterPulsed] = useState(false);
   const waterPopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -124,48 +207,23 @@ export default function HeroAvatarStage({
 
   const isToday = energy?.status === "ok" && energy.isToday;
 
-  useEffect(() => {
-    if (!isToday) return;
-    let timer: ReturnType<typeof setInterval> | null = null;
-    const start = () => {
-      if (timer) return;
-      setTick(Date.now());
-      timer = setInterval(() => setTick(Date.now()), 1000);
-    };
-    const stop = () => {
-      if (!timer) return;
-      clearInterval(timer);
-      timer = null;
-    };
-    if (!document.hidden) start();
-    const onVis = () => {
-      if (document.hidden) stop();
-      else start();
-    };
-    document.addEventListener("visibilitychange", onVis);
-    return () => {
-      stop();
-      document.removeEventListener("visibilitychange", onVis);
-    };
-  }, [isToday]);
-
-  const live = useMemo(() => {
+  const baseLive = useMemo(() => {
     if (!energy || energy.status !== "ok") return null;
-    if (!energy.isToday || tick === null) return energy.balance;
+    if (waterMl === energy.waterMl) return energy.balance;
     return (
       energyBalance({
         ...energy.input,
         waterMl,
-        dayFraction: dayFractionCST(new Date(tick)),
+        dayFraction: energy.isToday ? dayFractionCST() : 1,
       }) ?? energy.balance
     );
-  }, [energy, tick, waterMl]);
+  }, [energy, waterMl]);
 
   const anchorKg = energy?.status === "ok" ? energy.kg : null;
-  const targetWeightNow = live
+  const targetWeightNow = baseLive
     ? includeWater
-      ? live.stopEating.weightWithWaterKg
-      : live.stopEating.weightKg
+      ? baseLive.stopEating.weightWithWaterKg
+      : baseLive.stopEating.weightKg
     : null;
 
   const deltaKg =
@@ -173,8 +231,6 @@ export default function HeroAvatarStage({
       ? anchorKg - targetWeightNow // positive = losing weight
       : null;
 
-  const nowDeficit = live ? live.soFar.balanceExact : null;
-  const nowDeltaKg = live ? live.soFar.weight.bodyKg : null;
   const waterL = waterMl / 1000;
 
   return (
@@ -199,7 +255,7 @@ export default function HeroAvatarStage({
 
       {/* Top-center focal readout above avatar head */}
       <div className="hero-head-weight">
-        {anchorKg !== null && targetWeightNow !== null && live ? (
+        {anchorKg !== null && targetWeightNow !== null && baseLive ? (
           <>
             <button
               type="button"
@@ -229,7 +285,7 @@ export default function HeroAvatarStage({
               {includeWater ? (
                 <span>
                   Timbangan (+{dec(waterL, 2)} L air) · bersih{" "}
-                  <strong>{dec(live.stopEating.weightKg, 2)} kg</strong>
+                  <strong>{dec(baseLive.stopEating.weightKg, 2)} kg</strong>
                 </span>
               ) : (
                 <>
@@ -239,14 +295,8 @@ export default function HeroAvatarStage({
                       : "≈ 0,00 kg"}{" "}
                     kalau stop makan
                   </span>
-                  {nowDeltaKg !== null && isToday && (
-                    <span className="hero-live-pill">
-                      <em className="hero-live-tick">
-                        {nowDeltaKg >= 0 ? "−" : "+"}
-                        {dec(Math.abs(nowDeltaKg), 4)} kg
-                      </em>{" "}
-                      skrg
-                    </span>
+                  {isToday && energy && (
+                    <LiveNowWeightPill energy={energy} waterMl={waterMl} />
                   )}
                   {weighTime && (
                     <span className="hero-weigh-time">Timbang pukul {weighTime}</span>
@@ -367,29 +417,16 @@ export default function HeroAvatarStage({
 
         {/* Orbital left HUD: Energy out (Deficit + Workout burn) */}
         <div className="hero-hud-left" aria-hidden={isLocked || undefined}>
-          {live && (
-            <button
-              type="button"
-              className="hero-chip tone-deficit slot-tl"
-              onClick={onToggleDetail}
-              tabIndex={isLocked ? -1 : undefined}
-              aria-label="Defisit detik ini"
-            >
-              <span className="hero-chip-ico">
-                <Icon name="zap" size={13} />
-              </span>
-              <span className="hero-chip-body">
-                <strong>
-                  {nowDeficit !== null && nowDeficit >= 0 ? "−" : "+"}
-                  {idInt(nowDeficit ?? 0)}
-                  <small> kkal</small>
-                </strong>
-                <em>−{dec(live.rate.bodyGramsPerHour, 0)} g/jam</em>
-              </span>
-            </button>
+          {baseLive && energy && (
+            <LiveDeficitChip
+              energy={energy}
+              waterMl={waterMl}
+              isLocked={isLocked}
+              onToggleDetail={onToggleDetail}
+            />
           )}
 
-          {live && (
+          {baseLive && (
             <Link
               href="/workout"
               className="hero-chip tone-burn slot-bl"
@@ -401,7 +438,7 @@ export default function HeroAvatarStage({
               </span>
               <span className="hero-chip-body">
                 <strong>
-                  {idInt(live.active)}
+                  {idInt(baseLive.active)}
                   <small> kkal</small>
                 </strong>
                 <em>olahraga</em>
@@ -562,3 +599,5 @@ export default function HeroAvatarStage({
     </section>
   );
 }
+
+export default memo(HeroAvatarStage);

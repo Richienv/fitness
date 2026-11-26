@@ -1655,7 +1655,7 @@ function SearchModal({
               borderRadius: 12,
               padding: "11px 13px",
               color: "#f1ede9",
-              fontSize: 14,
+              fontSize: 16,
               outline: "none",
             }}
           />
@@ -1729,7 +1729,7 @@ function SearchModal({
               borderRadius: 12,
               padding: "11px 13px",
               color: "#f1ede9",
-              fontSize: 14,
+              fontSize: 16,
               outline: "none",
             }}
           />

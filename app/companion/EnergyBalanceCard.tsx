@@ -2,7 +2,7 @@
 // The Home screen's main feature: real-time body weight AND pure fat change
 // per second and per meal. Pure physiology maths in lib/energyBalance.
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   GLYCOGEN_MAX_KCAL,
   KCAL_PER_KG_FAT,
@@ -12,6 +12,7 @@ import {
   type WeightDelta,
 } from "@/lib/energyBalance";
 import type { EnergyView } from "@/lib/energyBalanceData";
+import { useSecondTick } from "@/lib/useSecondTick";
 import "./energy-balance.css";
 
 type BalanceMode = "stop" | "now" | "target";
@@ -65,35 +66,8 @@ function formatKgPerSec(kgPerSec: number): string {
 
 export default function EnergyBalanceCard({ view }: { view: EnergyView }) {
   const [mode, setMode] = useState<BalanceMode>("stop");
-  const [tick, setTick] = useState<number | null>(null);
-
   const isToday = view.status === "ok" && view.isToday;
-
-  // Lightweight 1-second clock tick for live per-second burn without re-reading localStorage.
-  useEffect(() => {
-    if (!isToday) return;
-    let timer: ReturnType<typeof setInterval> | null = null;
-    const start = () => {
-      if (timer) return;
-      setTick(Date.now());
-      timer = setInterval(() => setTick(Date.now()), 1000);
-    };
-    const stop = () => {
-      if (!timer) return;
-      clearInterval(timer);
-      timer = null;
-    };
-    if (!document.hidden) start();
-    const onVis = () => {
-      if (document.hidden) stop();
-      else start();
-    };
-    document.addEventListener("visibilitychange", onVis);
-    return () => {
-      stop();
-      document.removeEventListener("visibilitychange", onVis);
-    };
-  }, [isToday]);
+  const tick = useSecondTick(isToday);
 
   const liveBalance = useMemo(() => {
     if (view.status !== "ok") return null;

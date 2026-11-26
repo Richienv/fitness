@@ -88,7 +88,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#ffffff",
+  themeColor: "#f5f6fa",
   // Required for `env(safe-area-inset-*)` to report anything but 0 — the app
   // already has 55 of those, and without cover they were all no-ops. It also
   // pairs with statusBarStyle: "default": the status bar draws over

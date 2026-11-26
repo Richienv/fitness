@@ -10,6 +10,7 @@ import type { MealType } from "@/lib/presets";
 import { activityKcal, type ActivityKey, type Intensity } from "@/lib/burn";
 import { readBodyKg } from "@/lib/burnData";
 import { useSheetBack } from "@/lib/backSheet";
+import { useModalScrollLock } from "@/lib/scrollLock";
 import Icon from "./Icon";
 
 const SLOT_OPTIONS: { key: MealType; label: string }[] = [
@@ -62,6 +63,7 @@ export default function ShadowQuickEditSheet({
   onStartLiveWorkout?: (offer: ShadowRecommendation) => void;
 }) {
   useSheetBack(true, onClose);
+  useModalScrollLock(true);
 
   // Meal edit state
   const [slot, setSlot] = useState<MealType>(offer.meal?.slot ?? "lunch");

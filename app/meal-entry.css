@@ -13,9 +13,7 @@
 .builder-header {
   padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
   border-bottom: 1px solid var(--calm-border, #e3e6ee);
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.98);
   display: grid;
   gap: 9px;
   flex: none;
@@ -55,12 +53,12 @@
 }
 .builder-topbar .meal-select select {
   min-height: 36px;
-  padding: 5px 10px;
+  padding: 4px 8px;
   border-radius: 999px;
   border: 1px solid var(--calm-border, #e3e6ee);
   background: var(--calm-fill, #f3f4f8);
   color: var(--calm-text, #1f2433);
-  font-size: 12.5px;
+  font-size: 16px;
   font-weight: 650;
 }
 .builder-header .friendly-search {
@@ -152,6 +150,8 @@
 .builder-scroll {
   padding: 12px 16px 24px;
   background: var(--bg);
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 .builder-footer.builder-save-dock {
   flex: none;
@@ -520,12 +520,12 @@
   box-shadow: 0 0 0 1px #202020;
 }
 .meal-page {
-  padding-bottom: 180px;
+  padding-bottom: calc(180px + env(safe-area-inset-bottom, 0px));
 }
 .meal-page > .food-actions {
   position: fixed;
   z-index: 110;
-  bottom: calc(64px + env(safe-area-inset-bottom));
+  bottom: calc(68px + env(safe-area-inset-bottom, 0px));
   left: 0;
   right: 0;
   max-width: 520px;

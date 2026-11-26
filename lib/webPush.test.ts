@@ -77,7 +77,7 @@ test("server-only lib/webPush.ts stays free of 'use client' and service worker h
   assert.ok(webPushSrc.includes("isMissingRelationError"));
 
   const swSrc = readFileSync(join(process.cwd(), "public", "sw.js"), "utf8");
-  assert.ok(swSrc.includes("v9-couple-push-levels"));
+  assert.ok(swSrc.includes("v10-standalone-smooth-ux"));
   assert.ok(swSrc.includes('addEventListener("push"'));
   assert.ok(swSrc.includes('addEventListener("notificationclick"'));
 });

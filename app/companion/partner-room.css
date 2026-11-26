@@ -6,9 +6,9 @@
   align-items: flex-end;
   justify-content: center;
   padding: 12px 10px 0;
-  background: rgba(15, 20, 26, 0.48);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(15, 20, 26, 0.42);
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
 .pr-sheet {
@@ -16,6 +16,9 @@
   max-width: 560px;
   max-height: 90dvh;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   border-radius: 26px 26px 0 0;
   padding: 18px 16px calc(26px + env(safe-area-inset-bottom));
   background: linear-gradient(180deg, #fffaf4 0%, #f8faff 24%, #ffffff 60%);
@@ -744,7 +747,7 @@
   border: 1px solid rgba(15, 23, 42, 0.12);
   background: #fff;
   font: inherit;
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .pr-send-btn {

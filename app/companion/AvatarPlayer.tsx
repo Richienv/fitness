@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { memo, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useReducedMotion } from "@/lib/useReducedMotion";
 import type { Character } from "@/lib/companionProgress";
 import {
@@ -10,7 +10,7 @@ import {
 } from "@/lib/avatarLevels";
 import { haptic } from "@/lib/haptics";
 
-export default function AvatarPlayer({
+function AvatarPlayer({
   character = "richie",
   level = 1,
   duo = false,
@@ -221,3 +221,5 @@ export default function AvatarPlayer({
     </div>
   );
 }
+
+export default memo(AvatarPlayer);

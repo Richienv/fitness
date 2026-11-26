@@ -14,8 +14,24 @@
   --bar-fire: #3e60d5;
   --fire-text: #3e60d5;
 }
+html,
 body {
   background: var(--bg);
+  color-scheme: light;
+}
+button,
+a,
+[role="button"],
+[role="switch"] {
+  touch-action: manipulation;
+}
+:where(.lean-home, .pr-sheet)
+  :where(
+    input:not([type="checkbox"], [type="radio"], [type="range"], [type="hidden"], [type="file"]),
+    select,
+    textarea
+  ) {
+  font-size: 16px;
 }
 button:focus-visible,
 a:focus-visible,
@@ -45,7 +61,7 @@ summary:focus-visible,
 .lean-home {
   max-width: 560px;
   margin: auto;
-  padding: calc(20px + env(safe-area-inset-top, 0px)) 24px
+  padding: calc(max(env(safe-area-inset-top, 0px), 10px) + 12px) 24px
     calc(110px + env(safe-area-inset-bottom, 0px));
   min-height: 100dvh;
   background: linear-gradient(180deg, #f2f5fd 0%, #f7f8fd 30%, #ffffff 68%);
@@ -54,7 +70,7 @@ summary:focus-visible,
   padding: calc(max(env(safe-area-inset-top, 0px), 12px) + 14px) 18px
     calc(112px + env(safe-area-inset-bottom, 0px));
 }
-.lean-home.progress-home::before {
+.lean-home::before {
   content: "";
   position: fixed;
   top: 0;
@@ -65,12 +81,10 @@ summary:focus-visible,
   pointer-events: none;
   background: linear-gradient(
     180deg,
-    rgba(242, 245, 253, 0.94) 0%,
-    rgba(242, 245, 253, 0.72) 72%,
+    rgba(242, 245, 253, 0.96) 0%,
+    rgba(242, 245, 253, 0.8) 72%,
     rgba(242, 245, 253, 0) 100%
   );
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
 }
 .lean-header {
   display: flex;
@@ -279,14 +293,12 @@ summary:focus-visible,
   height: 34px;
   flex-shrink: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.58);
-  backdrop-filter: blur(18px) saturate(180%);
-  -webkit-backdrop-filter: blur(18px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.84);
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.95);
   color: #47526d;
   box-shadow:
     0 3px 12px rgba(28, 40, 76, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
 }
 .duo-link {
   display: flex;
@@ -457,8 +469,13 @@ summary:focus-visible,
   color: var(--muted);
 }
 .bottom-nav {
-  background: #ffffffed !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  border-top: 1px solid var(--border) !important;
   border-color: var(--border) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transform: translate3d(-50%, 0, 0);
+  will-change: transform;
 }
 .bottom-nav .bn-item.active {
   background: #edf1ff !important;
@@ -539,10 +556,8 @@ summary:focus-visible,
   height: 34px;
   padding: 0 11px;
   border-radius: 999px;
-  border: 1px solid rgba(217, 119, 6, 0.16);
-  background: rgba(255, 250, 241, 0.56);
-  backdrop-filter: blur(18px) saturate(180%);
-  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  border: 1px solid rgba(217, 119, 6, 0.2);
+  background: rgba(255, 250, 241, 0.92);
   color: #8c4a10;
   font: inherit;
   font-size: 12.5px;
@@ -550,7 +565,7 @@ summary:focus-visible,
   cursor: pointer;
   box-shadow:
     0 3px 12px rgba(180, 115, 35, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+    inset 0 1px 0 rgba(255, 255, 255, 0.94);
   transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease;
 }
 
@@ -584,9 +599,7 @@ summary:focus-visible,
   padding: 10px 14px;
   border-radius: 16px;
   border: 1px solid rgba(245, 158, 11, 0.45);
-  background: linear-gradient(135deg, rgba(254, 243, 199, 0.78) 0%, rgba(255, 228, 230, 0.76) 100%);
-  backdrop-filter: blur(18px) saturate(180%);
-  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  background: linear-gradient(135deg, rgba(254, 243, 199, 0.94) 0%, rgba(255, 228, 230, 0.92) 100%);
   color: #7c2d12;
   font: inherit;
   font-size: 13.5px;
@@ -595,7 +608,7 @@ summary:focus-visible,
   box-shadow:
     0 0 0 1px rgba(251, 191, 36, 0.18),
     0 8px 24px rgba(245, 158, 11, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
   transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 

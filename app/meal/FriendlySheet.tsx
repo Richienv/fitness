@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, type ReactNode } from "react";
 import { useSheetBack } from "@/lib/backSheet";
+import { useModalScrollLock } from "@/lib/scrollLock";
 import Icon from "../ui/Icon";
 import { useVisibleViewport } from "@/lib/useVisibleViewport";
 export default function FriendlySheet({
@@ -21,9 +22,10 @@ export default function FriendlySheet({
   const close = useRef(onClose);
   close.current = onClose;
   useSheetBack(true, onClose);
+  useModalScrollLock(true);
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
-    ref.current?.focus();
+    ref.current?.focus({ preventScroll: true });
     return () => opener?.focus({ preventScroll: true });
   }, []);
   return (

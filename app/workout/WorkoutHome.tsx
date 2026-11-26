@@ -487,7 +487,10 @@ export default function WorkoutHome() {
       }}
     >
       <div
-        style={{ padding: "calc(14px + env(safe-area-inset-top)) 22px 130px" }}
+        style={{
+          padding:
+            "calc(max(env(safe-area-inset-top, 0px), 10px) + 12px) 22px calc(120px + env(safe-area-inset-bottom, 0px))",
+        }}
       >
         {/* Header */}
         <div

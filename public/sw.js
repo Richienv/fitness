@@ -10,7 +10,7 @@
  *   /api/* → never intercepted (client stores handle localStorage caching).
  */
 
-const VERSION = "v9-couple-push-levels";
+const VERSION = "v10-standalone-smooth-ux";
 const STATIC_CACHE = `r2fit-static-${VERSION}`;
 const SHELL_CACHE = `r2fit-shell-${VERSION}`;
 const PAGE_CACHE = `r2fit-pages-${VERSION}`;

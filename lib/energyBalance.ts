@@ -292,15 +292,17 @@ export function weeksToGoal(currentKg: number, targetKg: number, kgPerWeek: numb
   return w > 104 ? null : w;
 }
 
+const CST_TIME_FMT = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Shanghai",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
 /** How much of the day has passed in China Standard Time (second-level precision). */
 export function dayFractionCST(now: Date = new Date()): number {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Shanghai",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(now);
+  const parts = CST_TIME_FMT.formatToParts(now);
   const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
   const m = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
   const s = Number(parts.find((p) => p.type === "second")?.value ?? 0);

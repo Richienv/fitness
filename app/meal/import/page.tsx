@@ -143,7 +143,7 @@ export default function MealImportPage() {
           border: "1px solid rgba(255,255,255,.12)",
           color: "#f1ede9",
           fontFamily: MONO,
-          fontSize: 12.5,
+          fontSize: 16,
           lineHeight: 1.5,
           resize: "vertical",
           outline: "none",

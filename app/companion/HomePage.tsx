@@ -107,6 +107,8 @@ export default function HomePage() {
     [editingShadow, setEditingShadow] = useState<ShadowRecommendation | null>(null),
     [workoutTitle, setWorkoutTitle] = useState<string | null>(null);
   const seenCheerIdRef = useRef<string | null>(null);
+  const presenceSigRef = useRef<string | null>(null);
+  const refreshSigRef = useRef<string | null>(null);
 
   const fetchPresence = useCallback(async () => {
     try {
@@ -126,7 +128,11 @@ export default function HomePage() {
             }
           }
         }
-        setPresence(next);
+        const sig = JSON.stringify(next);
+        if (sig !== presenceSigRef.current) {
+          presenceSigRef.current = sig;
+          setPresence(next);
+        }
       }
     } catch {
       // non-fatal when offline or unauthenticated
@@ -164,32 +170,61 @@ export default function HomePage() {
   const refresh = useCallback(() => {
     const d = todayKey();
     const h = new Date().getHours();
-    setDate(d);
-    setHour(h);
+    let nextUsual: UsualOffer | null = null;
     try {
-      setUsual(readUsualMeal(mealSlotForHour(h), d));
+      nextUsual = readUsualMeal(mealSlotForHour(h), d);
     } catch {
-      setUsual(null);
+      nextUsual = null;
     }
     // If a record is malformed the HUD steps aside; the quiet links remain.
+    let nextSnap: Snapshot | null = null;
+    let nextBonus: number | null = null;
     try {
-      setSnap(readSnapshot({ today: d }));
-      setBonus(dayTarget(d).bonusKcal);
+      nextSnap = readSnapshot({ today: d });
+      nextBonus = dayTarget(d).bonusKcal;
     } catch {
-      setSnap(null);
+      nextSnap = null;
     }
     const activeId = getActiveWorkoutId();
-    setMeals(getMealsForDate(d));
-    setWaterMl(getWaterMl(d));
-    setMeasurements(getAllMeasurements());
-    setWorkouts(getAllWorkouts());
-    setActive(activeId);
-    setSettings(readCompanion(session?.user?.name));
+    const nextMeals = getMealsForDate(d);
+    const nextWater = getWaterMl(d);
+    const nextMeasurements = getAllMeasurements();
+    const nextWorkouts = getAllWorkouts();
+    const nextSettings = readCompanion(session?.user?.name);
+    let nextShadows: ShadowRecommendation[] = [];
     try {
-      setShadows(getHomeShadowOffers({ date: d, hour: h, activeWorkoutId: activeId }));
+      nextShadows = getHomeShadowOffers({ date: d, hour: h, activeWorkoutId: activeId });
     } catch {
-      setShadows([]);
+      nextShadows = [];
     }
+    const sig = JSON.stringify({
+      d,
+      h,
+      nextUsual,
+      nextSnap,
+      nextBonus,
+      activeId,
+      nextMeals,
+      nextWater,
+      nextMeasurements,
+      nextWorkouts,
+      nextSettings,
+      nextShadows,
+    });
+    if (sig === refreshSigRef.current) return;
+    refreshSigRef.current = sig;
+    setDate(d);
+    setHour(h);
+    setUsual(nextUsual);
+    setSnap(nextSnap);
+    if (nextBonus !== null) setBonus(nextBonus);
+    setMeals(nextMeals);
+    setWaterMl(nextWater);
+    setMeasurements(nextMeasurements);
+    setWorkouts(nextWorkouts);
+    setActive(activeId);
+    setSettings(nextSettings);
+    setShadows(nextShadows);
   }, [session?.user?.name]);
   useEffect(() => {
     refresh();
@@ -466,6 +501,27 @@ export default function HomePage() {
     return partners.find((p) => p.id === id) ?? partners[0] ?? null;
   }, [partners]);
 
+  const toggleDetail = useCallback(() => {
+    setDetailOpen((open) => !open);
+  }, []);
+
+  const closeEditingShadow = useCallback(() => {
+    setEditingShadow(null);
+  }, []);
+
+  const quickEditShadow = useCallback((o: ShadowRecommendation) => {
+    setEditingShadow(o);
+  }, []);
+
+  const closeRoom = useCallback(() => {
+    setRoomOpen(false);
+    void fetchPresence();
+  }, [fetchPresence]);
+
+  const clearUnread = useCallback(() => {
+    void fetchPresence();
+  }, [fetchPresence]);
+
   const openPartnerRoom = useCallback(
     (partnerId?: string | null) => {
       haptic("tap");
@@ -595,7 +651,7 @@ export default function HomePage() {
         waterMl={waterMl}
         onAddWater={changeWater}
         detailOpen={detailOpen}
-        onToggleDetail={() => setDetailOpen((open) => !open)}
+        onToggleDetail={toggleDetail}
         onOpenWeigh={openWeigh}
       />
       {detailOpen && energy && (
@@ -614,7 +670,7 @@ export default function HomePage() {
           title="Tombol Bayangan"
           subtitle="1 ketuk ✓"
           onConfirm={handleShadowConfirm}
-          onQuickEdit={(o) => setEditingShadow(o)}
+          onQuickEdit={quickEditShadow}
           onDismiss={handleShadowDismiss}
         />
       )}
@@ -709,7 +765,7 @@ export default function HomePage() {
       {editingShadow && (
         <ShadowQuickEditSheet
           offer={editingShadow}
-          onClose={() => setEditingShadow(null)}
+          onClose={closeEditingShadow}
           onSaveMeal={confirmMealShadow}
           onSaveWorkout={confirmWorkoutShadow}
           onStartLiveWorkout={handleShadowStartLive}
@@ -758,15 +814,12 @@ export default function HomePage() {
       </section>
       <PartnerRoomSheet
         open={roomOpen}
-        onClose={() => {
-          setRoomOpen(false);
-          void fetchPresence();
-        }}
+        onClose={closeRoom}
         partners={partners}
         initialPartnerId={roomPartnerId}
         presence={presence}
         dateKey={date || todayKey()}
-        onUnreadCleared={() => void fetchPresence()}
+        onUnreadCleared={clearUnread}
       />
     </main>
   );

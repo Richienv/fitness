@@ -5,6 +5,7 @@ import Link from "next/link";
 import Icon from "@/app/ui/Icon";
 import PushOptInCard from "@/app/ui/PushOptInCard";
 import { haptic } from "@/lib/haptics";
+import { useModalScrollLock } from "@/lib/scrollLock";
 import { useReducedMotion } from "@/lib/useReducedMotion";
 import { formatKg, formatWeighTime } from "@/lib/weighIn";
 import {
@@ -329,6 +330,7 @@ export default function PartnerRoomSheet({
   onUnreadCleared?: () => void;
 }) {
   const reduced = useReducedMotion();
+  useModalScrollLock(open);
   const [selectedId, setSelectedId] = useState<string | null>(() =>
     pickDefaultPartnerId(partners, initialPartnerId),
   );

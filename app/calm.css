@@ -1195,7 +1195,7 @@ progress::-moz-progress-bar {
   border: 1px solid var(--calm-border);
   background: var(--calm-fill);
   font: inherit;
-  font-size: 13px;
+  font-size: 16px;
   color: var(--calm-text);
 }
 .hs-copy .secondary-button {

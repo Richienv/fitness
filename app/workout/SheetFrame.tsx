@@ -2,6 +2,7 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useVisibleViewport } from "@/lib/useVisibleViewport";
+import { useModalScrollLock } from "@/lib/scrollLock";
 import Icon from "../ui/Icon";
 
 const FOCUSABLE =
@@ -39,6 +40,7 @@ export default function SheetFrame({
   backdropCloses?: boolean;
 }) {
   const viewport = useVisibleViewport();
+  useModalScrollLock(true);
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const descId = useId();
