@@ -2,7 +2,11 @@
 
 import type { MealType } from "./presets";
 import { macrosFor, getIngredient, type Macros } from "./ingredients";
-import { coerceServerItems } from "./mealRecords";
+import {
+  mealItemsSig,
+  reconcileServerMeals,
+  type ServerMealRow,
+} from "./mealRecords";
 import { scopedKey } from "./userScope";
 import { getSettings } from "./settings";
 import { contributeFood } from "./foodContribute";
@@ -137,6 +141,16 @@ function sumItemsMacros(items: MealItem[]): Macros & { sugar: number } {
   );
 }
 
+const MEAL_SERVER_SIG_KEY = "richie.mealServerSigs.v1";
+
+function readMealServerSigs(): Record<string, string> {
+  return read<Record<string, string>>(MEAL_SERVER_SIG_KEY, {});
+}
+
+function writeMealServerSigs(map: Record<string, string>): void {
+  write(MEAL_SERVER_SIG_KEY, map);
+}
+
 function mealPayload(m: MealLog) {
   return {
     id: m.id,
@@ -149,16 +163,29 @@ function mealPayload(m: MealLog) {
 
 function postMeal(m: MealLog): void {
   if (typeof window === "undefined") return;
+  const sig = mealItemsSig(m.items, m.photoUrl);
   fetch("/api/meals", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(mealPayload(m)),
     keepalive: true,
-  }).catch(() => {});
+  })
+    .then((res) => {
+      if (!res.ok) return;
+      const sigs = readMealServerSigs();
+      sigs[m.id] = sig;
+      writeMealServerSigs(sigs);
+    })
+    .catch(() => {});
 }
 
 function deleteMealRemote(id: string): void {
   if (typeof window === "undefined") return;
+  const sigs = readMealServerSigs();
+  if (sigs[id]) {
+    delete sigs[id];
+    writeMealServerSigs(sigs);
+  }
   fetch(`/api/meals?id=${encodeURIComponent(id)}`, {
     method: "DELETE",
     keepalive: true,
@@ -317,6 +344,9 @@ export async function pushLocalMealsToDb(): Promise<{ pushed: number } | null> {
     });
     if (!res.ok) return null;
     const data = (await res.json()) as { synced: number };
+    const sigs = readMealServerSigs();
+    for (const m of all) sigs[m.id] = mealItemsSig(m.items, m.photoUrl);
+    writeMealServerSigs(sigs);
     // Mark the one-shot legacy push done too, so it doesn't also fire.
     window.localStorage.setItem(scopedKey(MEALS_SYNCED_KEY), "1");
     return { pushed: data.synced };
@@ -352,16 +382,6 @@ export async function syncMealsToDbOnce(): Promise<{ synced: number } | null> {
 
 // ---------- Server → local pull sync (Hermes-logged data) ----------
 
-type ServerMealRow = {
-  id: string;
-  date: string;
-  mealType: string;
-  items: unknown;
-  totals: unknown;
-  createdAt?: string;
-  photoUrl?: string | null;
-};
-
 function getSeenSet(key: string): Set<string> {
   return new Set(read<string[]>(key, []));
 }
@@ -373,49 +393,24 @@ function addSeen(key: string, ids: string[]): void {
   write(key, Array.from(seen));
 }
 
-/** Import server meal rows not seen before. Returns number imported. */
-export function mergeServerMeals(rows: ServerMealRow[]): number {
+/** Import server meal rows, sync remote edits to existing meals, and optionally prune deletions within `fromDate..`. */
+export function mergeServerMeals(
+  rows: ServerMealRow[],
+  opts?: { fromDate?: string },
+): number {
   if (typeof window === "undefined") return 0;
   const seen = getSeenSet(SEEN_MEALS_KEY);
   const all = getAllMeals();
-  const localIds = new Set(all.map((m) => m.id));
   // Everything already local was either created here or imported earlier.
   addSeen(
     SEEN_MEALS_KEY,
     all.map((m) => m.id),
   );
-
-  const importedIds: string[] = [];
-  let added = 0;
-  for (const row of rows) {
-    if (seen.has(row.id) || localIds.has(row.id)) continue;
-    const items = coerceServerItems(row.items);
-    importedIds.push(row.id);
-    if (items.length === 0) continue;
-    const existing = all.find(
-      (m) => m.date === row.date && m.mealType === row.mealType,
-    );
-    if (existing) {
-      existing.items = [...existing.items, ...items];
-      existing.loggedAt = Date.now();
-      // A photo taken on another device arrives with the merged row; never
-      // clear one we already have locally.
-      if (row.photoUrl) existing.photoUrl = row.photoUrl;
-    } else {
-      all.push({
-        id: row.id,
-        date: row.date,
-        mealType: row.mealType as MealType,
-        items,
-        loggedAt: row.createdAt ? Date.parse(row.createdAt) : Date.now(),
-        photoUrl: row.photoUrl ?? null,
-      });
-    }
-    added++;
-  }
-  if (added > 0) write(MEALS_KEY, all);
-  addSeen(SEEN_MEALS_KEY, importedIds);
-  return added;
+  const result = reconcileServerMeals(all, seen, readMealServerSigs(), rows, opts);
+  if (result.changed > 0) write(MEALS_KEY, result.meals);
+  if (result.sigsDirty) writeMealServerSigs(result.sigs);
+  addSeen(SEEN_MEALS_KEY, result.importedIds);
+  return result.changed;
 }
 
 type ServerFoodRow = {

@@ -769,6 +769,42 @@ export function weekNumber(date: Date): number {
 
 // ---------- Server → local pull sync (Hermes-logged sessions) ----------
 
+const SYNCED_WORKOUT_IDS_KEY = "richie.workouts.syncedIds.v1";
+
+/** Push completed recent workouts that have not yet been confirmed on the server. */
+export async function pushLocalWorkoutsToDb(days = 14): Promise<{ pushed: number }> {
+  if (typeof window === "undefined") return { pushed: 0 };
+  const cutoff = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+  const recent = getAllWorkouts().filter((w) => w.completed && w.date >= cutoff);
+  if (recent.length === 0) return { pushed: 0 };
+  const synced = new Set(read<string[]>(SYNCED_WORKOUT_IDS_KEY, []));
+  let pushed = 0;
+  for (const w of recent) {
+    if (synced.has(w.id)) continue;
+    try {
+      const res = await fetch("/api/workouts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: w.id,
+          date: w.date,
+          sessionType: w.sessionType,
+          totalVolume: workoutVolume(w),
+          exercises: w.exercises.map((e) => ({ name: e.exerciseName, sets: e.sets })),
+        }),
+      });
+      if (res.ok) {
+        synced.add(w.id);
+        pushed++;
+      }
+    } catch {
+      /* retry on next sync */
+    }
+  }
+  if (pushed > 0) write(SYNCED_WORKOUT_IDS_KEY, Array.from(synced));
+  return { pushed };
+}
+
 const SEEN_SERVER_KEY = "richie.server.seenWorkouts.v1";
 
 type ServerWorkoutRow = {
@@ -779,7 +815,22 @@ type ServerWorkoutRow = {
   createdAt: number;
 };
 
-const KNOWN_TYPES: SessionType[] = ["PUSH_A", "PULL_A", "LEGS", "PUSH_B", "PULL_B"];
+const KNOWN_TYPES: SessionType[] = [
+  "PUSH_A",
+  "PULL_A",
+  "LEGS",
+  "PUSH_B",
+  "PULL_B",
+  "CUSTOM",
+  "FEM_LOWER_A",
+  "FEM_UPPER_A",
+  "FEM_CARDIO",
+  "FEM_LOWER_B",
+  "FEM_UPPER_B",
+  "FEM_LOWER_C",
+  "FEM_ARMS",
+  "FEM_REST",
+];
 
 /** Import Hermes-logged sessions as completed workouts so streaks and the
  * dashboard reflect them. Unknown types (e.g. CARDIO) are skipped locally —

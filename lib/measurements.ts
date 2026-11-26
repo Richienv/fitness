@@ -47,6 +47,46 @@ function postMeasurementRemote(m: Measurement): void {
   }).catch(() => {});
 }
 
+const SYNCED_MEAS_DATES_KEY = "richie.measurements.syncedDates.v1";
+
+/** Push recent local measurements that have not yet been confirmed on the server. */
+export async function pushLocalMeasurementsToDb(days = 14): Promise<{ pushed: number }> {
+  if (typeof window === "undefined") return { pushed: 0 };
+  const cutoff = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+  const recent = read().filter((m) => m.date >= cutoff);
+  if (recent.length === 0) return { pushed: 0 };
+  let syncedMap: Record<string, string> = {};
+  try {
+    syncedMap = JSON.parse(window.localStorage.getItem(scopedKey(SYNCED_MEAS_DATES_KEY)) || "{}");
+  } catch {
+    syncedMap = {};
+  }
+  let pushed = 0;
+  for (const m of recent) {
+    const sig = JSON.stringify([m.weightKg ?? null, m.waistCm ?? null, m.hipCm ?? null, m.shoulderCm ?? null]);
+    if (syncedMap[m.date] === sig) continue;
+    try {
+      const res = await fetch("/api/measurements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(m),
+      });
+      if (res.ok) {
+        syncedMap[m.date] = sig;
+        pushed++;
+      }
+    } catch {
+      /* retry next cycle */
+    }
+  }
+  try {
+    window.localStorage.setItem(scopedKey(SYNCED_MEAS_DATES_KEY), JSON.stringify(syncedMap));
+  } catch {
+    /* ignore */
+  }
+  return { pushed };
+}
+
 export function saveMeasurement(m: Measurement): void {
   const list = read();
   const idx = list.findIndex((x) => x.date === m.date);

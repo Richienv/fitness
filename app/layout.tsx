@@ -8,6 +8,7 @@ import "./meal-entry.css";
 import "./motivation.css";
 import "./calm.css";
 import "./shadow-buttons.css";
+import "./desktop.css";
 import SetupProvider from "./SetupProvider";
 import BottomNav from "./BottomNav";
 import ServerSync from "./ServerSync";

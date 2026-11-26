@@ -636,102 +636,149 @@ export default function HomePage() {
           <span className="presence-sign-cta">Balas →</span>
         </button>
       ) : null}
-      <HeroAvatarStage
-        character={settings.character}
-        level={progress.level ?? 1}
-        highestLevel={progress.highestLevel}
-        demoted={progress.demoted}
-        demotedFrom={progress.demotedFrom}
-        weighedAt={weightInfo?.latest?.weighedAt ?? null}
-        fallbackBaselineKg={fallbackBaselineKg}
-        goal={settings.goal}
-        currentKg={currentKg}
-        energy={energy}
-        snap={snap}
-        waterMl={waterMl}
-        onAddWater={changeWater}
-        detailOpen={detailOpen}
-        onToggleDetail={toggleDetail}
-        onOpenWeigh={openWeigh}
-      />
-      {detailOpen && energy && (
-        <div className="hero-detail-drawer">
-          <EnergyBalanceCard view={energy} />
+      <div className="home-desktop-grid">
+        <div className="home-col-hero">
+          <HeroAvatarStage
+            character={settings.character}
+            level={progress.level ?? 1}
+            highestLevel={progress.highestLevel}
+            demoted={progress.demoted}
+            demotedFrom={progress.demotedFrom}
+            weighedAt={weightInfo?.latest?.weighedAt ?? null}
+            fallbackBaselineKg={fallbackBaselineKg}
+            goal={settings.goal}
+            currentKg={currentKg}
+            energy={energy}
+            snap={snap}
+            waterMl={waterMl}
+            onAddWater={changeWater}
+            detailOpen={detailOpen}
+            onToggleDetail={toggleDetail}
+            onOpenWeigh={openWeigh}
+          />
+          {detailOpen && energy && (
+            <div className="hero-detail-drawer">
+              <EnergyBalanceCard view={energy} />
+            </div>
+          )}
+          {snap && <HomeHud s={snap} bonus={bonus} weekOnly />}
         </div>
-      )}
-      {snap && <HomeHud s={snap} bonus={bonus} weekOnly />}
-      {action && (
-        <NextActionCard action={action} onWeigh={openWeigh} onUsual={logUsual} />
-      )}
-      {shadows.length > 0 && (
-        <ShadowRecommendations
-          offers={shadows}
-          variant="home"
-          title="Tombol Bayangan"
-          subtitle="1 ketuk ✓"
-          onConfirm={handleShadowConfirm}
-          onQuickEdit={quickEditShadow}
-          onDismiss={handleShadowDismiss}
-        />
-      )}
-      <nav className="quiet-actions" aria-label="Catat lainnya">
-        {action?.key !== "meal" && action?.key !== "protein" && (
-          <Link href="/meal?add=1">
-            <Icon name="plus" size={16} />
-            Catat makan
-          </Link>
-        )}
-        {action?.key !== "workout" && action?.key !== "resume" && (
-          <Link href={active ? `/workout/session/${active}` : "/workout"}>
-            <Icon name="workout" size={16} />
-            {active ? "Lanjut latihan" : "Latihan"}
-          </Link>
-        )}
-        {action?.key !== "weigh" && (
-          <button type="button" aria-haspopup="dialog" onClick={openWeigh}>
-            <Icon name="scale" size={16} />
-            Catat berat
-          </button>
-        )}
-      </nav>
-      <section className="lean-today">
-        <div className="row-between">
-          <h2>Hari ini</h2>
-          <Link href="/meal">Lihat semua</Link>
-        </div>
-        {meals.length === 0 ? (
-          <Link className="empty-meal" href="/meal?add=1">
-            Belum ada makanan tercatat <Icon name="plus" size={17} />
-          </Link>
-        ) : (
-          meals.slice(-3).map((m) => (
-            <Link className="lean-record" key={m.id} href="/meal">
-              <span>
-                {
-                  {
-                    breakfast: "Sarapan",
-                    lunch: "Makan siang",
-                    snack: "Snack",
-                    dinner: "Makan malam",
-                  }[m.mealType]
-                }
-                <small>{m.items.length} item</small>
+        <div className="home-col-feed">
+          {action && (
+            <NextActionCard action={action} onWeigh={openWeigh} onUsual={logUsual} />
+          )}
+          {shadows.length > 0 && (
+            <ShadowRecommendations
+              offers={shadows}
+              variant="home"
+              title="Tombol Bayangan"
+              subtitle="1 ketuk ✓"
+              onConfirm={handleShadowConfirm}
+              onQuickEdit={quickEditShadow}
+              onDismiss={handleShadowDismiss}
+            />
+          )}
+          <nav className="quiet-actions" aria-label="Catat lainnya">
+            {action?.key !== "meal" && action?.key !== "protein" && (
+              <Link href="/meal?add=1">
+                <Icon name="plus" size={16} />
+                Catat makan
+              </Link>
+            )}
+            {action?.key !== "workout" && action?.key !== "resume" && (
+              <Link href={active ? `/workout/session/${active}` : "/workout"}>
+                <Icon name="workout" size={16} />
+                {active ? "Lanjut latihan" : "Latihan"}
+              </Link>
+            )}
+            {action?.key !== "weigh" && (
+              <button type="button" aria-haspopup="dialog" onClick={openWeigh}>
+                <Icon name="scale" size={16} />
+                Catat berat
+              </button>
+            )}
+          </nav>
+          <section className="lean-today">
+            <div className="row-between">
+              <h2>Hari ini</h2>
+              <Link href="/meal">Lihat semua</Link>
+            </div>
+            {meals.length === 0 ? (
+              <Link className="empty-meal" href="/meal?add=1">
+                Belum ada makanan tercatat <Icon name="plus" size={17} />
+              </Link>
+            ) : (
+              meals.slice(-3).map((m) => (
+                <Link className="lean-record" key={m.id} href="/meal">
+                  <span>
+                    {
+                      {
+                        breakfast: "Sarapan",
+                        lunch: "Makan siang",
+                        snack: "Snack",
+                        dinner: "Makan malam",
+                      }[m.mealType]
+                    }
+                    <small>{m.items.length} item</small>
+                  </span>
+                  <strong>
+                    {Math.round(
+                      m.items.reduce(
+                        (s, i) =>
+                          s +
+                          (isCustomItem(i) ? i.kcal : macrosFor(i.id, i.qty).kcal),
+                        0,
+                      ),
+                    )}{" "}
+                    <small>kcal</small>
+                  </strong>
+                </Link>
+              ))
+            )}
+          </section>
+          <section className={`duo-doorway-wrap${isSignLit ? " is-lit" : ""}`}>
+            <button
+              type="button"
+              className="duo-doorway-btn is-couple-arena"
+              onClick={() => openPartnerRoom(latestCheer?.senderId ?? activeVisitor?.user.id)}
+            >
+              <img
+                src="/avatars/v2/duo-poster.webp"
+                alt="Richie dan Renita"
+                width={48}
+                height={48}
+                className="duo-arena-thumb"
+              />
+              <span className="duo-doorway-copy">
+                <strong>
+                  Richie &amp; Renita · Live berdua
+                </strong>
+                <small>
+                  {unreadCount > 0
+                    ? `${unreadCount} pesan baru · ketuk untuk balas`
+                    : activeVisitor
+                      ? `✨ ${activeVisitor.name} lagi ngintip kamu · lihat kondisi berdua`
+                      : primaryPartner
+                        ? `Bandingkan level avatar, kalori & makan ${primaryPartner.displayName} real-time`
+                        : "Buka Arena Berdua & hubungkan Richie ↔ Renita"}
+                </small>
               </span>
-              <strong>
-                {Math.round(
-                  m.items.reduce(
-                    (s, i) =>
-                      s +
-                      (isCustomItem(i) ? i.kcal : macrosFor(i.id, i.qty).kcal),
-                    0,
-                  ),
-                )}{" "}
-                <small>kcal</small>
-              </strong>
+              {unreadCount > 0 ? (
+                <span className="duo-unread-badge">{unreadCount}</span>
+              ) : (
+                <Icon name="heart" size={18} />
+              )}
+            </button>
+            <Link href="/companion" className="duo-link">
+              <span>
+                <strong>Target &amp; avatar saya</strong>
+                <small>Atur target berat, koleksi 12 level &amp; grafik</small>
+              </span>
+              <Icon name="arrow" size={16} />
             </Link>
-          ))
-        )}
-      </section>
+          </section>
+        </div>
+      </div>
       {weigh && (
         <WeighInSheet
           today={weigh.today}
@@ -771,47 +818,6 @@ export default function HomePage() {
           onStartLiveWorkout={handleShadowStartLive}
         />
       )}
-      <section className={`duo-doorway-wrap${isSignLit ? " is-lit" : ""}`}>
-        <button
-          type="button"
-          className="duo-doorway-btn is-couple-arena"
-          onClick={() => openPartnerRoom(latestCheer?.senderId ?? activeVisitor?.user.id)}
-        >
-          <img
-            src="/avatars/v2/duo-poster.webp"
-            alt="Richie dan Renita"
-            width={48}
-            height={48}
-            className="duo-arena-thumb"
-          />
-          <span className="duo-doorway-copy">
-            <strong>
-              Richie &amp; Renita · Live berdua
-            </strong>
-            <small>
-              {unreadCount > 0
-                ? `${unreadCount} pesan baru · ketuk untuk balas`
-                : activeVisitor
-                  ? `✨ ${activeVisitor.name} lagi ngintip kamu · lihat kondisi berdua`
-                  : primaryPartner
-                    ? `Bandingkan level avatar, kalori & makan ${primaryPartner.displayName} real-time`
-                    : "Buka Arena Berdua & hubungkan Richie ↔ Renita"}
-            </small>
-          </span>
-          {unreadCount > 0 ? (
-            <span className="duo-unread-badge">{unreadCount}</span>
-          ) : (
-            <Icon name="heart" size={18} />
-          )}
-        </button>
-        <Link href="/companion" className="duo-link">
-          <span>
-            <strong>Target &amp; avatar saya</strong>
-            <small>Atur target berat, koleksi 12 level &amp; grafik</small>
-          </span>
-          <Icon name="arrow" size={16} />
-        </Link>
-      </section>
       <PartnerRoomSheet
         open={roomOpen}
         onClose={closeRoom}

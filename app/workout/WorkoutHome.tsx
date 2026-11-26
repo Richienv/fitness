@@ -476,22 +476,14 @@ export default function WorkoutHome() {
 
   return (
     <main
-      className="page-rise"
+      className="page-rise workout-page"
       style={{
-        maxWidth: 560,
-        margin: "0 auto",
-        minHeight: "100dvh",
         fontFamily: "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif",
         position: "relative",
         background: "var(--bg)",
       }}
     >
-      <div
-        style={{
-          padding:
-            "calc(max(env(safe-area-inset-top, 0px), 10px) + 12px) 22px calc(120px + env(safe-area-inset-bottom, 0px))",
-        }}
-      >
+      <div className="workout-page-inner">
         {/* Header */}
         <div
           style={{

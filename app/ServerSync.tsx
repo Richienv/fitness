@@ -8,8 +8,8 @@ import {
   pushLocalMealsToDb,
   syncCustomFoodsToDbOnce,
 } from "@/lib/store";
-import { mergeServerWorkouts } from "@/lib/workouts";
-import { mergeServerMeasurements } from "@/lib/measurements";
+import { mergeServerWorkouts, pushLocalWorkoutsToDb } from "@/lib/workouts";
+import { mergeServerMeasurements, pushLocalMeasurementsToDb } from "@/lib/measurements";
 import { mergeServerHealth } from "@/lib/health";
 import { syncResolvedTargets } from "@/lib/targetSync";
 import { seedApr13Meals } from "@/lib/mealSeed";
@@ -39,10 +39,19 @@ async function fetchJson<T>(url: string, timeoutMs = 8000): Promise<T | null> {
   }
 }
 
-/** Pull server data (Hermes/Telegram-logged + other devices) into the local
- * store. Returns the number of records imported. */
-async function pullFromServer(): Promise<number> {
-  const from = daysBefore(todayKey(), 45);
+function emitSyncStatus(state: "syncing" | "synced" | "offline"): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent("r2:sync-status", {
+      detail: { state, updatedAt: Date.now() },
+    }),
+  );
+}
+
+/** Pull server data (Hermes/Telegram-logged + laptop/iPhone devices) into the local
+ * store. Returns `{ added, online }`. */
+async function pullFromServer(days = 30): Promise<{ added: number; online: boolean }> {
+  const from = daysBefore(todayKey(), days);
 
   const [mealsRes, foodsRes, workoutsRes, measRes, healthRes] = await Promise.all([
     fetchJson<{ meals: never[] }>(`/api/meals?from=${from}`),
@@ -55,25 +64,23 @@ async function pullFromServer(): Promise<number> {
     fetchJson<{ data: { days: never[] } }>(`/api/widget/health?from=${from}`),
   ]);
 
+  const online = Boolean(mealsRes || foodsRes || workoutsRes || measRes || healthRes);
   let added = 0;
-  if (mealsRes?.meals) added += mergeServerMeals(mealsRes.meals);
+  if (mealsRes?.meals) added += mergeServerMeals(mealsRes.meals, { fromDate: from });
   if (foodsRes?.data?.foods) added += mergeServerFoods(foodsRes.data.foods);
   if (workoutsRes?.data?.sessions)
     added += mergeServerWorkouts(workoutsRes.data.sessions);
   if (measRes?.data?.measurements)
     added += mergeServerMeasurements(measRes.data.measurements);
   if (healthRes?.data?.days) added += mergeServerHealth(healthRes.data.days);
-  return added;
+  return { added, online };
 }
 
 const SOFT_GUARD_KEY = "richie.serversync.lastSoftRefresh";
 const SOFT_REFRESH_EVENT = "r2:data";
 
 /** Soft refresh — emit an event the data-reading pages listen to and
- * re-read localStorage into state. NO full page reload (the old version
- * called window.location.reload, which felt like the app was rebooting
- * every time Hermes wrote a row). Guarded so we don't thrash if multiple
- * pulls happen back-to-back, and never when the user is typing. */
+ * re-read localStorage into state. NO full page reload. */
 function softRefresh(): void {
   const ae = document.activeElement;
   if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA")) return;
@@ -83,85 +90,87 @@ function softRefresh(): void {
   window.dispatchEvent(new Event(SOFT_REFRESH_EVENT));
 }
 
-/**
- * `userId` is what makes this work, and it used to be missing.
- *
- * This component lives in the root layout, which also wraps /login. With an
- * empty dependency array it mounted on the login page, fired all five pulls
- * with no session, took five 401s, and — because fetchJson swallows a non-OK
- * response — imported nothing. Signing in is a client-side navigation into the
- * SAME layout, so the effect never re-ran. The result: you signed in and your
- * own data wasn't there. It only appeared after a manual refresh, a tab
- * refocus, or the 60s interval, by which point you'd assume it was lost.
- *
- * Keying the effect on the session id fixes both halves: nothing runs while
- * signed out, and the moment login's router.refresh() re-renders the layout
- * with a real id, the pull runs for the first time — with cookies.
- */
 export default function ServerSync({ userId }: { userId: string | null }) {
   const ready = !!useAccountSetup()?.setup;
   useEffect(() => {
-    // Signed out: every one of these calls is a guaranteed 401.
     if (!userId || !ready) return;
 
     let cancelled = false;
+    let inFlight = false;
 
     const seed = seedApr13Meals();
     if (seed && seed.seeded > 0)
       console.log("[ServerSync] seeded", seed.seeded, "APR 13 meals");
 
-    // Push local meals up to the DB on every load (idempotent) so anything a
-    // flaky save missed becomes durable — then a fresh login can restore it.
-    pushLocalMealsToDb().then((res) => {
-      if (res) console.log("[ServerSync] pushed", res.pushed, "meals to DB");
-    });
-
-    // Keep the server's copy of today's calorie/protein target fresh so the
-    // widget reflects the current goal without re-pasting its script.
     syncResolvedTargets();
-    syncCustomFoodsToDbOnce().then((res) => {
-      if (res) console.log("[ServerSync] pushed", res.synced, "foods to DB");
-    });
+    void syncCustomFoodsToDbOnce();
+    void syncHabitGraphFromServer();
 
-    // Warm food catalogue & static posters during idle so searching food and
-    // switching pages stay instant even when signal drops later.
     const idleWarm = window.setTimeout(() => {
       if (cancelled) return;
       warmFoodCatalogue();
     }, 350);
 
-    // Initial pull — emit a soft refresh if Hermes logged something new.
-    // The records are already saved by the time this resolves, so tell the
-    // pages even if this effect was torn down meanwhile (Strict Mode runs it
-    // twice in dev; the re-run's pull then finds nothing new to announce).
-    pullFromServer().then((added) => {
-      if (added > 0) {
-        console.log("[ServerSync] imported", added, "records from server");
-        softRefresh();
+    const runSync = async ({
+      initial = false,
+      forceRefresh = false,
+    }: { initial?: boolean; forceRefresh?: boolean } = {}) => {
+      if (cancelled || inFlight) return;
+      inFlight = true;
+      emitSyncStatus("syncing");
+      try {
+        await Promise.allSettled([
+          pushLocalMealsToDb(),
+          pushLocalMeasurementsToDb(),
+          pushLocalWorkoutsToDb(),
+          syncCustomFoodsToDbOnce(),
+        ]);
+        const res = await pullFromServer(initial ? 90 : 30);
+        if (!cancelled) {
+          emitSyncStatus(res.online ? "synced" : "offline");
+          if (res.added > 0 || forceRefresh) {
+            if (res.added > 0) {
+              console.log("[ServerSync] synced", res.added, "changes from server");
+            }
+            softRefresh();
+          }
+        }
+      } catch {
+        if (!cancelled) emitSyncStatus("offline");
+      } finally {
+        inFlight = false;
       }
-    });
-    void syncHabitGraphFromServer();
+    };
 
-    // Re-pull when the tab regains focus (came back from Telegram).
+    void runSync({ initial: true });
+
     const onFocus = () => {
       if (document.visibilityState !== "visible") return;
-      pullFromServer().then((added) => {
-        if (!cancelled && added > 0) softRefresh();
-      });
+      void runSync();
     };
+    const onOnline = () => {
+      void runSync({ forceRefresh: true });
+    };
+    const onForceSync = () => {
+      void runSync({ forceRefresh: true });
+    };
+
     document.addEventListener("visibilitychange", onFocus);
     window.addEventListener("focus", onFocus);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("r2:force-sync", onForceSync);
 
-    // Background refresh — merge silently; next navigation shows it.
     const interval = setInterval(() => {
-      pullFromServer().catch(() => {});
-    }, 60_000);
+      if (document.visibilityState === "visible") void runSync();
+    }, 20_000);
 
     return () => {
       cancelled = true;
       window.clearTimeout(idleWarm);
       document.removeEventListener("visibilitychange", onFocus);
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("r2:force-sync", onForceSync);
       clearInterval(interval);
     };
   }, [userId, ready]);

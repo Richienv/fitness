@@ -144,6 +144,16 @@ export default function BottomNav() {
   // The tab you just tapped, shown as selected at once. The URL only changes
   // when the next screen is ready, and waiting for that made a tap feel dead.
   const [pending, setPending] = useState<string | null>(null);
+  const [syncState, setSyncState] = useState<"syncing" | "synced" | "offline">("synced");
+
+  useEffect(() => {
+    const onStatus = (e: Event) => {
+      const detail = (e as CustomEvent<{ state?: "syncing" | "synced" | "offline" }>).detail;
+      if (detail?.state) setSyncState(detail.state);
+    };
+    window.addEventListener("r2:sync-status", onStatus);
+    return () => window.removeEventListener("r2:sync-status", onStatus);
+  }, []);
 
   // Every page here is dynamic (the layout reads the session), so without a
   // prefetch each tab switch waits for the server: ~1 s on a slow connection.
@@ -191,27 +201,61 @@ export default function BottomNav() {
   // While logging sets, the screen belongs to the set dock at the bottom.
   if (/^\/workout\/session\/[^/]+$/.test(pathname)) return null;
 
+  const syncLabel =
+    syncState === "syncing"
+      ? "Menyinkronkan…"
+      : syncState === "offline"
+        ? "Offline · lokal"
+        : "Tersinkron · Laptop ↔ HP";
+
   return (
     <nav className="bottom-nav" aria-label="Navigasi utama">
-      {TABS.map((t) => {
-        const on = pending ? t.href === pending : t.match(pathname);
-        return (
-          <Link
-            key={t.href}
-            href={t.href}
-            prefetch
-            onClick={(e) => nav(t.href, e)}
-            className={`bn-item${on ? " active" : ""}`}
-            aria-label={t.label}
-            aria-current={on ? "page" : undefined}
-          >
-            <span className="bn-ico-wrap">
-              <t.Icon active={on} />
-            </span>
-            <span className="bn-label">{t.label}</span>
-          </Link>
-        );
-      })}
+      <div className="bn-desktop-brand">
+        <Link href="/" className="friendly-brand">
+          r2<span>fit</span>
+        </Link>
+        <small>Laptop ↔ iPhone Sync</small>
+      </div>
+      <div className="bn-nav-list">
+        {TABS.map((t) => {
+          const on = pending ? t.href === pending : t.match(pathname);
+          return (
+            <Link
+              key={t.href}
+              href={t.href}
+              prefetch
+              onClick={(e) => nav(t.href, e)}
+              className={`bn-item${on ? " active" : ""}`}
+              aria-label={t.label}
+              aria-current={on ? "page" : undefined}
+            >
+              <span className="bn-ico-wrap">
+                <t.Icon active={on} />
+              </span>
+              <span className="bn-label">{t.label}</span>
+            </Link>
+          );
+        })}
+      </div>
+      <div className="bn-desktop-footer">
+        <button
+          type="button"
+          className={`bn-sync-pill is-${syncState}`}
+          disabled={syncState === "syncing"}
+          onClick={() => window.dispatchEvent(new Event("r2:force-sync"))}
+          title="Klik untuk sinkronkan sekarang"
+        >
+          <span className="bn-sync-dot" aria-hidden="true" />
+          <span>{syncLabel}</span>
+        </button>
+        <Link
+          href="/settings"
+          className={`bn-desktop-settings${pathname.startsWith("/settings") && !pathname.startsWith("/settings/health") ? " active" : ""}`}
+        >
+          <Icon name="settings" size={16} />
+          <span>Pengaturan</span>
+        </Link>
+      </div>
     </nav>
   );
 }
