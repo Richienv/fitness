@@ -13,6 +13,7 @@ import { contributeFood } from "./foodContribute";
 import type { NutritionExtras } from "./nutritionLabel";
 import { learnMealToGraph } from "./habitGraphStore";
 import type { HabitFoodSnapshot } from "./habitGraph";
+import { sendOrQueue } from "./offlineOutbox";
 
 export type CustomMealItem = NutritionExtras & {
   custom: true;
@@ -164,19 +165,17 @@ function mealPayload(m: MealLog) {
 function postMeal(m: MealLog): void {
   if (typeof window === "undefined") return;
   const sig = mealItemsSig(m.items, m.photoUrl);
-  fetch("/api/meals", {
+  void sendOrQueue({
+    url: "/api/meals",
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(mealPayload(m)),
-    keepalive: true,
-  })
-    .then((res) => {
-      if (!res.ok) return;
-      const sigs = readMealServerSigs();
-      sigs[m.id] = sig;
-      writeMealServerSigs(sigs);
-    })
-    .catch(() => {});
+    body: mealPayload(m),
+    dedupeKey: `meal:${m.id}`,
+  }).then((res) => {
+    if (!res.ok) return;
+    const sigs = readMealServerSigs();
+    sigs[m.id] = sig;
+    writeMealServerSigs(sigs);
+  });
 }
 
 function deleteMealRemote(id: string): void {
@@ -186,10 +185,11 @@ function deleteMealRemote(id: string): void {
     delete sigs[id];
     writeMealServerSigs(sigs);
   }
-  fetch(`/api/meals?id=${encodeURIComponent(id)}`, {
+  void sendOrQueue({
+    url: `/api/meals?id=${encodeURIComponent(id)}`,
     method: "DELETE",
-    keepalive: true,
-  }).catch(() => {});
+    dedupeKey: `meal:${id}`,
+  });
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -326,6 +326,68 @@ export function deleteMeal(id: string): void {
     getAllMeals().filter((m) => m.id !== id),
   );
   deleteMealRemote(id);
+}
+
+/** Edit an existing logged item, optionally moving it to a different meal slot. */
+export function moveMealItem(
+  sourceMealId: string,
+  itemIndex: number,
+  updatedItem: MealItem,
+  targetDate: string,
+  targetSlot: MealType,
+): void {
+  const all = getAllMeals();
+  const srcIdx = all.findIndex((m) => m.id === sourceMealId);
+  if (srcIdx === -1) return;
+  const src = all[srcIdx];
+  if (itemIndex < 0 || itemIndex >= src.items.length) return;
+  const now = Date.now();
+  const stampedItem: MealItem = {
+    ...updatedItem,
+    addedAt: updatedItem.addedAt ?? src.items[itemIndex]?.addedAt ?? now,
+  };
+
+  if (src.date === targetDate && src.mealType === targetSlot) {
+    const nextItems = [...src.items];
+    nextItems[itemIndex] = stampedItem;
+    all[srcIdx] = { ...src, items: nextItems, loggedAt: now };
+    write(MEALS_KEY, all);
+    postMeal(all[srcIdx]);
+    return;
+  }
+
+  const remaining = src.items.filter((_, idx) => idx !== itemIndex);
+  if (remaining.length === 0) {
+    all.splice(srcIdx, 1);
+    deleteMealRemote(src.id);
+  } else {
+    all[srcIdx] = { ...src, items: remaining, loggedAt: now };
+    postMeal(all[srcIdx]);
+  }
+
+  const dstIdx = all.findIndex(
+    (m) => m.date === targetDate && m.mealType === targetSlot,
+  );
+  if (dstIdx >= 0) {
+    all[dstIdx] = {
+      ...all[dstIdx],
+      items: [...all[dstIdx].items, stampedItem],
+      loggedAt: now,
+    };
+    write(MEALS_KEY, all);
+    postMeal(all[dstIdx]);
+  } else {
+    const entry: MealLog = {
+      id: crypto.randomUUID(),
+      date: targetDate,
+      mealType: targetSlot,
+      items: [stampedItem],
+      loggedAt: now,
+    };
+    all.push(entry);
+    write(MEALS_KEY, all);
+    postMeal(entry);
+  }
 }
 
 /** Push ALL local meals to the server (idempotent upsert by id). Unlike
@@ -562,20 +624,21 @@ export function getCustomFoods(): CustomFood[] {
 
 function postFoodRemote(f: CustomFood): void {
   if (typeof window === "undefined") return;
-  fetch("/api/foods", {
+  void sendOrQueue({
+    url: "/api/foods",
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id: f.id, name: f.name, per100g: f.per100g }),
-    keepalive: true,
-  }).catch(() => {});
+    body: { id: f.id, name: f.name, per100g: f.per100g },
+    dedupeKey: `food:${f.id}`,
+  });
 }
 
 function deleteFoodRemote(id: string): void {
   if (typeof window === "undefined") return;
-  fetch(`/api/foods?id=${encodeURIComponent(id)}`, {
+  void sendOrQueue({
+    url: `/api/foods?id=${encodeURIComponent(id)}`,
     method: "DELETE",
-    keepalive: true,
-  }).catch(() => {});
+    dedupeKey: `food:${id}`,
+  });
 }
 
 export function saveCustomFood(name: string, per100g: Per100g): CustomFood {

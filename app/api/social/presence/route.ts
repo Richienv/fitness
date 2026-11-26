@@ -34,7 +34,7 @@ export async function GET() {
     const friendUsers = friends.length
       ? await db.user.findMany({
           where: { id: { in: friends } },
-          select: { id: true, name: true, username: true, email: true },
+          select: { id: true, name: true, username: true, email: true, loginAlias: true },
           orderBy: { createdAt: "asc" },
         })
       : [];
@@ -85,7 +85,7 @@ export async function GET() {
         },
         include: {
           visitor: {
-            select: { id: true, name: true, username: true, email: true },
+            select: { id: true, name: true, username: true, email: true, loginAlias: true },
           },
         },
         orderBy: [{ lastSeenAt: "desc" }],
@@ -141,7 +141,7 @@ export async function GET() {
         },
         include: {
           sender: {
-            select: { id: true, name: true, username: true, email: true },
+            select: { id: true, name: true, username: true, email: true, loginAlias: true },
           },
         },
         orderBy: { createdAt: "desc" },

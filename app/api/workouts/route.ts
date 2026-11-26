@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserId } from "@/lib/session";
+import { todayKey } from "@/lib/targets";
+import { notifyPartnerActivity } from "@/lib/partnerNotify";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -127,6 +129,14 @@ export async function POST(req: Request) {
             },
           },
         });
+    if (!existing && body.date === todayKey()) {
+      void notifyPartnerActivity(userId, {
+        type: "workout",
+        sessionType: body.sessionType,
+        exercisesCount: exercises.length,
+        date: body.date,
+      });
+    }
     return NextResponse.json({ ok: true, data: { id: saved.id } }, { headers: corsHeaders });
   } catch (e) {
     return NextResponse.json(

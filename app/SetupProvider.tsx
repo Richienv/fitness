@@ -16,7 +16,10 @@ import type { AccountSetup, SetupState } from "@/lib/setup";
 import { rememberAccount } from "@/lib/deviceAccount";
 
 const Context = createContext<
-  | (SetupState & { accept: (setup: AccountSetup) => void; offline: boolean })
+  | (SetupState & {
+      accept: (setup: AccountSetup, displayName?: string) => void;
+      offline: boolean;
+    })
   | null
 >(null);
 
@@ -32,7 +35,12 @@ function readCachedSetup(userId: string): SetupState | null {
       localStorage.getItem(scopedKey(SETUP_CACHE_KEY)) || "null",
     ) as AccountSetup | null;
     if (cached?.completedAt) {
-      return { person: cached.person, setup: cached, latest: null };
+      return {
+        person: cached.person,
+        displayName: cached.displayName,
+        setup: cached,
+        latest: null,
+      };
     }
   } catch {}
   return null;
@@ -53,12 +61,15 @@ export default function SetupProvider({
     [retry, setRetry] = useState(0),
     [offline, setOffline] = useState(false);
 
-  const accept = useCallback((setup: AccountSetup) => {
-    applySetupToDevice(setup);
+  const accept = useCallback((setup: AccountSetup, nextDisplayName?: string) => {
+    const merged: AccountSetup =
+      nextDisplayName ? { ...setup, displayName: nextDisplayName } : setup;
+    applySetupToDevice(merged);
     setState((s) => ({
-      person: setup.person,
-      setup,
-      latest: s?.latest ?? setup.measurement,
+      person: merged.person,
+      displayName: nextDisplayName ?? merged.displayName ?? s?.displayName,
+      setup: merged,
+      latest: s?.latest ?? merged.measurement,
     }));
     window.dispatchEvent(new Event("r2:data"));
   }, []);
@@ -96,7 +107,12 @@ export default function SetupProvider({
         if (!current) return;
         const next = data as SetupState;
         rememberAccount(next.person);
-        if (next.setup) applySetupToDevice(next.setup);
+        if (next.setup) {
+          const setupWithName = next.displayName
+            ? { ...next.setup, displayName: next.displayName }
+            : next.setup;
+          applySetupToDevice(setupWithName);
+        }
         if (next.latest) mergeServerMeasurements([next.latest]);
         setState(next);
         setOwner(userId);

@@ -30,6 +30,9 @@ export type SetupDraft = {
 export type AccountSetup = {
   version: 1;
   person: Character;
+  displayName?: string;
+  stageBackgroundId?: string;
+  notifyPartner?: boolean;
   completedAt: string;
   updatedAt: string;
   draft: SetupDraft;
@@ -48,6 +51,7 @@ export type AccountSetup = {
 };
 export type SetupState = {
   person: Character;
+  displayName?: string;
   setup: AccountSetup | null;
   latest: Measurement | null;
 };
@@ -253,6 +257,9 @@ export function buildSetup(
   return {
     version: 1,
     person,
+    ...(previous?.displayName ? { displayName: previous.displayName } : {}),
+    ...(previous?.stageBackgroundId ? { stageBackgroundId: previous.stageBackgroundId } : {}),
+    ...(previous?.notifyPartner !== undefined ? { notifyPartner: previous.notifyPartner } : {}),
     completedAt: previous?.completedAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     draft,

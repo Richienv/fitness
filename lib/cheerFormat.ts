@@ -1,15 +1,16 @@
-// Pure notification & quick-message formatting helpers for "Kirim Semangat".
+// Pure notification & quick-message formatting helpers for "Kirim Semangat"
+// and proactive partner activity notifications.
 // Safe on both server routes and client UI (zero "use client", zero Node imports).
 
-export type CheerKind = "say" | "remind" | "cheer";
+export type CheerKind = "say" | "remind" | "cheer" | "activity";
 
 export type CheerTemplate = {
-  kind: CheerKind;
+  kind: Exclude<CheerKind, "activity">;
   text: string;
 };
 
 export const CHEER_KINDS: readonly {
-  kind: CheerKind;
+  kind: Exclude<CheerKind, "activity">;
   label: string;
   emoji: string;
   placeholder: string;
@@ -50,7 +51,7 @@ export const CHEER_TEMPLATES: readonly CheerTemplate[] = [
 ];
 
 export function normalizeCheerKind(raw: unknown): CheerKind {
-  if (raw === "remind" || raw === "cheer" || raw === "say") return raw;
+  if (raw === "remind" || raw === "cheer" || raw === "say" || raw === "activity") return raw;
   return "say";
 }
 
@@ -80,18 +81,22 @@ export function formatCheerNotification(input: {
   const body = cleanCheerMessage(input.message) || "Semangat hari ini!";
 
   const title =
-    kind === "say"
-      ? `💬 ${sender} ngomong`
-      : kind === "remind"
-        ? `⏰ ${sender} ngingetin`
-        : `💛 Semangat dari ${sender}!`;
+    kind === "activity"
+      ? `✨ ${sender}`
+      : kind === "say"
+        ? `💬 ${sender} ngomong`
+        : kind === "remind"
+          ? `⏰ ${sender} ngingetin`
+          : `💛 Semangat dari ${sender}!`;
 
   const banner =
-    kind === "say"
-      ? `💬 ${sender} ngomong: ${body}`
-      : kind === "remind"
-        ? `⏰ ${sender} ngingetin: ${body}`
-        : `💛 Semangat dari ${sender}: ${body}`;
+    kind === "activity"
+      ? `✨ ${sender} ${body}`
+      : kind === "say"
+        ? `💬 ${sender} ngomong: ${body}`
+        : kind === "remind"
+          ? `⏰ ${sender} ngingetin: ${body}`
+          : `💛 Semangat dari ${sender}: ${body}`;
 
   const shareText = input.appUrl
     ? `${title}: "${body}"\nBuka R2 Fit: ${input.appUrl}`
@@ -104,6 +109,6 @@ export function formatCheerNotification(input: {
     banner,
     shareText,
     url: "/?couple=1",
-    tag: `r2fit-cheer-${kind}`,
+    tag: kind === "activity" ? "r2fit-partner-activity" : `r2fit-cheer-${kind}`,
   };
 }

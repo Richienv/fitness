@@ -52,6 +52,15 @@ test("formatCheerNotification formats say, remind, and cheer consistently for pu
   assert.equal(cheer.title, "💛 Semangat dari Renita!");
   assert.equal(cheer.banner, "💛 Semangat dari Renita: Semangat gym!");
   assert.equal(cheer.tag, "r2fit-cheer-cheer");
+
+  const activity = formatCheerNotification({
+    senderName: "Renita",
+    kind: "activity",
+    message: "baru timbang 45,2 kg ⚖️",
+  });
+  assert.equal(activity.title, "✨ Renita");
+  assert.equal(activity.banner, "✨ Renita baru timbang 45,2 kg ⚖️");
+  assert.equal(activity.tag, "r2fit-partner-activity");
 });
 
 test("CHEER_KINDS and CHEER_TEMPLATES cover every category", () => {
@@ -77,7 +86,7 @@ test("server-only lib/webPush.ts stays free of 'use client' and service worker h
   assert.ok(webPushSrc.includes("isMissingRelationError"));
 
   const swSrc = readFileSync(join(process.cwd(), "public", "sw.js"), "utf8");
-  assert.ok(swSrc.includes("v11-desktop-sync"));
+  assert.ok(swSrc.includes("v12-living-offline"));
   assert.ok(swSrc.includes('addEventListener("push"'));
   assert.ok(swSrc.includes('addEventListener("notificationclick"'));
 });

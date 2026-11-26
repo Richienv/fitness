@@ -6,6 +6,7 @@ import { scopedKey } from "./userScope";
 import type { Equipment } from "./equipment";
 import { getExerciseProfile, workoutKcal } from "./burn";
 import { learnWorkoutToGraph } from "./habitGraphStore";
+import { sendOrQueue } from "./offlineOutbox";
 
 export type SessionType =
   | "PUSH_A"
@@ -404,18 +405,18 @@ export function getWorkout(id: string): WorkoutSession | null {
 
 function postWorkoutRemote(w: WorkoutSession): void {
   if (typeof window === "undefined") return;
-  fetch("/api/workouts", {
+  void sendOrQueue({
+    url: "/api/workouts",
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+    body: {
       id: w.id,
       date: w.date,
       sessionType: w.sessionType,
       totalVolume: workoutVolume(w),
       exercises: w.exercises.map((e) => ({ name: e.exerciseName, sets: e.sets })),
-    }),
-    keepalive: true,
-  }).catch(() => {});
+    },
+    dedupeKey: `workout:${w.id}`,
+  });
 }
 
 function notifyWorkoutToHabitGraph(w: WorkoutSession): void {

@@ -9,6 +9,7 @@ import {
   validBarcode,
   type BarcodeProduct,
 } from "@/lib/barcode";
+import { lookupIndoBarcode } from "@/lib/indoBarcodes";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -252,7 +253,17 @@ export async function GET(
       return NextResponse.json({ product: dbProduct });
     }
 
-    // 3. Open Food Facts v3 public lookup (with deduplication + soft rate limit)
+    // 2.5. Instant verified Indonesian retail catalog (899... / local snacks & drinks)
+    if (!refresh) {
+      const indoHit = lookupIndoBarcode(code);
+      if (indoHit && indoHit.kcal !== null) {
+        if (cache.size >= 200) cache.delete(cache.keys().next().value!);
+        cache.set(code, { at: now, product: indoHit });
+        return NextResponse.json({ product: indoHit });
+      }
+    }
+
+    // 3. Multi-endpoint Open Food Facts lookup (Indonesia regional + World v2 + World v3)
     let lookup = pending.get(code);
     if (!lookup) {
       requests = requests.filter((t) => now - t < 60000);
@@ -266,28 +277,71 @@ export async function GET(
         );
       requests.push(now);
       lookup = (async () => {
-        const response = await fetch(
-          `https://world.openfoodfacts.org/api/v3/product/${code}.json?fields=code,product_name,product_name_id,product_name_en,product_name_zh,product_name_zh_cn,product_name_zh_tw,generic_name,generic_name_id,generic_name_en,generic_name_zh,abbreviated_product_name,brands,quantity,product_quantity_unit,nutrition_data_per,serving_size,serving_quantity,nutriments`,
-          {
-            headers: {
-              "User-Agent": "R2Fit/1.1 (https://github.com/Richienv/fitness)",
-            },
-            ...(refresh
-              ? { cache: "no-store" as const }
-              : { next: { revalidate: 86400 } }),
-            signal: AbortSignal.timeout(10000),
-          },
+        const fields =
+          "code,product_name,product_name_id,product_name_en,product_name_zh,product_name_zh_cn,product_name_zh_tw,generic_name,generic_name_id,generic_name_en,generic_name_zh,abbreviated_product_name,brands,quantity,product_quantity_unit,nutrition_data_per,serving_size,serving_quantity,nutriments";
+        const codeVariants =
+          code.length === 12
+            ? [code, `0${code}`]
+            : code.length === 13 && code.startsWith("0")
+              ? [code, code.slice(1)]
+              : [code];
+        const urls = [
+          `https://id.openfoodfacts.org/api/v2/product/${codeVariants[0]}.json?fields=${fields}`,
+          `https://world.openfoodfacts.org/api/v2/product/${codeVariants[0]}.json?fields=${fields}`,
+          `https://world.openfoodfacts.org/api/v3/product/${codeVariants[0]}.json?fields=${fields}`,
+          ...(codeVariants[1]
+            ? [
+                `https://id.openfoodfacts.org/api/v2/product/${codeVariants[1]}.json?fields=${fields}`,
+                `https://world.openfoodfacts.org/api/v2/product/${codeVariants[1]}.json?fields=${fields}`,
+              ]
+            : []),
+        ];
+
+        const settled = await Promise.allSettled(
+          urls.map(async (url) => {
+            const response = await fetch(url, {
+              headers: {
+                "User-Agent": "R2Fit/1.2 (https://github.com/Richienv/fitness)",
+              },
+              ...(refresh
+                ? { cache: "no-store" as const }
+                : { next: { revalidate: 86400 } }),
+              signal: AbortSignal.timeout(7000),
+            });
+            if (!response.ok) return null;
+            const raw = await response.json();
+            return parseBarcodeProduct(raw, code);
+          }),
         );
-        if (response.status === 404) return dbProduct;
-        if (!response.ok) throw new Error("Product lookup unavailable");
-        const parsed = parseBarcodeProduct(await response.json(), code);
+
+        const candidates = settled
+          .filter(
+            (r): r is PromiseFulfilledResult<BarcodeProduct | null> =>
+              r.status === "fulfilled" && Boolean(r.value),
+          )
+          .map((r) => r.value as BarcodeProduct);
+
+        const scoreCandidate = (p: BarcodeProduct) => {
+          let s = 0;
+          if (!p.nameMissing) s += 10;
+          if (p.kcal !== null) s += 5;
+          if (p.protein !== null) s += 2;
+          if (p.carbs !== null) s += 2;
+          if (p.fat !== null) s += 2;
+          if (p.brand) s += 1;
+          return s;
+        };
+
+        const parsed =
+          candidates.sort((a, b) => scoreCandidate(b) - scoreCandidate(a))[0] ?? null;
+
         if (parsed && parsed.kcal !== null && !parsed.nameMissing) {
           // Warm the durable Postgres cache for future cold starts (don't overwrite user_confirmed).
           if (dbProduct?.source !== "user_confirmed") {
             void upsertBarcodeInDb(parsed, "openfoodfacts").catch(() => {});
           }
         }
-        return parsed ?? dbProduct;
+        return parsed ?? dbProduct ?? lookupIndoBarcode(code);
       })().finally(() => pending.delete(code));
       pending.set(code, lookup);
     }

@@ -145,14 +145,26 @@ export default function BottomNav() {
   // when the next screen is ready, and waiting for that made a tap feel dead.
   const [pending, setPending] = useState<string | null>(null);
   const [syncState, setSyncState] = useState<"syncing" | "synced" | "offline">("synced");
+  const [outboxPending, setOutboxPending] = useState(0);
 
   useEffect(() => {
     const onStatus = (e: Event) => {
-      const detail = (e as CustomEvent<{ state?: "syncing" | "synced" | "offline" }>).detail;
+      const detail = (
+        e as CustomEvent<{ state?: "syncing" | "synced" | "offline"; pendingCount?: number }>
+      ).detail;
       if (detail?.state) setSyncState(detail.state);
+      if (typeof detail?.pendingCount === "number") setOutboxPending(detail.pendingCount);
+    };
+    const onOutbox = (e: Event) => {
+      const detail = (e as CustomEvent<{ count?: number }>).detail;
+      if (typeof detail?.count === "number") setOutboxPending(detail.count);
     };
     window.addEventListener("r2:sync-status", onStatus);
-    return () => window.removeEventListener("r2:sync-status", onStatus);
+    window.addEventListener("r2:outbox-change", onOutbox);
+    return () => {
+      window.removeEventListener("r2:sync-status", onStatus);
+      window.removeEventListener("r2:outbox-change", onOutbox);
+    };
   }, []);
 
   // Every page here is dynamic (the layout reads the session), so without a
@@ -204,9 +216,11 @@ export default function BottomNav() {
   const syncLabel =
     syncState === "syncing"
       ? "Menyinkronkan…"
-      : syncState === "offline"
-        ? "Offline · lokal"
-        : "Tersinkron · Laptop ↔ HP";
+      : outboxPending > 0
+        ? `Tersimpan lokal (${outboxPending})`
+        : syncState === "offline"
+          ? "Offline · cache aktif"
+          : "Tersinkron · Laptop ↔ HP";
 
   return (
     <nav className="bottom-nav" aria-label="Navigasi utama">

@@ -35,6 +35,9 @@ import {
   type MicroKey as MicroTargetKey,
   type MicroTargets,
 } from "@/lib/nutritionTargets";
+import { useAccountSetup } from "../SetupProvider";
+import { sendOrQueue } from "@/lib/offlineOutbox";
+import { PERSON } from "@/lib/setup";
 import PushOptInCard from "../ui/PushOptInCard";
 
 type MacroKey = keyof MacroTarget;
@@ -93,6 +96,7 @@ const CHIP_ACTIVE: CSSProperties = {
 const CHIP_INACTIVE: CSSProperties = { color: "var(--muted)" };
 
 export default function SettingsPage() {
+  const account = useAccountSetup();
   const [settings, setLocalSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [customFoodCount, setCustomFoodCount] = useState(0);
   const [customTemplateCount, setCustomTemplateCount] = useState(0);
@@ -102,10 +106,60 @@ export default function SettingsPage() {
   const [savedChip, setSavedChip] = useState(false);
   const [microTargets, setMicroTargetsState] = useState<MicroTargets>(getMicroTargets);
   const [profile, setProfile] = useState<Profile>(DEFAULT_PROFILE);
+  const defaultDisplay =
+    account?.displayName ||
+    account?.setup?.displayName ||
+    (account?.person ? PERSON[account.person].name : "");
+  const [displayNameDraft, setDisplayNameDraft] = useState(defaultDisplay);
+  const [savingName, setSavingName] = useState(false);
+  const [notifyPartner, setNotifyPartner] = useState(
+    account?.setup?.notifyPartner !== false,
+  );
 
   useEffect(() => {
     refresh();
   }, []);
+
+  useEffect(() => {
+    if (defaultDisplay) setDisplayNameDraft(defaultDisplay);
+    if (account?.setup) setNotifyPartner(account.setup.notifyPartner !== false);
+  }, [defaultDisplay, account?.setup]);
+
+  async function saveDisplayName() {
+    const clean = displayNameDraft.replace(/\s+/g, " ").trim().slice(0, 40);
+    if (!clean || savingName) return;
+    setSavingName(true);
+    setDisplayNameDraft(clean);
+    if (account?.setup) {
+      account.accept({ ...account.setup, displayName: clean }, clean);
+    }
+    try {
+      await sendOrQueue({
+        url: "/api/setup",
+        method: "PATCH",
+        body: { displayName: clean },
+        dedupeKey: "setup:displayName",
+      });
+      bump();
+    } finally {
+      setSavingName(false);
+    }
+  }
+
+  function toggleNotifyPartner() {
+    const next = !notifyPartner;
+    setNotifyPartner(next);
+    if (account?.setup) {
+      account.accept({ ...account.setup, notifyPartner: next }, account.displayName);
+    }
+    void sendOrQueue({
+      url: "/api/setup",
+      method: "PATCH",
+      body: { notifyPartner: next },
+      dedupeKey: "setup:notifyPartner",
+    });
+    bump();
+  }
 
   function refresh() {
     setLocalSettings(getSettings());
@@ -477,7 +531,60 @@ export default function SettingsPage() {
         </section>
 
         <section className="settings-section">
-          <div className="settings-section-label mono">// AKUN</div>
+          <div className="settings-section-label mono">// AKUN &amp; PASANGAN</div>
+          <div className="settings-row">
+            <div className="settings-row-label">
+              Nama tampilan
+              <small style={{ display: "block", color: "var(--muted)", fontSize: 12 }}>
+                Muncul di beranda &amp; Arena Berdua
+              </small>
+            </div>
+            <div className="settings-row-actions" style={{ gap: 8 }}>
+              <input
+                type="text"
+                className="settings-input"
+                style={{ ...NO_ZOOM_INPUT, minWidth: 130, textAlign: "left" }}
+                value={displayNameDraft}
+                maxLength={40}
+                placeholder="Nama tampilan"
+                aria-label="Nama tampilan"
+                onChange={(e) => setDisplayNameDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void saveDisplayName();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="settings-chip mono"
+                disabled={savingName || !displayNameDraft.trim()}
+                onClick={() => void saveDisplayName()}
+              >
+                {savingName ? "…" : "SIMPAN"}
+              </button>
+            </div>
+          </div>
+          <div className="settings-row">
+            <div className="settings-row-label">
+              Kabari pasangan otomatis
+              <small style={{ display: "block", color: "var(--muted)", fontSize: 12 }}>
+                Notifikasi pas makan, timbang, olahraga &amp; pencapaian
+              </small>
+            </div>
+            <div className="settings-row-actions">
+              <button
+                type="button"
+                className="settings-chip mono"
+                style={notifyPartner ? CHIP_ACTIVE : CHIP_INACTIVE}
+                aria-pressed={notifyPartner}
+                onClick={toggleNotifyPartner}
+              >
+                {notifyPartner ? "AKTIF" : "MATI"}
+              </button>
+            </div>
+          </div>
           <AccountRow />
         </section>
 

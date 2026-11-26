@@ -11,6 +11,8 @@ import {
 import { mergeServerWorkouts, pushLocalWorkoutsToDb } from "@/lib/workouts";
 import { mergeServerMeasurements, pushLocalMeasurementsToDb } from "@/lib/measurements";
 import { mergeServerHealth } from "@/lib/health";
+import { mergeServerWater, pushLocalWaterToDb } from "@/lib/water";
+import { flushOutbox, getOutboxCount } from "@/lib/offlineOutbox";
 import { syncResolvedTargets } from "@/lib/targetSync";
 import { seedApr13Meals } from "@/lib/mealSeed";
 import { todayKey } from "@/lib/targets";
@@ -39,11 +41,14 @@ async function fetchJson<T>(url: string, timeoutMs = 8000): Promise<T | null> {
   }
 }
 
-function emitSyncStatus(state: "syncing" | "synced" | "offline"): void {
+function emitSyncStatus(
+  state: "syncing" | "synced" | "offline",
+  pendingCount = getOutboxCount(),
+): void {
   if (typeof window === "undefined") return;
   window.dispatchEvent(
     new CustomEvent("r2:sync-status", {
-      detail: { state, updatedAt: Date.now() },
+      detail: { state, pendingCount, updatedAt: Date.now() },
     }),
   );
 }
@@ -53,7 +58,7 @@ function emitSyncStatus(state: "syncing" | "synced" | "offline"): void {
 async function pullFromServer(days = 30): Promise<{ added: number; online: boolean }> {
   const from = daysBefore(todayKey(), days);
 
-  const [mealsRes, foodsRes, workoutsRes, measRes, healthRes] = await Promise.all([
+  const [mealsRes, foodsRes, workoutsRes, measRes, healthRes, waterRes] = await Promise.all([
     fetchJson<{ meals: never[] }>(`/api/meals?from=${from}`),
     fetchJson<{ data: { foods: never[] } }>("/api/foods"),
     fetchJson<{ data: { sessions: never[] } }>(`/api/workouts?from=${from}`),
@@ -62,9 +67,14 @@ async function pullFromServer(days = 30): Promise<{ added: number; online: boole
     ),
     // Apple Health days sent by the iPhone Shortcut (see /settings/health).
     fetchJson<{ data: { days: never[] } }>(`/api/widget/health?from=${from}`),
+    fetchJson<{ data: { days: Array<{ date: string; waterMl: number }> } }>(
+      `/api/water?from=${from}`
+    ),
   ]);
 
-  const online = Boolean(mealsRes || foodsRes || workoutsRes || measRes || healthRes);
+  const online = Boolean(
+    mealsRes || foodsRes || workoutsRes || measRes || healthRes || waterRes,
+  );
   let added = 0;
   if (mealsRes?.meals) added += mergeServerMeals(mealsRes.meals, { fromDate: from });
   if (foodsRes?.data?.foods) added += mergeServerFoods(foodsRes.data.foods);
@@ -73,6 +83,7 @@ async function pullFromServer(days = 30): Promise<{ added: number; online: boole
   if (measRes?.data?.measurements)
     added += mergeServerMeasurements(measRes.data.measurements);
   if (healthRes?.data?.days) added += mergeServerHealth(healthRes.data.days);
+  if (waterRes?.data?.days) added += mergeServerWater(waterRes.data.days);
   return { added, online };
 }
 
@@ -109,7 +120,7 @@ export default function ServerSync({ userId }: { userId: string | null }) {
     const idleWarm = window.setTimeout(() => {
       if (cancelled) return;
       warmFoodCatalogue();
-    }, 350);
+    }, 150);
 
     const runSync = async ({
       initial = false,
@@ -119,15 +130,17 @@ export default function ServerSync({ userId }: { userId: string | null }) {
       inFlight = true;
       emitSyncStatus("syncing");
       try {
+        await flushOutbox();
         await Promise.allSettled([
           pushLocalMealsToDb(),
           pushLocalMeasurementsToDb(),
           pushLocalWorkoutsToDb(),
+          pushLocalWaterToDb(),
           syncCustomFoodsToDbOnce(),
         ]);
         const res = await pullFromServer(initial ? 90 : 30);
         if (!cancelled) {
-          emitSyncStatus(res.online ? "synced" : "offline");
+          emitSyncStatus(res.online ? "synced" : "offline", getOutboxCount());
           if (res.added > 0 || forceRefresh) {
             if (res.added > 0) {
               console.log("[ServerSync] synced", res.added, "changes from server");
@@ -136,10 +149,17 @@ export default function ServerSync({ userId }: { userId: string | null }) {
           }
         }
       } catch {
-        if (!cancelled) emitSyncStatus("offline");
+        if (!cancelled) emitSyncStatus("offline", getOutboxCount());
       } finally {
         inFlight = false;
       }
+    };
+
+    const onOutboxChange = () => {
+      emitSyncStatus(
+        typeof navigator !== "undefined" && navigator.onLine === false ? "offline" : "synced",
+        getOutboxCount(),
+      );
     };
 
     void runSync({ initial: true });
@@ -159,6 +179,7 @@ export default function ServerSync({ userId }: { userId: string | null }) {
     window.addEventListener("focus", onFocus);
     window.addEventListener("online", onOnline);
     window.addEventListener("r2:force-sync", onForceSync);
+    window.addEventListener("r2:outbox-change", onOutboxChange);
 
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") void runSync();
@@ -171,6 +192,7 @@ export default function ServerSync({ userId }: { userId: string | null }) {
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("online", onOnline);
       window.removeEventListener("r2:force-sync", onForceSync);
+      window.removeEventListener("r2:outbox-change", onOutboxChange);
       clearInterval(interval);
     };
   }, [userId, ready]);

@@ -8,6 +8,7 @@ import { haptic } from "@/lib/haptics";
 import { useModalScrollLock } from "@/lib/scrollLock";
 import { useReducedMotion } from "@/lib/useReducedMotion";
 import { formatKg, formatWeighTime } from "@/lib/weighIn";
+import { scopedKey } from "@/lib/userScope";
 import {
   CHEER_KINDS,
   CHEER_TEMPLATES,
@@ -389,7 +390,23 @@ export default function PartnerRoomSheet({
 
   const loadCouple = useCallback(
     async (partnerId?: string | null, silent = false) => {
-      if (!silent) setLoading(true);
+      const cacheKey = scopedKey(`r2.couple.cache.v1:${dateKey}:${partnerId ?? "default"}`);
+      let hydratedFromCache = false;
+      if (!silent) {
+        try {
+          const cachedRaw = window.localStorage.getItem(cacheKey);
+          if (cachedRaw) {
+            const parsed = JSON.parse(cachedRaw) as CoupleData;
+            if (parsed?.me) {
+              setCouple(parsed);
+              hydratedFromCache = true;
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+        if (!hydratedFromCache) setLoading(true);
+      }
       setError(null);
       try {
         const qs = new URLSearchParams({ date: dateKey });
@@ -403,6 +420,11 @@ export default function PartnerRoomSheet({
         }
         const nextCouple = data.data as CoupleData;
         setCouple(nextCouple);
+        try {
+          window.localStorage.setItem(cacheKey, JSON.stringify(nextCouple));
+        } catch {
+          /* ignore */
+        }
         if (
           nextCouple.partner &&
           nextCouple.cheers.some((c) => !c.isMine && !c.readAt)
@@ -410,7 +432,7 @@ export default function PartnerRoomSheet({
           void markRead(nextCouple.partner.user.id);
         }
       } catch (e) {
-        if (!silent) {
+        if (!silent && !hydratedFromCache) {
           setError((e as Error).message || "Gagal memuat data berdua.");
         }
       } finally {

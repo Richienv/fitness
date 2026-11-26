@@ -34,13 +34,24 @@ export function publicUser(u: {
   return { id: u.id, name: u.name, username: u.username ?? null };
 }
 
-/** Display label — name, else the @handle, else the email's local part. */
+/** Display label — name, else the @handle, else the email's local part.
+ *  Normalizes legacy short "Ren" alias to "Renita" unless explicitly customized. */
 export function displayName(u: {
   name: string | null;
   username?: string | null;
   email?: string;
+  loginAlias?: string | null;
 }): string {
-  return u.name?.trim() || u.username || u.email?.split("@")[0] || "Teman";
+  const trimmed = u.name?.trim();
+  if (trimmed) {
+    if (u.loginAlias === "renita" && trimmed.toLowerCase() === "ren") {
+      return "Renita";
+    }
+    return trimmed;
+  }
+  if (u.loginAlias === "renita") return "Renita";
+  if (u.loginAlias === "richie") return "Richie";
+  return u.username || u.email?.split("@")[0] || "Teman";
 }
 
 /** IDs of everyone `viewerId` is friends with — i.e. exactly the people whose
@@ -134,7 +145,7 @@ export async function daySummaries(
   const [users, meals, workouts, cardio] = await Promise.all([
     db.user.findMany({
       where: { id: { in: userIds } },
-      select: { id: true, name: true, username: true, email: true },
+      select: { id: true, name: true, username: true, email: true, loginAlias: true },
     }),
     db.mealEntry.findMany({
       where: { userId: { in: userIds }, date },

@@ -5,6 +5,7 @@ import {
   validBarcode,
   type BarcodeProduct,
 } from "@/lib/barcode";
+import { lookupIndoBarcode } from "@/lib/indoBarcodes";
 import {
   getCachedBarcode,
   recordScanAudit,
@@ -65,15 +66,19 @@ export default function BarcodePanel({
   >(startInLabel ? "stopped" : "starting");
   const [snapshot, setSnapshot] = useState("");
   const [scanHint, setScanHint] = useState("");
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+  const [photoDecoding, setPhotoDecoding] = useState(false);
   const scanning = cameraState !== "stopped";
   const video = useRef<HTMLVideoElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const controls = useRef<CameraControls | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const raf = useRef<ReturnType<typeof setTimeout> | null>(null);
   const generation = useRef(0);
   const scanFound = useRef(false);
-  const stabilizer = useRef(createBarcodeStabilizer(2, 2500));
+  const stabilizer = useRef(createBarcodeStabilizer(2, 2500, true));
   const cache = useRef(new Map<string, BarcodeProduct | null>());
   const abort = useRef<AbortController | null>(null);
   const active = useRef(false);
@@ -87,6 +92,8 @@ export default function BarcodePanel({
     raf.current = null;
     stream.current?.getTracks().forEach((t) => t.stop());
     stream.current = null;
+    setTorchOn(false);
+    setTorchSupported(false);
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
     if (video.current) video.current.srcObject = null;
@@ -113,9 +120,9 @@ export default function BarcodePanel({
         return;
       }
 
-      // 1. Instant localStorage cache check (works even offline!)
+      // 1. Instant localStorage cache OR curated Indonesian pack check (works offline in 0ms!)
       if (!refresh) {
-        const localHit = getCachedBarcode(next);
+        const localHit = getCachedBarcode(next) ?? lookupIndoBarcode(next);
         if (localHit) {
           cache.current.set(next, localHit);
           setProduct(localHit);
@@ -262,6 +269,21 @@ export default function BarcodePanel({
         return;
       }
       stream.current = camera;
+      const track = camera.getVideoTracks()[0];
+      if (track) {
+        const caps =
+          typeof track.getCapabilities === "function"
+            ? (track.getCapabilities() as { torch?: boolean; focusMode?: string[] })
+            : null;
+        if (caps?.torch) setTorchSupported(true);
+        if (caps?.focusMode?.includes("continuous")) {
+          void track
+            .applyConstraints({
+              advanced: [{ focusMode: "continuous" } as MediaTrackConstraintSet],
+            })
+            .catch(() => {});
+        }
+      }
       if (!video.current) throw new Error("Pratinjau kamera tidak tersedia.");
 
       const onDecodedCandidate = (rawCode: string, stopFn: () => void) => {
@@ -404,6 +426,73 @@ export default function BarcodePanel({
     }
   }, [lookup, stopCamera, captureVideoSnapshot]);
 
+  const toggleTorch = async () => {
+    const track = stream.current?.getVideoTracks()[0];
+    if (!track) return;
+    const next = !torchOn;
+    try {
+      await track.applyConstraints({
+        advanced: [{ torch: next } as MediaTrackConstraintSet],
+      });
+      setTorchOn(next);
+    } catch {
+      setTorchSupported(false);
+    }
+  };
+
+  const decodePhotoFile = async (file: File) => {
+    setPhotoDecoding(true);
+    setError("");
+    pauseCamera();
+    const objUrl = URL.createObjectURL(file);
+    try {
+      setSnapshot(objUrl);
+      let decoded = "";
+      const nativeDetector = createNativeDetector();
+      if (nativeDetector) {
+        const bmp = await createImageBitmap(file);
+        try {
+          const hits = await nativeDetector.detect(bmp);
+          decoded =
+            hits.find((h) => h.rawValue && validBarcode(h.rawValue.replace(/\s/g, "")))
+              ?.rawValue?.replace(/\s/g, "") ?? "";
+        } finally {
+          bmp.close();
+        }
+      }
+      if (!decoded) {
+        const [{ BrowserMultiFormatOneDReader }, { DecodeHintType, BarcodeFormat }] =
+          await Promise.all([import("@zxing/browser"), import("@zxing/library")]);
+        const hints = new Map();
+        hints.set(DecodeHintType.TRY_HARDER, true);
+        hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+          BarcodeFormat.EAN_13,
+          BarcodeFormat.EAN_8,
+          BarcodeFormat.UPC_A,
+          BarcodeFormat.UPC_E,
+          BarcodeFormat.CODE_128,
+          BarcodeFormat.ITF,
+        ]);
+        const reader = new BrowserMultiFormatOneDReader(hints);
+        const res = await reader.decodeFromImageUrl(objUrl);
+        decoded = res.getText().replace(/\s/g, "");
+      }
+      if (!validBarcode(decoded)) {
+        setError(
+          "Barcode pada foto belum terbaca jelas. Coba lebih dekat/terang atau ketik angkanya di bawah.",
+        );
+        return;
+      }
+      await lookup(decoded);
+    } catch {
+      setError(
+        "Barcode belum terbaca dari foto. Pastikan garis barcode tidak terpotong atau ketik angkanya di bawah.",
+      );
+    } finally {
+      setPhotoDecoding(false);
+    }
+  };
+
   useEffect(() => {
     active.current = true;
     if (!manual && !labelScan && wantsCamera.current && !document.hidden)
@@ -534,25 +623,59 @@ export default function BarcodePanel({
         )}
       </div>
       <p className="barcode-status" role="status" aria-live="polite">
-        {loading
-          ? `${snapshot ? `Barcode ${code} terbaca. ` : ""}Mencari informasi produk…`
-          : cameraState === "starting"
-            ? "Izinkan kamera jika browser meminta izin."
-            : cameraState === "scanning"
-              ? scanHint || "Scan barcode aktif (konfirmasi 2 frame otomatis)."
-              : code
-                ? `Barcode: ${code}`
-                : "Kamera berhenti."}
+        {photoDecoding
+          ? "Membaca barcode dari foto…"
+          : loading
+            ? `${snapshot ? `Barcode ${code} terbaca. ` : ""}Mencari informasi produk…`
+            : cameraState === "starting"
+              ? "Izinkan kamera jika browser meminta izin."
+              : cameraState === "scanning"
+                ? scanHint || "Arahkan barcode ke kotak — deteksi otomatis & cepat."
+                : code
+                  ? `Barcode: ${code}`
+                  : "Kamera berhenti."}
       </p>
-      {!scanning && (
+      <div className="barcode-quick-tools">
+        {scanning ? (
+          torchSupported && (
+            <button
+              type="button"
+              className={`secondary-button${torchOn ? " is-active" : ""}`}
+              onClick={() => void toggleTorch()}
+            >
+              {torchOn ? "Matikan senter" : "Nyalakan senter"}
+            </button>
+          )
+        ) : (
+          <button
+            className="secondary-button"
+            disabled={loading || photoDecoding}
+            onClick={() => void startCamera()}
+          >
+            {code ? "Scan barcode lain" : "Coba kamera lagi"}
+          </button>
+        )}
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = "";
+            if (f) void decodePhotoFile(f);
+          }}
+        />
         <button
+          type="button"
           className="secondary-button"
-          disabled={loading}
-          onClick={() => void startCamera()}
+          disabled={loading || photoDecoding}
+          onClick={() => photoInputRef.current?.click()}
         >
-          {code ? "Scan barcode lain" : "Coba kamera lagi"}
+          Foto barcode
         </button>
-      )}
+      </div>
       {error && (
         <div className="status-message" role="status">
           <p>{error}</p>
@@ -593,9 +716,11 @@ export default function BarcodePanel({
             Sumber:{" "}
             {product.source === "user_confirmed" ? (
               <strong>Cache R2 Fit (terverifikasi)</strong>
+            ) : product.source === "indo_pack" ? (
+              <strong>Katalog Indonesia R2 Fit</strong>
             ) : (
               <a
-                href={`https://world.openfoodfacts.org/product/${product.code}`}
+                href={`https://id.openfoodfacts.org/product/${product.code}`}
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -697,13 +822,7 @@ export default function BarcodePanel({
           )}
         </section>
       )}
-      <details
-        className="barcode-manual"
-        onToggle={(e) => {
-          if (e.currentTarget.open) pauseCamera();
-        }}
-      >
-        <summary>Ketik nomor barcode</summary>
+      <div className="barcode-manual">
         <form
           className="friendly-form"
           onSubmit={(e) => {
@@ -713,7 +832,7 @@ export default function BarcodePanel({
           }}
         >
           <label>
-            Nomor barcode
+            Atau ketik nomor barcode (mis. 899…)
             <input
               inputMode="numeric"
               autoComplete="off"
@@ -727,7 +846,7 @@ export default function BarcodePanel({
                 setCode(e.target.value.replace(/[^0-9]/g, ""));
                 setProduct(null);
               }}
-              placeholder="Ketik angka dari kemasan"
+              placeholder="Ketik angka dari kemasan (899...)"
               maxLength={14}
             />
           </label>
@@ -735,7 +854,7 @@ export default function BarcodePanel({
             {loading ? "Mencari produk…" : "Cari produk"}
           </button>
         </form>
-      </details>
+      </div>
       <button
         className="text-button"
         onClick={() => {

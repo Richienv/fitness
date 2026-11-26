@@ -238,3 +238,8 @@ export function avatarImageSrc(character: Character, level: number): string {
   const clamped = clampAvatarLevel(level);
   return `/avatars/${AVATAR_VERSION}/${character}-level-${String(clamped).padStart(2, "0")}.webp`;
 }
+
+export function avatarSheetSrc(character: Character, level: number): string {
+  const clamped = clampAvatarLevel(level);
+  return `/avatars/v2/${character}-level-${String(clamped).padStart(2, "0")}-sheet.webp`;
+}

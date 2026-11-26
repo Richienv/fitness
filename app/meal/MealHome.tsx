@@ -17,6 +17,7 @@ import {
   getAllMeals,
   getDaily,
   isCustomItem,
+  moveMealItem,
   saveMeal,
   setDaily,
   updateMealItems,
@@ -66,6 +67,9 @@ import ShadowRecommendations from "../ui/ShadowRecommendations";
 import ShadowQuickEditSheet, {
   type MealQuickEditResult,
 } from "../ui/ShadowQuickEditSheet";
+import EditMealItemSheet, {
+  type LoggedItemTarget,
+} from "./EditMealItemSheet";
 
 /** A blank editor draft; may or may not carry an id (edit vs. add). */
 type EditDraft = (QuickLogEntry | Omit<QuickLogEntry, "id">) & { id?: string };
@@ -284,6 +288,8 @@ type SlotItem = {
   key: string;
   mealId: string;
   itemIndex: number;
+  mealType: MealType;
+  rawItem: MealItem;
   name: string;
   detail: string;
   kcal: number;
@@ -397,6 +403,7 @@ export default function MealHome({
   } | null>(null);
   const [shadowTick, setShadowTick] = useState(0);
   const [editingShadow, setEditingShadow] = useState<ShadowRecommendation | null>(null);
+  const [editingLogged, setEditingLogged] = useState<LoggedItemTarget | null>(null);
   const closeCelebration = useCallback(() => {
     setCelebration(null);
     setUsualUndo(null);
@@ -407,6 +414,7 @@ export default function MealHome({
   useSheetBack(pickerOpen, () => setPickerOpen(false));
   useSheetBack(manageOpen, () => setManageOpen(false));
   useSheetBack(!!editDraft, () => setEditDraft(null));
+  useSheetBack(!!editingLogged, () => setEditingLogged(null));
   useSheetBack(!!celebration, closeCelebration);
 
   const reloadFromStore = useCallback(() => {
@@ -486,6 +494,8 @@ export default function MealHome({
             key: `${meal.id}:${idx}`,
             mealId: meal.id,
             itemIndex: idx,
+            mealType: def.key,
+            rawItem: it,
             name: d.name,
             detail: d.detail,
             kcal: d.kcal,
@@ -833,13 +843,31 @@ export default function MealHome({
                   <ul className="mk-items">
                     {s.items.map((it) => (
                       <li className="mk-item" key={it.key}>
-                        <span className="mk-item-name">
-                          <strong>{it.name}</strong>
-                          <small>{it.detail}</small>
-                        </span>
-                        <span className="mk-item-kcal">
-                          {fmt(it.kcal)} kkal
-                        </span>
+                        <button
+                          type="button"
+                          className="mk-item-trigger"
+                          aria-label={`Edit ${it.name}`}
+                          onClick={() => {
+                            haptic("tap");
+                            setEditingLogged({
+                              mealId: it.mealId,
+                              itemIndex: it.itemIndex,
+                              date: activeDate,
+                              mealType: it.mealType,
+                              item: it.rawItem,
+                            });
+                          }}
+                        >
+                          <span className="mk-item-name">
+                            <strong>{it.name}</strong>
+                            <small>
+                              {it.detail} <span className="mk-item-edit-hint">· edit</span>
+                            </small>
+                          </span>
+                          <span className="mk-item-kcal">
+                            {fmt(it.kcal)} kkal
+                          </span>
+                        </button>
                         <button
                           className="icon-button"
                           aria-label={`Hapus ${it.name}`}
@@ -1321,6 +1349,20 @@ export default function MealHome({
           onSaveMeal={confirmMealShadow}
         />
       )}
+      <EditMealItemSheet
+        target={editingLogged}
+        onClose={() => setEditingLogged(null)}
+        onSave={(mealId, itemIndex, updatedItem, targetDate, targetSlot) => {
+          moveMealItem(mealId, itemIndex, updatedItem, targetDate, targetSlot);
+          setEditingLogged(null);
+          haptic("success");
+          toast("Catatan makanan diperbarui", "success");
+          reloadFromStore();
+        }}
+        onDelete={(mealId, itemIndex, itemName) => {
+          setPendingDelete({ mealId, itemIndex, name: itemName });
+        }}
+      />
     </main>
   );
 }

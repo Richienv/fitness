@@ -20,8 +20,9 @@
 
 import { scopedKey } from "./userScope.ts";
 
-/** Half-lives, in days. */
-const H_FAST = 10;
+/** Half-lives, in days: fast 6d keeps yesterday/this-week top of mind, while
+ *  slow 120d still preserves seasonal dishes lightly. */
+const H_FAST = 6;
 const H_SLOW = 120;
 const H_SLOT = 60;
 
@@ -30,8 +31,8 @@ const K_FAST = 6;
 const K_SLOW = 12;
 const K_COOC = 3;
 
-const W_FAST = 0.68;
-const W_SLOW = 0.32;
+const W_FAST = 0.72;
+const W_SLOW = 0.28;
 
 /** Usage alone is the primary signal; context only shades it. */
 const A_BASE = 0.7;
@@ -285,7 +286,12 @@ export function makeScorer(s: Store, ctx: AffinityContext = {}): (id: string) =>
       if (c) coocFit = Math.max(coocFit, sat(c, K_COOC));
     }
 
-    return clamp01(use * (A_BASE + W_SLOT * slotFit + W_COOC * coocFit));
+    // Today/yesterday continuity boost: users frequently repeat what they ate
+    // yesterday or earlier today, without letting distant weeks dominate.
+    const continuityBoost =
+      days <= 1.5 ? 0.22 : days <= 3.5 ? 0.11 : days <= 7.0 ? 0.04 : 0;
+
+    return clamp01(use * (A_BASE + W_SLOT * slotFit + W_COOC * coocFit) + continuityBoost);
   };
 }
 

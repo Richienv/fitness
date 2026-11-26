@@ -15,6 +15,7 @@ import { getUserId } from "@/lib/session";
 import { verifyHealthToken } from "@/lib/widgetToken";
 import { todayKey } from "@/lib/targets";
 import { parseHealthPayload, type HealthDay } from "@/lib/healthImport";
+import { notifyPartnerActivity } from "@/lib/partnerNotify";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,6 +66,16 @@ export async function POST(req: Request) {
       await db.activityLog.create({
         data: { actor: userId, action: ACTION, entityType: "health", entityId: day.date, payload },
       });
+    if (day.date === todayKey() && day.steps !== null && day.steps >= 5000) {
+      const milestone =
+        day.steps >= 10000 ? 10000 : day.steps >= 8000 ? 8000 : 5000;
+      void notifyPartnerActivity(userId, {
+        type: "steps",
+        steps: day.steps,
+        milestone,
+        date: day.date,
+      });
+    }
     const parts = [
       day.steps !== null ? `${fmt(day.steps)} langkah` : null,
       day.activeKcal !== null ? `${fmt(day.activeKcal)} kkal aktif` : null,

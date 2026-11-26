@@ -10,7 +10,7 @@
  *   /api/* → never intercepted (client stores handle localStorage caching).
  */
 
-const VERSION = "v11-desktop-sync";
+const VERSION = "v12-living-offline";
 const STATIC_CACHE = `r2fit-static-${VERSION}`;
 const SHELL_CACHE = `r2fit-shell-${VERSION}`;
 const PAGE_CACHE = `r2fit-pages-${VERSION}`;
@@ -147,12 +147,12 @@ async function navigationHandler(request, url) {
   });
 
   if (cached) {
-    // Race network against 1.1s fast timeout so poor mobile networks open instantly
-    // from cache while still updating fresh HTML in the background.
+    // Race network against 650ms fast timeout so poor mobile networks open
+    // almost instantaneously from cache while updating fresh HTML in background.
     try {
       return await Promise.race([
         networkPromise,
-        new Promise((resolve) => setTimeout(() => resolve(cached), 1100)),
+        new Promise((resolve) => setTimeout(() => resolve(cached), 650)),
       ]);
     } catch {
       return cached;

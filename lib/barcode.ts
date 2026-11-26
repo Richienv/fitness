@@ -18,7 +18,7 @@ export type BarcodeProduct = {
   salt?: number | null;
   saturatedFat?: number | null;
   fiber?: number | null;
-  source?: "cache" | "openfoodfacts" | "user_confirmed";
+  source?: "cache" | "openfoodfacts" | "user_confirmed" | "indo_pack";
 };
 
 export type BarcodeLabelConflict = {
@@ -43,6 +43,23 @@ const text = (value: unknown): string =>
 
 export const validBarcode = (code: string) => /^\d{8,14}$/.test(code);
 
+/** Validate GS1 EAN-13 / EAN-8 / UPC-A / GTIN-14 check digit so live scanners
+ *  never lock onto partial or misread barcode frames. */
+export function isValidEanChecksum(rawCode: string): boolean {
+  const code = rawCode.replace(/\s/g, "");
+  if (!/^(?:\d{8}|\d{12}|\d{13}|\d{14})$/.test(code)) return false;
+  const digits = code.split("").map(Number);
+  const check = digits[digits.length - 1];
+  const body = digits.slice(0, -1);
+  // Right-to-left alternating weights 3, 1, 3, 1 ... (GS1 standard)
+  let sum = 0;
+  for (let i = body.length - 1, pos = 0; i >= 0; i--, pos++) {
+    sum += body[i] * (pos % 2 === 0 ? 3 : 1);
+  }
+  const expected = (10 - (sum % 10)) % 10;
+  return expected === check;
+}
+
 /** Extract gram/ml mass from a serving string such as "1 sachet (30 g)" or "250ml". */
 export function parseServingMass(raw: string): number | null {
   if (!raw) return null;
@@ -53,8 +70,12 @@ export function parseServingMass(raw: string): number | null {
 }
 
 /** Require N consecutive matching valid reads within `maxGapMs` before locking a barcode.
- *  Prevents single-frame misreads on curved or blurry packaging. */
-export function createBarcodeStabilizer(requiredMatches = 2, maxGapMs = 2500) {
+ *  When `instantOnChecksum` is true, GS1 checksum-verified EAN-13/EAN-8/UPC-A codes lock in 1 frame. */
+export function createBarcodeStabilizer(
+  requiredMatches = 2,
+  maxGapMs = 2500,
+  instantOnChecksum = false,
+) {
   let lastCode = "";
   let count = 0;
   let lastAt = 0;
@@ -62,6 +83,12 @@ export function createBarcodeStabilizer(requiredMatches = 2, maxGapMs = 2500) {
     push(rawCode: string, now = Date.now()): string | null {
       const code = rawCode.replace(/\s/g, "");
       if (!validBarcode(code)) return null;
+      if (instantOnChecksum && isValidEanChecksum(code)) {
+        lastCode = code;
+        count = requiredMatches;
+        lastAt = now;
+        return code;
+      }
       if (code === lastCode && now - lastAt <= maxGapMs) {
         count++;
       } else {

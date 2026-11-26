@@ -19,8 +19,15 @@ import type { Snapshot } from "@/lib/motivation";
 import { haptic } from "@/lib/haptics";
 import { useSecondTick } from "@/lib/useSecondTick";
 import AvatarPlayer from "./AvatarPlayer";
+import StagePickerSheet from "./StagePickerSheet";
 import Icon from "../ui/Icon";
 import { getAvatarLevelMeta, TIER_META } from "@/lib/avatarLevels";
+import {
+  DEFAULT_STAGE_ID,
+  getStageBackground,
+  type StageBackgroundId,
+} from "@/lib/stageBackgrounds";
+import type { HealthAchievementProgress } from "@/lib/healthAchievements";
 import { formatWeighTime } from "@/lib/weighIn";
 import "./hero-stage.css";
 
@@ -131,6 +138,10 @@ function HeroAvatarStage({
   detailOpen,
   onToggleDetail,
   onOpenWeigh,
+  stageId = DEFAULT_STAGE_ID,
+  onSelectStage,
+  achievements = [],
+  unlockedStageIds,
 }: {
   character: Character;
   level: number;
@@ -148,11 +159,16 @@ function HeroAvatarStage({
   detailOpen: boolean;
   onToggleDetail: () => void;
   onOpenWeigh: () => void;
+  stageId?: StageBackgroundId;
+  onSelectStage?: (id: StageBackgroundId) => void;
+  achievements?: HealthAchievementProgress[];
+  unlockedStageIds?: Set<StageBackgroundId>;
 }) {
   const unlockedLevel = Math.max(1, Math.min(12, Math.round(level)));
   const [viewLevel, setViewLevel] = useState(unlockedLevel);
   const [includeWater, setIncludeWater] = useState(false);
   const [waterPulsed, setWaterPulsed] = useState(false);
+  const [stageSheetOpen, setStageSheetOpen] = useState(false);
   const waterPopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -232,25 +248,57 @@ function HeroAvatarStage({
       : null;
 
   const waterL = waterMl / 1000;
+  const resolvedUnlockedStages =
+    unlockedStageIds ?? new Set<StageBackgroundId>([DEFAULT_STAGE_ID]);
+  const effectiveStage = getStageBackground(
+    resolvedUnlockedStages.has(stageId) ? stageId : DEFAULT_STAGE_ID,
+  );
 
   return (
-    <section className="hero-stage" aria-label="Ringkasan berat dan progres real time">
-      {/* Dedicated utility strip: quiet status badge left, frosted Detail trigger right */}
+    <section
+      className="hero-stage"
+      data-stage={effectiveStage.id}
+      aria-label="Ringkasan berat dan progres real time"
+    >
+      {/* Dedicated utility strip: quiet status badge left, Stage + Detail triggers right */}
       <div className="hero-stage-top">
         <span className={`hero-live-badge${isToday ? " is-live" : ""}`}>
           <span className="hero-live-dot" aria-hidden="true" />
           <span>{isToday ? "Live" : "Proyeksi"}</span>
         </span>
-        <button
-          type="button"
-          className={`hero-detail-btn${detailOpen ? " is-open" : ""}`}
-          onClick={onToggleDetail}
-          aria-expanded={detailOpen}
-          aria-label={detailOpen ? "Tutup detail perhitungan" : "Lihat detail perhitungan"}
-        >
-          <Icon name="info" size={14} />
-          <span>{detailOpen ? "Tutup" : "Detail"}</span>
-        </button>
+        <div className="hero-stage-actions">
+          {onSelectStage && (
+            <button
+              type="button"
+              className="hero-detail-btn"
+              onClick={() => {
+                haptic("tap");
+                setStageSheetOpen(true);
+              }}
+              aria-label={`Pilih latar panggung (${effectiveStage.name})`}
+            >
+              <span
+                className="hero-stage-swatch"
+                style={{ backgroundColor: effectiveStage.accent }}
+                aria-hidden="true"
+              />
+              <span>Latar</span>
+              {resolvedUnlockedStages.size > 1 && (
+                <span className="hero-stage-badge">{resolvedUnlockedStages.size}/9</span>
+              )}
+            </button>
+          )}
+          <button
+            type="button"
+            className={`hero-detail-btn${detailOpen ? " is-open" : ""}`}
+            onClick={onToggleDetail}
+            aria-expanded={detailOpen}
+            aria-label={detailOpen ? "Tutup detail perhitungan" : "Lihat detail perhitungan"}
+          >
+            <Icon name="info" size={14} />
+            <span>{detailOpen ? "Tutup" : "Detail"}</span>
+          </button>
+        </div>
       </div>
 
       {/* Top-center focal readout above avatar head */}
@@ -596,6 +644,16 @@ function HeroAvatarStage({
           <span aria-hidden="true">›</span>
         </button>
       </div>
+      {onSelectStage && (
+        <StagePickerSheet
+          open={stageSheetOpen}
+          onClose={() => setStageSheetOpen(false)}
+          selectedId={effectiveStage.id}
+          onSelect={onSelectStage}
+          achievements={achievements}
+          unlockedStageIds={resolvedUnlockedStages}
+        />
+      )}
     </section>
   );
 }

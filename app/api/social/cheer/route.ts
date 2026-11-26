@@ -38,7 +38,7 @@ export async function GET(req: Request) {
           ],
         },
         include: {
-          sender: { select: { id: true, name: true, username: true, email: true } },
+          sender: { select: { id: true, name: true, username: true, email: true, loginAlias: true } },
         },
         orderBy: { createdAt: "desc" },
         take: 30,
@@ -110,7 +110,7 @@ export async function POST(req: Request) {
 
     const sender = await db.user.findUnique({
       where: { id: viewerId },
-      select: { id: true, name: true, username: true, email: true },
+      select: { id: true, name: true, username: true, email: true, loginAlias: true },
     });
     const senderName = sender ? displayName(sender) : "Pasangan";
     const appOrigin =

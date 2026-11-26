@@ -976,6 +976,21 @@ progress::-moz-progress-bar {
   font-size: 12px;
   line-height: 1.5;
 }
+.barcode-quick-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.barcode-quick-tools button {
+  flex: 1 1 130px;
+  min-height: 40px;
+  font-size: 13px;
+}
+.barcode-quick-tools button.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 .barcode-manual {
   margin: 16px 0;
 }

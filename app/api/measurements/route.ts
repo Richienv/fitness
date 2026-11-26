@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserId } from "@/lib/session";
 import { isMissingRelationError } from "@/lib/social";
+import { todayKey } from "@/lib/targets";
+import { notifyPartnerActivity } from "@/lib/partnerNotify";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -178,6 +180,22 @@ export async function POST(req: Request) {
       if (!returnedWeighedAt && typeof body.weightKg === "number") {
         returnedWeighedAt = saved.updatedAt.toISOString();
       }
+    }
+
+    if (typeof body.weightKg === "number" && Number.isFinite(body.weightKg) && body.date === todayKey()) {
+      const weighDate = returnedWeighedAt ? new Date(returnedWeighedAt) : new Date();
+      const timeLabel = new Intl.DateTimeFormat("id-ID", {
+        timeZone: "Asia/Shanghai",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(weighDate);
+      void notifyPartnerActivity(userId, {
+        type: "weigh",
+        weightKg: body.weightKg,
+        date: body.date,
+        timeLabel,
+      });
     }
 
     return NextResponse.json(

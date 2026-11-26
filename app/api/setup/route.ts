@@ -1,9 +1,10 @@
 import { db } from "@/lib/db";
 import { getUserId } from "@/lib/session";
 import { loginPerson } from "@/lib/privateLogin";
-import { buildSetup, sameMeasurement, type AccountSetup } from "@/lib/setup";
+import { buildSetup, PERSON, sameMeasurement, type AccountSetup } from "@/lib/setup";
 import type { CompanionGoal } from "@/lib/companionProgress";
 import { isMissingRelationError } from "@/lib/social";
+import { isStageBackgroundId } from "@/lib/stageBackgrounds";
 import type { Prisma } from "@prisma/client";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,10 +24,15 @@ export async function GET() {
   try {
     const user = await db.user.findUnique({
       where: { id },
-      select: { loginAlias: true, setup: true },
+      select: { name: true, loginAlias: true, setup: true },
     });
     const person = loginPerson(user?.loginAlias);
     if (!person) return answer({ error: "Akun belum terhubung." }, 403);
+    const rawName = user?.name?.trim() || "";
+    const resolvedName =
+      rawName && !(person === "renita" && rawName.toLowerCase() === "ren")
+        ? rawName
+        : PERSON[person].name;
     let latestRaw: {
       date: string;
       weightKg: number | null;
@@ -79,7 +85,7 @@ export async function GET() {
               : undefined,
         }
       : null;
-    return answer({ person, setup: user?.setup ?? null, latest });
+    return answer({ person, displayName: resolvedName, setup: user?.setup ?? null, latest });
   } catch {
     return answer({ error: "Data akun belum bisa dimuat. Coba lagi." }, 503);
   }
@@ -97,7 +103,7 @@ export async function POST(req: Request) {
   try {
     const user = await db.user.findUnique({
       where: { id },
-      select: { loginAlias: true, setup: true },
+      select: { name: true, loginAlias: true, setup: true },
     });
     const person = loginPerson(user?.loginAlias);
     if (!person) return answer({ error: "Akun belum terhubung." }, 403);
@@ -193,47 +199,105 @@ export async function PATCH(req: Request) {
     return answer({ error: "forbidden" }, 403);
   const body = (await req.json().catch(() => null)) as {
     companionGoal?: unknown;
+    displayName?: unknown;
+    stageBackgroundId?: unknown;
+    notifyPartner?: unknown;
   } | null;
-  const goal = sanitizeGoal(body?.companionGoal);
-  if (!goal) return answer({ error: "Target tidak valid." }, 400);
+  if (!body || typeof body !== "object") {
+    return answer({ error: "Data tidak valid." }, 400);
+  }
+
+  const goal = body.companionGoal !== undefined ? sanitizeGoal(body.companionGoal) : null;
+  if (body.companionGoal !== undefined && !goal) {
+    return answer({ error: "Target tidak valid." }, 400);
+  }
+
+  let nextDisplayName: string | null = null;
+  if (body.displayName !== undefined) {
+    if (typeof body.displayName !== "string") {
+      return answer({ error: "Nama tidak valid." }, 400);
+    }
+    const clean = body.displayName.replace(/\s+/g, " ").trim().slice(0, 40);
+    if (!clean) {
+      return answer({ error: "Nama tampilan wajib diisi." }, 400);
+    }
+    nextDisplayName = clean;
+  }
+
+  let nextStageId: string | null = null;
+  if (body.stageBackgroundId !== undefined) {
+    if (!isStageBackgroundId(body.stageBackgroundId)) {
+      return answer({ error: "Latar tidak valid." }, 400);
+    }
+    nextStageId = body.stageBackgroundId;
+  }
+
+  const nextNotifyPartner =
+    typeof body.notifyPartner === "boolean" ? body.notifyPartner : null;
+
+  if (!goal && !nextDisplayName && !nextStageId && nextNotifyPartner === null) {
+    return answer({ error: "Tidak ada perubahan yang dikirim." }, 400);
+  }
 
   try {
     const user = await db.user.findUnique({
       where: { id },
-      select: { loginAlias: true, setup: true },
+      select: { name: true, loginAlias: true, setup: true },
     });
     const person = loginPerson(user?.loginAlias);
     if (!person) return answer({ error: "Akun belum terhubung." }, 403);
+    const rawName = user?.name?.trim() || "";
+    const resolvedExistingName =
+      rawName && !(person === "renita" && rawName.toLowerCase() === "ren")
+        ? rawName
+        : PERSON[person].name;
     const existing = user?.setup as AccountSetup | null;
-    if (!existing) return answer({ ok: true, setup: null });
+
+    if (!existing) {
+      if (nextDisplayName) {
+        await db.user.update({
+          where: { id },
+          data: { name: nextDisplayName },
+          select: { id: true },
+        });
+      }
+      return answer({ ok: true, setup: null, displayName: nextDisplayName ?? resolvedExistingName });
+    }
 
     const nowIso = new Date().toISOString();
+    const resolvedGoal = goal ?? existing.companionGoal;
     const nextWeightTarget =
-      goal.mode === "weight" && goal.targetWeight
+      goal && goal.mode === "weight" && goal.targetWeight
         ? goal.targetWeight
         : existing.targetWeightKg;
 
     const updatedSetup: AccountSetup = {
       ...existing,
       updatedAt: nowIso,
-      companionGoalUpdatedAt: nowIso,
+      ...(nextDisplayName ? { displayName: nextDisplayName } : {}),
+      ...(nextStageId ? { stageBackgroundId: nextStageId } : {}),
+      ...(nextNotifyPartner !== null ? { notifyPartner: nextNotifyPartner } : {}),
+      ...(goal ? { companionGoalUpdatedAt: nowIso } : {}),
       targetWeightKg: nextWeightTarget,
       draft: {
         ...existing.draft,
         target: String(nextWeightTarget),
       },
-      companionGoal: goal,
+      companionGoal: resolvedGoal,
     };
+
+    const resolvedName = nextDisplayName ?? resolvedExistingName;
 
     await db.user.update({
       where: { id },
       data: {
+        ...(nextDisplayName ? { name: nextDisplayName } : {}),
         setup: updatedSetup as unknown as Prisma.InputJsonValue,
       },
       select: { id: true },
     });
 
-    return answer({ ok: true, setup: updatedSetup });
+    return answer({ ok: true, setup: updatedSetup, displayName: resolvedName });
   } catch {
     return answer(
       { error: "Belum tersimpan. Koneksi bermasalah; coba lagi." },

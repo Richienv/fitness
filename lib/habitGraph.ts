@@ -205,9 +205,9 @@ export type WorkoutShadowContext = {
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
 
-export const FOOD_HALF_LIFE_DAYS = 14;
-export const WORKOUT_HALF_LIFE_DAYS = 21;
-export const CONFIRM_HALF_LIFE_DAYS = 21;
+export const FOOD_HALF_LIFE_DAYS = 5;
+export const WORKOUT_HALF_LIFE_DAYS = 14;
+export const CONFIRM_HALF_LIFE_DAYS = 18;
 export const DISMISS_HALF_LIFE_DAYS = 4;
 
 const MAX_FOOD_NODES = 220;
@@ -910,12 +910,16 @@ export function scoreMealRecommendations(
     const freqW = slotW + (times.byDst[`time:${currentBucket}`]?.weight ?? 0) * 0.5;
     const freqSat = freqW / (freqW + 2.2);
     const budget = macroBudgetFit(payload.kcal, payload.protein, ctx);
+    const ageDays = Math.max(0, (now - node.updatedAt) / DAY_MS);
+    const recencyBoost =
+      ageDays <= 1.8 ? 1.38 : ageDays <= 4.0 ? 1.18 : ageDays > 14 ? 0.78 : 1.0;
 
     const rawScore =
       (0.45 * freqSat + 0.25 * slotShare + 0.2 * timeFit + 0.1 * dayFit) *
       dayFit *
       budget *
       fb.multiplier *
+      recencyBoost *
       (ctx.slotAlreadyLogged ? 0.68 : 1.0);
 
     const count = Math.max(slotCount, node.reinforcements);
@@ -1004,7 +1008,10 @@ export function scoreMealRecommendations(
       ? (0.48 * pairSat + 0.27 * freqSat + 0.15 * timeFit + 0.1 * dayFit) * 1.12
       : (0.42 * freqSat + 0.25 * (slots.total > 0 ? slotW / slots.total : 0.2) + 0.23 * timeFit + 0.1 * dayFit) * 0.86;
 
-    const rawScore = baseScore * budget * fb.multiplier;
+    const ageDays = Math.max(0, (now - node.updatedAt) / DAY_MS);
+    const recencyBoost =
+      ageDays <= 1.8 ? 1.35 : ageDays <= 4.0 ? 1.15 : ageDays > 14 ? 0.78 : 1.0;
+    const rawScore = baseScore * budget * fb.multiplier * recencyBoost;
     const count = isPaired ? Math.max(bestPairCount, slotCount) : Math.max(slotCount, node.reinforcements);
     const coherentBucket = pickCoherentTimeBucket(ctx.mealSlot, currentBucket, times.byDst);
     const { badge, reason } = comboFrequencyLabel(

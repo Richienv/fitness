@@ -1,6 +1,7 @@
 "use client";
 
 import { scopedKey } from "./userScope";
+import { sendOrQueue } from "./offlineOutbox";
 
 export type Measurement = {
   date: string;
@@ -39,12 +40,12 @@ export function getLatestMeasurement(): Measurement | null {
 
 function postMeasurementRemote(m: Measurement): void {
   if (typeof window === "undefined") return;
-  fetch("/api/measurements", {
+  void sendOrQueue({
+    url: "/api/measurements",
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(m),
-    keepalive: true,
-  }).catch(() => {});
+    body: m,
+    dedupeKey: `meas:${m.date}`,
+  });
 }
 
 const SYNCED_MEAS_DATES_KEY = "richie.measurements.syncedDates.v1";

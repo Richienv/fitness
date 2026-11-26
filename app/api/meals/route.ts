@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserId } from "@/lib/session";
 import { todayKey } from "@/lib/targets";
+import { notifyPartnerActivity } from "@/lib/partnerNotify";
 
 type MealPayload = {
   id: string;
@@ -51,6 +52,22 @@ export async function POST(req: Request) {
     const saved = existing
       ? await db.mealEntry.update({ where: { id: body.id }, data: fields })
       : await db.mealEntry.create({ data: { id: body.id, userId, ...fields } });
+    if (!existing && body.date === todayKey()) {
+      const totalsObj = (body.totals ?? {}) as { kcal?: unknown };
+      const kcal = typeof totalsObj.kcal === "number" && Number.isFinite(totalsObj.kcal) ? totalsObj.kcal : 0;
+      const rawItems = Array.isArray(body.items) ? (body.items as Array<{ name?: unknown }>) : [];
+      const names = rawItems
+        .map((it) => (typeof it?.name === "string" ? it.name.trim() : ""))
+        .filter(Boolean)
+        .slice(0, 2);
+      void notifyPartnerActivity(userId, {
+        type: "meal",
+        mealType: body.mealType,
+        kcal,
+        summary: names.join(", "),
+        date: body.date,
+      });
+    }
     return NextResponse.json({ ok: true, id: saved.id });
   } catch (e) {
     return NextResponse.json(

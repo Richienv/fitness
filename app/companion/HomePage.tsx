@@ -3,8 +3,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { getMealsForDate, isCustomItem, type MealLog } from "@/lib/store";
-import { macrosFor } from "@/lib/ingredients";
+import { getMealsForDate, getAllMeals, getDaily, isCustomItem, type MealLog } from "@/lib/store";
+import { getIngredient, macrosFor } from "@/lib/ingredients";
 import {
   getAllMeasurements,
   saveMeasurement,
@@ -19,7 +19,7 @@ import {
   type SessionType,
   type WorkoutSession,
 } from "@/lib/workouts";
-import { todayKey } from "@/lib/targets";
+import { TARGETS, todayKey } from "@/lib/targets";
 import { useSoftRefresh } from "@/lib/useSoftRefresh";
 import { readCompanion, type CompanionSettings } from "@/lib/companionSettings";
 import { companionProgress, weightSummary } from "@/lib/companionProgress";
@@ -33,7 +33,18 @@ import {
 import { readSnapshot } from "@/lib/motivationData";
 import { dayTarget } from "@/lib/dayBudgetData";
 import { readEnergyView } from "@/lib/energyBalanceData";
-import { addWaterMl, getWaterMl } from "@/lib/water";
+import { addWaterMl, getAllWater, getWaterMl } from "@/lib/water";
+import { evaluateHealthAchievements } from "@/lib/healthAchievements";
+import {
+  readEarnedAchievementKeys,
+  readSelectedStageId,
+  recordEarnedAchievementKeys,
+  saveSelectedStageId,
+  syncAchievementsToServer,
+} from "@/lib/stagePrefs";
+import { STAGE_BACKGROUNDS, type StageBackgroundId } from "@/lib/stageBackgrounds";
+import { scopedKey } from "@/lib/userScope";
+import { useAccountSetup } from "../SetupProvider";
 import EnergyBalanceCard from "./EnergyBalanceCard";
 import HeroAvatarStage from "./HeroAvatarStage";
 import {
@@ -71,10 +82,14 @@ import PartnerRoomSheet, {
 import Icon from "../ui/Icon";
 export default function HomePage() {
   const { data: session } = useSession();
+  const account = useAccountSetup();
   const router = useRouter();
   const [meals, setMeals] = useState<MealLog[]>([]),
     [measurements, setMeasurements] = useState<Measurement[]>([]),
     [workouts, setWorkouts] = useState<WorkoutSession[]>([]);
+  const [stageId, setStageId] = useState<StageBackgroundId>(() =>
+    readSelectedStageId(account?.setup?.stageBackgroundId),
+  );
   const [settings, setSettings] = useState<CompanionSettings>({
       character: "richie",
       goal: null,
@@ -117,6 +132,14 @@ export default function HomePage() {
       const json = await res.json();
       if (json?.ok && json?.data) {
         const next = json.data as PresenceData;
+        try {
+          window.localStorage.setItem(
+            scopedKey("r2.presence.cache.v1"),
+            JSON.stringify(next),
+          );
+        } catch {
+          /* ignore */
+        }
         const latestCheer = next.unreadCheers?.[0];
         if (latestCheer && latestCheer.id !== seenCheerIdRef.current) {
           const hadPrev = seenCheerIdRef.current !== null;
@@ -140,6 +163,17 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    try {
+      const cachedRaw = window.localStorage.getItem(scopedKey("r2.presence.cache.v1"));
+      if (cachedRaw) {
+        const parsed = JSON.parse(cachedRaw) as PresenceData;
+        if (parsed && Array.isArray(parsed.partners)) {
+          setPresence((prev) => prev ?? parsed);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
     void fetchPresence();
     const id = window.setInterval(() => {
       if (document.visibilityState === "visible") {
@@ -451,7 +485,94 @@ export default function HomePage() {
       .sort((a, b) => a.date.localeCompare(b.date));
     return valid[0]?.weightKg ?? null;
   }, [measurements, date]);
-  const name = session?.user?.name?.split(" ")[0] || "Akunmu";
+  const rawUserFirst = (account?.displayName || session?.user?.name || "").trim().split(" ")[0] || "";
+  const name =
+    rawUserFirst.toLowerCase() === "ren" && settings.character === "renita"
+      ? "Renita"
+      : rawUserFirst || (settings.character === "renita" ? "Renita" : "Richie");
+
+  const achievementSummary = useMemo(() => {
+    const d = date || todayKey();
+    const byDate = new Map<
+      string,
+      { date: string; kcal: number; protein: number; fat: number; sugar: number; hasFood: boolean }
+    >();
+    if (typeof window !== "undefined") {
+      for (const m of getAllMeals()) {
+        if (!m.items?.length) continue;
+        let row = byDate.get(m.date);
+        if (!row) {
+          row = { date: m.date, kcal: 0, protein: 0, fat: 0, sugar: 0, hasFood: true };
+          byDate.set(m.date, row);
+        }
+        for (const it of m.items) {
+          if (isCustomItem(it)) {
+            row.kcal += Number(it.kcal) || 0;
+            row.protein += Number(it.protein) || 0;
+            row.fat += Number(it.fat) || 0;
+            row.sugar += Number(it.sugar) || 0;
+          } else {
+            const mac = macrosFor(it.id, it.qty);
+            row.kcal += mac.kcal;
+            row.protein += mac.protein;
+            row.fat += mac.fat;
+            row.sugar += (getIngredient(it.id)?.sugar ?? 0) * it.qty;
+          }
+        }
+      }
+    }
+    const targetDay =
+      typeof window !== "undefined" && getDaily(d).gymDay
+        ? TARGETS.gymDay
+        : TARGETS.restDay;
+    return evaluateHealthAchievements({
+      today: d,
+      dailyNutrition: Array.from(byDate.values()),
+      workouts,
+      waterByDate: typeof window !== "undefined" ? getAllWater() : {},
+      kcalTarget: targetDay.kcal,
+      proteinTarget: targetDay.protein,
+      fatTarget: targetDay.fat,
+      hasPartnerActivity:
+        (presence?.partners?.length ?? 0) > 0 &&
+        (Boolean(presence?.recentNudges?.length) || meals.length > 0),
+      previouslyEarnedKeys: readEarnedAchievementKeys(),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, meals, workouts, waterMl, presence?.partners?.length]);
+
+  useEffect(() => {
+    setStageId(readSelectedStageId(account?.setup?.stageBackgroundId));
+  }, [account?.setup?.stageBackgroundId]);
+
+  useEffect(() => {
+    const unlockedItems = achievementSummary.items.filter((x) => x.unlocked);
+    if (unlockedItems.length === 0) return;
+    const stageNames = new Map(STAGE_BACKGROUNDS.map((s) => [s.id, s.name]));
+    const newlyLocal = recordEarnedAchievementKeys(unlockedItems.map((x) => x.key));
+    if (newlyLocal.length > 0) {
+      const first = unlockedItems.find((x) => x.key === newlyLocal[0]);
+      if (first) {
+        const stageName = stageNames.get(first.stageId) ?? "";
+        toast(
+          `✨ Pencapaian terbuka: ${first.title}${stageName ? ` · Latar ${stageName}` : ""}`,
+          "success",
+        );
+      }
+    }
+    syncAchievementsToServer(achievementSummary.items, stageNames);
+  }, [achievementSummary]);
+
+  const handleSelectStage = useCallback(
+    (nextId: StageBackgroundId) => {
+      setStageId(nextId);
+      saveSelectedStageId(nextId);
+      if (account?.setup) {
+        account.accept({ ...account.setup, stageBackgroundId: nextId }, account.displayName);
+      }
+    },
+    [account],
+  );
   const slot = mealSlotForHour(hour);
   const action = snap
     ? nextAction(snap, {
@@ -655,6 +776,10 @@ export default function HomePage() {
             detailOpen={detailOpen}
             onToggleDetail={toggleDetail}
             onOpenWeigh={openWeigh}
+            stageId={stageId}
+            onSelectStage={handleSelectStage}
+            achievements={achievementSummary.items}
+            unlockedStageIds={achievementSummary.unlockedStageIds}
           />
           {detailOpen && energy && (
             <div className="hero-detail-drawer">

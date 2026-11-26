@@ -35,7 +35,11 @@ function itemName(i: MealItem): string {
 }
 
 export function readUsualMeal(slot: MealType, today: string): UsualOffer | null {
-  const u = usualMeal(getAllMeals(), slot, today, itemKey);
+  const u = usualMeal(getAllMeals(), slot, today, itemKey, {
+    windowDays: 14,
+    minDays: 2,
+    recencyWeighted: true,
+  });
   if (!u) return null;
   let kcal = 0,
     protein = 0;
