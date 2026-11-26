@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { getMealsForDate, isCustomItem, type MealLog } from "@/lib/store";
@@ -87,6 +87,7 @@ export default function HomePage() {
   const [weigh, setWeigh] = useState<{
       today: string;
       todayKg: number | null;
+      todayWeighedAt: string | null;
       previous: WeighIn | null;
     } | null>(null),
     [celebration, setCelebration] = useState<Celebration | null>(null),
@@ -105,6 +106,7 @@ export default function HomePage() {
     [shadows, setShadows] = useState<ShadowRecommendation[]>([]),
     [editingShadow, setEditingShadow] = useState<ShadowRecommendation | null>(null),
     [workoutTitle, setWorkoutTitle] = useState<string | null>(null);
+  const seenCheerIdRef = useRef<string | null>(null);
 
   const fetchPresence = useCallback(async () => {
     try {
@@ -112,7 +114,19 @@ export default function HomePage() {
       if (!res.ok) return;
       const json = await res.json();
       if (json?.ok && json?.data) {
-        setPresence(json.data as PresenceData);
+        const next = json.data as PresenceData;
+        const latestCheer = next.unreadCheers?.[0];
+        if (latestCheer && latestCheer.id !== seenCheerIdRef.current) {
+          const hadPrev = seenCheerIdRef.current !== null;
+          seenCheerIdRef.current = latestCheer.id;
+          if (hadPrev || (next.unreadCount ?? 0) > 0) {
+            haptic("success");
+            if (hadPrev) {
+              toast(latestCheer.formatted.banner, "success");
+            }
+          }
+        }
+        setPresence(next);
       }
     } catch {
       // non-fatal when offline or unauthenticated
@@ -125,7 +139,7 @@ export default function HomePage() {
       if (document.visibilityState === "visible") {
         void fetchPresence();
       }
-    }, 12_000);
+    }, 10_000);
     const onVisible = () => {
       if (document.visibilityState === "visible") void fetchPresence();
     };
@@ -135,6 +149,18 @@ export default function HomePage() {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [fetchPresence]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("couple") === "1") {
+      setRoomOpen(true);
+      params.delete("couple");
+      const nextSearch = params.toString();
+      const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`;
+      window.history.replaceState(null, "", nextUrl);
+    }
+  }, []);
   const refresh = useCallback(() => {
     const d = todayKey();
     const h = new Date().getHours();
@@ -178,8 +204,15 @@ export default function HomePage() {
   // The weigh-in opens in place, read fresh from storage at the tap.
   const openWeigh = useCallback(() => {
     const d = todayKey();
-    const c = weighContext(getAllMeasurements(), d);
-    setWeigh({ today: d, todayKg: c.today, previous: c.previous });
+    const all = getAllMeasurements();
+    const c = weighContext(all, d);
+    const todayRow = all.filter((r) => r.date === d && typeof r.weightKg === "number").at(-1);
+    setWeigh({
+      today: d,
+      todayKg: c.today,
+      todayWeighedAt: todayRow?.weighedAt ?? null,
+      previous: c.previous,
+    });
   }, []);
   const closeWeigh = useCallback(() => setWeigh(null), []);
   const closeCelebration = useCallback(() => {
@@ -345,7 +378,7 @@ export default function HomePage() {
       try {
         before = { snap: readSnapshot({ today: d }), rows: getAllMeasurements() };
       } catch {}
-      saveMeasurement({ date: d, weightKg: kg });
+      saveMeasurement({ date: d, weightKg: kg, weighedAt: new Date().toISOString() });
       haptic("success");
       setWeigh(null);
       refresh();
@@ -358,17 +391,31 @@ export default function HomePage() {
             before.rows,
             getAllMeasurements(),
             d,
+            settings.goal,
           );
       } catch {}
       if (c && hasChanges(c)) setCelebration(c);
       else toast("Berat tersimpan", "success");
     },
-    [weigh?.today, refresh],
+    [weigh?.today, refresh, settings.goal],
   );
   const progress = date
     ? companionProgress(settings.goal, measurements, workouts, date)
-    : { level: null, fraction: null };
+    : {
+        level: null,
+        fraction: null,
+        highestLevel: null,
+        previousLevel: null,
+        demoted: false,
+        demotedFrom: null,
+      };
   const weightInfo = date ? weightSummary(measurements, date) : null;
+  const fallbackBaselineKg = useMemo(() => {
+    const valid = measurements
+      .filter((m) => typeof m.weightKg === "number" && m.weightKg > 0 && (!date || m.date <= date))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    return valid[0]?.weightKg ?? null;
+  }, [measurements, date]);
   const name = session?.user?.name?.split(" ")[0] || "Akunmu";
   const slot = mealSlotForHour(hour);
   const action = snap
@@ -408,9 +455,12 @@ export default function HomePage() {
   const partners: PartnerSummary[] = presence?.partners ?? [];
   const activeVisitors = presence?.activeVisitors ?? [];
   const recentNudges = presence?.recentNudges ?? [];
+  const unreadCheers = presence?.unreadCheers ?? [];
+  const unreadCount = presence?.unreadCount ?? unreadCheers.length;
+  const latestCheer = unreadCheers[0] ?? null;
   const activeVisitor = activeVisitors[0] ?? null;
-  const isSignLit = activeVisitors.length > 0;
-  const latestNudge = !activeVisitor ? (recentNudges[0] ?? null) : null;
+  const isSignLit = activeVisitors.length > 0 || unreadCount > 0;
+  const latestNudge = !activeVisitor && !latestCheer ? (recentNudges[0] ?? null) : null;
   const primaryPartner = useMemo(() => {
     const id = pickDefaultPartnerId(partners);
     return partners.find((p) => p.id === id) ?? partners[0] ?? null;
@@ -465,14 +515,16 @@ export default function HomePage() {
             type="button"
             className={`door-topbar-btn${isSignLit ? " is-lit" : ""}`}
             aria-label={
-              isSignLit && activeVisitor
-                ? `${activeVisitor.name} lagi ngintip kamu — buka pintu pasangan`
-                : `Buka pintu ${primaryPartner?.displayName ?? "pasangan"}`
+              latestCheer
+                ? `${latestCheer.formatted.banner} — buka Arena Berdua`
+                : activeVisitor
+                  ? `${activeVisitor.name} lagi ngintip kamu — buka Arena Berdua`
+                  : `Buka Arena Berdua (${primaryPartner?.displayName ?? "Richie & Renita"})`
             }
-            onClick={() => openPartnerRoom(activeVisitor?.user.id)}
+            onClick={() => openPartnerRoom(latestCheer?.senderId ?? activeVisitor?.user.id)}
           >
             <Icon name="door" size={15} />
-            <span className="door-btn-label">Intip</span>
+            <span className="door-btn-label">Arena</span>
             {isSignLit && <span className="door-sign-dot" aria-hidden="true" />}
           </button>
           <Link href="/settings" className="settings-icon-btn" aria-label={`Pengaturan ${name}`}>
@@ -480,19 +532,35 @@ export default function HomePage() {
           </Link>
         </div>
       </header>
-      {(isSignLit && activeVisitor) || latestNudge ? (
+      {latestCheer ? (
         <button
           type="button"
-          className={`presence-sign-lit${isSignLit ? " active-glow" : " nudge-glow"}`}
+          className="presence-sign-lit active-glow"
+          onClick={() => openPartnerRoom(latestCheer.senderId)}
+        >
+          <span className="presence-lantern" aria-hidden="true">
+            💌
+          </span>
+          <span className="presence-sign-text">
+            <strong>{latestCheer.formatted.title}:</strong> “{latestCheer.message}”
+          </span>
+          <span className="presence-sign-cta">
+            {unreadCount > 1 ? `Buka (+${unreadCount}) →` : "Balas →"}
+          </span>
+        </button>
+      ) : (activeVisitor || latestNudge) ? (
+        <button
+          type="button"
+          className={`presence-sign-lit${activeVisitor ? " active-glow" : " nudge-glow"}`}
           onClick={() =>
             openPartnerRoom(activeVisitor?.user.id ?? latestNudge?.user.id)
           }
         >
           <span className="presence-lantern" aria-hidden="true">
-            {isSignLit ? "✨" : "💛"}
+            {activeVisitor ? "✨" : "💛"}
           </span>
           <span className="presence-sign-text">
-            {isSignLit && activeVisitor ? (
+            {activeVisitor ? (
               activeVisitors.length > 1 ? (
                 <>
                   <strong>{activeVisitor.name}</strong> (+{activeVisitors.length - 1}) lagi
@@ -515,6 +583,11 @@ export default function HomePage() {
       <HeroAvatarStage
         character={settings.character}
         level={progress.level ?? 1}
+        highestLevel={progress.highestLevel}
+        demoted={progress.demoted}
+        demotedFrom={progress.demotedFrom}
+        weighedAt={weightInfo?.latest?.weighedAt ?? null}
+        fallbackBaselineKg={fallbackBaselineKg}
         goal={settings.goal}
         currentKg={currentKg}
         energy={energy}
@@ -607,6 +680,8 @@ export default function HomePage() {
         <WeighInSheet
           today={weigh.today}
           todayKg={weigh.todayKg}
+          todayWeighedAt={weigh.todayWeighedAt}
+          character={settings.character}
           previous={weigh.previous}
           onSave={saveWeight}
           onClose={closeWeigh}
@@ -643,42 +718,42 @@ export default function HomePage() {
       <section className={`duo-doorway-wrap${isSignLit ? " is-lit" : ""}`}>
         <button
           type="button"
-          className="duo-doorway-btn"
-          onClick={() => openPartnerRoom(activeVisitor?.user.id)}
+          className="duo-doorway-btn is-couple-arena"
+          onClick={() => openPartnerRoom(latestCheer?.senderId ?? activeVisitor?.user.id)}
         >
-          <span className={`duo-door-ico${isSignLit ? " is-lit" : ""}`} aria-hidden="true">
-            <Icon name="door" size={20} />
-          </span>
-          <span className="duo-doorway-copy">
-            <strong>
-              {isSignLit && activeVisitor
-                ? `✨ ${activeVisitor.name} lagi ngintip kamu`
-                : primaryPartner
-                  ? `Pintu ${primaryPartner.displayName}`
-                  : "Pintu Pasangan (Intip)"}
-            </strong>
-            <small>
-              {isSignLit
-                ? "Lampu pintu menyala · ketuk untuk lihat ruangnya"
-                : primaryPartner
-                  ? "Lihat makan, latihan & kirim ketukan semangat"
-                  : "Hubungkan Richie ↔ Renita untuk intip progres live"}
-            </small>
-          </span>
-          <Icon name="heart" size={17} />
-        </button>
-        <Link href="/companion" className="duo-link">
           <img
             src="/avatars/v2/duo-poster.webp"
             alt="Richie dan Renita"
-            width={44}
-            height={44}
+            width={48}
+            height={48}
+            className="duo-arena-thumb"
           />
-          <span>
-            <strong>Richie &amp; Renita</strong>
-            <small>Progres avatar &amp; target</small>
+          <span className="duo-doorway-copy">
+            <strong>
+              Richie &amp; Renita · Live berdua
+            </strong>
+            <small>
+              {unreadCount > 0
+                ? `${unreadCount} pesan baru · ketuk untuk balas`
+                : activeVisitor
+                  ? `✨ ${activeVisitor.name} lagi ngintip kamu · lihat kondisi berdua`
+                  : primaryPartner
+                    ? `Bandingkan level avatar, kalori & makan ${primaryPartner.displayName} real-time`
+                    : "Buka Arena Berdua & hubungkan Richie ↔ Renita"}
+            </small>
           </span>
-          <Icon name="arrow" size={17} />
+          {unreadCount > 0 ? (
+            <span className="duo-unread-badge">{unreadCount}</span>
+          ) : (
+            <Icon name="heart" size={18} />
+          )}
+        </button>
+        <Link href="/companion" className="duo-link">
+          <span>
+            <strong>Target &amp; avatar saya</strong>
+            <small>Atur target berat, koleksi 12 level &amp; grafik</small>
+          </span>
+          <Icon name="arrow" size={16} />
         </Link>
       </section>
       <PartnerRoomSheet
@@ -691,6 +766,7 @@ export default function HomePage() {
         initialPartnerId={roomPartnerId}
         presence={presence}
         dateKey={date || todayKey()}
+        onUnreadCleared={() => void fetchPresence()}
       />
     </main>
   );

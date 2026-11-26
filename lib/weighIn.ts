@@ -3,7 +3,11 @@
 // after the save. Pure, so the numbers can be traced to real weigh-ins.
 // See docs/plans/2026-11-20-motivation-home-design.md ("Weigh-in sheet").
 import type { Measurement } from "./measurements";
-import { weightSummary } from "./companionProgress.ts";
+import {
+  companionProgress,
+  weightSummary,
+  type CompanionGoal,
+} from "./companionProgress.ts";
 import {
   addDays,
   celebrationDiff,
@@ -19,6 +23,11 @@ export const JUMP_KG = 3;
 export const TREND_MIN = 3;
 
 export type WeighIn = { date: string; kg: number };
+export type WeighLevelChange = {
+  from: number;
+  to: number;
+  direction: "up" | "down";
+};
 export type WeighChange = {
   /** Today's weight after the save. */
   kg: number;
@@ -31,7 +40,25 @@ export type WeighChange = {
   trend: { from: number | null; to: number } | null;
   /** Weigh-in days in the last 7 days after the save. */
   trendCount: number;
+  /** Avatar level transition caused by this weigh-in (touch-to-unlock / mundur). */
+  levelChange: WeighLevelChange | null;
 };
+
+const CST_TIME_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Shanghai",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+/** Format an ISO weigh-in timestamp as "HH:mm" in Asia/Shanghai, or null if invalid. */
+export function formatWeighTime(iso?: string | null): string | null {
+  if (!iso || typeof iso !== "string") return null;
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return null;
+  const formatted = CST_TIME_FORMATTER.format(new Date(ms));
+  return /^\d{2}:\d{2}$/.test(formatted) ? formatted : null;
+}
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const positive = (n: unknown): n is number =>
@@ -126,11 +153,12 @@ export function jumpFromPrevious(
   return gap >= JUMP_KG ? gap : null;
 }
 
-/** What this weigh-in changed: today's weight and the 7-day mean. */
+/** What this weigh-in changed: today's weight, the 7-day mean, and any avatar level shift. */
 export function weighChange(
   beforeRows: Measurement[],
   afterRows: Measurement[],
   today: string,
+  goal?: CompanionGoal | null,
 ): WeighChange {
   const replaced = weighContext(beforeRows, today).today;
   const kg = weighContext(afterRows, today).today ?? 0;
@@ -138,12 +166,30 @@ export function weighChange(
   const after = weightSummary(afterRows, today);
   const from = before.mean === null ? null : round1(before.mean);
   const to = after.mean === null ? null : round1(after.mean);
+
+  let levelChange: WeighLevelChange | null = null;
+  if (goal && goal.mode === "weight") {
+    const beforeProg = companionProgress(goal, beforeRows, [], today);
+    const afterProg = companionProgress(goal, afterRows, [], today);
+    if (afterProg.level !== null) {
+      const prevLv = beforeProg.level ?? 1;
+      if (afterProg.level !== prevLv) {
+        levelChange = {
+          from: prevLv,
+          to: afterProg.level,
+          direction: afterProg.level > prevLv ? "up" : "down",
+        };
+      }
+    }
+  }
+
   return {
     kg,
     replaced,
     changed: kg > 0 && kg !== replaced,
     trend: to !== null && to !== from ? { from, to } : null,
     trendCount: after.count,
+    levelChange,
   };
 }
 
@@ -155,9 +201,10 @@ export function weighCelebration(
   beforeRows: Measurement[],
   afterRows: Measurement[],
   today: string,
+  goal?: CompanionGoal | null,
 ): Celebration {
   return {
     ...celebrationDiff(before, after, "weigh"),
-    weigh: weighChange(beforeRows, afterRows, today),
+    weigh: weighChange(beforeRows, afterRows, today, goal),
   };
 }

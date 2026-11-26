@@ -71,23 +71,95 @@ export function goalRatio(
     return null;
   return Math.min(1, Math.max(0, (current - baseline) / (target - baseline)));
 }
+export function levelFromWeight(
+  weightKg: number,
+  goal: CompanionGoal | null,
+  fallbackBaselineKg?: number | null,
+): number | null {
+  if (!goal || goal.mode !== "weight") return null;
+  const baseline = positive(goal.baselineWeight)
+    ? goal.baselineWeight
+    : positive(fallbackBaselineKg)
+      ? fallbackBaselineKg
+      : null;
+  const fraction = goalRatio(weightKg, baseline, goal.targetWeight);
+  if (fraction === null) return null;
+  return Math.max(1, Math.min(12, 1 + Math.floor(fraction * 11 + 1e-8)));
+}
+
+export type CompanionProgressResult = {
+  level: number | null;
+  fraction: number | null;
+  highestLevel: number | null;
+  previousLevel: number | null;
+  demoted: boolean;
+  demotedFrom: number | null;
+};
+
 export function companionProgress(
   goal: CompanionGoal | null,
   rows: Measurement[],
   workouts: WorkoutSession[],
   today: string,
-): { level: number | null; fraction: number | null } {
-  const unavailable = { level: null, fraction: null };
+): CompanionProgressResult {
+  const unavailable: CompanionProgressResult = {
+    level: null,
+    fraction: null,
+    highestLevel: null,
+    previousLevel: null,
+    demoted: false,
+    demotedFrom: null,
+  };
   if (!goal) return unavailable;
   if (goal.mode === "weight") {
-    const current = weightSummary(rows, today),
-      previous = weightSummary(rows, dateOffset(today, -7));
-    if (current.mean === null || previous.mean === null) return unavailable;
-    const a = goalRatio(current.mean, goal.baselineWeight, goal.targetWeight),
-      b = goalRatio(previous.mean, goal.baselineWeight, goal.targetWeight);
-    if (a === null || b === null) return unavailable;
-    const fraction = Math.min(a, b);
-    return { level: 1 + Math.floor(fraction * 11 + 1e-8), fraction };
+    const validByDate = new Map<string, Measurement>();
+    for (const r of rows) {
+      if (positive(r.weightKg) && r.date <= today) {
+        validByDate.set(r.date, r);
+      }
+    }
+    const valid = [...validByDate.values()].sort((a, b) =>
+      a.date.localeCompare(b.date),
+    );
+    if (valid.length === 0) return unavailable;
+
+    const effectiveBaseline = positive(goal.baselineWeight)
+      ? goal.baselineWeight
+      : valid[0].weightKg!;
+    const targetWeight = positive(goal.targetWeight) ? goal.targetWeight : null;
+    if (targetWeight === null || effectiveBaseline === targetWeight) {
+      return unavailable;
+    }
+
+    const latest = valid[valid.length - 1];
+    const fraction = goalRatio(latest.weightKg!, effectiveBaseline, targetWeight);
+    const level = levelFromWeight(latest.weightKg!, goal, effectiveBaseline);
+    if (fraction === null || level === null) return unavailable;
+
+    const prevRow = valid.length >= 2 ? valid[valid.length - 2] : null;
+    const previousLevel = prevRow
+      ? levelFromWeight(prevRow.weightKg!, goal, effectiveBaseline)
+      : null;
+
+    const afterBaseline = goal.baselineDate
+      ? valid.filter((r) => r.date >= goal.baselineDate)
+      : valid;
+    const historyRows = afterBaseline.length > 0 ? afterBaseline : valid;
+    let highestLevel = level;
+    for (const r of historyRows) {
+      const lv = levelFromWeight(r.weightKg!, goal, effectiveBaseline);
+      if (lv !== null && lv > highestLevel) highestLevel = lv;
+    }
+
+    const demoted = level < highestLevel;
+    return {
+      level,
+      fraction,
+      highestLevel,
+      previousLevel,
+      demoted,
+      demotedFrom: demoted ? highestLevel : null,
+    };
   }
   const waists = [
     ...new Map(
@@ -119,7 +191,15 @@ export function companionProgress(
   if ([...waist, ...lift].some((r) => r === null)) return unavailable;
   const fraction =
     (Math.min(...(waist as number[])) + Math.min(...(lift as number[]))) / 2;
-  return { level: 1 + Math.floor(fraction * 11 + 1e-8), fraction };
+  const level = Math.max(1, Math.min(12, 1 + Math.floor(fraction * 11 + 1e-8)));
+  return {
+    level,
+    fraction,
+    highestLevel: level,
+    previousLevel: null,
+    demoted: false,
+    demotedFrom: null,
+  };
 }
 
 export type LevelUnlockRequirement =
@@ -130,9 +210,9 @@ export type LevelUnlockRequirement =
       requiredKg: number;
       remainingKg: number | null;
       direction: "loss" | "gain";
-      /** True when currentKg was used because 3-weigh-in baselineWeight isn't calibrated yet. */
+      /** True when currentKg was used because baselineWeight isn't calibrated yet. */
       estimated: boolean;
-      /** True when currentKg already passed requiredKg (awaiting two stable 7-day means). */
+      /** True when currentKg already touched or passed requiredKg. */
       alreadyReached: boolean;
     }
   | {
@@ -158,6 +238,7 @@ export function unlockRequirementForLevel(
   goal: CompanionGoal | null,
   targetLevel: number,
   currentKg?: number | null,
+  fallbackBaselineKg?: number | null,
 ): LevelUnlockRequirement {
   const rawLevel = Number.isFinite(targetLevel) ? Math.round(targetLevel) : 1;
   const level = Math.max(1, Math.min(12, rawLevel));
@@ -165,7 +246,11 @@ export function unlockRequirementForLevel(
   if (!goal) return { kind: "unconfigured", level, fraction };
 
   const targetWeight = positive(goal.targetWeight) ? goal.targetWeight : null;
-  const baselineWeight = positive(goal.baselineWeight) ? goal.baselineWeight : null;
+  const baselineWeight = positive(goal.baselineWeight)
+    ? goal.baselineWeight
+    : positive(fallbackBaselineKg)
+      ? fallbackBaselineKg
+      : null;
   const latestKg = positive(currentKg) ? currentKg : null;
 
   if (targetWeight !== null) {

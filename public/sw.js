@@ -10,7 +10,7 @@
  *   /api/* → never intercepted (client stores handle localStorage caching).
  */
 
-const VERSION = "v8-food-search-overhaul";
+const VERSION = "v9-couple-push-levels";
 const STATIC_CACHE = `r2fit-static-${VERSION}`;
 const SHELL_CACHE = `r2fit-shell-${VERSION}`;
 const PAGE_CACHE = `r2fit-pages-${VERSION}`;
@@ -194,4 +194,51 @@ self.addEventListener("fetch", (event) => {
   if (request.mode === "navigate") {
     event.respondWith(navigationHandler(request, url));
   }
+});
+
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { body: event.data ? event.data.text() : "" };
+  }
+  const title = payload.title || "R2·FIT";
+  const url = payload.url || (payload.data && payload.data.url) || "/?couple=1";
+  const options = {
+    body: payload.body || "Ada pesan baru buat kamu 💛",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    tag: payload.tag || "r2fit-cheer",
+    renotify: true,
+    data: { ...(payload.data || {}), url },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl =
+    (event.notification.data && event.notification.data.url) || "/?couple=1";
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clientsArr) => {
+        const targetAbs = new URL(targetUrl, self.location.origin).href;
+        for (const client of clientsArr) {
+          if (client.url.startsWith(self.location.origin) && "focus" in client) {
+            return client.focus().then((focused) => {
+              if (focused && "navigate" in focused && focused.url !== targetAbs) {
+                return focused.navigate(targetAbs).catch(() => focused);
+              }
+              return focused;
+            });
+          }
+        }
+        if (self.clients.openWindow) {
+          return self.clients.openWindow(targetAbs);
+        }
+        return undefined;
+      }),
+  );
 });

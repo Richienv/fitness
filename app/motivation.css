@@ -561,6 +561,30 @@ button.next-action-button {
   background: #eef7f2;
   border-color: #cfe6da;
 }
+.cel-row.level-up {
+  background: linear-gradient(135deg, #eef7f2 0%, #eff6ff 100%);
+  border-color: #bbf7d0;
+}
+.cel-row.level-down {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+.cel-row.level-down .cel-label {
+  color: #991b1b;
+}
+.wi-time-pill {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
 .cel-row.quiet {
   grid-template-columns: 36px minmax(0, 1fr);
   border-style: dashed;

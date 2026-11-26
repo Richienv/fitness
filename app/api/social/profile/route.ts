@@ -13,6 +13,7 @@ import { healthScore, estimateSteps } from "@/lib/healthScore";
 import { mergeBadges } from "@/lib/badges";
 import { normalizeUsername } from "@/lib/username";
 import { todayKey } from "@/lib/targets";
+import { resolvePersonNutritionTargets } from "@/lib/personTargets";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +56,16 @@ export async function GET(req: Request) {
 
     const target = await db.user.findFirst({
       where: userId ? { id: userId } : { username },
-      select: { id: true, name: true, username: true, email: true, heightCm: true },
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        email: true,
+        heightCm: true,
+        loginAlias: true,
+        sex: true,
+        setup: true,
+      },
     });
     if (!target) {
       return NextResponse.json({ ok: false, error: "not-found" }, { status: 404, headers: noStore });
@@ -138,8 +148,9 @@ export async function GET(req: Request) {
       };
     });
 
-    const kcalTarget = targetRow?.kcal ?? 2200;
-    const proteinTarget = targetRow?.protein ?? 150;
+    const resolvedTargets = resolvePersonNutritionTargets(target, targetRow, date);
+    const kcalTarget = resolvedTargets.kcal;
+    const proteinTarget = resolvedTargets.protein;
     const score = today
       ? healthScore({
           kcal: today.kcal,

@@ -84,7 +84,9 @@ export function isMissingRelationError(err: unknown): boolean {
   const code = (err as { code?: string } | null)?.code;
   if (code === "P2021" || code === "P2022") return true;
   const msg = err instanceof Error ? err.message : String(err ?? "");
-  return /roomvisit|habitgraphstate|habit_graph|does not exist|no such table|undefined table/i.test(msg);
+  return /roomvisit|habitgraphstate|habit_graph|pushsubscription|partnercheer|weighedat|does not exist|no such table|undefined table|unknown column/i.test(
+    msg,
+  );
 }
 
 export type DaySummary = {
@@ -99,7 +101,15 @@ export type DaySummary = {
   sugar: number;
   lastActivityAt?: string | null;
   lastActivityLabel?: string | null;
-  meals: { id: string; mealType: string; kcal: number; items: string[]; photoUrl: string | null }[];
+  meals: {
+    id: string;
+    mealType: string;
+    kcal: number;
+    protein?: number;
+    items: string[];
+    photoUrl: string | null;
+    createdAt?: string | null;
+  }[];
   /** Machine count is the headline training metric, not volume. */
   workouts: { sessionType: string; totalVolume: number; machines: number; location: string | null; exercises: string[] }[];
   cardio: { kind: string; distanceM: number; durationSec: number; location: string | null }[];
@@ -195,6 +205,8 @@ export async function daySummaries(
       photoUrl: m.photoUrl,
       mealType: m.mealType,
       kcal: Math.round(num(t.kcal)),
+      protein: Math.round(num(t.protein)),
+      createdAt: m.createdAt ? m.createdAt.toISOString() : null,
       // Custom items carry their name inline; library items only carry an id,
       // resolved here against the shared ingredient list. Unknown ids are
       // dropped rather than shown raw.

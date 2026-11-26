@@ -53,6 +53,9 @@ model User {
   roomVisitsOut RoomVisit[]     @relation("RoomVisitor")
   roomVisitsIn  RoomVisit[]     @relation("RoomHost")
   habitGraph    HabitGraphState?
+  pushSubscriptions PushSubscription[]
+  cheersSent        PartnerCheer[] @relation("CheerSender")
+  cheersReceived    PartnerCheer[] @relation("CheerTarget")
 }
 
 // Cardio is tracked separately from lifting: it has distance/pace/place rather
@@ -216,6 +219,7 @@ model Measurement {
   hipCm       Float?
   shoulderCm  Float?
   notes       String?
+  weighedAt   DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -393,4 +397,35 @@ model HabitGraphState {
   graph     Json
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// Browser Web Push subscription per device (iPhone Home Screen PWA / Android / Desktop).
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// Direct partner cheers, reminders, and sweet notes delivered across Push, Home banner, and Couple Arena.
+model PartnerCheer {
+  id        String    @id @default(cuid())
+  senderId  String
+  sender    User      @relation("CheerSender", fields: [senderId], references: [id], onDelete: Cascade)
+  targetId  String
+  target    User      @relation("CheerTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  kind      String    @default("say") // "say" | "remind" | "cheer"
+  message   String
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([targetId, createdAt])
+  @@index([senderId, targetId, createdAt])
 }

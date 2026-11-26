@@ -20,6 +20,7 @@ import { haptic } from "@/lib/haptics";
 import AvatarPlayer from "./AvatarPlayer";
 import Icon from "../ui/Icon";
 import { getAvatarLevelMeta, TIER_META } from "@/lib/avatarLevels";
+import { formatWeighTime } from "@/lib/weighIn";
 import "./hero-stage.css";
 
 const idInt = (n: number) => Math.round(Math.abs(n)).toLocaleString("id-ID");
@@ -32,6 +33,11 @@ const dec = (n: number, d = 1) =>
 export default function HeroAvatarStage({
   character,
   level,
+  highestLevel,
+  demoted,
+  demotedFrom,
+  weighedAt,
+  fallbackBaselineKg,
   goal,
   currentKg,
   energy,
@@ -44,6 +50,11 @@ export default function HeroAvatarStage({
 }: {
   character: Character;
   level: number;
+  highestLevel?: number | null;
+  demoted?: boolean;
+  demotedFrom?: number | null;
+  weighedAt?: string | null;
+  fallbackBaselineKg?: number | null;
   goal: CompanionGoal | null;
   currentKg: number | null;
   energy: EnergyView | null;
@@ -86,10 +97,14 @@ export default function HeroAvatarStage({
 
   const isLocked = viewLevel > unlockedLevel;
   const isPeeking = viewLevel !== unlockedLevel;
+  const isDemotedLock = Boolean(isLocked && highestLevel && viewLevel <= highestLevel);
+  const weighTime = formatWeighTime(weighedAt);
   const unlockReq = useMemo(
     () =>
-      isLocked ? unlockRequirementForLevel(goal, viewLevel, currentKg) : null,
-    [isLocked, goal, viewLevel, currentKg],
+      isLocked
+        ? unlockRequirementForLevel(goal, viewLevel, currentKg, fallbackBaselineKg)
+        : null,
+    [isLocked, goal, viewLevel, currentKg, fallbackBaselineKg],
   );
 
   const stepLevel = (delta: number) => {
@@ -233,6 +248,9 @@ export default function HeroAvatarStage({
                       skrg
                     </span>
                   )}
+                  {weighTime && (
+                    <span className="hero-weigh-time">Timbang pukul {weighTime}</span>
+                  )}
                 </>
               )}
             </div>
@@ -289,7 +307,7 @@ export default function HeroAvatarStage({
             <div className="hero-locked-head">
               <span className="hero-locked-badge">
                 <Icon name="lock" size={14} />
-                <strong>LOCKED</strong>
+                <strong>{isDemotedLock ? "LOCKED · MUNDUR" : "LOCKED"}</strong>
               </span>
               <span className="hero-locked-level">Level {viewLevel}</span>
             </div>
@@ -297,26 +315,27 @@ export default function HeroAvatarStage({
             {unlockReq.kind === "weight" && (
               <>
                 <p className="hero-locked-target">
-                  Capai {dec(unlockReq.requiredKg, 1)} kg buat unlock
+                  {isDemotedLock
+                    ? `Berat naik — capai ${dec(unlockReq.requiredKg, 1)} kg lagi buat balik ke Lv ${viewLevel}`
+                    : `Capai ${dec(unlockReq.requiredKg, 1)} kg buat unlock`}
                 </p>
                 {unlockReq.remainingKg !== null &&
                 !unlockReq.alreadyReached &&
                 unlockReq.remainingKg >= 0.05 ? (
                   <span className="hero-locked-sub">
-                    Tinggal {dec(unlockReq.remainingKg, 1)} kg lagi
-                  </span>
-                ) : unlockReq.remainingKg !== null &&
-                  unlockReq.alreadyReached ? (
-                  <span className="hero-locked-sub">
-                    Pertahankan tren 7 hari di{" "}
-                    {unlockReq.direction === "loss" ? "≤" : "≥"}{" "}
-                    {dec(unlockReq.requiredKg, 1)} kg
+                    {isDemotedLock
+                      ? `${unlockReq.direction === "loss" ? "Turun" : "Naik"} ${dec(unlockReq.remainingKg, 1)} kg lagi untuk buka kembali`
+                      : `Tinggal ${dec(unlockReq.remainingKg, 1)} kg lagi`}
                   </span>
                 ) : unlockReq.estimated ? (
                   <span className="hero-locked-sub">
-                    Estimasi dari berat terakhir · 3× timbang/minggu
+                    Estimasi dari berat awal — sentuh target langsung unlock
                   </span>
-                ) : null}
+                ) : (
+                  <span className="hero-locked-sub">
+                    Sentuh {dec(unlockReq.requiredKg, 1)} kg langsung unlock
+                  </span>
+                )}
               </>
             )}
 
@@ -513,6 +532,11 @@ export default function HeroAvatarStage({
               </Link>
             );
           })()}
+          {!isLocked && demoted && demotedFrom && (
+            <span className="hero-demoted-pill" role="status">
+              ↓ Mundur dari Lv {demotedFrom}
+            </span>
+          )}
           {isPeeking && (
             <button
               type="button"

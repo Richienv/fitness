@@ -25,12 +25,22 @@ export function applySetupToDevice(setup: AccountSetup) {
       foodPreferences: { style: setup.foodStyle, allergies: setup.allergies },
     });
     const companion = readCompanion(setup.person);
+    const serverGoalChanged =
+      Boolean(setup.companionGoalUpdatedAt) &&
+      setup.companionGoalUpdatedAt !== previous?.companionGoalUpdatedAt;
+    const prevServerGoalDiffers =
+      previous !== null &&
+      JSON.stringify(previous.companionGoal) !==
+        JSON.stringify(setup.companionGoal);
+    const goal =
+      serverGoalChanged || prevServerGoalDiffers
+        ? setup.companionGoal
+        : companion.goal?.mode === "recomp" && setup.companionGoal?.mode !== "recomp"
+          ? companion.goal
+          : setup.companionGoal;
     saveCompanion({
       character: setup.person,
-      goal:
-        companion.goal?.mode === "recomp"
-          ? companion.goal
-          : setup.companionGoal,
+      goal,
     });
     if (!sameMeasurement(previous?.measurement, setup.measurement))
       mergeServerMeasurements([setup.measurement]);

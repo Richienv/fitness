@@ -715,6 +715,150 @@ summary:focus-visible,
   color: var(--muted);
 }
 
+.duo-arena-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid rgba(245, 158, 11, 0.22);
+  flex-shrink: 0;
+}
+
+.duo-unread-badge {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #e11d48;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(225, 29, 72, 0.32);
+}
+
+/* ---------- Push Opt-In Card (shared across /settings, /install, Couple Arena) ---------- */
+.push-optin-card {
+  padding: 13px 14px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  color: #1e293b;
+  display: grid;
+  gap: 10px;
+}
+
+.push-optin-card.is-compact {
+  padding: 11px 12px;
+  border-radius: 15px;
+}
+
+.push-optin-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.push-optin-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  min-width: 0;
+}
+
+.push-optin-ico {
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.push-optin-title strong {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 760;
+}
+
+.push-optin-title small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #475569;
+}
+
+.push-optin-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 11px;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.push-optin-note {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #475569;
+}
+
+.push-optin-note a {
+  color: #2563eb;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.push-optin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.push-optin-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 6px 14px;
+  border-radius: 11px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 740;
+  text-decoration: none;
+  cursor: pointer;
+  border: 0;
+}
+
+.push-optin-btn.primary {
+  background: #2563eb;
+  color: #fff;
+}
+
+.push-optin-btn.secondary {
+  background: #e0e7ff;
+  color: #1e40af;
+}
+
+.push-optin-btn.ghost {
+  background: transparent;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  color: #475569;
+}
+
+.push-optin-btn:disabled {
+  opacity: 0.55;
+}
+
+.push-optin-feedback {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 650;
+  color: #1e40af;
+}
+
 .lean-today .lean-record,
 .quiet-actions a,
 .quiet-actions button {

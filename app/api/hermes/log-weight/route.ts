@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getHermesOwnerId } from "@/lib/session";
 import { todayKey } from "@/lib/targets";
 import { getActor, logActivity } from "@/lib/audit";
+import { isMissingRelationError } from "@/lib/social";
 
 export async function POST(req: Request) {
   try {
@@ -30,19 +31,42 @@ export async function POST(req: Request) {
     }
 
     const date = body.date ?? todayKey();
-    const saved = await db.measurement.upsert({
-      where: { userId_date: { userId, date } },
-      create: {
-        userId,
-        date,
-        weightKg: body.kg,
-        notes: body.notes ?? null,
-      },
-      update: {
-        weightKg: body.kg,
-        notes: body.notes ?? null,
-      },
-    });
+    const now = new Date();
+    let saved: { id: string; date: string; weightKg: number | null; weighedAt?: Date | null };
+    try {
+      saved = await db.measurement.upsert({
+        where: { userId_date: { userId, date } },
+        create: {
+          userId,
+          date,
+          weightKg: body.kg,
+          notes: body.notes ?? null,
+          weighedAt: now,
+        },
+        update: {
+          weightKg: body.kg,
+          notes: body.notes ?? null,
+          weighedAt: now,
+        },
+        select: { id: true, date: true, weightKg: true, weighedAt: true },
+      });
+    } catch (err) {
+      if (!isMissingRelationError(err)) throw err;
+      saved = await db.measurement.upsert({
+        where: { userId_date: { userId, date } },
+        create: {
+          userId,
+          date,
+          weightKg: body.kg,
+          notes: body.notes ?? null,
+        },
+        update: {
+          weightKg: body.kg,
+          notes: body.notes ?? null,
+        },
+        select: { id: true, date: true, weightKg: true },
+      });
+    }
 
     const actor = getActor(req);
     await logActivity({

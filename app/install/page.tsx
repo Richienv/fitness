@@ -10,6 +10,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { detectPlatform, type Platform } from "@/lib/install";
+import PushOptInCard from "../ui/PushOptInCard";
 
 const SANS = "var(--font-dm-sans), 'Plus Jakarta Sans', sans-serif";
 const MONO = "var(--font-dm-sans), sans-serif";
@@ -451,6 +452,10 @@ export default function InstallPage() {
       {/* Widget — the free route, and the reason this page mentions a
           second app at all. WidgetKit needs a native build; Scriptable is
           how you get a real home-screen widget without one. */}
+      <div style={{ marginTop: 12 }}>
+        <PushOptInCard />
+      </div>
+
       <div style={{ ...card, marginTop: 12 }}>
         <div
           style={{

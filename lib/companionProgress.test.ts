@@ -4,11 +4,13 @@ import {
   weightSummary,
   companionProgress,
   goalRatio,
+  levelFromWeight,
   unlockRequirementForLevel,
   type CompanionGoal,
 } from "./companionProgress.ts";
-import type { WorkoutSession } from "./workouts.ts";
-const goal: CompanionGoal = {
+import type { WorkoutSession } from "./workouts";
+
+const renitaGoal: CompanionGoal = {
   mode: "weight",
   baselineDate: "2026-11-01",
   baselineWeight: 46,
@@ -20,7 +22,21 @@ const goal: CompanionGoal = {
   baselineLift: null,
   targetLift: null,
 };
-test("calendar window excludes old, future, invalid and duplicate-day readings", () => {
+
+const richieGoal: CompanionGoal = {
+  mode: "weight",
+  baselineDate: "2026-11-01",
+  baselineWeight: 76,
+  targetWeight: 73,
+  baselineWaist: null,
+  targetWaist: null,
+  exercise: "Bench press",
+  reps: 8,
+  baselineLift: null,
+  targetLift: null,
+};
+
+test("weightSummary calendar window excludes old, future, invalid and duplicate-day readings", () => {
   const s = weightSummary(
     [
       { date: "2026-10-01", weightKg: 99 },
@@ -37,33 +53,156 @@ test("calendar window excludes old, future, invalid and duplicate-day readings",
   assert.equal(s.mean, 45);
   assert.equal(s.latest?.weightKg, 44);
 });
-test("sparse records do not become a trend or calibrated level", () => {
-  const rows = [{ date: "2026-11-14", weightKg: 43 }];
-  assert.equal(weightSummary(rows, "2026-11-14").mean, null);
-  assert.equal(companionProgress(goal, rows, [], "2026-11-14").level, null);
+
+test("instant touch-to-unlock unlocks immediately even with 1 weigh-in and crosses multiple levels", () => {
+  const reqLv2 = unlockRequirementForLevel(renitaGoal, 2, 46);
+  assert.equal(reqLv2.kind, "weight");
+  // Touching Lv 2 threshold on a single weigh-in unlocks Lv 2 right away
+  const oneTouch = companionProgress(
+    renitaGoal,
+    [{ date: "2026-11-14", weightKg: reqLv2.requiredKg }],
+    [],
+    "2026-11-14",
+  );
+  assert.equal(oneTouch.level, 2);
+  assert.equal(oneTouch.highestLevel, 2);
+  assert.equal(oneTouch.previousLevel, null);
+  assert.equal(oneTouch.demoted, false);
+  assert.equal(oneTouch.demotedFrom, null);
+
+  // One weigh-in reaching target immediately awards level 12
+  const oneTarget = companionProgress(
+    renitaGoal,
+    [{ date: "2026-11-14", weightKg: 43 }],
+    [],
+    "2026-11-14",
+  );
+  assert.equal(oneTarget.level, 12);
+  assert.equal(oneTarget.fraction, 1);
+
+  // Jumping directly to 45.0 kg (1/3 of 46 -> 43) jumps straight to level 4
+  const multiJump = companionProgress(
+    renitaGoal,
+    [
+      { date: "2026-11-01", weightKg: 46 },
+      { date: "2026-11-05", weightKg: 45.0 },
+    ],
+    [],
+    "2026-11-14",
+  );
+  assert.equal(multiJump.level, 4);
+  assert.equal(multiJump.previousLevel, 1);
+  assert.equal(multiJump.highestLevel, 4);
+  assert.equal(multiJump.demoted, false);
 });
-test("one low weigh-in cannot immediately award the target level", () => {
-  const rows = [5, 6, 7]
-    .map((d) => ({ date: `2026-11-0${d}`, weightKg: 46 }))
-    .concat([10, 11, 14].map((d) => ({ date: `2026-11-${d}`, weightKg: 43 })));
-  assert.equal(companionProgress(goal, rows, [], "2026-11-14").level, 1);
+
+test("weight climb causes immediate level-down (mundur level) and re-unlocks when dropping back", () => {
+  const rowsAfterGain = [
+    { date: "2026-11-01", weightKg: 46.0 },
+    { date: "2026-11-05", weightKg: 45.0 }, // Lv 4
+    { date: "2026-11-07", weightKg: 45.5 }, // goes up -> drops to Lv 2
+  ];
+  const demoted = companionProgress(renitaGoal, rowsAfterGain, [], "2026-11-07");
+  assert.equal(demoted.level, 2);
+  assert.equal(demoted.highestLevel, 4);
+  assert.equal(demoted.previousLevel, 4);
+  assert.equal(demoted.demoted, true);
+  assert.equal(demoted.demotedFrom, 4);
+
+  // Re-unlocks when weight drops back down below Lv 4 threshold
+  const recovered = companionProgress(
+    renitaGoal,
+    [...rowsAfterGain, { date: "2026-11-09", weightKg: 44.8 }],
+    [],
+    "2026-11-09",
+  );
+  assert.equal(recovered.level, 5);
+  assert.equal(recovered.highestLevel, 5);
+  assert.equal(recovered.previousLevel, 2);
+  assert.equal(recovered.demoted, false);
+  assert.equal(recovered.demotedFrom, null);
 });
-test("two complete weekly trends reaching target map to level 12", () => {
-  const rows = [5, 6, 7, 10, 11, 14].map((d) => ({
-    date: `2026-11-${String(d).padStart(2, "0")}`,
-    weightKg: 43,
-  }));
-  assert.equal(companionProgress(goal, rows, [], "2026-11-14").level, 12);
+
+test("highestLevel scopes to baselineDate and falls back when all weigh-ins predate baselineDate", () => {
+  const rows = [
+    { date: "2026-10-25", weightKg: 43.0 }, // pre-baseline outlier (Lv 12)
+    { date: "2026-11-02", weightKg: 45.5 }, // Lv 2
+    { date: "2026-11-04", weightKg: 45.8 }, // Lv 1
+  ];
+  const res = companionProgress(renitaGoal, rows, [], "2026-11-05");
+  assert.equal(res.level, 1);
+  assert.equal(res.highestLevel, 2);
+  assert.equal(res.demoted, true);
+  assert.equal(res.demotedFrom, 2);
+
+  // If no rows exist on/after baselineDate, fallback still computes from <= today
+  const preOnly = companionProgress(
+    { ...renitaGoal, baselineDate: "2026-11-20" },
+    [{ date: "2026-11-10", weightKg: 44.5 }],
+    [],
+    "2026-11-25",
+  );
+  assert.equal(preOnly.level, 6);
+  assert.equal(preOnly.highestLevel, 6);
 });
+
+test("weight-gain goal unlocks on rising weight and demotes on weight drop", () => {
+  const bulkGoal: CompanionGoal = {
+    ...richieGoal,
+    baselineWeight: 55,
+    targetWeight: 66,
+  };
+  const gainProg = companionProgress(
+    bulkGoal,
+    [
+      { date: "2026-11-01", weightKg: 55 },
+      { date: "2026-11-04", weightKg: 59 }, // Lv 5
+      { date: "2026-11-06", weightKg: 57 }, // Lv 3 (mundur)
+    ],
+    [],
+    "2026-11-06",
+  );
+  assert.equal(gainProg.level, 3);
+  assert.equal(gainProg.highestLevel, 5);
+  assert.equal(gainProg.previousLevel, 5);
+  assert.equal(gainProg.demoted, true);
+  assert.equal(gainProg.demotedFrom, 5);
+});
+
+test("levelFromWeight and fallback baseline handle independent Richie vs Renita curves", () => {
+  assert.equal(levelFromWeight(76, richieGoal), 1);
+  assert.equal(levelFromWeight(74.5, richieGoal), 6);
+  assert.equal(levelFromWeight(73, richieGoal), 12);
+
+  // Same 74.5 kg on Renita's 46 -> 43 curve is above baseline (Lv 1), while Renita's 44.5 is Lv 6
+  assert.equal(levelFromWeight(44.5, renitaGoal), 6);
+  assert.equal(levelFromWeight(43, renitaGoal), 12);
+
+  // Null baselineWeight uses fallbackBaselineKg or earliest measurement
+  const noBase: CompanionGoal = { ...renitaGoal, baselineWeight: null };
+  assert.equal(levelFromWeight(44.5, noBase, 46), 6);
+  const fromRows = companionProgress(
+    noBase,
+    [
+      { date: "2026-11-01", weightKg: 46 },
+      { date: "2026-11-03", weightKg: 44.5 },
+    ],
+    [],
+    "2026-11-05",
+  );
+  assert.equal(fromRows.level, 6);
+});
+
 test("invalid targets never produce a score", () => {
   assert.equal(goalRatio(45, 46, 46), null);
   assert.equal(goalRatio(NaN, 46, 43), null);
   assert.equal(goalRatio(47, 46, 43), 0);
   assert.equal(goalRatio(42, 46, 43), 1);
 });
+
 test("recomposition requires both outcomes and comparable sets", () => {
   const g = {
-    ...goal,
+    ...renitaGoal,
     mode: "recomp" as const,
     baselineWaist: 82,
     targetWaist: 76,
@@ -103,7 +242,7 @@ test("recomposition requires both outcomes and comparable sets", () => {
 
 test("unlockRequirementForLevel computes exact weight-loss thresholds for levels 2..12 and round-trips", () => {
   for (let targetLevel = 2; targetLevel <= 12; targetLevel++) {
-    const req = unlockRequirementForLevel(goal, targetLevel, 46);
+    const req = unlockRequirementForLevel(renitaGoal, targetLevel, 46);
     assert.equal(req.kind, "weight");
     assert.equal(req.level, targetLevel);
     assert.equal(req.direction, "loss");
@@ -113,18 +252,15 @@ test("unlockRequirementForLevel computes exact weight-loss thresholds for levels
     assert.ok(Math.abs((req.remainingKg ?? -1) - (46 - expectedKg)) < 1e-9);
     assert.equal(req.alreadyReached, false);
 
-    // Feeding requiredKg back into companionProgress across two 7-day means unlocks targetLevel.
-    const rows = [5, 6, 7, 10, 11, 14].map((d) => ({
-      date: `2026-11-${String(d).padStart(2, "0")}`,
-      weightKg: req.requiredKg,
-    }));
-    assert.equal(companionProgress(goal, rows, [], "2026-11-14").level, targetLevel);
+    // Feeding requiredKg into a single weigh-in unlocks targetLevel immediately.
+    const rows = [{ date: "2026-11-14", weightKg: req.requiredKg }];
+    assert.equal(companionProgress(renitaGoal, rows, [], "2026-11-14").level, targetLevel);
   }
 });
 
 test("unlockRequirementForLevel handles weight gain and remaining distance", () => {
   const bulkGoal: CompanionGoal = {
-    ...goal,
+    ...renitaGoal,
     baselineWeight: 55,
     targetWeight: 66,
   };
@@ -141,32 +277,28 @@ test("unlockRequirementForLevel handles weight gain and remaining distance", () 
   assert.equal(lv12.remainingKg, 6);
 });
 
-test("unlockRequirementForLevel flags alreadyReached when single weight passed threshold awaiting 7-day stability", () => {
-  const req = unlockRequirementForLevel(goal, 2, 44.5);
+test("unlockRequirementForLevel flags alreadyReached when weight touched threshold and supports fallbackBaselineKg", () => {
+  const req = unlockRequirementForLevel(renitaGoal, 2, 44.5);
   assert.equal(req.kind, "weight");
   assert.equal(req.alreadyReached, true);
-  assert.ok(Math.abs((req.remainingKg ?? -1) - Math.abs(44.5 - req.requiredKg)) < 1e-9);
-});
 
-test("unlockRequirementForLevel falls back to currentKg when baselineWeight is uncalibrated", () => {
   const uncalibrated: CompanionGoal = {
-    ...goal,
+    ...renitaGoal,
     baselineWeight: null,
     targetWeight: 43,
   };
-  const req = unlockRequirementForLevel(uncalibrated, 12, 45.2);
-  assert.equal(req.kind, "weight");
-  assert.equal(req.estimated, true);
-  assert.equal(req.requiredKg, 43);
-  assert.ok(Math.abs((req.remainingKg ?? -1) - 2.2) < 1e-9);
+  const withFallback = unlockRequirementForLevel(uncalibrated, 6, 45.0, 46);
+  assert.equal(withFallback.kind, "weight");
+  assert.equal(withFallback.estimated, false);
+  assert.ok(Math.abs(withFallback.requiredKg - (46 + (5 / 11) * -3)) < 1e-9);
 
-  const lv2 = unlockRequirementForLevel(uncalibrated, 2, 45.2);
-  assert.equal(lv2.kind, "weight");
-  assert.equal(lv2.estimated, true);
-  assert.ok(Math.abs(lv2.requiredKg - 45) < 1e-9);
+  const est = unlockRequirementForLevel(uncalibrated, 12, 45.2);
+  assert.equal(est.kind, "weight");
+  assert.equal(est.estimated, true);
+  assert.equal(est.requiredKg, 43);
 });
 
-test("unlockRequirementForLevel supports pure recomp without weight target and unconfigured/clamped edge cases", () => {
+test("unlockRequirementForLevel supports pure recomp and unconfigured/clamped edge cases", () => {
   const pureRecomp: CompanionGoal = {
     mode: "recomp",
     baselineDate: "2026-11-01",
@@ -188,9 +320,9 @@ test("unlockRequirementForLevel supports pure recomp without weight target and u
 
   assert.equal(unlockRequirementForLevel(null, 3).kind, "unconfigured");
   assert.equal(
-    unlockRequirementForLevel({ ...goal, targetWeight: 46 }, 4, 46).kind,
+    unlockRequirementForLevel({ ...renitaGoal, targetWeight: 46 }, 4, 46).kind,
     "unconfigured",
   );
-  assert.equal(unlockRequirementForLevel(goal, 99, 46).level, 12);
-  assert.equal(unlockRequirementForLevel(goal, 0, 46).level, 1);
+  assert.equal(unlockRequirementForLevel(renitaGoal, 99, 46).level, 12);
+  assert.equal(unlockRequirementForLevel(renitaGoal, 0, 46).level, 1);
 });

@@ -7,6 +7,13 @@ import {
   sameMeasurement,
 } from "./setup.ts";
 import { loginPerson, loginBucket, LOGIN_WINDOW_MS } from "./privateLogin.ts";
+import {
+  resolvePersonCharacter,
+  resolvePersonCompanionGoal,
+  resolvePersonNutritionTargets,
+  resolvePersonTargetWeightKg,
+} from "./personTargets.ts";
+import { levelFromWeight } from "./companionProgress.ts";
 const today = "2026-11-15";
 const valid = (person: "richie" | "renita" = "richie") => ({
   ...newSetupDraft(person, today),
@@ -155,5 +162,36 @@ test("settings-only edits cannot rewrite newer scale records through key-order c
       { date: today, weightKg: 75 },
     ),
     false,
+  );
+});
+
+test("Richie and Renita resolve distinct nutrition targets, weight targets, and avatar curves", () => {
+  const richieUser = { loginAlias: "richie", sex: "male", name: "Richie" };
+  const renitaUser = { loginAlias: "renita", sex: "female", name: "Renita" };
+
+  assert.equal(resolvePersonCharacter(richieUser), "richie");
+  assert.equal(resolvePersonCharacter(renitaUser), "renita");
+
+  assert.deepEqual(resolvePersonNutritionTargets(richieUser), { kcal: 2200, protein: 150 });
+  assert.deepEqual(resolvePersonNutritionTargets(renitaUser), { kcal: 1450, protein: 100 });
+
+  assert.equal(resolvePersonTargetWeightKg(richieUser), 73);
+  assert.equal(resolvePersonTargetWeightKg(renitaUser), 43);
+
+  const richieSetup = buildSetup({ ...valid("richie"), weight: "76", target: "73" }, "richie", today);
+  const renitaSetup = buildSetup({ ...valid("renita"), weight: "46", target: "43" }, "renita", today);
+
+  const richieGoal = resolvePersonCompanionGoal({ ...richieUser, setup: richieSetup });
+  const renitaGoal = resolvePersonCompanionGoal({ ...renitaUser, setup: renitaSetup });
+
+  assert.equal(richieGoal.targetWeight, 73);
+  assert.equal(renitaGoal.targetWeight, 43);
+  assert.equal(levelFromWeight(74.5, richieGoal), 6);
+  assert.equal(levelFromWeight(44.5, renitaGoal), 6);
+
+  // UserTarget row overrides fallback defaults
+  assert.deepEqual(
+    resolvePersonNutritionTargets(renitaUser, { kcal: 1520, protein: 112 }),
+    { kcal: 1520, protein: 112 },
   );
 });

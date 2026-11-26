@@ -8,6 +8,7 @@ export type Measurement = {
   waistCm?: number;
   hipCm?: number;
   shoulderCm?: number;
+  weighedAt?: string;
 };
 
 const KEY = "richie.measurements.v1";
@@ -49,10 +50,17 @@ function postMeasurementRemote(m: Measurement): void {
 export function saveMeasurement(m: Measurement): void {
   const list = read();
   const idx = list.findIndex((x) => x.date === m.date);
-  if (idx >= 0) list[idx] = { ...list[idx], ...m };
-  else list.push(m);
+  const existing = idx >= 0 ? list[idx] : undefined;
+  const stamped: Measurement = { ...m };
+  if (typeof stamped.weightKg === "number") {
+    stamped.weighedAt = stamped.weighedAt ?? new Date().toISOString();
+  } else if (existing?.weighedAt && !stamped.weighedAt) {
+    stamped.weighedAt = existing.weighedAt;
+  }
+  if (idx >= 0) list[idx] = { ...list[idx], ...stamped };
+  else list.push(stamped);
   write(list);
-  postMeasurementRemote(m);
+  postMeasurementRemote(stamped);
 }
 
 export function shoulderWaistRatio(m: Measurement): number | null {
@@ -90,6 +98,7 @@ type ServerMeasurementRow = {
   waistCm?: number | null;
   hipCm?: number | null;
   shoulderCm?: number | null;
+  weighedAt?: string | null;
 };
 
 /** Merge server measurements by date — server wins for fields it has. */
@@ -99,12 +108,17 @@ export function mergeServerMeasurements(rows: ServerMeasurementRow[]): number {
   let changed = 0;
   for (const row of rows) {
     const idx = list.findIndex((m) => m.date === row.date);
+    const validWeighedAt =
+      typeof row.weighedAt === "string" && Number.isFinite(Date.parse(row.weighedAt))
+        ? row.weighedAt
+        : undefined;
     const patch: Measurement = {
       date: row.date,
       ...(row.weightKg != null ? { weightKg: row.weightKg } : {}),
       ...(row.waistCm != null ? { waistCm: row.waistCm } : {}),
       ...(row.hipCm != null ? { hipCm: row.hipCm } : {}),
       ...(row.shoulderCm != null ? { shoulderCm: row.shoulderCm } : {}),
+      ...(validWeighedAt ? { weighedAt: validWeighedAt } : {}),
     };
     if (idx >= 0) {
       const merged = { ...list[idx], ...patch };

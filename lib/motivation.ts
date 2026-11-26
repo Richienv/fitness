@@ -267,6 +267,7 @@ export function celebrationDiff(
 export function hasChanges(c: Celebration): boolean {
   return (
     !!c.weigh?.changed ||
+    !!c.weigh?.levelChange ||
     c.added.kcal !== 0 ||
     c.added.protein !== 0 ||
     c.proteinReached ||

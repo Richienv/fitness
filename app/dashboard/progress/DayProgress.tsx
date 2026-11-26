@@ -25,6 +25,7 @@ import {
   type ProgressChartBucket,
   type ProgressMetricKey,
 } from "@/lib/progressAnalytics";
+import { formatWeighTime } from "@/lib/weighIn";
 import "./day-progress.css";
 
 const kg = (n: number, d = 1) =>
@@ -1315,6 +1316,7 @@ function SelectedDayCard({
     },
   ];
 
+  const weighTime = formatWeighTime(row.weighedAt);
   return (
     <section className="dp-card dp-day-card" aria-live="polite" aria-label="Rincian hari terpilih">
       <div className="dp-day-head">
@@ -1323,7 +1325,9 @@ function SelectedDayCard({
           {weeklyNotice && <span className="dp-day-sub">{weeklyNotice}</span>}
         </div>
         <span className="dp-weight-pill">
-          {row.weightKg !== null ? `${kg(row.weightKg)} kg` : "Belum timbang"}
+          {row.weightKg !== null
+            ? `${kg(row.weightKg)} kg${weighTime ? ` · ${weighTime}` : ""}`
+            : "Belum timbang"}
         </span>
       </div>
 
@@ -1727,7 +1731,9 @@ export default function DayProgress() {
                     <div className="dp-day-top">
                       <strong>{dayListLabel(r.date, data.today)}</strong>
                       <span>
-                        {r.weightKg !== null ? `${kg(r.weightKg)} kg` : "—"}
+                        {r.weightKg !== null
+                          ? `${kg(r.weightKg)} kg${formatWeighTime(r.weighedAt) ? ` · ${formatWeighTime(r.weighedAt)}` : ""}`
+                          : "—"}
                       </span>
                     </div>
                     <div className="dp-stats">

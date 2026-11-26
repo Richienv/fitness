@@ -44,6 +44,7 @@ export type AccountSetup = {
   targetsCustom: boolean;
   targets: { gymDay: MacroTarget; restDay: MacroTarget };
   companionGoal: CompanionGoal;
+  companionGoalUpdatedAt?: string;
 };
 export type SetupState = {
   person: Character;

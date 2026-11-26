@@ -15,6 +15,7 @@ import {
   isMissingRelationError,
   publicUser,
 } from "@/lib/social";
+import { formatCheerNotification, normalizeCheerKind } from "@/lib/cheerFormat";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,8 @@ export async function GET() {
             partners: [],
             activeVisitors: [],
             recentNudges: [],
+            unreadCheers: [],
+            unreadCount: 0,
           },
         },
         { headers: noStore }
@@ -120,6 +123,55 @@ export async function GET() {
         activeNow: r.lastSeenAt >= activeSince,
       }));
 
+    let cheerRows: {
+      id: string;
+      senderId: string;
+      kind: string;
+      message: string;
+      createdAt: Date;
+      sender: { id: string; name: string | null; username: string | null; email: string };
+    }[] = [];
+
+    try {
+      cheerRows = await db.partnerCheer.findMany({
+        where: {
+          targetId: viewerId,
+          senderId: { in: friends },
+          readAt: null,
+        },
+        include: {
+          sender: {
+            select: { id: true, name: true, username: true, email: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      });
+    } catch (err) {
+      if (isMissingRelationError(err)) {
+        degraded = true;
+      } else {
+        throw err;
+      }
+    }
+
+    const unreadCheers = cheerRows.map((c) => {
+      const senderName = displayName(c.sender);
+      return {
+        id: c.id,
+        senderId: c.senderId,
+        senderName,
+        kind: normalizeCheerKind(c.kind),
+        message: c.message,
+        createdAt: c.createdAt.toISOString(),
+        formatted: formatCheerNotification({
+          senderName,
+          kind: c.kind,
+          message: c.message,
+        }),
+      };
+    });
+
     return NextResponse.json(
       {
         ok: true,
@@ -127,6 +179,8 @@ export async function GET() {
           partners,
           activeVisitors,
           recentNudges,
+          unreadCheers,
+          unreadCount: unreadCheers.length,
           ...(degraded ? { degraded: true } : {}),
         },
       },

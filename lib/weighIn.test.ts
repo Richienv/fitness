@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   formatKg,
+  formatWeighTime,
   jumpFromPrevious,
   parseWeightInput,
   relativeDay,
@@ -11,6 +12,7 @@ import {
   weighChange,
   weighContext,
 } from "./weighIn.ts";
+import type { CompanionGoal } from "./companionProgress.ts";
 import { hasChanges, snapshot, type MotivationInput } from "./motivation.ts";
 import type { Measurement } from "./measurements";
 
@@ -112,6 +114,7 @@ test("weigh change: first weigh-in today, no trend before 3 weigh-ins", () => {
     changed: true,
     trend: null,
     trendCount: 2,
+    levelChange: null,
   });
 });
 
@@ -192,4 +195,43 @@ test("weigh celebration: a repeat save with the same weight shows no sheet", () 
   const c = weighCelebration(snap(rows), snap(rows), rows, rows, TODAY);
   assert.equal(c.streaks.length, 0);
   assert.equal(hasChanges(c), false);
+});
+
+test("weighChange and weighCelebration track avatar levelChange up and down (mundur)", () => {
+  const goal: CompanionGoal = {
+    mode: "weight",
+    baselineDate: day(-10),
+    baselineWeight: 46,
+    targetWeight: 43,
+    baselineWaist: null,
+    targetWaist: null,
+    exercise: "",
+    reps: 8,
+    baselineLift: null,
+    targetLift: null,
+  };
+  const baseRows: Measurement[] = [{ date: day(-2), weightKg: 46.0 }];
+  const upRows: Measurement[] = [...baseRows, { date: TODAY, weightKg: 45.0 }];
+  const up = weighCelebration(snap(baseRows), snap(upRows), baseRows, upRows, TODAY, goal);
+  assert.deepEqual(up.weigh?.levelChange, { from: 1, to: 4, direction: "up" });
+  assert.equal(hasChanges(up), true);
+
+  // Next day weight jumps back up -> level moves down from 4 to 2
+  const beforeDown: Measurement[] = [
+    { date: day(-3), weightKg: 46.0 },
+    { date: day(-1), weightKg: 45.0 },
+  ];
+  const afterDown: Measurement[] = [...beforeDown, { date: TODAY, weightKg: 45.5 }];
+  const down = weighChange(beforeDown, afterDown, TODAY, goal);
+  assert.deepEqual(down.levelChange, { from: 4, to: 2, direction: "down" });
+});
+
+test("formatWeighTime formats ISO timestamps in Asia/Shanghai HH:mm and ignores invalid input", () => {
+  assert.equal(formatWeighTime("2026-11-26T00:46:00.000Z"), "08:46");
+  assert.equal(formatWeighTime("2026-11-26T16:05:00.000Z"), "00:05");
+  assert.equal(formatWeighTime("2026-11-26T08:30:00+08:00"), "08:30");
+  assert.equal(formatWeighTime(null), null);
+  assert.equal(formatWeighTime(undefined), null);
+  assert.equal(formatWeighTime(""), null);
+  assert.equal(formatWeighTime("not-a-date"), null);
 });

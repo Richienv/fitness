@@ -27,10 +27,13 @@ import {
   RICHIE_LEVELS,
   TIER_META,
 } from "@/lib/avatarLevels";
+import { formatWeighTime } from "@/lib/weighIn";
+import { useAccountSetup } from "../SetupProvider";
 import Icon from "../ui/Icon";
 
 export default function CompanionPage() {
   const { data: session } = useSession();
+  const account = useAccountSetup();
   const [settings, setSettings] = useState<CompanionSettings>({
     character: "richie",
     goal: null,
@@ -70,7 +73,14 @@ export default function CompanionPage() {
     : { latest: null, mean: null, count: 0 };
   const progress = date
     ? companionProgress(settings.goal, rows, workouts, date)
-    : { level: null, fraction: null };
+    : {
+        level: null,
+        fraction: null,
+        highestLevel: null,
+        previousLevel: null,
+        demoted: false,
+        demotedFrom: null,
+      };
   const unlockedLevel = progress.level ?? 1;
   useEffect(() => {
     setSelectedLevel(unlockedLevel);
@@ -102,8 +112,8 @@ export default function CompanionPage() {
       null;
     const goal: CompanionGoal = {
       mode,
-      baselineDate: old?.baselineDate ?? date,
-      baselineWeight: old?.baselineWeight ?? summary.mean,
+      baselineDate: old?.baselineDate ?? summary.latest?.date ?? date,
+      baselineWeight: old?.baselineWeight ?? summary.latest?.weightKg ?? summary.mean,
       targetWeight: num(weightTarget),
       baselineWaist: old?.baselineWaist ?? waist,
       targetWaist: num(waistTarget),
@@ -122,7 +132,7 @@ export default function CompanionPage() {
         goal.targetWeight === goal.baselineWeight)
     ) {
       setMessage(
-        "Perlu 3 penimbangan dalam 7 hari dan target yang berbeda dari baseline.",
+        "Catat minimal 1 timbangan dulu dan isi target yang berbeda dari baseline.",
       );
       return;
     }
@@ -144,7 +154,24 @@ export default function CompanionPage() {
     }
     try {
       saveCompanion({ ...settings, goal });
-      setMessage("Target tersimpan. Level mengikuti perubahan yang bertahan.");
+      setMessage(
+        mode === "weight"
+          ? "Target tersimpan. Level langsung terbuka saat timbangan menyentuh ambang level."
+          : "Target tersimpan. Level mengikuti perubahan rekomposisi yang bertahan.",
+      );
+      fetch("/api/setup", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companionGoal: goal }),
+      })
+        .then(async (res) => {
+          if (!res.ok) return;
+          const json = await res.json().catch(() => null);
+          if (json?.setup && account) {
+            account.accept(json.setup);
+          }
+        })
+        .catch(() => {});
     } catch {
       setMessage(
         "Penyimpanan perangkat tidak tersedia. Target belum disimpan.",
@@ -178,7 +205,7 @@ export default function CompanionPage() {
           <span>Progres akun {session?.user?.name?.split(" ")[0] ?? ""}</span>
           <strong>
             {progress.level
-              ? `Level ${progress.level} / 12`
+              ? `Level ${progress.level} / 12${progress.demoted && progress.demotedFrom ? ` (↓ dari Lv ${progress.demotedFrom})` : ""}`
               : "Belum terkalibrasi"}
           </strong>
         </div>
@@ -320,7 +347,11 @@ export default function CompanionPage() {
             {summary.latest?.weightKg?.toFixed(1) ?? "—"}
             <small> kg</small>
           </strong>
-          <small>{summary.latest?.date ?? "Belum tercatat"}</small>
+          <small>
+            {summary.latest?.date
+              ? `${summary.latest.date}${formatWeighTime(summary.latest.weighedAt) ? ` · ${formatWeighTime(summary.latest.weighedAt)}` : ""}`
+              : "Belum tercatat"}
+          </small>
         </Link>
         <div>
           <span>Tren 7 hari</span>
@@ -356,8 +387,7 @@ export default function CompanionPage() {
       <details id="goals" className="goal-details">
         <summary>Target avatar</summary>
         <p className="lean-note">
-          Target disimpan untuk akun ini di perangkat ini. Baseline diambil dari
-          catatan nyata; mengganti karakter tidak mengganti akun.
+          Target tersimpan terpisah per akun ({session?.user?.name?.split(" ")[0] ?? "akun ini"}) — Richie &amp; Renita punya target masing-masing yang disinkronkan ke server untuk Arena Berdua.
         </p>
         <form onSubmit={saveGoal} className="goal-form">
           <label>
@@ -438,10 +468,11 @@ export default function CompanionPage() {
           <button className="primary-button">Simpan target</button>
         </form>
         <p className="lean-note">
-          Berat memakai dua rata-rata mingguan, minimal 3 pengukuran tiap
-          minggu. Rekomposisi memakai dua catatan pinggang dan dua sesi dengan
-          latihan serta repetisi yang sama dalam 28 hari. Level 12 berarti
-          target pilihanmu tercapai; bukan skor kesehatan.
+          Untuk target berat, level langsung terbuka begitu timbangan menyentuh
+          ambang level — dan bisa mundur kembali jika berat badan naik lagi.
+          Rekomposisi memakai dua catatan pinggang dan dua sesi dengan latihan
+          serta repetisi yang sama dalam 28 hari. Level 12 berarti target
+          pilihanmu tercapai; bukan skor kesehatan.
         </p>
         {settings.goal && (
           <p className="lean-note">

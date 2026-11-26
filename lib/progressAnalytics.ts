@@ -11,6 +11,7 @@ import {
 export type DailyProgressInput = {
   date: string;
   weightKg?: number | null;
+  weighedAt?: string | null;
   kcalIn: number;
   proteinG: number;
   carbsG: number;
@@ -28,6 +29,7 @@ export type DailyProgressInput = {
 export type DailyProgressRow = {
   date: string;
   weightKg: number | null;
+  weighedAt?: string | null;
   kcalIn: number;
   proteinG: number;
   carbsG: number;
@@ -203,6 +205,7 @@ export function buildDailyProgressRows(
         typeof d.weightKg === "number" && d.weightKg > 20 && d.weightKg < 400
           ? r1(d.weightKg)
           : null,
+      ...(d.weighedAt ? { weighedAt: d.weighedAt } : {}),
       kcalIn,
       proteinG: Math.round(nonNeg(d.proteinG)),
       carbsG: Math.round(nonNeg(d.carbsG)),

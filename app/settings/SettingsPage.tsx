@@ -35,6 +35,7 @@ import {
   type MicroKey as MicroTargetKey,
   type MicroTargets,
 } from "@/lib/nutritionTargets";
+import PushOptInCard from "../ui/PushOptInCard";
 
 type MacroKey = keyof MacroTarget;
 
@@ -317,6 +318,9 @@ export default function SettingsPage() {
               BUKA →
             </span>
           </Link>
+          <div style={{ marginTop: 12 }}>
+            <PushOptInCard />
+          </div>
         </section>
 
         <section className="settings-section">

@@ -18,6 +18,7 @@ import { friendIds, displayName } from "@/lib/social";
 import { healthScore } from "@/lib/healthScore";
 import { todayKey } from "@/lib/targets";
 import { BADGE_BY_KEY } from "@/lib/badges";
+import { resolvePersonNutritionTargets } from "@/lib/personTargets";
 
 export const dynamic = "force-dynamic";
 
@@ -100,7 +101,15 @@ export async function GET(req: Request) {
     const [users, meals, workouts, cardio, targets, badgeRows] = await Promise.all([
       db.user.findMany({
         where: { id: { in: userIds } },
-        select: { id: true, name: true, username: true, email: true },
+        select: {
+          id: true,
+          name: true,
+          username: true,
+          email: true,
+          loginAlias: true,
+          sex: true,
+          setup: true,
+        },
       }),
       db.mealEntry.findMany({
         where: { userId: { in: userIds }, date },
@@ -167,12 +176,12 @@ export async function GET(req: Request) {
 
     const rows = users.map((u) => {
       const a = agg.get(u.id)!;
-      const t = targetById.get(u.id);
+      const resolved = resolvePersonNutritionTargets(u, targetById.get(u.id), date);
       const score = healthScore({
         kcal: a.kcal,
-        kcalTarget: t?.kcal ?? 2200,
+        kcalTarget: resolved.kcal,
         protein: a.protein,
-        proteinTarget: t?.protein ?? 150,
+        proteinTarget: resolved.protein,
         sugar: a.sugar,
         fat: a.fat,
         sessions: a.sessions,

@@ -5,6 +5,7 @@ import {
   MAX_KG,
   MIN_KG,
   formatKg,
+  formatWeighTime,
   jumpFromPrevious,
   parseWeightInput,
   relativeDay,
@@ -12,6 +13,7 @@ import {
   stepWeight,
   type WeighIn,
 } from "@/lib/weighIn";
+import type { Character } from "@/lib/companionProgress";
 import FriendlySheet from "../meal/FriendlySheet";
 import Icon from "../ui/Icon";
 
@@ -23,6 +25,8 @@ import Icon from "../ui/Icon";
 export default function WeighInSheet({
   today,
   todayKg,
+  todayWeighedAt,
+  character,
   previous,
   onSave,
   onClose,
@@ -30,6 +34,9 @@ export default function WeighInSheet({
   today: string;
   /** Today's stored weight, when today is already logged. */
   todayKg: number | null;
+  /** Today's stored weigh-in timestamp, when already logged. */
+  todayWeighedAt?: string | null;
+  character?: Character;
   /** The last weigh-in before today. */
   previous: WeighIn | null;
   onSave: (kg: number) => void;
@@ -38,10 +45,19 @@ export default function WeighInSheet({
   const start = todayKg ?? previous?.kg ?? null;
   const [text, setText] = useState(start !== null ? formatKg(start) : "");
   const [tried, setTried] = useState(false);
+  const [nowIso, setNowIso] = useState(() => new Date().toISOString());
   const input = useRef<HTMLInputElement>(null);
   const kg = parseWeightInput(text);
   const invalid = tried && kg === null;
   const jump = kg !== null ? jumpFromPrevious(kg, previous) : null;
+  const sampleKg = character === "renita" ? "45,0" : "72,4";
+
+  useEffect(() => {
+    const t = window.setInterval(() => {
+      setNowIso(new Date().toISOString());
+    }, 15_000);
+    return () => window.clearInterval(t);
+  }, []);
 
   // The sheet focuses itself first (FriendlySheet); then the field takes
   // focus with its value selected, so typing replaces the prefilled weight.
@@ -61,8 +77,13 @@ export default function WeighInSheet({
   };
   const step = (delta: number) => {
     setText((t) => stepWeight(t || (start !== null ? formatKg(start) : ""), delta));
+    setNowIso(new Date().toISOString());
     setTried(false);
   };
+
+  const liveTime = formatWeighTime(nowIso);
+  const savedTime = formatWeighTime(todayWeighedAt);
+  const unchangedToday = todayKg !== null && kg === todayKg && savedTime;
 
   return (
     <FriendlySheet
@@ -101,12 +122,13 @@ export default function WeighInSheet({
               inputMode="decimal"
               enterKeyHint="done"
               autoComplete="off"
-              placeholder="72,4"
+              placeholder={sampleKg}
               value={text}
               aria-invalid={invalid}
               aria-describedby="wi-help"
               onChange={(e) => {
                 setText(sanitizeWeightInput(e.target.value));
+                setNowIso(new Date().toISOString());
                 setTried(false);
               }}
             />
@@ -122,13 +144,18 @@ export default function WeighInSheet({
             <Icon name="plus" size={22} />
           </button>
         </div>
+        <div className="wi-time-pill" aria-live="polite">
+          {unchangedToday
+            ? `🕒 Tercatat hari ini pukul ${savedTime}`
+            : `🕒 Jam timbang tercatat otomatis: ${liveTime ?? "--:--"}`}
+        </div>
         <p
           id="wi-help"
           className={`wi-help${invalid ? " invalid" : ""}`}
           aria-live="polite"
         >
           {invalid
-            ? `Isi berat antara ${MIN_KG} dan ${MAX_KG} kg, misalnya 72,4.`
+            ? `Isi berat antara ${MIN_KG} dan ${MAX_KG} kg, misalnya ${sampleKg}.`
             : todayKg !== null
               ? `Sudah tercatat hari ini: ${formatKg(todayKg)} kg. Simpan untuk menggantinya.`
               : previous

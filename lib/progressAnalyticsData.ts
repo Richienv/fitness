@@ -116,9 +116,11 @@ export function readProgressInsights(userName?: string | null): ProgressInsights
   }
 
   const weightByDate = new Map<string, number>();
+  const weighedAtByDate = new Map<string, string>();
   for (const r of measurements) {
     if (r.date && typeof r.weightKg === "number" && r.weightKg > 20) {
       weightByDate.set(r.date, r.weightKg);
+      if (r.weighedAt) weighedAtByDate.set(r.date, r.weighedAt);
     }
   }
 
@@ -129,6 +131,7 @@ export function readProgressInsights(userName?: string | null): ProgressInsights
     inputs.push({
       date,
       weightKg: weightByDate.get(date) ?? null,
+      weighedAt: weighedAtByDate.get(date) ?? null,
       kcalIn: meal?.kcal ?? 0,
       proteinG: meal?.protein ?? 0,
       carbsG: meal?.carbs ?? 0,

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { useAccountSetup } from "../SetupProvider";
 import { PERSON } from "@/lib/setup";
+import PushOptInCard from "../ui/PushOptInCard";
 export default function SettingsPage() {
   const account = useAccountSetup();
   if (!account?.setup) return null;
@@ -68,6 +69,7 @@ export default function SettingsPage() {
         ))}
       </div>
       <div className="settings-extras">
+        <PushOptInCard />
         <Link href="/dashboard/progress">Catat penimbangan baru →</Link>
         <Link href="/settings/advanced">Pustaka & pengaturan lanjutan →</Link>
         <Link href="/companion">Atur target &amp; progres →</Link>

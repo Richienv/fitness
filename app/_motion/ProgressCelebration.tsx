@@ -254,6 +254,38 @@ export default function ProgressCelebration({
               </strong>
             </li>
           )}
+          {w?.levelChange && (
+            <li
+              className={`cel-row stagger-item ${
+                w.levelChange.direction === "up" ? "level-up" : "level-down"
+              }`}
+              style={{ ["--i" as string]: row++ } as CSSProperties}
+            >
+              <span
+                className={`cel-icon ${
+                  w.levelChange.direction === "up" ? "protein" : "weigh"
+                }`}
+              >
+                <Icon
+                  name={w.levelChange.direction === "up" ? "medal" : "trend"}
+                  size={18}
+                />
+              </span>
+              <span className="cel-label">
+                {w.levelChange.direction === "up"
+                  ? `🎉 Level ${w.levelChange.to} terbuka!`
+                  : `⬇️ Mundur ke Level ${w.levelChange.to}`}
+                <small>
+                  {w.levelChange.direction === "up"
+                    ? `Naik dari Lv ${w.levelChange.from}`
+                    : `Berat naik dari Lv ${w.levelChange.from} — capai target lagi untuk buka kembali`}
+                </small>
+              </span>
+              <strong className="cel-value">
+                Lv {w.levelChange.to}
+              </strong>
+            </li>
+          )}
           {w?.trend && (
             <li
               className="cel-row stagger-item"
