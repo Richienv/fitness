@@ -19,6 +19,8 @@ import {
   type UserSettings,
 } from "@/lib/settings";
 import { computeDayTargets } from "@/lib/energy";
+import { computeMetabolicSnapshot } from "@/lib/metabolicEngine";
+import MetabolicCalibrationSheet from "../companion/MetabolicCalibrationSheet";
 import { clearMealsForDate, getAllMeals, getCustomFoods, deleteCustomFood } from "@/lib/store";
 import {
   deleteCustomTemplate,
@@ -115,6 +117,7 @@ export default function SettingsPage() {
   const [notifyPartner, setNotifyPartner] = useState(
     account?.setup?.notifyPartner !== false,
   );
+  const [calibrateOpen, setCalibrateOpen] = useState(false);
 
   useEffect(() => {
     refresh();
@@ -301,22 +304,36 @@ export default function SettingsPage() {
   const gymTotal = macroTotal(settings.targets.gymDay);
   const restTotal = macroTotal(settings.targets.restDay);
 
-  // Live preview of the derived gym-day target once the profile is complete.
+  // Live preview of the derived target from precision metabolic model once profile is complete.
   let profilePreview: { kcal: number; protein: number; warnings: string[] } | null = null;
   try {
     if (profileComplete(profile) && profile.sex && profile.weightKg) {
-      const derived = computeDayTargets({
+      const snap = computeMetabolicSnapshot({
+        sex: profile.sex,
+        goal: profile.goal,
+        kg: profile.weightKg,
+        cm: profile.heightCm!,
+        age: profile.age!,
+        metabolic: profile.metabolic,
+        fallbackActivity: profile.activity,
+        menstrualTrackingEnabled: profile.menstrualTrackingEnabled,
+        cycleStartDate: profile.cycleStartDate ?? null,
+        activeBurnDay: 0,
+        hasWatchActive: false,
+        eatenToday: { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 },
+      });
+      const legacyWarn = computeDayTargets({
         sex: profile.sex,
         goal: profile.goal,
         weightKg: profile.weightKg,
         heightCm: profile.heightCm!,
         age: profile.age!,
         activity: profile.activity,
-      });
+      }).warnings;
       profilePreview = {
-        kcal: derived.gymDay.kcal,
-        protein: derived.gymDay.protein,
-        warnings: derived.warnings,
+        kcal: snap.restTargetKcal,
+        protein: snap.proteinTargetG,
+        warnings: [...snap.alerts, ...legacyWarn].slice(0, 2),
       };
     }
   } catch {
@@ -374,6 +391,15 @@ export default function SettingsPage() {
           </Link>
           <div style={{ marginTop: 12 }}>
             <PushOptInCard />
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <button
+              type="button"
+              className="settings-chip mono"
+              onClick={() => setCalibrateOpen(true)}
+            >
+              🎯 KALIBRASI AKURASI KALORI &amp; SIKLUS →
+            </button>
           </div>
         </section>
 
@@ -602,6 +628,13 @@ export default function SettingsPage() {
 
         <div className="today-bottom-spacer" />
       </div>
+      <MetabolicCalibrationSheet
+        open={calibrateOpen}
+        onClose={() => {
+          setCalibrateOpen(false);
+          refresh();
+        }}
+      />
     </main>
   );
 }

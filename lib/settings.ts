@@ -1,6 +1,17 @@
 "use client";
 
 import { scopedKey } from "./userScope";
+import type { MetabolicProfile } from "./metabolicEngine";
+
+export type {
+  SittingBand,
+  DailyPosture,
+  TypicalStepsBand,
+  DeficitPace,
+  BodyBuildEstimate,
+  TodayCondition,
+  MetabolicProfile,
+} from "./metabolicEngine";
 
 export type MacroTarget = { kcal: number; protein: number; carbs: number; fat: number };
 
@@ -21,6 +32,7 @@ export type Profile = {
   activity: number; // TDEE activity multiplier
   menstrualTrackingEnabled: boolean;
   cycleStartDate: string | null; // YYYY-MM-DD
+  metabolic?: MetabolicProfile;
 };
 
 export type UserSettings = {
@@ -46,6 +58,7 @@ export const DEFAULT_PROFILE: Profile = {
   activity: 1.5,
   menstrualTrackingEnabled: false,
   cycleStartDate: null,
+  metabolic: {},
 };
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -98,7 +111,11 @@ function read(): UserSettings {
         restDay: { ...DEFAULT_SETTINGS.targets.restDay, ...(parsed.targets?.restDay ?? {}) },
       },
       startDate: parsed.startDate || DEFAULT_SETTINGS.startDate,
-      profile: { ...DEFAULT_PROFILE, ...(parsed.profile ?? {}) },
+      profile: {
+        ...DEFAULT_PROFILE,
+        ...(parsed.profile ?? {}),
+        metabolic: { ...(parsed.profile?.metabolic ?? {}) },
+      },
       targetsCustom: parsed.targetsCustom ?? false,
       routine: parsed.routine,
       foodPreferences: parsed.foodPreferences,
@@ -123,7 +140,16 @@ export function patchSettings(patch: Partial<UserSettings>): UserSettings {
   const next: UserSettings = {
     targets: patch.targets ?? cur.targets,
     startDate: patch.startDate ?? cur.startDate,
-    profile: patch.profile ? { ...cur.profile, ...patch.profile } : cur.profile,
+    profile: patch.profile
+      ? {
+          ...cur.profile,
+          ...patch.profile,
+          metabolic:
+            patch.profile.metabolic !== undefined
+              ? { ...(cur.profile.metabolic ?? {}), ...patch.profile.metabolic }
+              : cur.profile.metabolic,
+        }
+      : cur.profile,
     targetsCustom: patch.targetsCustom ?? cur.targetsCustom,
     routine: patch.routine ?? cur.routine,
     foodPreferences: patch.foodPreferences ?? cur.foodPreferences,
@@ -135,7 +161,15 @@ export function patchSettings(patch: Partial<UserSettings>): UserSettings {
 
 /** Convenience: read the profile, patch a subset, persist. */
 export function patchProfile(patch: Partial<Profile>): Profile {
-  const next = { ...read().profile, ...patch };
+  const cur = read().profile;
+  const next: Profile = {
+    ...cur,
+    ...patch,
+    metabolic:
+      patch.metabolic !== undefined
+        ? { ...(cur.metabolic ?? {}), ...patch.metabolic }
+        : cur.metabolic,
+  };
   patchSettings({ profile: next });
   return next;
 }

@@ -64,7 +64,13 @@ function formatKgPerSec(kgPerSec: number): string {
   })} mg/dtk)`;
 }
 
-export default function EnergyBalanceCard({ view }: { view: EnergyView }) {
+export default function EnergyBalanceCard({
+  view,
+  onOpenCalibrate,
+}: {
+  view: EnergyView;
+  onOpenCalibrate?: () => void;
+}) {
   const [mode, setMode] = useState<BalanceMode>("stop");
   const isToday = view.status === "ok" && view.isToday;
   const tick = useSecondTick(isToday);
@@ -96,7 +102,7 @@ export default function EnergyBalanceCard({ view }: { view: EnergyView }) {
   }
 
   const b = liveBalance;
-  const { weeks, targetKg, fromHealth, kg, meals, foodMassGrams } = view;
+  const { weeks, targetKg, fromHealth, kg, meals, foodMassGrams, metabolic } = view;
   const activeMode: BalanceMode = !view.isToday && mode === "now" ? "stop" : mode;
 
   const current: WeightDelta =
@@ -313,6 +319,66 @@ export default function EnergyBalanceCard({ view }: { view: EnergyView }) {
         )}
       </section>
 
+      {metabolic && (
+        <div className="eb-meta-box">
+          <div className="eb-meta-head">
+            <div>
+              <strong>
+                Akurasi pembakaran {metabolic.accuracyScore}% · {metabolic.accuracyLabel}
+              </strong>
+              <small>
+                Target aman: {idInt(metabolic.recommendedTargetKcal)} kkal · Min{" "}
+                {idInt(metabolic.calorieFloor)} kkal
+              </small>
+            </div>
+            {onOpenCalibrate && (
+              <button type="button" className="eb-meta-btn" onClick={onOpenCalibrate}>
+                Kalibrasi →
+              </button>
+            )}
+          </div>
+          <div className="eb-meta-chips">
+            <span>
+              BMR {idInt(metabolic.bmr)} (
+              {metabolic.bmrMethod === "katch_blend" ? "Otot/Lemak" : "Mifflin"})
+            </span>
+            <span>
+              NEAT ×{metabolic.neatFactor.toFixed(2)} (+{idInt(metabolic.neatKcal)})
+            </span>
+            {metabolic.tefDeltaKcal !== 0 && (
+              <span>
+                TEF {metabolic.tefDeltaKcal > 0 ? "+" : ""}
+                {idInt(metabolic.tefDeltaKcal)}
+              </span>
+            )}
+            {metabolic.cycleEffect.active && (
+              <span>
+                {metabolic.cycleEffect.label} (+{idInt(metabolic.cycleRmrKcal)})
+              </span>
+            )}
+            {metabolic.adaptiveOffsetKcal !== 0 && (
+              <span>
+                Realita {metabolic.adaptiveOffsetKcal > 0 ? "+" : ""}
+                {idInt(metabolic.adaptiveOffsetKcal)}
+              </span>
+            )}
+          </div>
+          {metabolic.cycleEffect.active && (
+            <p className="eb-meta-cycle">
+              💧 Siklus hari {metabolic.cycleEffect.day}: retensi air normal{" "}
+              {dec(metabolic.cycleEffect.waterRetentionKg[0], 1)}–
+              {dec(metabolic.cycleEffect.waterRetentionKg[1], 1)} kg.{" "}
+              {metabolic.cycleEffect.guidance}
+            </p>
+          )}
+          {metabolic.alerts.map((msg, i) => (
+            <p key={i} className="eb-meta-alert">
+              {msg}
+            </p>
+          ))}
+        </div>
+      )}
+
       <dl className="eb-rows">
         <div>
           <dt>
@@ -355,12 +421,30 @@ export default function EnergyBalanceCard({ view }: { view: EnergyView }) {
         <summary>Cara menghitung berat badan vs lemak</summary>
         <ul>
           <li>
-            <strong>Terbakar normal ({idInt(b.normal)} kkal/hari):</strong> rumus Mifflin-St Jeor
-            dari berat, tinggi, umur dan jenis kelamin
-            {fromHealth
-              ? ", ditambah energi aktif dari Apple Health."
-              : " × 1,2 (aktivitas harian tanpa olahraga). Dengan Apple Health angkanya lebih tepat."}
-            {" "}Setara {dec(b.rate.kcalPerSecond, 3)} kkal setiap detik (
+            <strong>Terbakar normal ({idInt(b.normal)} kkal/hari):</strong>{" "}
+            {metabolic ? (
+              <>
+                BMR presisi ({idInt(metabolic.bmr)} kkal,{" "}
+                {metabolic.bmrMethod === "katch_blend"
+                  ? "gabungan Mifflin & Katch-McArdle massa otot"
+                  : "Mifflin-St Jeor"}
+                )
+                {fromHealth
+                  ? ", ditambah energi aktif Apple Health & efek makan (TEF)."
+                  : ` × ${dec(metabolic.neatFactor, 2)} NEAT harian (jam duduk & langkah) + efek termis makanan.`}
+                {metabolic.cycleEffect.active
+                  ? ` Termasuk faktor siklus ${metabolic.cycleEffect.label} (+${idInt(metabolic.cycleRmrKcal)} kkal).`
+                  : ""}
+              </>
+            ) : (
+              <>
+                rumus Mifflin-St Jeor dari berat, tinggi, umur dan jenis kelamin
+                {fromHealth
+                  ? ", ditambah energi aktif dari Apple Health."
+                  : " × 1,2 (aktivitas harian tanpa olahraga). Dengan Apple Health angkanya lebih tepat."}
+              </>
+            )}{" "}
+            Setara {dec(b.rate.kcalPerSecond, 3)} kkal setiap detik (
             {idInt(shownBurn)} kkal {activeMode === "now" ? "sampai detik ini" : "seharian"}).
           </li>
           <li>

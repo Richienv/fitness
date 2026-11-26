@@ -168,6 +168,7 @@
   position: relative;
   z-index: 6;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -176,6 +177,8 @@
 
 .hero-stage-actions {
   display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: 6px;
 }
@@ -203,20 +206,20 @@
   justify-content: center;
   gap: 8px;
   margin-top: 8px;
-  padding-top: 8px;
+  padding-top: 10px;
   border-top: 1px dashed rgba(30, 44, 84, 0.08);
 }
 
 .hero-swatch-label {
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 700;
   color: var(--muted);
 }
 
 .hero-swatch-btn {
-  width: 22px;
-  height: 22px;
-  padding: 2px;
+  width: 34px;
+  height: 34px;
+  padding: 3px;
   border-radius: 999px;
   border: 1.5px solid rgba(30, 44, 84, 0.16);
   background: #fff;
@@ -235,18 +238,18 @@
 .hero-swatch-btn.is-active {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(62, 96, 213, 0.22);
-  transform: scale(1.1);
+  transform: scale(1.06);
 }
 
 .hero-swatch-more {
-  min-height: 24px;
-  padding: 2px 9px;
+  min-height: 34px;
+  padding: 4px 13px;
   border-radius: 999px;
-  border: 1px solid rgba(62, 96, 213, 0.2);
-  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(62, 96, 213, 0.22);
+  background: rgba(255, 255, 255, 0.92);
   color: #3652be;
   font: inherit;
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 740;
   cursor: pointer;
 }
@@ -599,21 +602,21 @@
 .hero-detail-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  min-height: 30px;
-  padding: 3px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.95);
+  gap: 6px;
+  min-height: 38px;
+  padding: 6px 13px;
+  border: 1px solid rgba(30, 44, 84, 0.09);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.94);
   box-shadow:
-    0 3px 10px rgba(30, 44, 84, 0.055),
+    0 3px 10px rgba(30, 44, 84, 0.065),
     inset 0 1px 0 rgba(255, 255, 255, 0.96);
   color: #3652be;
   font: inherit;
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 720;
   cursor: pointer;
-  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.2s ease, color 0.2s ease;
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .hero-detail-btn:active {
@@ -625,6 +628,51 @@
   color: #fff;
   border-color: rgba(255, 255, 255, 0.32);
   box-shadow: 0 6px 16px rgba(62, 96, 213, 0.24);
+}
+
+.hero-accuracy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 6px 12px;
+  border: 1px solid rgba(22, 163, 74, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow:
+    0 3px 10px rgba(30, 44, 84, 0.065),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  color: #166534;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 740;
+  cursor: pointer;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.2s ease;
+}
+
+.hero-accuracy-btn:active {
+  transform: scale(0.94);
+}
+
+.hero-acc-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #16a34a;
+  flex-shrink: 0;
+}
+
+.hero-accuracy-btn.is-alert {
+  border-color: rgba(234, 88, 12, 0.35);
+  background: rgba(255, 247, 237, 0.96);
+  color: #9a3412;
+}
+
+.hero-accuracy-btn.is-alert .hero-acc-dot {
+  background: #ea580c;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.16);
 }
 
 .hero-head-weight {
@@ -789,14 +837,14 @@
 .hero-water-switch button {
   position: relative;
   z-index: 1;
-  min-height: 26px;
-  padding: 2px 12px;
+  min-height: 34px;
+  padding: 4px 14px;
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: rgba(74, 84, 108, 0.76);
+  color: rgba(74, 84, 108, 0.78);
   font: inherit;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 660;
   white-space: nowrap;
   cursor: pointer;
@@ -824,7 +872,7 @@
 .hero-avatar-canvas {
   position: relative;
   z-index: 2;
-  height: 312px;
+  height: 348px;
 }
 
 .hero-avatar-canvas.is-locked::before {
@@ -963,9 +1011,9 @@
 .hero-hud-left,
 .hero-hud-right {
   position: absolute;
-  top: 16px;
-  bottom: 28px;
-  z-index: 5;
+  top: 10px;
+  bottom: 54px;
+  z-index: 6;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -975,13 +1023,13 @@
 .hero-hud-left {
   left: 2px;
   align-items: flex-start;
-  max-width: 124px;
+  max-width: 132px;
 }
 
 .hero-hud-right {
   right: 2px;
   align-items: flex-end;
-  max-width: 128px;
+  max-width: 136px;
 }
 
 .hero-chip {
@@ -989,17 +1037,18 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 7px 10px 7px 7px;
-  border-radius: 17px;
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg);
+  min-height: 44px;
+  padding: 8px 11px 8px 8px;
+  border-radius: 18px;
+  border: 1px solid rgba(30, 44, 84, 0.09);
+  background: rgba(255, 255, 255, 0.94);
   box-shadow: var(--glass-shadow);
   color: var(--text);
   text-decoration: none;
   text-align: left;
   font: inherit;
   cursor: pointer;
-  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease, background-color 0.2s ease;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .hero-chip:active {
@@ -1110,14 +1159,14 @@
   pointer-events: auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px 9px;
-  border-radius: 17px;
-  border: 1px solid rgba(255, 255, 255, 0.94);
-  background: var(--glass-bg);
+  gap: 7px;
+  padding: 9px 10px;
+  border-radius: 18px;
+  border: 1px solid rgba(30, 44, 84, 0.09);
+  background: rgba(255, 255, 255, 0.94);
   box-shadow:
-    0 8px 22px rgba(14, 134, 212, 0.085),
-    0 1px 2px rgba(28, 40, 76, 0.04),
+    0 8px 22px rgba(14, 134, 212, 0.095),
+    0 1px 2px rgba(28, 40, 76, 0.045),
     inset 0 1px 0 rgba(255, 255, 255, 0.96);
 }
 
@@ -1129,34 +1178,35 @@
 
 .hero-water-btns {
   display: flex;
-  gap: 4px;
+  gap: 5px;
 }
 
 .hero-water-plus,
 .hero-water-minus {
-  min-height: 26px;
+  min-height: 34px;
   border-radius: 999px;
   font: inherit;
-  font-size: 11px;
-  font-weight: 750;
+  font-size: 12px;
+  font-weight: 760;
   cursor: pointer;
   transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.18s ease;
 }
 
 .hero-water-plus {
   flex: 1;
-  padding: 2px 9px;
-  background: rgba(14, 134, 212, 0.15);
-  border: 1px solid rgba(14, 134, 212, 0.24);
+  padding: 4px 12px;
+  background: rgba(14, 134, 212, 0.16);
+  border: 1px solid rgba(14, 134, 212, 0.28);
   color: #0969a8;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .hero-water-minus {
-  width: 26px;
+  width: 34px;
   padding: 0;
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(25, 36, 68, 0.09);
+  font-size: 15px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(25, 36, 68, 0.12);
   color: #4c5d78;
 }
 
@@ -1180,20 +1230,20 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 42px;
+  height: 42px;
   flex-shrink: 0;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.95);
-  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(30, 44, 84, 0.1);
+  background: rgba(255, 255, 255, 0.94);
   color: var(--text);
   font: inherit;
-  font-size: 19px;
+  font-size: 21px;
   font-weight: 650;
   line-height: 1;
   cursor: pointer;
   box-shadow:
-    0 4px 14px rgba(28, 40, 76, 0.06),
+    0 4px 14px rgba(28, 40, 76, 0.07),
     inset 0 1px 0 rgba(255, 255, 255, 0.96);
 }
 
@@ -1220,15 +1270,15 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 30px;
-  padding: 4px 12px;
+  min-height: 36px;
+  padding: 5px 13px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(30, 44, 84, 0.09);
   box-shadow:
-    0 4px 14px rgba(28, 40, 76, 0.055),
+    0 4px 14px rgba(28, 40, 76, 0.06),
     inset 0 1px 0 rgba(255, 255, 255, 0.96);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 680;
   color: rgba(74, 84, 108, 0.88);
   text-decoration: none;
@@ -1254,15 +1304,15 @@
 }
 
 .hero-peek-reset {
-  min-height: 30px;
-  padding: 4px 11px;
+  min-height: 36px;
+  padding: 5px 13px;
   border-radius: 999px;
   border: 1px solid rgba(62, 96, 213, 0.24);
-  background: rgba(237, 241, 252, 0.94);
+  background: rgba(237, 241, 252, 0.96);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.94);
   color: #3e60d5;
   font: inherit;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 740;
   cursor: pointer;
 }
@@ -1354,70 +1404,12 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .hero-stage {
-    animation: heroStageIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-
-  .hero-stage::before {
-    animation: heroMeshDriftA 11s ease-in-out infinite;
-  }
-
-  .hero-stage::after {
-    animation: heroMeshDriftB 13s ease-in-out infinite;
-  }
-
-  .hero-head-weight {
-    animation: heroHeadIn 0.42s cubic-bezier(0.22, 1, 0.36, 1) 40ms both;
-  }
-
-  .hero-live-badge.is-live .hero-live-dot {
-    animation: heroLivePulse 2.2s ease-in-out infinite;
-  }
-
   .hero-water-thumb {
     transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  .hero-chip.slot-tl {
-    animation:
-      heroChipInLeft 0.48s cubic-bezier(0.22, 1, 0.36, 1) 60ms both,
-      heroOrbitFloatA 5.4s ease-in-out 0.6s infinite;
-  }
-
-  .hero-chip.slot-bl {
-    animation:
-      heroChipInLeft 0.48s cubic-bezier(0.22, 1, 0.36, 1) 130ms both,
-      heroOrbitFloatB 6.2s ease-in-out 0.8s infinite;
-  }
-
-  .hero-chip.slot-tr {
-    animation:
-      heroChipInRight 0.48s cubic-bezier(0.22, 1, 0.36, 1) 90ms both,
-      heroOrbitFloatB 5.8s ease-in-out 0.7s infinite;
-  }
-
-  .hero-water-chip.slot-br {
-    animation:
-      heroChipInRight 0.48s cubic-bezier(0.22, 1, 0.36, 1) 160ms both,
-      heroOrbitFloatA 6.6s ease-in-out 0.9s infinite;
-  }
-
   .hero-water-chip.is-pulsed {
-    animation: heroWaterPop 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-
-  .hero-avatar-canvas.is-locked .hero-chip,
-  .hero-avatar-canvas.is-locked .hero-water-chip {
-    animation: none;
-  }
-
-  .hero-live-tick {
-    display: inline-block;
-    animation: heroTickPulse 2.4s ease-in-out infinite;
-  }
-
-  .hero-detail-drawer {
-    animation: heroDrawerIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: heroWaterPop 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
   .hero-avatar-canvas.is-locked .hero-hud-left,
@@ -1425,13 +1417,32 @@
     transition: opacity 0.22s ease;
   }
 
+  .hero-detail-drawer {
+    animation: heroDrawerIn 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
   .hero-locked-overlay {
-    animation: heroLockedPop 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: heroLockedPop 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
   .hero-peek-btn,
   .hero-peek-reset {
     transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.16s ease;
+  }
+}
+
+@media (hover: hover) {
+  .hero-chip:hover,
+  .hero-detail-btn:hover,
+  .hero-peek-btn:hover:not(:disabled),
+  .hero-swatch-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(28, 40, 76, 0.11);
+    border-color: rgba(62, 96, 213, 0.26);
+  }
+  .hero-swatch-more:hover,
+  .hero-water-plus:hover {
+    filter: brightness(0.97);
   }
 }
 
@@ -1604,10 +1615,10 @@
 @media (max-width: 360px) {
   .hero-weight-old { font-size: 17px; }
   .hero-weight-new { font-size: 28px; }
-  .hero-avatar-canvas { height: 280px; }
-  .hero-hud-left { max-width: 110px; }
-  .hero-hud-right { max-width: 114px; }
-  .hero-chip { padding: 5px 7px 5px 5px; gap: 5px; }
-  .hero-water-switch button { padding: 2px 10px; font-size: 10.5px; }
+  .hero-avatar-canvas { height: 316px; }
+  .hero-hud-left { max-width: 118px; }
+  .hero-hud-right { max-width: 122px; }
+  .hero-chip { padding: 7px 9px 7px 7px; gap: 6px; }
+  .hero-water-switch button { min-height: 32px; padding: 3px 11px; font-size: 11px; }
   .home-streak-item { padding: 3px 5.5px; font-size: 12px; }
 }

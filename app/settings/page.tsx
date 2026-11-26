@@ -1,11 +1,14 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { useAccountSetup } from "../SetupProvider";
 import { PERSON } from "@/lib/setup";
 import PushOptInCard from "../ui/PushOptInCard";
+import MetabolicCalibrationSheet from "../companion/MetabolicCalibrationSheet";
 export default function SettingsPage() {
   const account = useAccountSetup();
+  const [calibrateOpen, setCalibrateOpen] = useState(false);
   if (!account?.setup) return null;
   const s = account.setup;
   return (
@@ -70,10 +73,21 @@ export default function SettingsPage() {
       </div>
       <div className="settings-extras">
         <PushOptInCard />
+        <button
+          type="button"
+          className="settings-calibrate-btn"
+          onClick={() => setCalibrateOpen(true)}
+        >
+          🎯 Kalibrasi akurasi kalori, NEAT &amp; siklus →
+        </button>
         <Link href="/dashboard/progress">Catat penimbangan baru →</Link>
         <Link href="/settings/advanced">Pustaka & pengaturan lanjutan →</Link>
         <Link href="/companion">Atur target &amp; progres →</Link>
       </div>
+      <MetabolicCalibrationSheet
+        open={calibrateOpen}
+        onClose={() => setCalibrateOpen(false)}
+      />
       <button
         className="entry-secondary full"
         onClick={() => {

@@ -40,12 +40,12 @@ test("avatar levels clamp safely and resolve versioned v3 WebP paths on disk", (
       const livingSrc = avatarLivingSheetSrc(character, lvl);
       assert.match(
         livingSrc,
-        /^\/avatars\/v4\/(richie|renita)-level-(0[1-9]|1[0-2])-living\.webp$/,
+        /^\/avatars\/v5\/(richie|renita)-level-(0[1-9]|1[0-2])-living\.webp$/,
       );
       const livingDiskPath = join(process.cwd(), "public", livingSrc.slice(1));
       const livingSt = statSync(livingDiskPath);
       assert.ok(
-        livingSt.size > 20_000,
+        livingSt.size > 40_000,
         `${livingSrc} looks unexpectedly tiny (${livingSt.size} B)`,
       );
     }

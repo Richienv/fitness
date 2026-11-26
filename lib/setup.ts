@@ -253,6 +253,7 @@ export function buildSetup(
     menstrualTrackingEnabled:
       previous?.profile.menstrualTrackingEnabled ?? false,
     cycleStartDate: previous?.profile.cycleStartDate ?? null,
+    ...(previous?.profile.metabolic ? { metabolic: previous.profile.metabolic } : {}),
   };
   return {
     version: 1,

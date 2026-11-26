@@ -15,8 +15,10 @@ import {
   type MealWeightImpact,
 } from "./energyBalance";
 import { getIngredient, macrosFor } from "./ingredients";
+import { readMetabolicSnapshot } from "./metabolicData";
+import type { MetabolicSnapshot } from "./metabolicEngine";
 import type { MealType } from "./presets";
-import { getProfile, profileComplete } from "./settings";
+import { getProfile, getSettings, profileComplete } from "./settings";
 import { getMealsForDate, isCustomItem } from "./store";
 import { todayKey } from "./targets";
 import { getWaterMl } from "./water";
@@ -39,6 +41,7 @@ export type EnergyView =
       /** Inputs minus clock fraction so the UI can tick smoothly every second without hitting storage. */
       input: Omit<BalanceInput, "dayFraction">;
       balance: Balance;
+      metabolic: MetabolicSnapshot | null;
       fromHealth: boolean;
       isToday: boolean;
       kg: number;
@@ -77,20 +80,33 @@ export function readEnergyView(
 ): EnergyView {
   const p = getProfile();
   if (!profileComplete(p)) return { status: "profile" };
+  const settings = getSettings();
   const burn = readDayBurn(date);
   const kg = readBodyKg();
   const isToday = date === todayKey(now);
   const waterMl = getWaterMl(date);
+  const metabolic = readMetabolicSnapshot(date);
+  const baseTargetKcal = dayTarget(date, { burnKcal: burn.total }).target.kcal;
+  const targetKcal =
+    !settings.targetsCustom && metabolic
+      ? metabolic.recommendedTargetKcal
+      : baseTargetKcal;
   const baseInput: Omit<BalanceInput, "dayFraction"> = {
     sex: p.sex!,
     kg,
     cm: p.heightCm!,
     age: p.age!,
     eatenKcal,
-    targetKcal: dayTarget(date, { burnKcal: burn.total }).target.kcal,
+    targetKcal,
     activeKcal: burn.total,
     activeFromHealth: burn.source === "health",
     waterMl,
+    ...(metabolic
+      ? {
+          overrideNormalBurn: metabolic.normalBurnDay,
+          overrideBmr: metabolic.bmr,
+        }
+      : {}),
   };
   const balance = energyBalance({
     ...baseInput,
@@ -138,6 +154,7 @@ export function readEnergyView(
     status: "ok",
     input: baseInput,
     balance,
+    metabolic,
     fromHealth: burn.source === "health",
     isToday,
     kg,

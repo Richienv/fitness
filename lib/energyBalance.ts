@@ -49,6 +49,10 @@ export type BalanceInput = {
   dayFraction: number;
   /** Drinking water logged today in millilitres (1,000 ml = +1.0 kg scale weight). */
   waterMl?: number;
+  /** Calibrated full-day baseline burn (BMR + true NEAT + cycle + TEF + sleep + reality offset). */
+  overrideNormalBurn?: number;
+  /** Precision BMR (blended Mifflin + Katch when body fat is known). */
+  overrideBmr?: number;
 };
 
 /** Breakdown of a caloric balance (positive = deficit / weight lost) into
@@ -232,12 +236,24 @@ export function mealWeightImpact(
 
 export function energyBalance(i: BalanceInput): Balance | null {
   if (!(i.kg > 20 && i.kg < 400 && i.cm > 100 && i.cm < 250 && i.age > 5 && i.age < 120)) return null;
-  const bmr = mifflinBMR(i.sex, i.kg, i.cm, i.age);
+  const fallbackBmr = mifflinBMR(i.sex, i.kg, i.cm, i.age);
+  const bmr =
+    typeof i.overrideBmr === "number" && Number.isFinite(i.overrideBmr) && i.overrideBmr > 400
+      ? i.overrideBmr
+      : fallbackBmr;
   if (!(bmr > 0)) return null;
   const eaten = finite(i.eatenKcal) ? i.eatenKcal : 0;
   const active = finite(i.activeKcal) ? i.activeKcal : 0;
   const frac = Math.min(1, Math.max(0, Number.isFinite(i.dayFraction) ? i.dayFraction : 0));
-  const normal = i.activeFromHealth && active > 0 ? bmr : bmr * SEDENTARY_FACTOR;
+  const hasOverrideNormal =
+    typeof i.overrideNormalBurn === "number" &&
+    Number.isFinite(i.overrideNormalBurn) &&
+    i.overrideNormalBurn > 500;
+  const normal = hasOverrideNormal
+    ? i.overrideNormalBurn!
+    : i.activeFromHealth && active > 0
+      ? bmr
+      : bmr * SEDENTARY_FACTOR;
   const burnDay = normal + active;
   const closing = frac >= DAY_CLOSING;
   const intake = closing ? eaten : Math.max(eaten, finite(i.targetKcal) ? i.targetKcal : 0);

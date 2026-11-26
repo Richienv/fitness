@@ -5,6 +5,7 @@ import { buildSetup, PERSON, sameMeasurement, type AccountSetup } from "@/lib/se
 import type { CompanionGoal } from "@/lib/companionProgress";
 import { isMissingRelationError } from "@/lib/social";
 import { isStageBackgroundId } from "@/lib/stageBackgrounds";
+import { sanitizeMetabolicProfile } from "@/lib/metabolicEngine";
 import type { Prisma } from "@prisma/client";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -202,6 +203,11 @@ export async function PATCH(req: Request) {
     displayName?: unknown;
     stageBackgroundId?: unknown;
     notifyPartner?: unknown;
+    metabolicProfile?: unknown;
+    menstrualTrackingEnabled?: unknown;
+    cycleStartDate?: unknown;
+    activity?: unknown;
+    goal?: unknown;
   } | null;
   if (!body || typeof body !== "object") {
     return answer({ error: "Data tidak valid." }, 400);
@@ -235,7 +241,72 @@ export async function PATCH(req: Request) {
   const nextNotifyPartner =
     typeof body.notifyPartner === "boolean" ? body.notifyPartner : null;
 
-  if (!goal && !nextDisplayName && !nextStageId && nextNotifyPartner === null) {
+  const metabolicPatch =
+    body.metabolicProfile !== undefined
+      ? sanitizeMetabolicProfile(body.metabolicProfile)
+      : null;
+  if (body.metabolicProfile !== undefined && !metabolicPatch) {
+    return answer({ error: "Data kalibrasi metabolisme tidak valid." }, 400);
+  }
+
+  const nextMenstrualEnabled =
+    typeof body.menstrualTrackingEnabled === "boolean"
+      ? body.menstrualTrackingEnabled
+      : null;
+
+  let hasCycleStart = false;
+  let nextCycleStart: string | null = null;
+  if (body.cycleStartDate !== undefined) {
+    if (body.cycleStartDate === null || body.cycleStartDate === "") {
+      hasCycleStart = true;
+      nextCycleStart = null;
+    } else if (
+      typeof body.cycleStartDate === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/.test(body.cycleStartDate.trim())
+    ) {
+      hasCycleStart = true;
+      nextCycleStart = body.cycleStartDate.trim();
+    } else {
+      return answer({ error: "Tanggal siklus tidak valid." }, 400);
+    }
+  }
+
+  let nextActivity: number | null = null;
+  if (body.activity !== undefined) {
+    if (
+      typeof body.activity === "number" &&
+      Number.isFinite(body.activity) &&
+      body.activity >= 1.05 &&
+      body.activity <= 2.2
+    ) {
+      nextActivity = Math.round(body.activity * 1000) / 1000;
+    } else {
+      return answer({ error: "Faktor aktivitas tidak valid." }, 400);
+    }
+  }
+
+  const VALID_GOALS = ["fat_loss", "recomp", "muscle_gain", "maintain"] as const;
+  type PatchGoal = (typeof VALID_GOALS)[number];
+  let nextGoal: PatchGoal | null = null;
+  if (body.goal !== undefined) {
+    if (VALID_GOALS.includes(body.goal as PatchGoal)) {
+      nextGoal = body.goal as PatchGoal;
+    } else {
+      return answer({ error: "Tujuan latihan tidak valid." }, 400);
+    }
+  }
+
+  if (
+    !goal &&
+    !nextDisplayName &&
+    !nextStageId &&
+    nextNotifyPartner === null &&
+    !metabolicPatch &&
+    nextMenstrualEnabled === null &&
+    !hasCycleStart &&
+    nextActivity === null &&
+    !nextGoal
+  ) {
     return answer({ error: "Tidak ada perubahan yang dikirim." }, 400);
   }
 
@@ -271,6 +342,25 @@ export async function PATCH(req: Request) {
         ? goal.targetWeight
         : existing.targetWeightKg;
 
+    const updatedProfile = {
+      ...existing.profile,
+      ...(nextActivity !== null ? { activity: nextActivity } : {}),
+      ...(nextGoal ? { goal: nextGoal } : {}),
+      ...(nextMenstrualEnabled !== null
+        ? { menstrualTrackingEnabled: nextMenstrualEnabled }
+        : {}),
+      ...(hasCycleStart ? { cycleStartDate: nextCycleStart } : {}),
+      ...(metabolicPatch
+        ? {
+            metabolic: {
+              ...(existing.profile?.metabolic ?? {}),
+              ...metabolicPatch,
+              calibratedAt: metabolicPatch.calibratedAt ?? nowIso,
+            },
+          }
+        : {}),
+    };
+
     const updatedSetup: AccountSetup = {
       ...existing,
       updatedAt: nowIso,
@@ -278,10 +368,13 @@ export async function PATCH(req: Request) {
       ...(nextStageId ? { stageBackgroundId: nextStageId } : {}),
       ...(nextNotifyPartner !== null ? { notifyPartner: nextNotifyPartner } : {}),
       ...(goal ? { companionGoalUpdatedAt: nowIso } : {}),
+      profile: updatedProfile,
       targetWeightKg: nextWeightTarget,
       draft: {
         ...existing.draft,
         target: String(nextWeightTarget),
+        ...(nextActivity !== null ? { activity: String(nextActivity) } : {}),
+        ...(nextGoal ? { goal: nextGoal } : {}),
       },
       companionGoal: resolvedGoal,
     };

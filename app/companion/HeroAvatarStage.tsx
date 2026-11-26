@@ -144,6 +144,9 @@ function HeroAvatarStage({
   onSelectStage,
   achievements = [],
   unlockedStageIds,
+  accuracyScore = null,
+  accuracyAlert = null,
+  onOpenCalibrate,
 }: {
   character: Character;
   level: number;
@@ -165,6 +168,9 @@ function HeroAvatarStage({
   onSelectStage?: (id: StageBackgroundId) => void;
   achievements?: HealthAchievementProgress[];
   unlockedStageIds?: Set<StageBackgroundId>;
+  accuracyScore?: number | null;
+  accuracyAlert?: string | null;
+  onOpenCalibrate?: () => void;
 }) {
   const unlockedLevel = Math.max(1, Math.min(12, Math.round(level)));
   const [viewLevel, setViewLevel] = useState(unlockedLevel);
@@ -271,6 +277,21 @@ function HeroAvatarStage({
           <span>{isToday ? "Live" : "Proyeksi"}</span>
         </span>
         <div className="hero-stage-actions">
+          {onOpenCalibrate && (
+            <button
+              type="button"
+              className={`hero-accuracy-btn${accuracyAlert ? " is-alert" : ""}`}
+              onClick={onOpenCalibrate}
+              aria-label="Kalibrasi akurasi kalori & siklus"
+            >
+              <span className="hero-acc-dot" aria-hidden="true" />
+              <span>
+                {typeof accuracyScore === "number"
+                  ? `Akurasi ${accuracyScore}%`
+                  : "Kalibrasi"}
+              </span>
+            </button>
+          )}
           {onSelectStage && (
             <button
               type="button"

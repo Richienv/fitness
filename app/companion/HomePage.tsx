@@ -47,6 +47,7 @@ import { scopedKey } from "@/lib/userScope";
 import { useAccountSetup } from "../SetupProvider";
 import EnergyBalanceCard from "./EnergyBalanceCard";
 import HeroAvatarStage from "./HeroAvatarStage";
+import MetabolicCalibrationSheet from "./MetabolicCalibrationSheet";
 import {
   logUsualMeal,
   readUsualMeal,
@@ -122,7 +123,8 @@ export default function HomePage() {
     [roomPartnerId, setRoomPartnerId] = useState<string | null>(null),
     [shadows, setShadows] = useState<ShadowRecommendation[]>([]),
     [editingShadow, setEditingShadow] = useState<ShadowRecommendation | null>(null),
-    [workoutTitle, setWorkoutTitle] = useState<string | null>(null);
+    [workoutTitle, setWorkoutTitle] = useState<string | null>(null),
+    [calibrateOpen, setCalibrateOpen] = useState(false);
   const seenCheerIdRef = useRef<string | null>(null);
   const presenceSigRef = useRef<string | null>(null);
   const refreshSigRef = useRef<string | null>(null);
@@ -809,10 +811,16 @@ export default function HomePage() {
             onSelectStage={handleSelectStage}
             achievements={achievementSummary.items}
             unlockedStageIds={achievementSummary.unlockedStageIds}
+            accuracyScore={energy?.status === "ok" ? energy.metabolic?.accuracyScore ?? null : null}
+            accuracyAlert={energy?.status === "ok" ? energy.metabolic?.alerts?.[0] ?? null : null}
+            onOpenCalibrate={() => setCalibrateOpen(true)}
           />
           {detailOpen && energy && (
             <div className="hero-detail-drawer">
-              <EnergyBalanceCard view={energy} />
+              <EnergyBalanceCard
+                view={energy}
+                onOpenCalibrate={() => setCalibrateOpen(true)}
+              />
             </div>
           )}
           {snap && <HomeHud s={snap} bonus={bonus} weekOnly />}
@@ -980,6 +988,11 @@ export default function HomePage() {
         presence={presence}
         dateKey={date || todayKey()}
         onUnreadCleared={clearUnread}
+      />
+      <MetabolicCalibrationSheet
+        open={calibrateOpen}
+        onClose={() => setCalibrateOpen(false)}
+        dateKey={date || todayKey()}
       />
     </main>
   );

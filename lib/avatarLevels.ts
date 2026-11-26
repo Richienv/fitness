@@ -246,7 +246,7 @@ export function avatarSheetSrc(character: Character, level: number): string {
 
 export function avatarLivingSheetSrc(character: Character, level: number): string {
   const clamped = clampAvatarLevel(level);
-  return `/avatars/v4/${character}-level-${String(clamped).padStart(2, "0")}-living.webp`;
+  return `/avatars/v5/${character}-level-${String(clamped).padStart(2, "0")}-living.webp`;
 }
 
 export const POSE_LABELS = [

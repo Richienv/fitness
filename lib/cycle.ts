@@ -10,8 +10,36 @@ export type CycleInfo = {
   note: string;
 };
 
-const CYCLE_LENGTH = 28;
+export type CycleSubPhase =
+  | "menstrual"
+  | "follicular"
+  | "ovulation"
+  | "early_luteal"
+  | "late_luteal";
+
+export type CycleMetabolicEffect = {
+  active: boolean;
+  day: number;
+  subPhase: CycleSubPhase;
+  label: string;
+  /** Fractional RMR multiplier shift (e.g. 0, +0.01, +0.03, +0.055). */
+  rmrPct: number;
+  /** Typical temporary water-retention band in kg (for honest scale explanation). */
+  waterRetentionKg: [number, number];
+  /** True on high water-swing days so adaptive TDEE down-weights noisy scale spikes. */
+  excludeFromWeightSlope: boolean;
+  guidance: string;
+};
+
+const DEFAULT_CYCLE_LENGTH = 28;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+export function clampCycleLength(cycleLength?: number | null): number {
+  if (typeof cycleLength !== "number" || !Number.isFinite(cycleLength)) {
+    return DEFAULT_CYCLE_LENGTH;
+  }
+  return Math.min(40, Math.max(21, Math.round(cycleLength)));
+}
 
 /**
  * Parse a YYYY-MM-DD string or Date into a UTC-midnight timestamp (ms).
@@ -42,30 +70,27 @@ function toDayTimestamp(value: Date | string): number {
 export function cycleDay(
   cycleStartDate: string,
   on: Date | string = new Date(),
+  cycleLength = DEFAULT_CYCLE_LENGTH,
 ): number {
   const start = toDayTimestamp(cycleStartDate);
   const now = toDayTimestamp(on);
   if (Number.isNaN(start) || Number.isNaN(now)) return NaN;
+  const len = clampCycleLength(cycleLength);
   const diffDays = Math.round((now - start) / MS_PER_DAY);
-  // JS % can be negative for dates before the start; normalise into [0, 27].
-  const mod = ((diffDays % CYCLE_LENGTH) + CYCLE_LENGTH) % CYCLE_LENGTH;
+  // JS % can be negative for dates before the start; normalise into [0, len-1].
+  const mod = ((diffDays % len) + len) % len;
   return mod + 1;
 }
 
 /**
- * Map a 1-based cycle day to a phase.
- *
- * Follicular and ovulation windows biologically overlap (ovulation is
- * commonly cited around days 12–16, still inside the broader follicular
- * phase). To give a single, non-ambiguous phase per day we resolve the
- * overlap by treating days 12–16 as "ovulation":
- *   - days  1–11 : follicular
- *   - days 12–16 : ovulation
- *   - days 17–28 : luteal
+ * Map a 1-based cycle day to a phase (ovulation shifts cleanly when cycleLength != 28).
  */
-export function cyclePhase(day: number): CyclePhase {
-  if (day >= 12 && day <= 16) return "ovulation";
-  if (day >= 17) return "luteal";
+export function cyclePhase(day: number, cycleLength = DEFAULT_CYCLE_LENGTH): CyclePhase {
+  const len = clampCycleLength(cycleLength);
+  const ovStart = len === 28 ? 12 : Math.max(8, Math.round(len - 16));
+  const ovEnd = len === 28 ? 16 : Math.min(len - 8, ovStart + 4);
+  if (day >= ovStart && day <= ovEnd) return "ovulation";
+  if (day > ovEnd) return "luteal";
   return "follicular";
 }
 
@@ -87,11 +112,12 @@ const PHASE_NOTE: Record<CyclePhase, string> = {
 export function cycleInfo(
   cycleStartDate: string,
   on: Date | string = new Date(),
+  cycleLength = DEFAULT_CYCLE_LENGTH,
 ): CycleInfo | null {
   if (!cycleStartDate) return null;
-  const day = cycleDay(cycleStartDate, on);
+  const day = cycleDay(cycleStartDate, on, cycleLength);
   if (Number.isNaN(day)) return null;
-  const phase = cyclePhase(day);
+  const phase = cyclePhase(day, cycleLength);
   return {
     day,
     phase,
@@ -100,12 +126,107 @@ export function cycleInfo(
   };
 }
 
+/**
+ * Detailed cycle sub-phase metabolic & water-retention effect for precision
+ * TDEE calibration and honest scale interpretation.
+ */
+export function cycleMetabolicEffect(
+  cycleStartDate: string | null,
+  menstrualTrackingEnabled: boolean,
+  on: Date | string = new Date(),
+  cycleLength = DEFAULT_CYCLE_LENGTH,
+): CycleMetabolicEffect {
+  const len = clampCycleLength(cycleLength);
+  const rawDay = cycleStartDate ? cycleDay(cycleStartDate, on, len) : NaN;
+  if (!menstrualTrackingEnabled || !cycleStartDate || Number.isNaN(rawDay)) {
+    return {
+      active: false,
+      day: 1,
+      subPhase: "follicular",
+      label: "Siklus nonaktif",
+      rmrPct: 0,
+      waterRetentionKg: [0, 0],
+      excludeFromWeightSlope: false,
+      guidance: "",
+    };
+  }
+
+  const ovStart = len === 28 ? 12 : Math.max(8, Math.round(len - 16));
+  const ovEnd = len === 28 ? 16 : Math.min(len - 8, ovStart + 4);
+  const lateStart = Math.max(ovEnd + 3, len - 6);
+
+  if (rawDay <= 5) {
+    return {
+      active: true,
+      day: rawDay,
+      subPhase: "menstrual",
+      label: "Haid (Hari 1–5)",
+      rmrPct: 0.015,
+      waterRetentionKg: rawDay <= 2 ? [0.4, 1.2] : [0, 0.5],
+      excludeFromWeightSlope: rawDay <= 3,
+      guidance:
+        "Awal haid — retensi air mulai turun bertahap. Fokus zat besi, protein, dan hidrasi.",
+    };
+  }
+  if (rawDay < ovStart) {
+    return {
+      active: true,
+      day: rawDay,
+      subPhase: "follicular",
+      label: "Folikular",
+      rmrPct: 0,
+      waterRetentionKg: [0, 0.2],
+      excludeFromWeightSlope: false,
+      guidance:
+        "Fase paling stabil untuk membaca tren lemak & performa latihan. Berat timbangan paling jujur.",
+    };
+  }
+  if (rawDay <= ovEnd) {
+    return {
+      active: true,
+      day: rawDay,
+      subPhase: "ovulation",
+      label: "Ovulasi",
+      rmrPct: 0.02,
+      waterRetentionKg: [0.2, 0.6],
+      excludeFromWeightSlope: false,
+      guidance:
+        "Bakar basal naik tipis (~2%) & energi tinggi. Jaga form compound berat karena ligamen lebih longgar.",
+    };
+  }
+  if (rawDay < lateStart) {
+    return {
+      active: true,
+      day: rawDay,
+      subPhase: "early_luteal",
+      label: "Luteal Awal",
+      rmrPct: 0.035,
+      waterRetentionKg: [0.3, 0.9],
+      excludeFromWeightSlope: false,
+      guidance:
+        "Progesteron mulai menaikkan bakar basal ~3,5%. Wajar bila timbangan sedikit naik karena air.",
+    };
+  }
+  return {
+    active: true,
+    day: rawDay,
+    subPhase: "late_luteal",
+    label: "Luteal Akhir (PMS)",
+    rmrPct: 0.055,
+    waterRetentionKg: [0.6, 1.6],
+    excludeFromWeightSlope: true,
+    guidance:
+      "Luteal akhir (PMS): bakar basal naik ~5,5% (+60–90 kkal), tetapi tubuh menahan ~0,6–1,6 kg air. Jangan samakan air haid dengan kenaikan lemak.",
+  };
+}
+
 /** True when the given date falls in the luteal phase. */
 export function isLuteal(
   cycleStartDate: string,
   on: Date | string = new Date(),
+  cycleLength = DEFAULT_CYCLE_LENGTH,
 ): boolean {
-  const info = cycleInfo(cycleStartDate, on);
+  const info = cycleInfo(cycleStartDate, on, cycleLength);
   return info !== null && info.phase === "luteal";
 }
 
@@ -117,22 +238,27 @@ export function suppressWeightWarning(
   cycleStartDate: string | null,
   menstrualTrackingEnabled: boolean,
   on: Date | string = new Date(),
+  cycleLength = DEFAULT_CYCLE_LENGTH,
 ): boolean {
   if (!menstrualTrackingEnabled || !cycleStartDate) return false;
-  return isLuteal(cycleStartDate, on);
+  return isLuteal(cycleStartDate, on, cycleLength);
 }
 
 /**
  * Extra kcal allowed before flagging "over target". 150 kcal on late-luteal
- * days (day >= 22) when tracking is on, otherwise 0.
+ * days when tracking is on, otherwise 0.
  */
 export function lutealCalorieAllowance(
   cycleStartDate: string | null,
   menstrualTrackingEnabled: boolean,
   on: Date | string = new Date(),
+  cycleLength = DEFAULT_CYCLE_LENGTH,
 ): number {
-  if (!menstrualTrackingEnabled || !cycleStartDate) return 0;
-  const day = cycleDay(cycleStartDate, on);
-  if (Number.isNaN(day)) return 0;
-  return day >= 22 ? 150 : 0;
+  const eff = cycleMetabolicEffect(
+    cycleStartDate,
+    menstrualTrackingEnabled,
+    on,
+    cycleLength,
+  );
+  return eff.active && eff.subPhase === "late_luteal" ? 150 : 0;
 }
