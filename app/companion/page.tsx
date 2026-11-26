@@ -30,6 +30,10 @@ import {
 import { formatWeighTime } from "@/lib/weighIn";
 import { useAccountSetup } from "../SetupProvider";
 import Icon from "../ui/Icon";
+import { readSelectedStageId } from "@/lib/stagePrefs";
+import LegendaryRevealOverlay, {
+  type LegendaryRevealPayload,
+} from "./LegendaryRevealOverlay";
 
 export default function CompanionPage() {
   const { data: session } = useSession();
@@ -48,7 +52,8 @@ export default function CompanionPage() {
     [exercise, setExercise] = useState(""),
     [reps, setReps] = useState("8"),
     [message, setMessage] = useState(""),
-    [selectedLevel, setSelectedLevel] = useState(1);
+    [selectedLevel, setSelectedLevel] = useState(1),
+    [revealPayload, setRevealPayload] = useState<LegendaryRevealPayload | null>(null);
   const refresh = useCallback(() => {
     setRows(getAllMeasurements());
     setWorkouts(getAllWorkouts());
@@ -280,9 +285,26 @@ export default function CompanionPage() {
                 >
                   Lv {meta.level} · {tier.label}
                 </span>
-                <span className="quiet" style={{ fontSize: 12, fontWeight: 650 }}>
-                  Koleksi {unlockedLevel}/12 terbuka
-                </span>
+                <div className="avatar-meta-head-right">
+                  <span className="quiet" style={{ fontSize: 12, fontWeight: 650 }}>
+                    Koleksi {unlockedLevel}/12
+                  </span>
+                  <button
+                    type="button"
+                    className="avatar-reveal-mini-btn"
+                    onClick={() =>
+                      setRevealPayload({
+                        character: settings.character,
+                        level: activeLevel,
+                        stageId: readSelectedStageId(account?.setup?.stageBackgroundId),
+                        eyebrow: "COLLECTOR CARD REVEAL",
+                      })
+                    }
+                    aria-label={`Putar animasi Legendary Reveal Level ${activeLevel}`}
+                  >
+                    ✨ Reveal
+                  </button>
+                </div>
               </div>
               <h2 className="avatar-meta-title">{meta.title}</h2>
               <p className="avatar-meta-sub">
@@ -497,6 +519,10 @@ export default function CompanionPage() {
         <Link href="/sleep">Tidur</Link>
         <Link href="/install">Pasang di HP</Link>
       </div>
+      <LegendaryRevealOverlay
+        payload={revealPayload}
+        onClose={() => setRevealPayload(null)}
+      />
     </main>
   );
 }

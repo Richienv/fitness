@@ -15,7 +15,6 @@ import {
 import { haptic } from "@/lib/haptics";
 
 const POSE_COUNT = 5;
-const AUTO_POSE_SEQUENCE = [1, 2, 3, 4, 2, 1, 0, 4, 3, 1, 2, 0] as const;
 
 function pickQuip(poseIdx: number, seed: number): string {
   const pool = POSE_QUIPS[poseIdx] ?? POSE_QUIPS[0];
@@ -62,7 +61,6 @@ function AvatarPlayer({
   const drag = useRef<{ x: number; frame: number } | null>(null);
   const singleDrag = useRef<{ x: number; frame: number; moved: boolean } | null>(null);
   const quipTimer = useRef<number | null>(null);
-  const autoStepRef = useRef(0);
   const tapCountRef = useRef(0);
 
   // Duo mode keeps the existing 6-frame 3×2 turnaround sheet on /login, /companion, AuthFrame.
@@ -95,7 +93,6 @@ function AvatarPlayer({
     if (duo || locked) return;
     setLivingLoaded(false);
     setPoseIdx(0);
-    autoStepRef.current = 0;
     let current = true;
     const img = new Image();
     img.onload = () => {
@@ -139,17 +136,7 @@ function AvatarPlayer({
     return () => clearInterval(t);
   }, [duo, playing, reduced, loaded, count]);
 
-  // Automatic calm pose switching across 5 distinct expressions (stays stationary)
-  useEffect(() => {
-    if (duo || locked || spin360 || !livingLoaded || reduced) return;
-    const t = setInterval(() => {
-      if (document.hidden || !visible.current) return;
-      const nextIdx = AUTO_POSE_SEQUENCE[autoStepRef.current % AUTO_POSE_SEQUENCE.length];
-      autoStepRef.current += 1;
-      setPoseIdx(nextIdx);
-    }, 3500);
-    return () => clearInterval(t);
-  }, [duo, locked, spin360, livingLoaded, reduced]);
+  // Poses stay 100% static until tapped/clicked so the character never distracts or moves unexpectedly.
 
   useEffect(() => {
     if (duo || locked || !spin360 || !sheetLoaded || reduced) return;
@@ -173,7 +160,7 @@ function AvatarPlayer({
 
   const showPoseWithQuip = useCallback(
     (targetPose: number, withHaptic = true) => {
-      if (locked || reduced) return;
+      if (locked) return;
       if (withHaptic) haptic("tap");
       tapCountRef.current += 1;
       const cleanPose = ((targetPose % POSE_COUNT) + POSE_COUNT) % POSE_COUNT;
@@ -186,7 +173,7 @@ function AvatarPlayer({
         quipTimer.current = null;
       }, 1450);
     },
-    [locked, reduced],
+    [locked],
   );
 
   const triggerNextSurprisePose = useCallback(() => {
@@ -276,8 +263,8 @@ function AvatarPlayer({
   const tier = TIER_META[meta.tier];
   const src = avatarImageSrc(character, clamped);
   const who = character === "richie" ? "Richie" : "Renita";
-  const showTurnaround = !locked && spin360 && sheetLoaded;
-  const showLivingSprite = !locked && !showTurnaround && livingLoaded && !reduced;
+  const showTurnaround = !locked && spin360 && sheetLoaded && !reduced;
+  const showLivingSprite = !locked && !showTurnaround && livingLoaded;
 
   const tierStyle = locked
     ? undefined
@@ -400,7 +387,7 @@ function AvatarPlayer({
         </span>
       </button>
 
-      {!locked && !reduced && (
+      {!locked && (!reduced || livingLoaded) && (
         <div className="avatar-controls-dock">
           {!spin360 && livingLoaded && (
             <div className="avatar-pose-dots" role="group" aria-label="Pilih pose karakter">
@@ -422,19 +409,21 @@ function AvatarPlayer({
               ))}
             </div>
           )}
-          <button
-            type="button"
-            className={`avatar-mode-toggle${spin360 ? " is-active" : ""}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              haptic("tap");
-              setSpin360((v) => !v);
-            }}
-            aria-pressed={spin360}
-            aria-label={spin360 ? "Kembali ke ganti pose" : "Putar karakter 360 derajat"}
-          >
-            <span aria-hidden="true">{spin360 ? "✦ Pose" : "360°"}</span>
-          </button>
+          {!reduced && (
+            <button
+              type="button"
+              className={`avatar-mode-toggle${spin360 ? " is-active" : ""}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                haptic("tap");
+                setSpin360((v) => !v);
+              }}
+              aria-pressed={spin360}
+              aria-label={spin360 ? "Kembali ke ganti pose" : "Putar karakter 360 derajat"}
+            >
+              <span aria-hidden="true">{spin360 ? "✦ Pose" : "360°"}</span>
+            </button>
+          )}
         </div>
       )}
     </div>

@@ -5,6 +5,7 @@ import { haptic } from "@/lib/haptics";
 import { useModalScrollLock } from "@/lib/scrollLock";
 import {
   FREE_STARTER_STAGE_IDS,
+  RARITY_TAG,
   STAGE_BACKGROUNDS,
   type StageBackgroundId,
 } from "@/lib/stageBackgrounds";
@@ -101,13 +102,15 @@ export default function StagePickerSheet({
               >
                 <div
                   className="stage-swatch"
+                  data-foil={stage.foilStyle}
                   style={{ background: stage.previewGradient }}
                 >
-                  <span
-                    className="stage-swatch-dot"
-                    style={{ backgroundColor: stage.accent }}
-                    aria-hidden="true"
-                  />
+                  <div className="stage-swatch-meta">
+                    <span className="stage-swatch-code">{stage.cardCode}</span>
+                    <span className="stage-swatch-label">
+                      ★ {stage.badgeLabel} · {RARITY_TAG[stage.rarity]}
+                    </span>
+                  </div>
                   {active ? (
                     <span className="stage-badge active">Dipakai ✓</span>
                   ) : unlocked ? (

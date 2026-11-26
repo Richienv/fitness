@@ -42,12 +42,19 @@ import {
   saveSelectedStageId,
   syncAchievementsToServer,
 } from "@/lib/stagePrefs";
-import { STAGE_BACKGROUNDS, type StageBackgroundId } from "@/lib/stageBackgrounds";
+import {
+  getStageBackground,
+  STAGE_BACKGROUNDS,
+  type StageBackgroundId,
+} from "@/lib/stageBackgrounds";
 import { scopedKey } from "@/lib/userScope";
 import { useAccountSetup } from "../SetupProvider";
 import EnergyBalanceCard from "./EnergyBalanceCard";
 import HeroAvatarStage from "./HeroAvatarStage";
 import MetabolicCalibrationSheet from "./MetabolicCalibrationSheet";
+import LegendaryRevealOverlay, {
+  type LegendaryRevealPayload,
+} from "./LegendaryRevealOverlay";
 import {
   logUsualMeal,
   readUsualMeal,
@@ -124,7 +131,8 @@ export default function HomePage() {
     [shadows, setShadows] = useState<ShadowRecommendation[]>([]),
     [editingShadow, setEditingShadow] = useState<ShadowRecommendation | null>(null),
     [workoutTitle, setWorkoutTitle] = useState<string | null>(null),
-    [calibrateOpen, setCalibrateOpen] = useState(false);
+    [calibrateOpen, setCalibrateOpen] = useState(false),
+    [revealPayload, setRevealPayload] = useState<LegendaryRevealPayload | null>(null);
   const seenCheerIdRef = useRef<string | null>(null);
   const presenceSigRef = useRef<string | null>(null);
   const refreshSigRef = useRef<string | null>(null);
@@ -550,6 +558,37 @@ export default function HomePage() {
   }, [account?.setup?.stageBackgroundId]);
 
   useEffect(() => {
+    if (typeof window === "undefined" || progress.level == null) return;
+    const key = scopedKey("r2.lastSeenLevel.v1");
+    try {
+      const raw = JSON.parse(window.localStorage.getItem(key) || "{}");
+      const map: Record<string, number> =
+        raw && typeof raw === "object" ? (raw as Record<string, number>) : {};
+      const prev = map[settings.character];
+      if (typeof prev !== "number" || !Number.isFinite(prev)) {
+        map[settings.character] = progress.level;
+        window.localStorage.setItem(key, JSON.stringify(map));
+        return;
+      }
+      if (progress.level > prev) {
+        map[settings.character] = progress.level;
+        window.localStorage.setItem(key, JSON.stringify(map));
+        setRevealPayload({
+          character: settings.character,
+          level: progress.level,
+          stageId,
+          eyebrow: "LEVEL BARU TERBUKA!",
+        });
+      } else if (progress.level < prev) {
+        map[settings.character] = progress.level;
+        window.localStorage.setItem(key, JSON.stringify(map));
+      }
+    } catch {
+      // ignore storage failure
+    }
+  }, [progress.level, settings.character, stageId]);
+
+  useEffect(() => {
     const unlockedItems = achievementSummary.items.filter((x) => x.unlocked);
     if (unlockedItems.length === 0) return;
     const stageNames = new Map(STAGE_BACKGROUNDS.map((s) => [s.id, s.name]));
@@ -562,9 +601,21 @@ export default function HomePage() {
           `✨ Pencapaian terbuka: ${first.title}${stageName ? ` · Latar ${stageName}` : ""}`,
           "success",
         );
+        setRevealPayload((cur) =>
+          cur ?? {
+            character: settings.character,
+            level: progress.level ?? 1,
+            stageId: first.stageId,
+            eyebrow: "LATAR KARTU BARU TERBUKA!",
+            customTitle: stageName || first.title,
+            customSubtitle: first.description,
+            rarityOverride: getStageBackground(first.stageId).rarity,
+          },
+        );
       }
     }
     syncAchievementsToServer(achievementSummary.items, stageNames);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [achievementSummary]);
 
   const handleSelectStage = useCallback(
@@ -814,6 +865,14 @@ export default function HomePage() {
             accuracyScore={energy?.status === "ok" ? energy.metabolic?.accuracyScore ?? null : null}
             accuracyAlert={energy?.status === "ok" ? energy.metabolic?.alerts?.[0] ?? null : null}
             onOpenCalibrate={() => setCalibrateOpen(true)}
+            onOpenReveal={(lvl) =>
+              setRevealPayload({
+                character: settings.character,
+                level: lvl ?? progress.level ?? 1,
+                stageId,
+                eyebrow: "COLLECTOR CARD REVEAL",
+              })
+            }
           />
           {detailOpen && energy && (
             <div className="hero-detail-drawer">
@@ -993,6 +1052,10 @@ export default function HomePage() {
         open={calibrateOpen}
         onClose={() => setCalibrateOpen(false)}
         dateKey={date || todayKey()}
+      />
+      <LegendaryRevealOverlay
+        payload={revealPayload}
+        onClose={() => setRevealPayload(null)}
       />
     </main>
   );

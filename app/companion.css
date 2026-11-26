@@ -1298,10 +1298,34 @@ summary:focus-visible,
 
 .avatar-meta-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 6px;
+}
+
+.avatar-meta-head-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.avatar-reveal-mini-btn {
+  min-height: 32px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  background: linear-gradient(135deg, #fef08a 0%, #f59e0b 100%);
+  color: #271500;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 820;
+  cursor: pointer;
+}
+
+.avatar-reveal-mini-btn:active {
+  transform: scale(0.94);
 }
 
 .avatar-tier-badge {

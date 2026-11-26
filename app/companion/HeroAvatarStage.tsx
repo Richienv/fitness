@@ -26,6 +26,7 @@ import {
   DEFAULT_STAGE_ID,
   FREE_STARTER_STAGE_IDS,
   getStageBackground,
+  RARITY_TAG,
   STAGE_BACKGROUNDS,
   type StageBackgroundId,
 } from "@/lib/stageBackgrounds";
@@ -147,6 +148,7 @@ function HeroAvatarStage({
   accuracyScore = null,
   accuracyAlert = null,
   onOpenCalibrate,
+  onOpenReveal,
 }: {
   character: Character;
   level: number;
@@ -171,6 +173,7 @@ function HeroAvatarStage({
   accuracyScore?: number | null;
   accuracyAlert?: string | null;
   onOpenCalibrate?: () => void;
+  onOpenReveal?: (level?: number) => void;
 }) {
   const unlockedLevel = Math.max(1, Math.min(12, Math.round(level)));
   const [viewLevel, setViewLevel] = useState(unlockedLevel);
@@ -263,13 +266,49 @@ function HeroAvatarStage({
   );
   const currentMeta = getAvatarLevelMeta(character, viewLevel);
 
+  const showLightning =
+    effectiveStage.foilStyle === "gold" ||
+    effectiveStage.id === "ember-forge" ||
+    currentMeta.tier === "legendaris";
+
   return (
     <section
       className="hero-stage"
       data-stage={effectiveStage.id}
       data-tier={currentMeta.tier}
+      data-foil={effectiveStage.foilStyle}
+      data-rarity={effectiveStage.rarity}
       aria-label="Ringkasan berat dan progres real time"
     >
+      {/* Decorative static TCG / UNITE holographic collector card layers */}
+      <div className="hero-card-art" aria-hidden="true">
+        <div className="hero-card-pattern" />
+        <div className="hero-card-rays" />
+        <div className="hero-card-frame" />
+        {showLightning && (
+          <svg className="hero-card-lightning" viewBox="0 0 360 440" fill="none">
+            <path
+              d="M22 84 L74 128 L52 152 L106 196"
+              stroke="rgba(255,255,255,0.68)"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+            />
+            <path
+              d="M336 96 L282 142 L306 164 L256 212"
+              stroke="rgba(254,240,138,0.78)"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+            />
+            <path
+              d="M34 316 L88 276 L72 254 L122 222"
+              stroke="rgba(255,255,255,0.52)"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          </svg>
+        )}
+      </div>
+
       {/* Dedicated utility strip: quiet status badge left, Stage + Detail triggers right */}
       <div className="hero-stage-top">
         <span className={`hero-live-badge${isToday ? " is-live" : ""}`}>
@@ -326,10 +365,19 @@ function HeroAvatarStage({
         </div>
       </div>
 
-      {/* Top-center focal readout above avatar head */}
+      {/* Top-center focal readout above avatar head + Collector Card Badge */}
       <div className="hero-head-weight">
+        <div className="hero-card-badge-row">
+          <span
+            className="hero-card-badge-pill"
+            style={{ background: effectiveStage.foilGradient }}
+          >
+            ★ {effectiveStage.badgeLabel} · {effectiveStage.cardCode}
+          </span>
+          <span className="hero-card-rarity-tag">{RARITY_TAG[effectiveStage.rarity]}</span>
+        </div>
         {anchorKg !== null && targetWeightNow !== null && baseLive ? (
-          <>
+          <div className="hero-weight-plate">
             <button
               type="button"
               className="hero-weight-transition"
@@ -407,7 +455,7 @@ function HeroAvatarStage({
                 + Air{waterMl > 0 ? ` (${dec(waterL, 1)}L)` : ""}
               </button>
             </div>
-          </>
+          </div>
         ) : (
           <Link href="/settings" className="hero-setup-pill">
             Lengkapi data tubuh untuk proyeksi berat →
@@ -703,6 +751,19 @@ function HeroAvatarStage({
           >
             Semua ({resolvedUnlockedStages.size}/{STAGE_BACKGROUNDS.length})
           </button>
+          {!isLocked && onOpenReveal && (
+            <button
+              type="button"
+              className="hero-reveal-btn"
+              onClick={() => {
+                haptic("tap");
+                onOpenReveal(viewLevel);
+              }}
+              aria-label={`Putar animasi Legendary Reveal Level ${viewLevel}`}
+            >
+              ✨ Reveal
+            </button>
+          )}
         </div>
       )}
       {onSelectStage && (
