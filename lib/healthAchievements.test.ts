@@ -70,6 +70,8 @@ test("water >= 2000ml 3 days, 5d fat <= 50g, and 3 workouts in 7 days unlock sta
   });
 
   assert.equal(res.unlockedStageIds.has("clean-studio"), true);
+  assert.equal(res.unlockedStageIds.has("warm-sunset"), true);
+  assert.equal(res.unlockedStageIds.has("sky-breeze"), true);
   assert.equal(res.unlockedStageIds.has("ocean-glass"), true);
   assert.equal(res.unlockedStageIds.has("nordic-mist"), true);
   assert.equal(res.unlockedStageIds.has("ember-forge"), true);

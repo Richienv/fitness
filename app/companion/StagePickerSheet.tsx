@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { haptic } from "@/lib/haptics";
 import { useModalScrollLock } from "@/lib/scrollLock";
 import {
+  FREE_STARTER_STAGE_IDS,
   STAGE_BACKGROUNDS,
   type StageBackgroundId,
 } from "@/lib/stageBackgrounds";
@@ -60,7 +61,7 @@ export default function StagePickerSheet({
           <div>
             <h2 id="stage-picker-title">Latar Panggung &amp; Pencapaian</h2>
             <p className="stage-sheet-sub">
-              {unlockedCount} / {STAGE_BACKGROUNDS.length} latar terbuka — dibuka lewat kebiasaan sehat harian
+              {unlockedCount} / {STAGE_BACKGROUNDS.length} latar terbuka — 3 bawaan gratis + 8 pencapaian kebiasaan sehat
             </p>
           </div>
           <button
@@ -76,7 +77,8 @@ export default function StagePickerSheet({
         <div className="stage-grid">
           {STAGE_BACKGROUNDS.map((stage) => {
             const ach = stage.achievementKey ? byKey.get(stage.achievementKey) : null;
-            const unlocked = stage.id === "clean-studio" || unlockedStageIds.has(stage.id);
+            const isStarter = FREE_STARTER_STAGE_IDS.includes(stage.id);
+            const unlocked = isStarter || unlockedStageIds.has(stage.id);
             const active = selectedId === stage.id;
             const pct = ach ? Math.round(ach.pct * 100) : 100;
 
@@ -142,9 +144,9 @@ export default function StagePickerSheet({
                       </div>
                       <small className="stage-science">{ach.scienceNote}</small>
                     </>
-                  ) : (
-                    <small className="stage-science">Tampilan default bersih &amp; terang</small>
-                  )}
+                  ) : isStarter ? (
+                    <small className="stage-science">Bawaan gratis · siap pakai</small>
+                  ) : null}
                 </div>
               </button>
             );

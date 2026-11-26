@@ -1044,10 +1044,79 @@ summary:focus-visible,
   box-shadow: 0 0 10px var(--tier-accent, #3e60d5);
 }
 
-.avatar-mote.m1 { left: 26%; bottom: 26%; }
-.avatar-mote.m2 { right: 24%; bottom: 32%; width: 5px; height: 5px; }
-.avatar-mote.m3 { left: 32%; top: 24%; width: 6px; height: 6px; }
-.avatar-mote.m4 { right: 29%; top: 20%; width: 5px; height: 5px; }
+.avatar-mote.m1 { left: 24%; bottom: 26%; }
+.avatar-mote.m2 { right: 22%; bottom: 32%; width: 5px; height: 5px; }
+.avatar-mote.m3 { left: 30%; top: 24%; width: 6px; height: 6px; }
+.avatar-mote.m4 { right: 27%; top: 20%; width: 5px; height: 5px; }
+.avatar-mote.m5 { left: 16%; top: 46%; width: 6px; height: 6px; opacity: 0; }
+.avatar-mote.m6 { right: 16%; top: 44%; width: 6px; height: 6px; opacity: 0; }
+
+.avatar-aura-outer {
+  position: absolute;
+  width: 266px;
+  height: 266px;
+  border-radius: 999px;
+  border: 1.5px solid color-mix(in srgb, var(--tier-accent, #d97706) 24%, transparent);
+  box-shadow: 0 0 28px color-mix(in srgb, var(--tier-accent, #d97706) 18%, transparent);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.avatar-showcase.tier-naik_kelas .avatar-aura-ring {
+  border-width: 2px;
+  opacity: 0.8;
+}
+.avatar-showcase.tier-keren .avatar-aura-ring {
+  border-width: 2px;
+  opacity: 0.9;
+}
+.avatar-showcase.tier-legendaris .avatar-aura-ring {
+  border-style: double;
+  border-width: 3px;
+  opacity: 0.95;
+}
+
+.avatar-living-sprite {
+  height: 100%;
+  width: 225px;
+  max-width: 100%;
+  background-repeat: no-repeat;
+  background-position: 0% 0%;
+  filter: drop-shadow(0 12px 18px rgba(26, 36, 68, 0.16));
+  transform-origin: center bottom;
+  user-select: none;
+}
+
+.avatar-pose-dots {
+  position: absolute;
+  bottom: 10px;
+  left: 12px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.94);
+  box-shadow: 0 3px 10px rgba(26, 36, 68, 0.08);
+}
+
+.avatar-pose-dot {
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.34);
+  cursor: pointer;
+  transition: transform 0.16s ease, background-color 0.16s ease, width 0.16s ease;
+}
+
+.avatar-pose-dot.is-active {
+  width: 16px;
+  background: var(--tier-accent, #3e60d5);
+}
 
 .avatar-shockwave {
   position: absolute;
@@ -1346,7 +1415,8 @@ summary:focus-visible,
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .avatar-stage-img {
+  .avatar-stage-img,
+  .avatar-living-sprite {
     animation:
       avatarSwapIn 0.36s cubic-bezier(0.22, 1, 0.36, 1) both,
       avatarLivingMotion 3.8s ease-in-out 0.36s infinite;
@@ -1357,23 +1427,41 @@ summary:focus-visible,
   .avatar-aura-ring {
     animation: avatarRingSpin 16s linear infinite;
   }
+  .avatar-aura-outer {
+    animation: avatarRingSpinReverse 22s linear infinite;
+  }
   .avatar-mote.m1 { animation: avatarMoteRise 3.2s ease-in-out 0s infinite; }
   .avatar-mote.m2 { animation: avatarMoteRise 3.8s ease-in-out 0.9s infinite; }
   .avatar-mote.m3 { animation: avatarMoteRise 3.5s ease-in-out 1.7s infinite; }
   .avatar-mote.m4 { animation: avatarMoteRise 4.1s ease-in-out 2.3s infinite; }
-  .avatar-stage-btn.is-action-jump .avatar-stage-img {
-    animation: avatarTapBounce 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+  .avatar-showcase.tier-keren .avatar-mote.m5,
+  .avatar-showcase.tier-legendaris .avatar-mote.m5 {
+    animation: avatarMoteRise 3.3s ease-in-out 0.4s infinite;
   }
-  .avatar-stage-btn.is-action-spin .avatar-stage-img {
-    animation: avatarHeroSpin 0.78s cubic-bezier(0.22, 1, 0.36, 1) both;
+  .avatar-showcase.tier-keren .avatar-mote.m6,
+  .avatar-showcase.tier-legendaris .avatar-mote.m6 {
+    animation: avatarMoteRise 3.9s ease-in-out 1.2s infinite;
   }
-  .avatar-stage-btn.is-action-surge .avatar-stage-img {
-    animation: avatarPowerSurge 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+  .avatar-stage-btn.is-pose-pop .avatar-living-sprite,
+  .avatar-stage-btn.is-pose-pop .avatar-stage-img {
+    animation: avatarPosePop 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   .avatar-showcase.tier-legendaris .avatar-aura,
   .avatar-showcase.tier-keren .avatar-aura {
     animation: avatarAuraPulse 2.8s ease-in-out infinite;
   }
+}
+
+@keyframes avatarRingSpinReverse {
+  from { transform: rotate(360deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.06); }
+  to { transform: rotate(0deg) scale(1); }
+}
+
+@keyframes avatarPosePop {
+  0% { transform: translate3d(0, 6px, 0) scale(0.92); }
+  45% { transform: translate3d(0, -10px, 0) scale(1.06); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
 }
 
 @keyframes avatarSwapIn {

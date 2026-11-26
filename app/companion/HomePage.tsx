@@ -80,6 +80,8 @@ import PartnerRoomSheet, {
   type PresenceData,
 } from "./PartnerRoomSheet";
 import Icon from "../ui/Icon";
+import StreakFlame from "../ui/StreakFlame";
+import { getStreakTier } from "@/lib/streakTiers";
 export default function HomePage() {
   const { data: session } = useSession();
   const account = useAccountSetup();
@@ -661,30 +663,57 @@ export default function HomePage() {
         </Link>
         {snap && (
           <nav className="home-streak-bar" aria-label="Streak">
-            <Link
-              href="/meal"
-              className={`home-streak-item meal${snap.meal.todayDone ? " lit" : ""}`}
-              aria-label={`Catat makan ${snap.meal.count} hari`}
-            >
-              <Icon name="flame" size={13} />
-              <span>{snap.meal.count}</span>
-            </Link>
-            <Link
-              href="/workout"
-              className={`home-streak-item workout${snap.workoutWeeks.todayDone ? " lit" : ""}`}
-              aria-label={`Latihan ${snap.workoutWeeks.count} minggu`}
-            >
-              <Icon name="workout" size={13} />
-              <span>{snap.workoutWeeks.count}</span>
-            </Link>
-            <Link
-              href="/dashboard/progress"
-              className={`home-streak-item weigh${snap.weigh.todayDone ? " lit" : ""}`}
-              aria-label={`Timbang ${snap.weigh.count} hari`}
-            >
-              <Icon name="scale" size={13} />
-              <span>{snap.weigh.count}</span>
-            </Link>
+            {(() => {
+              const mealTier = getStreakTier(snap.meal.count);
+              const wkTier = getStreakTier(snap.workoutWeeks.count);
+              const weighTier = getStreakTier(snap.weigh.count);
+              return (
+                <>
+                  <Link
+                    href="/meal"
+                    className={`home-streak-item meal${snap.meal.todayDone ? " lit" : ""}`}
+                    style={
+                      snap.meal.count >= 3
+                        ? { color: mealTier.accent }
+                        : undefined
+                    }
+                    aria-label={`Catat makan ${snap.meal.count} hari (${mealTier.title})`}
+                    title={`Streak Makan: ${snap.meal.count} hari (${mealTier.title})`}
+                  >
+                    <StreakFlame count={snap.meal.count} size={15} />
+                    <span>{snap.meal.count}</span>
+                  </Link>
+                  <Link
+                    href="/workout"
+                    className={`home-streak-item workout${snap.workoutWeeks.todayDone ? " lit" : ""}`}
+                    style={
+                      snap.workoutWeeks.count >= 3
+                        ? { color: wkTier.accent }
+                        : undefined
+                    }
+                    aria-label={`Latihan ${snap.workoutWeeks.count} minggu (${wkTier.title})`}
+                    title={`Streak Latihan: ${snap.workoutWeeks.count} minggu (${wkTier.title})`}
+                  >
+                    <StreakFlame count={snap.workoutWeeks.count} size={15} />
+                    <span>{snap.workoutWeeks.count}</span>
+                  </Link>
+                  <Link
+                    href="/dashboard/progress"
+                    className={`home-streak-item weigh${snap.weigh.todayDone ? " lit" : ""}`}
+                    style={
+                      snap.weigh.count >= 3
+                        ? { color: weighTier.accent }
+                        : undefined
+                    }
+                    aria-label={`Timbang ${snap.weigh.count} hari (${weighTier.title})`}
+                    title={`Streak Timbang: ${snap.weigh.count} hari (${weighTier.title})`}
+                  >
+                    <StreakFlame count={snap.weigh.count} size={15} />
+                    <span>{snap.weigh.count}</span>
+                  </Link>
+                </>
+              );
+            })()}
           </nav>
         )}
         <div className="home-topbar-right">

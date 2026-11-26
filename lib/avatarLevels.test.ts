@@ -4,6 +4,7 @@ import { statSync } from "node:fs";
 import { join } from "node:path";
 import {
   avatarImageSrc,
+  avatarLivingSheetSrc,
   clampAvatarLevel,
   getAvatarLevelMeta,
   RENITA_LEVELS,
@@ -35,6 +36,18 @@ test("avatar levels clamp safely and resolve versioned v3 WebP paths on disk", (
       const diskPath = join(process.cwd(), "public", src.slice(1));
       const st = statSync(diskPath);
       assert.ok(st.size > 5_000, `${src} looks unexpectedly tiny (${st.size} B)`);
+
+      const livingSrc = avatarLivingSheetSrc(character, lvl);
+      assert.match(
+        livingSrc,
+        /^\/avatars\/v4\/(richie|renita)-level-(0[1-9]|1[0-2])-living\.webp$/,
+      );
+      const livingDiskPath = join(process.cwd(), "public", livingSrc.slice(1));
+      const livingSt = statSync(livingDiskPath);
+      assert.ok(
+        livingSt.size > 20_000,
+        `${livingSrc} looks unexpectedly tiny (${livingSt.size} B)`,
+      );
     }
   }
 });

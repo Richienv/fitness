@@ -47,6 +47,43 @@
   background: radial-gradient(circle, rgba(255, 204, 158, 0.26) 0%, rgba(252, 182, 200, 0.12) 48%, transparent 74%);
 }
 
+.hero-stage[data-stage="warm-sunset"] {
+  background: linear-gradient(155deg, #fff1e6 0%, #fff7f0 52%, #ffe8d6 100%);
+}
+.hero-stage[data-stage="warm-sunset"]::before {
+  background: radial-gradient(circle, rgba(234, 88, 12, 0.2) 0%, rgba(251, 146, 60, 0.1) 50%, transparent 74%);
+}
+.hero-stage[data-stage="warm-sunset"]::after {
+  background: radial-gradient(circle, rgba(244, 114, 182, 0.18) 0%, transparent 72%);
+}
+
+.hero-stage[data-stage="sky-breeze"] {
+  background: linear-gradient(155deg, #e0f2fe 0%, #f0f9ff 52%, #eef2ff 100%);
+}
+.hero-stage[data-stage="sky-breeze"]::before {
+  background: radial-gradient(circle, rgba(2, 132, 199, 0.22) 0%, rgba(56, 189, 248, 0.1) 50%, transparent 74%);
+}
+.hero-stage[data-stage="sky-breeze"]::after {
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.16) 0%, transparent 72%);
+}
+
+/* Escalating tier stage atmosphere (Pemula -> Naik Kelas -> Keren -> Legendaris) */
+.hero-stage[data-tier="naik_kelas"] {
+  box-shadow:
+    0 0 0 1px rgba(37, 99, 235, 0.12),
+    0 16px 38px rgba(37, 99, 235, 0.1);
+}
+.hero-stage[data-tier="keren"] {
+  box-shadow:
+    0 0 0 1px rgba(219, 39, 119, 0.16),
+    0 18px 42px rgba(219, 39, 119, 0.12);
+}
+.hero-stage[data-tier="legendaris"] {
+  box-shadow:
+    0 0 0 1.5px rgba(217, 119, 6, 0.28),
+    0 20px 46px rgba(217, 119, 6, 0.16);
+}
+
 .hero-stage[data-stage="jade-zen"] {
   background: linear-gradient(155deg, #e7fbf3 0%, #f3fcf8 50%, #e8f5ff 100%);
 }
@@ -157,6 +194,175 @@
   color: #3652be;
   font-size: 10px;
   font-weight: 800;
+}
+
+/* Visible inline starter & favorite stage swatches inside Hero Stage */
+.hero-stage-swatches {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(30, 44, 84, 0.08);
+}
+
+.hero-swatch-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.hero-swatch-btn {
+  width: 22px;
+  height: 22px;
+  padding: 2px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(30, 44, 84, 0.16);
+  background: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.hero-swatch-btn > span {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.hero-swatch-btn.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(62, 96, 213, 0.22);
+  transform: scale(1.1);
+}
+
+.hero-swatch-more {
+  min-height: 24px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(62, 96, 213, 0.2);
+  background: rgba(255, 255, 255, 0.88);
+  color: #3652be;
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 740;
+  cursor: pointer;
+}
+
+/* Evolving streak flames & ladder */
+.streak-flame-emblem {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 6px var(--flame-glow, transparent));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .streak-flame-emblem.tier-blaze,
+  .streak-flame-emblem.tier-blue_flame {
+    animation: streakFlicker 1.9s ease-in-out infinite;
+  }
+  .streak-flame-emblem.tier-lightning {
+    animation: streakBoltPulse 1.5s ease-in-out infinite;
+  }
+  .streak-flame-emblem.tier-golden,
+  .streak-flame-emblem.tier-godfire {
+    animation: streakGodGlow 2.4s ease-in-out infinite;
+  }
+}
+
+@keyframes streakFlicker {
+  0%, 100% { transform: scale(1) rotate(-1deg); }
+  50% { transform: scale(1.1) rotate(2deg); }
+}
+
+@keyframes streakBoltPulse {
+  0%, 100% { transform: scale(1); }
+  45% { transform: scale(1.16) rotate(-3deg); }
+  70% { transform: scale(1.04) rotate(2deg); }
+}
+
+@keyframes streakGodGlow {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-1.5px) scale(1.14); }
+}
+
+.hud-streak-rank {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 14px rgba(30, 44, 84, 0.045);
+}
+
+.hud-streak-rank-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.hud-streak-rank-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.hud-streak-rank-next {
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--muted);
+}
+
+.hud-streak-ladder {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.hud-streak-ladder::-webkit-scrollbar {
+  display: none;
+}
+
+.hud-ladder-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: center;
+  padding: 4px 5px;
+  border-radius: 10px;
+  border: 1px solid rgba(30, 44, 84, 0.08);
+  background: #f8f9fd;
+  font-size: 10px;
+  font-weight: 720;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.hud-ladder-step.is-reached {
+  border-color: rgba(30, 44, 84, 0.14);
+  color: var(--text);
+  background: #ffffff;
+}
+
+.hud-ladder-step.is-current {
+  border-color: var(--step-accent, var(--accent));
+  background: color-mix(in srgb, var(--step-accent, var(--accent)) 10%, #ffffff);
+  color: var(--step-accent, var(--accent));
 }
 
 /* Stage Picker Modal Sheet */

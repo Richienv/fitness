@@ -3,6 +3,8 @@
 
 export type StageBackgroundId =
   | "clean-studio"
+  | "warm-sunset"
+  | "sky-breeze"
   | "jade-zen"
   | "nordic-mist"
   | "golden-dawn"
@@ -23,14 +25,36 @@ export type StageBackgroundMeta = {
 
 export const DEFAULT_STAGE_ID: StageBackgroundId = "clean-studio";
 
+export const FREE_STARTER_STAGE_IDS: readonly StageBackgroundId[] = [
+  "clean-studio",
+  "warm-sunset",
+  "sky-breeze",
+];
+
 export const STAGE_BACKGROUNDS: readonly StageBackgroundMeta[] = [
   {
     id: "clean-studio",
     name: "Studio Bersih",
-    tagline: "Putih-biru minimalis & selalu bersih",
+    tagline: "Putih-biru minimalis & terang",
     achievementKey: null,
     previewGradient: "linear-gradient(155deg, #eef3ff 0%, #f6f7fc 48%, #fdf7f2 100%)",
     accent: "#3e60d5",
+  },
+  {
+    id: "warm-sunset",
+    name: "Senja Hangat",
+    tagline: "Krem keemasan & bias persik lembut",
+    achievementKey: null,
+    previewGradient: "linear-gradient(155deg, #fff1e6 0%, #fff7f0 52%, #ffe8d6 100%)",
+    accent: "#ea580c",
+  },
+  {
+    id: "sky-breeze",
+    name: "Langit Teduh",
+    tagline: "Biru langit segar & awan sejuk",
+    achievementKey: null,
+    previewGradient: "linear-gradient(155deg, #e0f2fe 0%, #f0f9ff 52%, #eef2ff 100%)",
+    accent: "#0284c7",
   },
   {
     id: "jade-zen",

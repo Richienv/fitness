@@ -3,7 +3,10 @@
 // than scale weight alone, rewarding daily nutrition, hydration, training, and
 // mutual consistency. Pure module (zero browser/DB imports) for fast testing.
 
-import type { StageBackgroundId } from "./stageBackgrounds.ts";
+import {
+  FREE_STARTER_STAGE_IDS,
+  type StageBackgroundId,
+} from "./stageBackgrounds.ts";
 
 export type DailyAchievementNutrition = {
   date: string;
@@ -290,7 +293,7 @@ export function evaluateHealthAchievements(
   };
 
   const unlockedKeys = new Set<HealthAchievementKey>();
-  const unlockedStageIds = new Set<StageBackgroundId>(["clean-studio"]);
+  const unlockedStageIds = new Set<StageBackgroundId>(FREE_STARTER_STAGE_IDS);
 
   const items: HealthAchievementProgress[] = HEALTH_ACHIEVEMENTS.map((def) => {
     const m = metricForKey(def.key);

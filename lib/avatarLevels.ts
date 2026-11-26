@@ -243,3 +243,24 @@ export function avatarSheetSrc(character: Character, level: number): string {
   const clamped = clampAvatarLevel(level);
   return `/avatars/v2/${character}-level-${String(clamped).padStart(2, "0")}-sheet.webp`;
 }
+
+export function avatarLivingSheetSrc(character: Character, level: number): string {
+  const clamped = clampAvatarLevel(level);
+  return `/avatars/v4/${character}-level-${String(clamped).padStart(2, "0")}-living.webp`;
+}
+
+export const POSE_LABELS = [
+  "Santai",
+  "Lompat",
+  "Rebahan",
+  "Squat",
+  "Aksi",
+] as const;
+
+export const POSE_QUIPS: readonly (readonly string[])[] = [
+  ["Siap beraksi!", "Gas hari ini ✨", "Yuk semangat!"],
+  ["Woohoo!! 🔥", "Seneng banget!", "Lompat tinggi! 🚀"],
+  ["Tiarap santai 😌", "Nge-chill dulu~", "Halo kamu 👀"],
+  ["Squat mode! 💪", "Fokus terus 🔥", "Kuat bareng!"],
+  ["Jurus andalan ⚡", "Mode Epik ✨", "Liat nih! 😎"],
+] as const;

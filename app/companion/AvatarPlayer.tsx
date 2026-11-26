@@ -4,20 +4,23 @@ import { useReducedMotion } from "@/lib/useReducedMotion";
 import type { Character } from "@/lib/companionProgress";
 import {
   avatarImageSrc,
+  avatarLivingSheetSrc,
   avatarSheetSrc,
   clampAvatarLevel,
   getAvatarLevelMeta,
+  POSE_LABELS,
+  POSE_QUIPS,
   TIER_META,
 } from "@/lib/avatarLevels";
 import { haptic } from "@/lib/haptics";
 
-type ActionKind = "jump" | "spin" | "surge";
+const POSE_COUNT = 5;
+const AUTO_POSE_SEQUENCE = [1, 2, 3, 4, 2, 1, 0, 4, 3, 1, 2, 0] as const;
 
-const ACTION_QUIPS: Record<ActionKind, readonly string[]> = {
-  jump: ["Mantap! 🔥", "Gas terus! ⚡", "Keep going!"],
-  spin: ["Pose 360° ✨", "Keren banget!", "On fire! 🔥"],
-  surge: ["Power Surge! ⚡", "Mode Epik ✨", "Juara hari ini!"],
-};
+function pickQuip(poseIdx: number, seed: number): string {
+  const pool = POSE_QUIPS[poseIdx] ?? POSE_QUIPS[0];
+  return pool[Math.abs(seed) % pool.length];
+}
 
 function AvatarPlayer({
   character = "richie",
@@ -45,8 +48,11 @@ function AvatarPlayer({
   const [frame, setFrame] = useState(0);
   const [loaded, setLoaded] = useState(false);
 
-  // Single-avatar living stage states
-  const [action, setAction] = useState<ActionKind | null>(null);
+  // Single-avatar 5-pose living sprite states
+  const [livingLoaded, setLivingLoaded] = useState(false);
+  const [poseIdx, setPoseIdx] = useState(0);
+  const [posePop, setPosePop] = useState(false);
+  const [shockwaveKey, setShockwaveKey] = useState(0);
   const [actionQuip, setActionQuip] = useState<string>("");
   const [spin360, setSpin360] = useState(false);
   const [sheetLoaded, setSheetLoaded] = useState(false);
@@ -57,8 +63,10 @@ function AvatarPlayer({
   const visible = useRef(true);
   const drag = useRef<{ x: number; frame: number } | null>(null);
   const singleDrag = useRef<{ x: number; frame: number; moved: boolean } | null>(null);
-  const actionTimer = useRef<number | null>(null);
-  const comboIndex = useRef(0);
+  const quipTimer = useRef<number | null>(null);
+  const popTimer = useRef<number | null>(null);
+  const autoStepRef = useRef(0);
+  const tapCountRef = useRef(0);
 
   // Duo mode keeps the existing 6-frame 3×2 turnaround sheet on /login, /companion, AuthFrame.
   const count = 6;
@@ -68,6 +76,7 @@ function AvatarPlayer({
 
   const clamped = clampAvatarLevel(level);
   const singleSheet = avatarSheetSrc(character, clamped);
+  const livingSheet = avatarLivingSheetSrc(character, clamped);
 
   useEffect(() => {
     if (!duo) return;
@@ -84,6 +93,22 @@ function AvatarPlayer({
       current = false;
     };
   }, [duo, duoSheet, engaged]);
+
+  useEffect(() => {
+    if (duo || locked) return;
+    setLivingLoaded(false);
+    setPoseIdx(0);
+    autoStepRef.current = 0;
+    let current = true;
+    const img = new Image();
+    img.onload = () => {
+      if (current) setLivingLoaded(true);
+    };
+    img.src = livingSheet;
+    return () => {
+      current = false;
+    };
+  }, [duo, locked, livingSheet]);
 
   useEffect(() => {
     if (duo || locked || !spin360) return;
@@ -117,6 +142,31 @@ function AvatarPlayer({
     return () => clearInterval(t);
   }, [duo, playing, reduced, loaded, count]);
 
+  const pulsePoseTransition = useCallback(() => {
+    setPosePop(false);
+    if (popTimer.current !== null) window.clearTimeout(popTimer.current);
+    requestAnimationFrame(() => {
+      setPosePop(true);
+      popTimer.current = window.setTimeout(() => {
+        setPosePop(false);
+        popTimer.current = null;
+      }, 420);
+    });
+  }, []);
+
+  // Automatic living pose cycling across 5 distinct generated expressions
+  useEffect(() => {
+    if (duo || locked || spin360 || !livingLoaded || reduced) return;
+    const t = setInterval(() => {
+      if (document.hidden || !visible.current) return;
+      const nextIdx = AUTO_POSE_SEQUENCE[autoStepRef.current % AUTO_POSE_SEQUENCE.length];
+      autoStepRef.current += 1;
+      setPoseIdx(nextIdx);
+      pulsePoseTransition();
+    }, 3200);
+    return () => clearInterval(t);
+  }, [duo, locked, spin360, livingLoaded, reduced, pulsePoseTransition]);
+
   useEffect(() => {
     if (duo || locked || !spin360 || !sheetLoaded || reduced) return;
     const t = setInterval(() => {
@@ -133,31 +183,34 @@ function AvatarPlayer({
 
   useEffect(() => {
     return () => {
-      if (actionTimer.current !== null) window.clearTimeout(actionTimer.current);
+      if (quipTimer.current !== null) window.clearTimeout(quipTimer.current);
+      if (popTimer.current !== null) window.clearTimeout(popTimer.current);
     };
   }, []);
 
-  const triggerEpicAction = useCallback(() => {
-    if (locked || reduced) return;
-    haptic("tap");
-    const sequence: ActionKind[] = ["jump", "spin", "surge"];
-    const nextKind = sequence[comboIndex.current % sequence.length];
-    const pool = ACTION_QUIPS[nextKind];
-    const quip = pool[Math.floor(comboIndex.current / sequence.length) % pool.length];
-    comboIndex.current += 1;
-
-    setAction(null);
-    if (actionTimer.current !== null) window.clearTimeout(actionTimer.current);
-    requestAnimationFrame(() => {
-      setAction(nextKind);
-      setActionQuip(quip);
-      actionTimer.current = window.setTimeout(() => {
-        setAction(null);
+  const showPoseWithQuip = useCallback(
+    (targetPose: number, withHaptic = true) => {
+      if (locked || reduced) return;
+      if (withHaptic) haptic("tap");
+      tapCountRef.current += 1;
+      const cleanPose = ((targetPose % POSE_COUNT) + POSE_COUNT) % POSE_COUNT;
+      setPoseIdx(cleanPose);
+      setShockwaveKey((k) => k + 1);
+      pulsePoseTransition();
+      setActionQuip(pickQuip(cleanPose, tapCountRef.current));
+      if (quipTimer.current !== null) window.clearTimeout(quipTimer.current);
+      quipTimer.current = window.setTimeout(() => {
         setActionQuip("");
-        actionTimer.current = null;
-      }, 920);
-    });
-  }, [locked, reduced]);
+        quipTimer.current = null;
+      }, 1450);
+    },
+    [locked, reduced, pulsePoseTransition],
+  );
+
+  const triggerNextSurprisePose = useCallback(() => {
+    const next = (poseIdx + 1) % POSE_COUNT;
+    showPoseWithQuip(next, true);
+  }, [poseIdx, showPoseWithQuip]);
 
   if (duo) {
     const togglePlay = () => {
@@ -242,6 +295,7 @@ function AvatarPlayer({
   const src = avatarImageSrc(character, clamped);
   const who = character === "richie" ? "Richie" : "Renita";
   const showTurnaround = !locked && spin360 && sheetLoaded;
+  const showLivingSprite = !locked && !showTurnaround && livingLoaded && !reduced;
 
   const tiltStyle =
     !locked && !reduced
@@ -260,9 +314,7 @@ function AvatarPlayer({
 
   const stageBtnClass = [
     "avatar-stage-btn",
-    action === "jump" ? "is-action-jump" : "",
-    action === "spin" ? "is-action-spin" : "",
-    action === "surge" ? "is-action-surge" : "",
+    posePop ? "is-pose-pop" : "",
     showTurnaround ? "is-turnaround" : "",
   ]
     .filter(Boolean)
@@ -278,19 +330,26 @@ function AvatarPlayer({
         <>
           <span className="avatar-aura" aria-hidden="true" />
           <span className="avatar-aura-ring" aria-hidden="true" />
+          {(meta.tier === "keren" || meta.tier === "legendaris") && (
+            <span className="avatar-aura-outer" aria-hidden="true" />
+          )}
           <span className="avatar-floor-shadow" aria-hidden="true" />
           <span className="avatar-motes" aria-hidden="true">
             <i className="avatar-mote m1" />
             <i className="avatar-mote m2" />
             <i className="avatar-mote m3" />
             <i className="avatar-mote m4" />
+            <i className="avatar-mote m5" />
+            <i className="avatar-mote m6" />
           </span>
         </>
       )}
 
-      {action && <span className="avatar-shockwave" aria-hidden="true" />}
+      {shockwaveKey > 0 && (
+        <span key={shockwaveKey} className="avatar-shockwave" aria-hidden="true" />
+      )}
       {actionQuip && (
-        <span className="avatar-action-quip" role="status">
+        <span key={`${shockwaveKey}-q`} className="avatar-action-quip" role="status">
           {actionQuip}
         </span>
       )}
@@ -300,7 +359,7 @@ function AvatarPlayer({
         className={stageBtnClass}
         onClick={() => {
           if (singleDrag.current?.moved) return;
-          triggerEpicAction();
+          triggerNextSurprisePose();
         }}
         onPointerDown={(e) => {
           if (locked || !showTurnaround) return;
@@ -343,7 +402,7 @@ function AvatarPlayer({
         aria-label={
           locked
             ? `${who} level ${clamped}, terkunci (siluet rahasia)`
-            : `${who} level ${clamped}, ${meta.title} — ketuk untuk animasi`
+            : `${who} level ${clamped}, ${meta.title} — pose ${POSE_LABELS[poseIdx]} — ketuk untuk ganti ekspresi`
         }
       >
         <span className="avatar-tilt-frame">
@@ -356,6 +415,17 @@ function AvatarPlayer({
                 backgroundImage: `url('${singleSheet}')`,
                 backgroundSize: "400% 200%",
                 backgroundPosition: `${((sheetFrame % 4) / 3) * 100}% ${sheetFrame >= 4 ? 100 : 0}%`,
+              }}
+            />
+          ) : showLivingSprite ? (
+            <div
+              role="img"
+              aria-label={`${who} level ${clamped} — ${POSE_LABELS[poseIdx]}`}
+              className="avatar-living-sprite"
+              style={{
+                backgroundImage: `url('${livingSheet}')`,
+                backgroundSize: "500% 100%",
+                backgroundPosition: `${(poseIdx / (POSE_COUNT - 1)) * 100}% 0%`,
               }}
             />
           ) : (
@@ -377,6 +447,25 @@ function AvatarPlayer({
         </span>
       </button>
 
+      {!locked && !reduced && !spin360 && livingLoaded && (
+        <div className="avatar-pose-dots" role="group" aria-label="Pilih ekspresi karakter">
+          {POSE_LABELS.map((label, idx) => (
+            <button
+              key={label}
+              type="button"
+              className={`avatar-pose-dot${poseIdx === idx ? " is-active" : ""}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                showPoseWithQuip(idx, true);
+              }}
+              aria-label={`Ekspresi ${label}`}
+              aria-pressed={poseIdx === idx}
+              title={label}
+            />
+          ))}
+        </div>
+      )}
+
       {!locked && !reduced && (
         <button
           type="button"
@@ -387,9 +476,9 @@ function AvatarPlayer({
             setSpin360((v) => !v);
           }}
           aria-pressed={spin360}
-          aria-label={spin360 ? "Kembali ke pose hidup" : "Putar karakter 360 derajat"}
+          aria-label={spin360 ? "Kembali ke ekspresi hidup" : "Putar karakter 360 derajat"}
         >
-          <span aria-hidden="true">{spin360 ? "✦ Live" : "360°"}</span>
+          <span aria-hidden="true">{spin360 ? "✦ Hidup" : "360°"}</span>
         </button>
       )}
     </div>

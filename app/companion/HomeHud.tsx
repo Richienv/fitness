@@ -5,6 +5,8 @@ import type { Snapshot, Streak } from "@/lib/motivation";
 import AnimatedNumber from "../_motion/AnimatedNumber";
 import TodayRings from "../_motion/TodayRings";
 import Icon, { type IconName } from "../ui/Icon";
+import StreakFlame from "../ui/StreakFlame";
+import { getStreakTier, nextStreakMilestone, STREAK_TIERS } from "@/lib/streakTiers";
 
 const id = (n: number) => Math.round(n).toLocaleString("id-ID");
 const dayName = (date: string) =>
@@ -77,8 +79,55 @@ export default function HomeHud({
   const kcalLeft = s.kcalTarget - s.kcal;
   const proteinLeft = Math.max(0, s.proteinTarget - s.protein);
   const proteinDays = s.week.filter((d) => d.proteinHit).length;
+  const topPair = [
+    { count: s.workoutWeeks.count, unit: "minggu latihan" },
+    { count: s.meal.count, unit: "hari makan" },
+    { count: s.weigh.count, unit: "hari timbang" },
+  ].sort((a, b) => b.count - a.count)[0];
+  const topTier = getStreakTier(topPair.count);
+  const nextGoal = nextStreakMilestone(topPair.count);
   return (
     <section className="hud" aria-label="Posisimu hari ini">
+      {weekOnly && (
+        <div className="hud-streak-rank" aria-label="Evolusi rank streak">
+          <div className="hud-streak-rank-top">
+            <span
+              className="hud-streak-rank-badge"
+              style={{
+                background: topTier.pillBg,
+                border: `1px solid ${topTier.pillBorder}`,
+                color: topTier.accent,
+              }}
+            >
+              <StreakFlame count={topPair.count} size={17} />
+              <span>
+                {topTier.title} · {topPair.count} {topPair.unit}
+              </span>
+            </span>
+            <span className="hud-streak-rank-next">
+              {nextGoal
+                ? `${nextGoal.remaining} lagi → ${nextGoal.nextTitle}`
+                : "Puncak Tingkat Dewa 🔥"}
+            </span>
+          </div>
+          <div className="hud-streak-ladder" aria-hidden="true">
+            {STREAK_TIERS.filter((t) => t.min > 0).map((t) => {
+              const reached = topPair.count >= t.min;
+              const current = topTier.id === t.id;
+              return (
+                <span
+                  key={t.id}
+                  className={`hud-ladder-step${reached ? " is-reached" : ""}${current ? " is-current" : ""}`}
+                  style={{ ["--step-accent" as string]: t.accent } as CSSProperties}
+                >
+                  <StreakFlame count={t.min} size={13} tierOverride={t.id} />
+                  <span>{t.min}</span>
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {!weekOnly && (
       <div className="hud-streaks">
         <StreakChip

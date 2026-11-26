@@ -24,7 +24,9 @@ import Icon from "../ui/Icon";
 import { getAvatarLevelMeta, TIER_META } from "@/lib/avatarLevels";
 import {
   DEFAULT_STAGE_ID,
+  FREE_STARTER_STAGE_IDS,
   getStageBackground,
+  STAGE_BACKGROUNDS,
   type StageBackgroundId,
 } from "@/lib/stageBackgrounds";
 import type { HealthAchievementProgress } from "@/lib/healthAchievements";
@@ -249,15 +251,17 @@ function HeroAvatarStage({
 
   const waterL = waterMl / 1000;
   const resolvedUnlockedStages =
-    unlockedStageIds ?? new Set<StageBackgroundId>([DEFAULT_STAGE_ID]);
+    unlockedStageIds ?? new Set<StageBackgroundId>(FREE_STARTER_STAGE_IDS);
   const effectiveStage = getStageBackground(
     resolvedUnlockedStages.has(stageId) ? stageId : DEFAULT_STAGE_ID,
   );
+  const currentMeta = getAvatarLevelMeta(character, viewLevel);
 
   return (
     <section
       className="hero-stage"
       data-stage={effectiveStage.id}
+      data-tier={currentMeta.tier}
       aria-label="Ringkasan berat dan progres real time"
     >
       {/* Dedicated utility strip: quiet status badge left, Stage + Detail triggers right */}
@@ -282,10 +286,10 @@ function HeroAvatarStage({
                 style={{ backgroundColor: effectiveStage.accent }}
                 aria-hidden="true"
               />
-              <span>Latar</span>
-              {resolvedUnlockedStages.size > 1 && (
-                <span className="hero-stage-badge">{resolvedUnlockedStages.size}/9</span>
-              )}
+              <span>Ganti Latar</span>
+              <span className="hero-stage-badge">
+                {resolvedUnlockedStages.size}/{STAGE_BACKGROUNDS.length}
+              </span>
             </button>
           )}
           <button
@@ -644,6 +648,42 @@ function HeroAvatarStage({
           <span aria-hidden="true">›</span>
         </button>
       </div>
+
+      {onSelectStage && (
+        <div className="hero-stage-swatches" role="group" aria-label="Ganti cepat latar panggung">
+          <span className="hero-swatch-label">Latar:</span>
+          {FREE_STARTER_STAGE_IDS.map((sid) => {
+            const st = getStageBackground(sid);
+            const active = effectiveStage.id === sid;
+            return (
+              <button
+                key={sid}
+                type="button"
+                className={`hero-swatch-btn${active ? " is-active" : ""}`}
+                onClick={() => {
+                  haptic("tap");
+                  onSelectStage(sid);
+                }}
+                aria-pressed={active}
+                aria-label={`Pakai latar ${st.name}`}
+                title={st.name}
+              >
+                <span style={{ background: st.previewGradient }} />
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            className="hero-swatch-more"
+            onClick={() => {
+              haptic("tap");
+              setStageSheetOpen(true);
+            }}
+          >
+            Semua ({resolvedUnlockedStages.size}/{STAGE_BACKGROUNDS.length})
+          </button>
+        </div>
+      )}
       {onSelectStage && (
         <StagePickerSheet
           open={stageSheetOpen}
