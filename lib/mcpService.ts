@@ -7,8 +7,14 @@ import { todayKey } from "./targets";
 import {
   resolvePersonCharacter,
   resolvePersonNutritionTargets,
+  resolvePersonTargetWeightKg,
   type PersonUserLike,
 } from "./personTargets";
+import {
+  enforceMcpProfileAccess,
+  McpAuthAccessError,
+  type McpAuthContext,
+} from "./mcpAuth";
 import {
   estimateWorkoutCaloriesBurned,
   inferDurationMinutes,
@@ -23,6 +29,7 @@ import {
   LogWorkoutInputSchema,
   ProfileSchema,
   UpdateOrDeleteEntryInputSchema,
+  WhoAmIInputSchema,
   type McpMealItemInput,
   type McpMealType,
   type McpProfile,
@@ -34,6 +41,7 @@ export {
   LogWorkoutInputSchema,
   ProfileSchema,
   UpdateOrDeleteEntryInputSchema,
+  WhoAmIInputSchema,
   type McpMealItemInput,
   type McpMealType,
   type McpProfile,
@@ -77,25 +85,31 @@ export function parseTimestampToDateAndKey(ts?: string | number): {
 type ResolvedUser = PersonUserLike & {
   id: string;
   email: string;
+  goal?: string | null;
 };
 
 /**
- * Strictly resolve requested profile ("richie" | "renita") from User table.
+ * Strictly resolve target profile ("richie" | "renita") from User table, enforcing caller token isolation.
  * NEVER falls back from Renita -> Richie or Richie -> Renita.
  */
-export async function resolveMcpUser(profileInput?: unknown): Promise<{
+export async function resolveMcpUser(
+  profileInput?: unknown,
+  auth?: McpAuthContext,
+): Promise<{
   profile: McpProfile;
+  detectedBy: "token" | "argument" | "default";
   user: ResolvedUser;
 }> {
-  const parsed = ProfileSchema.safeParse(profileInput ?? "richie");
-  if (!parsed.success) {
-    throw new McpServiceError(
-      400,
-      "invalid_profile",
-      `Unsupported profile "${String(profileInput)}". Allowed profiles: richie, renita.`,
-    );
+  let access: { profile: McpProfile; detectedBy: "token" | "argument" | "default" };
+  try {
+    access = enforceMcpProfileAccess(profileInput, auth);
+  } catch (err) {
+    if (err instanceof McpAuthAccessError) {
+      throw new McpServiceError(err.status, err.code, err.message);
+    }
+    throw err;
   }
-  const profile = parsed.data;
+  const { profile, detectedBy } = access;
 
   const select = {
     id: true,
@@ -144,7 +158,53 @@ export async function resolveMcpUser(profileInput?: unknown): Promise<{
     );
   }
 
-  return { profile, user };
+  return { profile, detectedBy, user };
+}
+
+function resolvePersonMacroTargets(
+  user: ResolvedUser,
+  targetRow: { kcal?: number | null; protein?: number | null } | null,
+  dateKey: string,
+): { calories: number; protein_g: number; carbs_g: number; fat_g: number } {
+  const base = resolvePersonNutritionTargets(user, targetRow, dateKey);
+  const setup = user.setup as {
+    trainingDays?: unknown;
+    targets?: {
+      gymDay?: { kcal?: unknown; carbs?: unknown; fat?: unknown };
+      restDay?: { kcal?: unknown; carbs?: unknown; fat?: unknown };
+    };
+  } | null;
+  const trainingDays = Array.isArray(setup?.trainingDays)
+    ? setup.trainingDays.filter((n): n is number => typeof n === "number")
+    : [];
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const weekday = new Date(Date.UTC(y, (m || 1) - 1, d || 1, 12)).getUTCDay();
+  const isGym = trainingDays.length > 0 ? trainingDays.includes(weekday) : true;
+  const chosen = isGym ? setup?.targets?.gymDay : setup?.targets?.restDay ?? setup?.targets?.gymDay;
+  const rawCarbs = typeof chosen?.carbs === "number" && chosen.carbs > 0 ? chosen.carbs : null;
+  const rawFat = typeof chosen?.fat === "number" && chosen.fat > 0 ? chosen.fat : null;
+  const fatG = rawFat ? Math.round(rawFat) : Math.max(25, Math.round((base.kcal * 0.27) / 9));
+  const carbsG = rawCarbs
+    ? Math.round(rawCarbs)
+    : Math.max(20, Math.round((base.kcal - base.protein * 4 - fatG * 9) / 4));
+  return {
+    calories: base.kcal,
+    protein_g: base.protein,
+    carbs_g: carbsG,
+    fat_g: fatG,
+  };
+}
+
+function authResponseMeta(
+  profile: McpProfile,
+  detectedBy: "token" | "argument" | "default",
+  auth?: McpAuthContext,
+) {
+  return {
+    detected_profile: profile,
+    detected_by: detectedBy,
+    ...(auth ? { caller_token_profile: auth.caller } : {}),
+  };
 }
 
 async function resolveBodyWeightKg(user: ResolvedUser, profile: McpProfile): Promise<number> {
@@ -282,12 +342,12 @@ function inferGymSessionType(title: string): string {
   return "CUSTOM";
 }
 
-export async function r2fitGetTodaySummary(rawInput: unknown) {
+export async function r2fitGetTodaySummary(rawInput: unknown, auth?: McpAuthContext) {
   const parsed = GetTodaySummaryInputSchema.safeParse(rawInput ?? {});
   if (!parsed.success) {
     throw new McpServiceError(400, "invalid_input", parsed.error.message);
   }
-  const { profile, user } = await resolveMcpUser(parsed.data.profile);
+  const { profile, detectedBy, user } = await resolveMcpUser(parsed.data.profile, auth);
   const date = parsed.data.date ?? todayKey();
 
   const [mealRows, cardioRows, workoutRows, targetRow, weightKg] = await Promise.all([
@@ -308,7 +368,7 @@ export async function r2fitGetTodaySummary(rawInput: unknown) {
     resolveBodyWeightKg(user, profile),
   ]);
 
-  const targets = resolvePersonNutritionTargets(user, targetRow, date);
+  const targets = resolvePersonMacroTargets(user, targetRow, date);
   const metaMap = await fetchWorkoutMetadataMap([
     ...cardioRows.map((c) => c.id),
     ...workoutRows.map((w) => w.id),
@@ -433,10 +493,11 @@ export async function r2fitGetTodaySummary(rawInput: unknown) {
     a.logged_at.localeCompare(b.logged_at),
   );
   const caloriesBurned = workouts.reduce((s, w) => s + w.calories_burned, 0);
-  const remainingKcal = Math.round(targets.kcal - mealTotals.kcal);
-  const remainingProtein = Math.round(targets.protein - mealTotals.protein);
+  const remainingKcal = Math.round(targets.calories - mealTotals.kcal);
+  const remainingProtein = Math.round(targets.protein_g - mealTotals.protein);
 
   return {
+    ...authResponseMeta(profile, detectedBy, auth),
     profile,
     user_name: user.name ?? profile,
     date,
@@ -455,26 +516,53 @@ export async function r2fitGetTodaySummary(rawInput: unknown) {
       calories_burned: caloriesBurned,
       net_calories: mealTotals.kcal - caloriesBurned,
     },
-    targets: {
-      calories: targets.kcal,
-      protein_g: targets.protein,
-    },
+    targets,
     remaining: {
       calories: remainingKcal,
       protein_g: remainingProtein,
+      carbs_g: Math.round(targets.carbs_g - mealTotals.carbs),
+      fat_g: Math.round(targets.fat_g - mealTotals.fat),
       net_calories_with_burn: remainingKcal + caloriesBurned,
     },
     latest_weight_kg: weightKg,
   };
 }
 
-export async function r2fitLogMeal(rawInput: unknown) {
+export async function r2fitWhoAmI(rawInput: unknown = {}, auth?: McpAuthContext) {
+  const parsed = WhoAmIInputSchema.safeParse(rawInput ?? {});
+  if (!parsed.success) {
+    throw new McpServiceError(400, "invalid_input", parsed.error.message);
+  }
+  const { profile, user } = await resolveMcpUser(parsed.data.profile, auth);
+  const summary = await r2fitGetTodaySummary(
+    parsed.data.profile ? { profile: parsed.data.profile } : {},
+    auth,
+  );
+  const displayName = profile === "renita" ? "Renita" : "Richie";
+  const targetWeightKg = resolvePersonTargetWeightKg(user);
+  return {
+    ...authResponseMeta(profile, summary.detected_by, auth),
+    profile,
+    user_name: summary.user_name,
+    display_name: displayName,
+    message: `Tersambung sebagai profil R2 Fit: ${displayName}`,
+    date: summary.date,
+    latest_weight_kg: summary.latest_weight_kg,
+    target_weight_kg: targetWeightKg,
+    goal: user.goal ?? "maintain",
+    targets: summary.targets,
+    today_totals: summary.totals,
+    remaining: summary.remaining,
+  };
+}
+
+export async function r2fitLogMeal(rawInput: unknown, auth?: McpAuthContext) {
   const parsed = LogMealInputSchema.safeParse(rawInput);
   if (!parsed.success) {
     throw new McpServiceError(400, "invalid_input", parsed.error.message);
   }
   const input = parsed.data;
-  const { profile, user } = await resolveMcpUser(input.profile);
+  const { profile, detectedBy, user } = await resolveMcpUser(input.profile, auth);
   const { at, date } = parseTimestampToDateAndKey(input.timestamp);
   const entryId = `mcp-meal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -511,8 +599,9 @@ export async function r2fitLogMeal(rawInput: unknown) {
     },
   });
 
-  const summary = await r2fitGetTodaySummary({ profile, date });
+  const summary = await r2fitGetTodaySummary({ profile, date }, auth);
   return {
+    ...authResponseMeta(profile, detectedBy, auth),
     entry_id: saved.id,
     entry_type: "meal" as const,
     profile,
@@ -532,13 +621,13 @@ export async function r2fitLogMeal(rawInput: unknown) {
   };
 }
 
-export async function r2fitLogWorkout(rawInput: unknown) {
+export async function r2fitLogWorkout(rawInput: unknown, auth?: McpAuthContext) {
   const parsed = LogWorkoutInputSchema.safeParse(rawInput);
   if (!parsed.success) {
     throw new McpServiceError(400, "invalid_input", parsed.error.message);
   }
   const input = parsed.data;
-  const { profile, user } = await resolveMcpUser(input.profile);
+  const { profile, detectedBy, user } = await resolveMcpUser(input.profile, auth);
   const { at, date } = parseTimestampToDateAndKey(input.timestamp);
   const weightKg = await resolveBodyWeightKg(user, profile);
   const durationMin = inferDurationMinutes(
@@ -645,8 +734,9 @@ export async function r2fitLogWorkout(rawInput: unknown) {
     });
   }
 
-  const summary = await r2fitGetTodaySummary({ profile, date });
+  const summary = await r2fitGetTodaySummary({ profile, date }, auth);
   return {
+    ...authResponseMeta(profile, detectedBy, auth),
     entry_id: entryId,
     entry_type: "workout" as const,
     profile,
@@ -657,6 +747,7 @@ export async function r2fitLogWorkout(rawInput: unknown) {
     ...(typeof input.distance_km === "number" ? { distance_km: input.distance_km } : {}),
     intensity: input.intensity,
     calories_burned: caloriesBurned,
+    latest_weight_kg: weightKg,
     total_calories_burned_today: summary.totals.calories_burned,
     workout_count_today: summary.workouts.length,
     today_totals: summary.totals,
@@ -682,13 +773,13 @@ function scaleItemFields(
   };
 }
 
-export async function r2fitUpdateOrDeleteEntry(rawInput: unknown) {
+export async function r2fitUpdateOrDeleteEntry(rawInput: unknown, auth?: McpAuthContext) {
   const parsed = UpdateOrDeleteEntryInputSchema.safeParse(rawInput);
   if (!parsed.success) {
     throw new McpServiceError(400, "invalid_input", parsed.error.message);
   }
   const input = parsed.data;
-  const { profile, user } = await resolveMcpUser(input.profile);
+  const { profile, detectedBy, user } = await resolveMcpUser(input.profile, auth);
 
   if (input.entry_type === "meal") {
     const existing = await db.mealEntry.findUnique({ where: { id: input.entry_id } });
@@ -708,8 +799,9 @@ export async function r2fitUpdateOrDeleteEntry(rawInput: unknown) {
         entityType: "MealEntry",
         payload: { profile, date: existing.date },
       });
-      const summary = await r2fitGetTodaySummary({ profile, date: existing.date });
+      const summary = await r2fitGetTodaySummary({ profile, date: existing.date }, auth);
       return {
+        ...authResponseMeta(profile, detectedBy, auth),
         deleted: true,
         entry_type: "meal" as const,
         entry_id: existing.id,
@@ -814,8 +906,9 @@ export async function r2fitUpdateOrDeleteEntry(rawInput: unknown) {
       entityType: "MealEntry",
       payload: { profile, date: nextDate, totals: nextTotals },
     });
-    const summary = await r2fitGetTodaySummary({ profile, date: nextDate });
+    const summary = await r2fitGetTodaySummary({ profile, date: nextDate }, auth);
     return {
+      ...authResponseMeta(profile, detectedBy, auth),
       updated: true,
       entry_type: "meal" as const,
       entry_id: updated.id,
@@ -855,8 +948,9 @@ export async function r2fitUpdateOrDeleteEntry(rawInput: unknown) {
         entityType: "CardioSession",
         payload: { profile, date: existingCardio.date },
       });
-      const summary = await r2fitGetTodaySummary({ profile, date: existingCardio.date });
+      const summary = await r2fitGetTodaySummary({ profile, date: existingCardio.date }, auth);
       return {
+        ...authResponseMeta(profile, detectedBy, auth),
         deleted: true,
         entry_type: "workout" as const,
         entry_id: existingCardio.id,
@@ -938,8 +1032,9 @@ export async function r2fitUpdateOrDeleteEntry(rawInput: unknown) {
         date: nextDate,
       },
     });
-    const summary = await r2fitGetTodaySummary({ profile, date: nextDate });
+    const summary = await r2fitGetTodaySummary({ profile, date: nextDate }, auth);
     return {
+      ...authResponseMeta(profile, detectedBy, auth),
       updated: true,
       entry_type: "workout" as const,
       entry_id: existingCardio.id,
@@ -979,8 +1074,9 @@ export async function r2fitUpdateOrDeleteEntry(rawInput: unknown) {
       entityType: "WorkoutSession",
       payload: { profile, date: existingWorkout.date },
     });
-    const summary = await r2fitGetTodaySummary({ profile, date: existingWorkout.date });
+    const summary = await r2fitGetTodaySummary({ profile, date: existingWorkout.date }, auth);
     return {
+      ...authResponseMeta(profile, detectedBy, auth),
       deleted: true,
       entry_type: "workout" as const,
       entry_id: existingWorkout.id,
@@ -1061,8 +1157,9 @@ export async function r2fitUpdateOrDeleteEntry(rawInput: unknown) {
       date: nextDate,
     },
   });
-  const summary = await r2fitGetTodaySummary({ profile, date: nextDate });
+  const summary = await r2fitGetTodaySummary({ profile, date: nextDate }, auth);
   return {
+    ...authResponseMeta(profile, detectedBy, auth),
     updated: true,
     entry_type: "workout" as const,
     entry_id: existingWorkout.id,

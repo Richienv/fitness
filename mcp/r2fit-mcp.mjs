@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * Stdio MCP server bridge (`r2fit-mcp`) for OpenBot / local AI clients on macOS.
- * Exposes all 4 R2 Fit tools over MCP stdio and forwards requests securely over HTTPS
- * using `Authorization: Bearer $R2FIT_MCP_API_KEY` to `R2FIT_BASE_URL` (default https://r2-fit.vercel.app).
+ * Exposes all 5 R2 Fit tools over MCP stdio and forwards requests securely over HTTPS
+ * using `Authorization: Bearer $R2FIT_MCP_API_KEY` (or `R2FIT_MCP_API_KEY_RENITA` / `R2FIT_MCP_API_KEY_RICHIE`)
+ * to `R2FIT_BASE_URL` (default https://r2-fit.vercel.app).
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -11,9 +12,16 @@ import { z } from "zod";
 const BASE_URL = (process.env.R2FIT_BASE_URL || "https://r2-fit.vercel.app").replace(/\/+$/, "");
 
 function requireToken() {
-  const token = (process.env.R2FIT_MCP_API_KEY || "").trim();
+  const token = (
+    process.env.R2FIT_MCP_API_KEY ||
+    process.env.R2FIT_MCP_API_KEY_RENITA ||
+    process.env.R2FIT_MCP_API_KEY_RICHIE ||
+    ""
+  ).trim();
   if (!token) {
-    throw new Error("Missing R2FIT_MCP_API_KEY environment variable.");
+    throw new Error(
+      "Missing R2FIT_MCP_API_KEY (or R2FIT_MCP_API_KEY_RENITA / R2FIT_MCP_API_KEY_RICHIE) environment variable.",
+    );
   }
   return token;
 }
@@ -36,12 +44,14 @@ async function callR2FitApi(path, { method = "GET", body } = {}) {
     throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`);
   }
   if (!res.ok || json?.ok === false) {
-    throw new Error(json?.message || json?.error || `HTTP ${res.status}`);
+    const err = new Error(json?.message || json?.error || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
   }
   return json.data ?? json;
 }
 
-const ProfileSchema = z.enum(["richie", "renita"]).default("richie");
+const OptionalProfileSchema = z.enum(["richie", "renita"]).optional();
 const MealTypeSchema = z.enum(["breakfast", "lunch", "dinner", "snack"]);
 
 const MealItemSchema = z.object({
@@ -65,17 +75,43 @@ const GymExerciseSchema = z.object({
 
 const server = new McpServer({
   name: "r2fit-mcp",
-  version: "1.0.0",
+  version: "1.1.0",
 });
+
+server.registerTool(
+  "r2fit_whoami",
+  {
+    title: "Identify Active R2 Fit Profile",
+    description:
+      "Return the auto-detected active R2 Fit profile from the configured token (Richie or Renita), targets, latest body weight, and today's summary.",
+    inputSchema: {
+      profile: OptionalProfileSchema,
+    },
+  },
+  async (args) => {
+    try {
+      const qs = new URLSearchParams();
+      if (args?.profile) qs.set("profile", args.profile);
+      const suffix = qs.toString() ? `?${qs.toString()}` : "";
+      const data = await callR2FitApi(`/api/mcp/whoami${suffix}`);
+      return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    } catch (err) {
+      return {
+        isError: true,
+        content: [{ type: "text", text: JSON.stringify({ ok: false, error: err.message }) }],
+      };
+    }
+  },
+);
 
 server.registerTool(
   "r2fit_log_meal",
   {
     title: "Log Meal to R2 Fit",
     description:
-      "Log a meal with macro breakdown into R2 Fit. Returns new entry_id, today's total calories & macros, and remaining daily calorie & protein targets.",
+      "Log a meal with macro breakdown into R2 Fit. Omit `profile` to auto-detect from token. Returns detected_profile, entry_id, today totals, and remaining daily targets.",
     inputSchema: {
-      profile: ProfileSchema,
+      profile: OptionalProfileSchema,
       meal_type: MealTypeSchema,
       timestamp: z.union([z.string(), z.number()]).optional(),
       meal_title: z.string().trim().min(1),
@@ -101,9 +137,9 @@ server.registerTool(
   {
     title: "Log Workout or Activity to R2 Fit",
     description:
-      "Log a gym workout, walk, run, bike ride, or sport into R2 Fit. Returns entry_id and total calories burned today.",
+      "Log a gym workout, walk, run, bike ride, or sport into R2 Fit. Omit `profile` to auto-detect from token. Returns detected_profile, entry_id, and total calories burned today.",
     inputSchema: {
-      profile: ProfileSchema,
+      profile: OptionalProfileSchema,
       activity_type: z.enum(["walking", "cycling", "running", "gym", "sports", "other"]),
       title: z.string().trim().min(1),
       duration_min: z.number().positive().optional(),
@@ -133,17 +169,19 @@ server.registerTool(
   {
     title: "Get Today R2 Fit Summary",
     description:
-      "Fetch today's meals, workouts/activities, calories & macros consumed, calories burned, and remaining daily targets.",
+      "Fetch today's meals, workouts/activities, calories & macros consumed, calories burned, and remaining daily targets for the auto-detected or specified profile.",
     inputSchema: {
-      profile: ProfileSchema,
+      profile: OptionalProfileSchema,
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     },
   },
   async (args) => {
     try {
-      const qs = new URLSearchParams({ profile: args.profile ?? "richie" });
-      if (args.date) qs.set("date", args.date);
-      const data = await callR2FitApi(`/api/mcp/summary?${qs.toString()}`);
+      const qs = new URLSearchParams();
+      if (args?.profile) qs.set("profile", args.profile);
+      if (args?.date) qs.set("date", args.date);
+      const suffix = qs.toString() ? `?${qs.toString()}` : "";
+      const data = await callR2FitApi(`/api/mcp/summary${suffix}`);
       return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
     } catch (err) {
       return {
@@ -159,9 +197,9 @@ server.registerTool(
   {
     title: "Update or Delete R2 Fit Entry",
     description:
-      "Update or delete a logged meal or workout entry by entry_id (e.g. half a portion of rice, fix calories, or remove last log).",
+      "Update or delete a logged meal or workout entry by entry_id (e.g. half a portion of rice, fix calories, or remove last log). Omit `profile` to auto-detect from token.",
     inputSchema: {
-      profile: ProfileSchema,
+      profile: OptionalProfileSchema,
       entry_type: z.enum(["meal", "workout"]),
       entry_id: z.string().trim().min(1),
       action: z.enum(["update", "delete"]),

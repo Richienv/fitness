@@ -1,14 +1,15 @@
 // Streamable HTTP MCP endpoint for R2 Fit (`https://r2-fit.vercel.app/api/mcp`).
-// Secured across all methods by Authorization: Bearer <R2FIT_MCP_API_KEY>.
+// Secured across all methods by token-to-profile auto-detection (`R2FIT_MCP_API_KEY` / `R2FIT_MCP_API_KEY_RENITA`).
 import { NextResponse } from "next/server";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { requireMcpAuth } from "@/lib/mcpAuth";
+import { authenticateMcpRequest, findForbiddenRpcProfileError } from "@/lib/mcpAuth";
 import { createR2FitMcpServer } from "@/lib/mcpServer";
 import {
   r2fitGetTodaySummary,
   r2fitLogMeal,
   r2fitLogWorkout,
   r2fitUpdateOrDeleteEntry,
+  r2fitWhoAmI,
 } from "@/lib/mcpService";
 
 export const runtime = "nodejs";
@@ -45,14 +46,44 @@ export async function OPTIONS() {
 }
 
 async function handleMcpRequest(req: Request): Promise<Response> {
-  const authErr = requireMcpAuth(req);
-  if (authErr) return withCors(authErr);
+  const { auth, error } = authenticateMcpRequest(req);
+  if (error || !auth) return withCors(error!);
+
+  let parsedBody: unknown = undefined;
+  if (req.method === "POST") {
+    try {
+      parsedBody = await req.json();
+    } catch {
+      return withCors(
+        NextResponse.json(
+          { jsonrpc: "2.0", error: { code: -32700, message: "Parse error: Invalid JSON" }, id: null },
+          { status: 400 },
+        ),
+      );
+    }
+    const forbidden = findForbiddenRpcProfileError(parsedBody, auth);
+    if (forbidden) {
+      return withCors(
+        NextResponse.json(
+          {
+            ok: false,
+            error: forbidden.code,
+            message: forbidden.message,
+            jsonrpc: "2.0",
+            rpcError: { code: -32003, message: forbidden.message },
+          },
+          { status: 403 },
+        ),
+      );
+    }
+  }
 
   const server = createR2FitMcpServer({
-    logMeal: r2fitLogMeal,
-    logWorkout: r2fitLogWorkout,
-    getTodaySummary: r2fitGetTodaySummary,
-    updateOrDeleteEntry: r2fitUpdateOrDeleteEntry,
+    logMeal: (input) => r2fitLogMeal(input, auth),
+    logWorkout: (input) => r2fitLogWorkout(input, auth),
+    getTodaySummary: (input) => r2fitGetTodaySummary(input, auth),
+    updateOrDeleteEntry: (input) => r2fitUpdateOrDeleteEntry(input, auth),
+    whoAmI: (input) => r2fitWhoAmI(input, auth),
   });
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
@@ -61,19 +92,6 @@ async function handleMcpRequest(req: Request): Promise<Response> {
 
   try {
     await server.connect(transport);
-    let parsedBody: unknown = undefined;
-    if (req.method === "POST") {
-      try {
-        parsedBody = await req.json();
-      } catch {
-        return withCors(
-          NextResponse.json(
-            { jsonrpc: "2.0", error: { code: -32700, message: "Parse error: Invalid JSON" }, id: null },
-            { status: 400 },
-          ),
-        );
-      }
-    }
     const normalizedReq = normalizeAcceptForMcp(req);
     const res = await transport.handleRequest(
       normalizedReq,

@@ -2,7 +2,16 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { hasMcpApiKey, readSuppliedMcpToken, requireMcpAuth } from "./mcpAuth.ts";
+import {
+  authenticateMcpRequest,
+  enforceMcpProfileAccess,
+  findForbiddenRpcProfileError,
+  hasMcpApiKey,
+  McpAuthAccessError,
+  readSuppliedMcpToken,
+  requireMcpAuth,
+  resolveMcpAuth,
+} from "./mcpAuth.ts";
 import {
   estimateWorkoutCaloriesBurned,
   inferDurationMinutes,
@@ -15,22 +24,31 @@ import {
   GetTodaySummaryInputSchema,
   LogMealInputSchema,
   LogWorkoutInputSchema,
+  OptionalProfileSchema,
   ProfileSchema,
   UpdateOrDeleteEntryInputSchema,
+  WhoAmIInputSchema,
 } from "./mcpSchemas.ts";
 import { createR2FitMcpServer } from "./mcpServer.ts";
 
-test("MCP auth enforces R2FIT_MCP_API_KEY Bearer token fail-closed", () => {
-  const prev = process.env.R2FIT_MCP_API_KEY;
+test("MCP auth enforces multi-profile Bearer tokens with fail-closed behavior", () => {
+  const prevMain = process.env.R2FIT_MCP_API_KEY;
+  const prevRichie = process.env.R2FIT_MCP_API_KEY_RICHIE;
+  const prevRenita = process.env.R2FIT_MCP_API_KEY_RENITA;
   try {
     delete process.env.R2FIT_MCP_API_KEY;
+    delete process.env.R2FIT_MCP_API_KEY_RICHIE;
+    delete process.env.R2FIT_MCP_API_KEY_RENITA;
+
     const reqNoEnv = new Request("https://r2-fit.vercel.app/api/mcp", {
       headers: { Authorization: "Bearer anything" },
     });
     assert.equal(hasMcpApiKey(reqNoEnv), false);
     assert.equal(requireMcpAuth(reqNoEnv)?.status, 503);
 
-    process.env.R2FIT_MCP_API_KEY = "test-secret-r2fit-token-123";
+    process.env.R2FIT_MCP_API_KEY = "richie-token-abc123";
+    process.env.R2FIT_MCP_API_KEY_RENITA = "renita-token-xyz789";
+
     const reqMissing = new Request("https://r2-fit.vercel.app/api/mcp");
     assert.equal(hasMcpApiKey(reqMissing), false);
     assert.equal(requireMcpAuth(reqMissing)?.status, 401);
@@ -41,27 +59,117 @@ test("MCP auth enforces R2FIT_MCP_API_KEY Bearer token fail-closed", () => {
     assert.equal(hasMcpApiKey(reqWrong), false);
     assert.equal(requireMcpAuth(reqWrong)?.status, 401);
 
-    const reqValid = new Request("https://r2-fit.vercel.app/api/mcp", {
-      headers: { Authorization: "Bearer test-secret-r2fit-token-123" },
+    const reqRichie = new Request("https://r2-fit.vercel.app/api/mcp", {
+      headers: { Authorization: "Bearer richie-token-abc123" },
     });
-    assert.equal(readSuppliedMcpToken(reqValid), "test-secret-r2fit-token-123");
-    assert.equal(hasMcpApiKey(reqValid), true);
-    assert.equal(requireMcpAuth(reqValid), null);
+    assert.equal(readSuppliedMcpToken(reqRichie), "richie-token-abc123");
+    assert.equal(hasMcpApiKey(reqRichie), true);
+    assert.equal(requireMcpAuth(reqRichie), null);
+    assert.deepEqual(resolveMcpAuth(reqRichie), {
+      caller: "richie",
+      allowProfileOverride: true,
+      tokenEnvName: "R2FIT_MCP_API_KEY",
+    });
+
+    const reqRenita = new Request("https://r2-fit.vercel.app/api/mcp", {
+      headers: { "x-api-key": "renita-token-xyz789" },
+    });
+    const renitaAuthRes = authenticateMcpRequest(reqRenita);
+    assert.equal(renitaAuthRes.error, null);
+    assert.deepEqual(renitaAuthRes.auth, {
+      caller: "renita",
+      allowProfileOverride: false,
+      tokenEnvName: "R2FIT_MCP_API_KEY_RENITA",
+    });
   } finally {
-    if (prev === undefined) delete process.env.R2FIT_MCP_API_KEY;
-    else process.env.R2FIT_MCP_API_KEY = prev;
+    if (prevMain === undefined) delete process.env.R2FIT_MCP_API_KEY;
+    else process.env.R2FIT_MCP_API_KEY = prevMain;
+    if (prevRichie === undefined) delete process.env.R2FIT_MCP_API_KEY_RICHIE;
+    else process.env.R2FIT_MCP_API_KEY_RICHIE = prevRichie;
+    if (prevRenita === undefined) delete process.env.R2FIT_MCP_API_KEY_RENITA;
+    else process.env.R2FIT_MCP_API_KEY_RENITA = prevRenita;
   }
 });
 
-test("Strict profile schema defaults to richie and rejects arbitrary profile spoofing", () => {
-  assert.equal(ProfileSchema.parse(undefined), "richie");
+test("Token-based auto-detect resolves Renita automatically and hard-blocks Renita -> Richie with 403", () => {
+  const richieAuth = {
+    caller: "richie" as const,
+    allowProfileOverride: true,
+    tokenEnvName: "R2FIT_MCP_API_KEY" as const,
+  };
+  const renitaAuth = {
+    caller: "renita" as const,
+    allowProfileOverride: false,
+    tokenEnvName: "R2FIT_MCP_API_KEY_RENITA" as const,
+  };
+
+  // Omitted profile auto-detects from token
+  assert.deepEqual(enforceMcpProfileAccess(undefined, richieAuth), {
+    profile: "richie",
+    detectedBy: "token",
+  });
+  assert.deepEqual(enforceMcpProfileAccess(undefined, renitaAuth), {
+    profile: "renita",
+    detectedBy: "token",
+  });
+  assert.deepEqual(enforceMcpProfileAccess("", renitaAuth), {
+    profile: "renita",
+    detectedBy: "token",
+  });
+
+  // Richie retains backwards-compatible explicit override to Renita when requested
+  assert.deepEqual(enforceMcpProfileAccess("renita", richieAuth), {
+    profile: "renita",
+    detectedBy: "argument",
+  });
+
+  // Renita can query her own profile explicitly, but is blocked with HTTP 403 for Richie
+  assert.deepEqual(enforceMcpProfileAccess("renita", renitaAuth), {
+    profile: "renita",
+    detectedBy: "token",
+  });
+  assert.throws(
+    () => enforceMcpProfileAccess("richie", renitaAuth),
+    (err: unknown) => err instanceof McpAuthAccessError && err.status === 403,
+  );
+
+  // Invalid profile rejected with 400
+  assert.throws(
+    () => enforceMcpProfileAccess("admin", renitaAuth),
+    (err: unknown) => err instanceof McpAuthAccessError && err.status === 400,
+  );
+
+  // JSON-RPC Streamable HTTP pre-flight block catches Renita -> Richie tool calls at HTTP layer
+  const blockedRpc = findForbiddenRpcProfileError(
+    {
+      jsonrpc: "2.0",
+      id: 10,
+      method: "tools/call",
+      params: { name: "r2fit_log_meal", arguments: { profile: "richie" } },
+    },
+    renitaAuth,
+  );
+  assert.equal(blockedRpc?.status, 403);
+
+  const allowedRpcOmitted = findForbiddenRpcProfileError(
+    {
+      jsonrpc: "2.0",
+      id: 11,
+      method: "tools/call",
+      params: { name: "r2fit_get_today_summary", arguments: {} },
+    },
+    renitaAuth,
+  );
+  assert.equal(allowedRpcOmitted, null);
+});
+
+test("Strict profile schemas keep omitted profile undefined so server auto-detects from token", () => {
+  assert.equal(OptionalProfileSchema.parse(undefined), undefined);
   assert.equal(ProfileSchema.parse("richie"), "richie");
   assert.equal(ProfileSchema.parse("renita"), "renita");
   assert.throws(() => ProfileSchema.parse("admin"));
   assert.throws(() => ProfileSchema.parse("guest"));
-});
 
-test("MCP tool input schemas validate meal breakdown, workouts, summary, and entry edits", () => {
   const meal = LogMealInputSchema.parse({
     meal_type: "lunch",
     meal_title: "Nasi Padang Dada Ayam",
@@ -79,7 +187,7 @@ test("MCP tool input schemas validate meal breakdown, workouts, summary, and ent
       },
     ],
   });
-  assert.equal(meal.profile, "richie");
+  assert.equal(meal.profile, undefined);
 
   const walk = LogWorkoutInputSchema.parse({
     activity_type: "walking",
@@ -87,18 +195,18 @@ test("MCP tool input schemas validate meal breakdown, workouts, summary, and ent
     distance_km: 1,
     intensity: "light",
   });
-  assert.equal(walk.profile, "richie");
+  assert.equal(walk.profile, undefined);
 
   const gym = LogWorkoutInputSchema.parse({
     activity_type: "gym",
-    title: "Chest Day 45 menit",
+    title: "Lower Body 45 menit",
     duration_min: 45,
-    exercises: [{ name: "Bench Press", sets: 4, reps: 10, weight_kg: 60 }],
+    exercises: [{ name: "Romanian Deadlift", sets: 4, reps: 10, weight_kg: 35 }],
   });
   assert.equal(gym.exercises?.length, 1);
 
-  const summary = GetTodaySummaryInputSchema.parse({});
-  assert.equal(summary.profile, "richie");
+  assert.equal(GetTodaySummaryInputSchema.parse({}).profile, undefined);
+  assert.equal(WhoAmIInputSchema.parse({}).profile, undefined);
 
   const edit = UpdateOrDeleteEntryInputSchema.parse({
     entry_type: "meal",
@@ -106,31 +214,47 @@ test("MCP tool input schemas validate meal breakdown, workouts, summary, and ent
     action: "update",
     patch: { item_updates: [{ name_match: "nasi", portion_multiplier: 0.5 }] },
   });
-  assert.equal(edit.profile, "richie");
+  assert.equal(edit.profile, undefined);
 });
 
-test("Activity codec infers realistic durations and active calories burned", () => {
+test("Activity codec estimates active calories accurately for Renita (45.5 kg) vs Richie (73 kg)", () => {
   assert.equal(inferDurationMinutes("walking", undefined, 1), 12);
   assert.equal(inferDurationMinutes("cycling", 5), 5);
   assert.equal(inferDurationMinutes("gym", 45), 45);
 
-  const walkBurn = estimateWorkoutCaloriesBurned({
+  const richieWalk = estimateWorkoutCaloriesBurned({
     activityType: "walking",
     durationMin: 12,
     distanceKm: 1,
     intensity: "light",
     bodyWeightKg: 73,
   });
-  assert.ok(walkBurn >= 25 && walkBurn <= 90, `unexpected walkBurn=${walkBurn}`);
+  const renitaWalk = estimateWorkoutCaloriesBurned({
+    activityType: "walking",
+    durationMin: 12,
+    distanceKm: 1,
+    intensity: "light",
+    bodyWeightKg: 45.5,
+  });
+  assert.ok(richieWalk > renitaWalk, `expected richie (${richieWalk}) > renita (${renitaWalk})`);
+  assert.ok(renitaWalk >= 18 && renitaWalk <= 50, `unexpected renitaWalk=${renitaWalk}`);
 
-  const chestBurn = estimateWorkoutCaloriesBurned({
+  const richieGym = estimateWorkoutCaloriesBurned({
     activityType: "gym",
     durationMin: 45,
     intensity: "moderate",
     bodyWeightKg: 73,
     totalVolumeKg: 2400,
   });
-  assert.ok(chestBurn >= 150 && chestBurn <= 600, `unexpected chestBurn=${chestBurn}`);
+  const renitaGym = estimateWorkoutCaloriesBurned({
+    activityType: "gym",
+    durationMin: 45,
+    intensity: "moderate",
+    bodyWeightKg: 45.5,
+    totalVolumeKg: 1200,
+  });
+  assert.ok(richieGym > renitaGym, `expected richieGym (${richieGym}) > renitaGym (${renitaGym})`);
+  assert.ok(renitaGym >= 100 && renitaGym <= 250, `unexpected renitaGym=${renitaGym}`);
 
   assert.equal(mapMcpActivityToCardioKind("walking"), "jalan");
   assert.equal(mapCardioKindToActivityKey("sepeda"), "sepeda");
@@ -167,15 +291,24 @@ test("reconcileServerMeals keeps independent mcp-meal-* rows separated so update
   assert.equal(afterDel.meals[0].id, "mcp-meal-1");
 });
 
-test("createR2FitMcpServer registers all 4 required MCP tools", () => {
+test("createR2FitMcpServer registers all 5 MCP tools including r2fit_whoami", async () => {
   const noop = async () => ({});
+  let whoAmICalledWith: unknown = null;
   const srv = createR2FitMcpServer({
     logMeal: noop,
     logWorkout: noop,
     getTodaySummary: noop,
     updateOrDeleteEntry: noop,
+    whoAmI: async (input) => {
+      whoAmICalledWith = input;
+      return {
+        detected_profile: "renita",
+        profile: "renita",
+        message: "Tersambung sebagai profil R2 Fit: Renita",
+      };
+    },
   }) as unknown as {
-    _registeredTools: Record<string, unknown>;
+    _registeredTools: Record<string, { handler: (args: unknown) => Promise<{ content: Array<{ text: string }> }> }>;
   };
   const names = Object.keys(srv._registeredTools ?? {}).sort();
   assert.deepEqual(names, [
@@ -183,14 +316,18 @@ test("createR2FitMcpServer registers all 4 required MCP tools", () => {
     "r2fit_log_meal",
     "r2fit_log_workout",
     "r2fit_update_or_delete_entry",
+    "r2fit_whoami",
   ]);
+  const res = await srv._registeredTools.r2fit_whoami.handler({});
+  assert.deepEqual(whoAmICalledWith, {});
+  assert.equal(JSON.parse(res.content[0].text).detected_profile, "renita");
 });
 
-test("stdio r2fit-mcp.mjs responds cleanly to MCP initialize and tools/list over stdio", async () => {
+test("stdio r2fit-mcp.mjs exposes all 5 tools including r2fit_whoami and accepts R2FIT_MCP_API_KEY_RENITA", async () => {
   const stdioPath = fileURLToPath(new URL("../mcp/r2fit-mcp.mjs", import.meta.url));
   const child = spawn(process.execPath, [stdioPath], {
     stdio: ["pipe", "pipe", "pipe"],
-    env: { ...process.env, R2FIT_MCP_API_KEY: "dummy-local-key" },
+    env: { ...process.env, R2FIT_MCP_API_KEY_RENITA: "dummy-renita-key" },
   });
 
   const messages: Array<Record<string, unknown>> = [];
@@ -206,17 +343,18 @@ test("stdio r2fit-mcp.mjs responds cleanly to MCP initialize and tools/list over
     }
   });
 
-  const initReq = {
-    jsonrpc: "2.0",
-    id: 1,
-    method: "initialize",
-    params: {
-      protocolVersion: "2024-11-05",
-      capabilities: {},
-      clientInfo: { name: "test-client", version: "1.0.0" },
-    },
-  };
-  child.stdin.write(`${JSON.stringify(initReq)}\n`);
+  child.stdin.write(
+    `${JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: {
+        protocolVersion: "2024-11-05",
+        capabilities: {},
+        clientInfo: { name: "test-client", version: "1.0.0" },
+      },
+    })}\n`,
+  );
 
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("Timed out waiting for initialize")), 4000);
@@ -256,5 +394,6 @@ test("stdio r2fit-mcp.mjs responds cleanly to MCP initialize and tools/list over
     "r2fit_log_meal",
     "r2fit_log_workout",
     "r2fit_update_or_delete_entry",
+    "r2fit_whoami",
   ]);
 });

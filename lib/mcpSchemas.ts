@@ -2,8 +2,13 @@
 // Zero DB/Next imports so Node CLI, Next.js server routes, and tests share identical validation.
 import { z } from "zod";
 
-export const ProfileSchema = z.enum(["richie", "renita"]).default("richie");
+export const ProfileSchema = z.enum(["richie", "renita"]);
+export const OptionalProfileSchema = ProfileSchema.optional();
 export type McpProfile = z.infer<typeof ProfileSchema>;
+
+export const WhoAmIInputSchema = z.object({
+  profile: OptionalProfileSchema,
+});
 
 export const MealTypeSchema = z.enum(["breakfast", "lunch", "dinner", "snack"]);
 export type McpMealType = z.infer<typeof MealTypeSchema>;
@@ -24,7 +29,7 @@ export const MealItemInputSchema = z.object({
 export type McpMealItemInput = z.infer<typeof MealItemInputSchema>;
 
 export const LogMealInputSchema = z.object({
-  profile: ProfileSchema,
+  profile: OptionalProfileSchema,
   meal_type: MealTypeSchema,
   timestamp: z.union([z.string(), z.number()]).optional(),
   meal_title: z.string().trim().min(1).max(160),
@@ -40,7 +45,7 @@ export const GymExerciseInputSchema = z.object({
 });
 
 export const LogWorkoutInputSchema = z.object({
-  profile: ProfileSchema,
+  profile: OptionalProfileSchema,
   activity_type: z.enum(["walking", "cycling", "running", "gym", "sports", "other"]),
   title: z.string().trim().min(1).max(160),
   duration_min: z.number().positive().max(1_440).optional(),
@@ -53,7 +58,7 @@ export const LogWorkoutInputSchema = z.object({
 });
 
 export const GetTodaySummaryInputSchema = z.object({
-  profile: ProfileSchema,
+  profile: OptionalProfileSchema,
   date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD")
@@ -75,7 +80,7 @@ export const ItemUpdatePatchSchema = z.object({
 });
 
 export const UpdateOrDeleteEntryInputSchema = z.object({
-  profile: ProfileSchema,
+  profile: OptionalProfileSchema,
   entry_type: z.enum(["meal", "workout"]),
   entry_id: z.string().trim().min(1).max(120),
   action: z.enum(["update", "delete"]),
