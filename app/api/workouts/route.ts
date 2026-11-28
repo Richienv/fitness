@@ -30,18 +30,52 @@ export async function GET(req: Request) {
       orderBy: { createdAt: "asc" },
       include: { exercises: true },
     });
+    const sessionIds = sessions.map((s) => s.id);
+    const metaById = new Map<string, { title?: string; durationMin?: number; caloriesBurned?: number }>();
+    if (sessionIds.length > 0) {
+      const logs = await db.activityLog
+        .findMany({
+          where: {
+            actor: "r2fit-mcp",
+            entityId: { in: sessionIds },
+            action: { in: ["log-workout", "update-workout"] },
+          },
+          orderBy: { createdAt: "asc" },
+        })
+        .catch(() => []);
+      for (const l of logs) {
+        if (!l.entityId || !l.payload || typeof l.payload !== "object") continue;
+        const p = l.payload as Record<string, unknown>;
+        const prev = metaById.get(l.entityId) ?? {};
+        metaById.set(l.entityId, {
+          ...prev,
+          ...(typeof p.title === "string" ? { title: p.title } : {}),
+          ...(typeof p.duration_min === "number" ? { durationMin: p.duration_min } : {}),
+          ...(typeof p.calories_burned === "number" ? { caloriesBurned: p.calories_burned } : {}),
+        });
+      }
+    }
     return NextResponse.json(
       {
         ok: true,
         data: {
-          sessions: sessions.map((s) => ({
-            id: s.id,
-            date: s.date,
-            sessionType: s.sessionType,
-            totalVolume: s.totalVolume,
-            createdAt: s.createdAt.getTime(),
-            exercises: s.exercises.map((e) => ({ name: e.name, sets: e.sets })),
-          })),
+          sessions: sessions.map((s) => {
+            const meta = metaById.get(s.id);
+            return {
+              id: s.id,
+              date: s.date,
+              sessionType: s.sessionType,
+              totalVolume: s.totalVolume,
+              location: s.location,
+              createdAt: s.createdAt.getTime(),
+              exercises: s.exercises.map((e) => ({ name: e.name, sets: e.sets })),
+              ...(meta?.title ? { title: meta.title } : {}),
+              ...(typeof meta?.durationMin === "number" ? { durationMin: meta.durationMin } : {}),
+              ...(typeof meta?.caloriesBurned === "number"
+                ? { caloriesBurned: meta.caloriesBurned }
+                : {}),
+            };
+          }),
         },
       },
       { headers: corsHeaders }

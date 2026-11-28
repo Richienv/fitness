@@ -9,6 +9,7 @@ import {
   syncCustomFoodsToDbOnce,
 } from "@/lib/store";
 import { mergeServerWorkouts, pushLocalWorkoutsToDb } from "@/lib/workouts";
+import { mergeServerCardioActivities, type ServerCardioRow } from "@/lib/activity";
 import { mergeServerMeasurements, pushLocalMeasurementsToDb } from "@/lib/measurements";
 import { mergeServerHealth } from "@/lib/health";
 import { mergeServerWater, pushLocalWaterToDb } from "@/lib/water";
@@ -58,10 +59,11 @@ function emitSyncStatus(
 async function pullFromServer(days = 30): Promise<{ added: number; online: boolean }> {
   const from = daysBefore(todayKey(), days);
 
-  const [mealsRes, foodsRes, workoutsRes, measRes, healthRes, waterRes] = await Promise.all([
+  const [mealsRes, foodsRes, workoutsRes, cardioRes, measRes, healthRes, waterRes] = await Promise.all([
     fetchJson<{ meals: never[] }>(`/api/meals?from=${from}`),
     fetchJson<{ data: { foods: never[] } }>("/api/foods"),
     fetchJson<{ data: { sessions: never[] } }>(`/api/workouts?from=${from}`),
+    fetchJson<{ data: { sessions: ServerCardioRow[] } }>(`/api/social/cardio?from=${from}`),
     fetchJson<{ data: { measurements: never[] } }>(
       `/api/measurements?from=${from}`
     ),
@@ -73,13 +75,15 @@ async function pullFromServer(days = 30): Promise<{ added: number; online: boole
   ]);
 
   const online = Boolean(
-    mealsRes || foodsRes || workoutsRes || measRes || healthRes || waterRes,
+    mealsRes || foodsRes || workoutsRes || cardioRes || measRes || healthRes || waterRes,
   );
   let added = 0;
   if (mealsRes?.meals) added += mergeServerMeals(mealsRes.meals, { fromDate: from });
   if (foodsRes?.data?.foods) added += mergeServerFoods(foodsRes.data.foods);
   if (workoutsRes?.data?.sessions)
-    added += mergeServerWorkouts(workoutsRes.data.sessions);
+    added += mergeServerWorkouts(workoutsRes.data.sessions, { fromDate: from });
+  if (cardioRes?.data?.sessions)
+    added += mergeServerCardioActivities(cardioRes.data.sessions, { fromDate: from });
   if (measRes?.data?.measurements)
     added += mergeServerMeasurements(measRes.data.measurements);
   if (healthRes?.data?.days) added += mergeServerHealth(healthRes.data.days);

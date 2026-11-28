@@ -82,9 +82,15 @@ export function reconcileServerMeals(
     if (seen.has(row.id)) continue;
     importedIds.push(row.id);
     if (items.length === 0) continue;
-    const existing = all.find(
-      (m) => m.date === row.date && m.mealType === row.mealType,
-    );
+    const keepSeparateRow = row.id.startsWith("mcp-meal-");
+    const existing = keepSeparateRow
+      ? undefined
+      : all.find(
+          (m) =>
+            m.date === row.date &&
+            m.mealType === row.mealType &&
+            !m.id.startsWith("mcp-meal-"),
+        );
     if (existing) {
       existing.items = [...existing.items, ...items];
       existing.loggedAt = Date.now();

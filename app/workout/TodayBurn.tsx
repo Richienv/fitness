@@ -12,10 +12,14 @@ const when = (iso?: string) => (iso ? receivedLabel(iso) : null);
 
 export function activityAmount(a: ActivityEntry): string {
   const k = ACTIVITY_BY_KEY[a.kind];
+  const dist =
+    typeof a.distanceKm === "number" && a.distanceKm > 0
+      ? `${a.distanceKm.toLocaleString("id-ID")} km · `
+      : "";
   // Non-breaking spaces keep "6.200 langkah" on one line in narrow rows.
   if (k.input === "steps") return `${fmt(a.steps ?? 0)} langkah`;
   if (k.input === "minutes")
-    return `${fmt(a.minutes ?? 0)} menit${a.kind === "plank" ? "" : ` · ${a.intensity ?? "sedang"}`}`;
+    return `${dist}${fmt(a.minutes ?? 0)} menit${a.kind === "plank" ? "" : ` · ${a.intensity ?? "sedang"}`}`;
   return `${fmt(a.reps ?? 0)} kali`;
 }
 
@@ -110,7 +114,7 @@ export default function TodayBurn({
                 <Icon name={a.kind === "langkah" || a.kind === "jalan" ? "flame" : "plus"} size={18} />
               </span>
               <span className="lt-row-text">
-                <strong>{ACTIVITY_BY_KEY[a.kind].label}</strong>
+                <strong>{a.title || ACTIVITY_BY_KEY[a.kind].label}</strong>
                 <small>{activityAmount(a)}</small>
               </span>
               {kcalCell(`act:${a.id}`, a.kcal, a.kind === "langkah")}

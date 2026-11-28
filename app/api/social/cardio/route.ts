@@ -23,18 +23,99 @@ export async function GET(req: Request) {
     if (!userId) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401, headers: noStore });
     }
-    const raw = new URL(req.url).searchParams.get("date") ?? "";
-    const date = DATE_RE.test(raw) ? raw : todayKey();
+    const url = new URL(req.url);
+    const fromRaw = url.searchParams.get("from") ?? "";
+    const dateRaw = url.searchParams.get("date") ?? "";
+    const useFrom = DATE_RE.test(fromRaw);
+    const date = DATE_RE.test(dateRaw) ? dateRaw : todayKey();
     const rows = await db.cardioSession.findMany({
-      where: { userId, date },
+      where: useFrom ? { userId, date: { gte: fromRaw } } : { userId, date },
       orderBy: { startedAt: "asc" },
-      select: { id: true, kind: true, distanceM: true, durationSec: true, location: true },
+      select: {
+        id: true,
+        date: true,
+        kind: true,
+        distanceM: true,
+        durationSec: true,
+        location: true,
+        startedAt: true,
+      },
     });
-    return NextResponse.json({ ok: true, data: { date, sessions: rows } }, { headers: noStore });
+    const ids = rows.map((r) => r.id);
+    const metaById = new Map<string, { title?: string; intensity?: string; caloriesBurned?: number }>();
+    if (ids.length > 0) {
+      const logs = await db.activityLog
+        .findMany({
+          where: {
+            actor: "r2fit-mcp",
+            entityId: { in: ids },
+            action: { in: ["log-workout", "update-workout"] },
+          },
+          orderBy: { createdAt: "asc" },
+        })
+        .catch(() => []);
+      for (const l of logs) {
+        if (!l.entityId || !l.payload || typeof l.payload !== "object") continue;
+        const p = l.payload as Record<string, unknown>;
+        const prev = metaById.get(l.entityId) ?? {};
+        metaById.set(l.entityId, {
+          ...prev,
+          ...(typeof p.title === "string" ? { title: p.title } : {}),
+          ...(typeof p.intensity === "string" ? { intensity: p.intensity } : {}),
+          ...(typeof p.calories_burned === "number" ? { caloriesBurned: p.calories_burned } : {}),
+        });
+      }
+    }
+    return NextResponse.json(
+      {
+        ok: true,
+        data: {
+          ...(useFrom ? { from: fromRaw } : { date }),
+          sessions: rows.map((r) => {
+            const meta = metaById.get(r.id);
+            return {
+              id: r.id,
+              date: r.date,
+              kind: r.kind,
+              distanceM: r.distanceM,
+              durationSec: r.durationSec,
+              location: r.location,
+              startedAt: r.startedAt.getTime(),
+              ...(meta?.title ? { title: meta.title } : {}),
+              ...(meta?.intensity ? { intensity: meta.intensity } : {}),
+              ...(typeof meta?.caloriesBurned === "number"
+                ? { caloriesBurned: meta.caloriesBurned }
+                : {}),
+            };
+          }),
+        },
+      },
+      { headers: noStore },
+    );
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: "cardio-failed", message: (e as Error).message },
       { status: 500, headers: noStore }
+    );
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const userId = await getUserId();
+    if (!userId) {
+      return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401, headers: noStore });
+    }
+    const id = (new URL(req.url).searchParams.get("id") ?? "").trim();
+    if (!id) {
+      return NextResponse.json({ ok: false, error: "bad-request", message: "id required" }, { status: 400, headers: noStore });
+    }
+    await db.cardioSession.deleteMany({ where: { id, userId } });
+    return NextResponse.json({ ok: true }, { headers: noStore });
+  } catch (e) {
+    return NextResponse.json(
+      { ok: false, error: "cardio-delete-failed", message: (e as Error).message },
+      { status: 500, headers: noStore },
     );
   }
 }

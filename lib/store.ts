@@ -564,7 +564,7 @@ export function dedupeMeals(): number {
   const keyed = new Map<string, MealLog>();
   let dupes = 0;
   for (const m of all) {
-    const k = `${m.date}|${m.mealType}`;
+    const k = m.id.startsWith("mcp-meal-") ? m.id : `${m.date}|${m.mealType}`;
     const prev = keyed.get(k);
     if (!prev) {
       keyed.set(k, { ...m, items: [...m.items] });

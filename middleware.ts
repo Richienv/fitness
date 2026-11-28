@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 import { authConfig } from "@/auth.config";
+import { hasMcpApiKey } from "@/lib/mcpAuth";
 
 const { auth } = NextAuth(authConfig);
 
@@ -30,6 +31,22 @@ const PUBLIC_API_PATHS = [
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
+
+  // ---- MCP routes: require R2FIT_MCP_API_KEY Bearer token across ALL methods ----
+  if (pathname === "/api/mcp" || pathname.startsWith("/api/mcp/")) {
+    if (req.method === "OPTIONS") return NextResponse.next();
+    if (!hasMcpApiKey(req)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "unauthorized",
+          message: "Valid R2FIT_MCP_API_KEY Bearer token required",
+        },
+        { status: 401 },
+      );
+    }
+    return NextResponse.next();
+  }
 
   // ---- API routes: keep the legacy x-api-key gate; never session-redirect ----
   if (pathname.startsWith("/api/")) {

@@ -5,21 +5,32 @@
 import { scopedKey } from "./userScope";
 import { ACTIVITY_BY_KEY, activityKcal, type ActivityKey, type Intensity } from "./burn";
 import { learnWorkoutToGraph } from "./habitGraphStore";
+import { sendOrQueue } from "./offlineOutbox";
+import {
+  mapCardioKindToActivityKey,
+  MCP_INTENSITY_TO_LOCAL,
+  type McpIntensity,
+} from "./activityCodec";
 
 export type ActivityEntry = {
   id: string;
   /** YYYY-MM-DD, China Standard Time (todayKey). */
   date: string;
   kind: ActivityKey;
+  title?: string;
   steps?: number;
   minutes?: number;
   reps?: number;
+  distanceKm?: number;
+  caloriesBurned?: number;
   intensity?: Intensity;
+  serverSynced?: boolean;
   /** When it was logged, epoch ms. */
   at: number;
 };
 
 const KEY = "richie.activity.v1";
+const SERVER_ACTIVITY_SIGS_KEY = "richie.server.activitySigs.v1";
 
 function readAll(): ActivityEntry[] {
   if (typeof window === "undefined") return [];
@@ -94,5 +105,130 @@ export function addActivity(e: Omit<ActivityEntry, "id" | "at">): ActivityEntry 
 }
 
 export function deleteActivity(id: string): void {
-  writeAll(readAll().filter((a) => a.id !== id));
+  const all = readAll();
+  const target = all.find((a) => a.id === id);
+  writeAll(all.filter((a) => a.id !== id));
+  if (typeof window !== "undefined" && (target?.serverSynced || id.startsWith("mcp-act-"))) {
+    try {
+      const rawSigs = localStorage.getItem(scopedKey(SERVER_ACTIVITY_SIGS_KEY));
+      const sigs = rawSigs ? (JSON.parse(rawSigs) as Record<string, string>) : {};
+      if (sigs[id]) {
+        delete sigs[id];
+        localStorage.setItem(scopedKey(SERVER_ACTIVITY_SIGS_KEY), JSON.stringify(sigs));
+      }
+    } catch {}
+    void sendOrQueue({
+      url: `/api/social/cardio?id=${encodeURIComponent(id)}`,
+      method: "DELETE",
+      dedupeKey: `cardio:del:${id}`,
+    });
+  }
+}
+
+export type ServerCardioRow = {
+  id: string;
+  date?: string;
+  kind: string;
+  distanceM?: number | null;
+  durationSec: number;
+  location?: string | null;
+  startedAt?: number;
+  title?: string;
+  intensity?: string;
+  caloriesBurned?: number;
+};
+
+function cardioRowSig(row: ServerCardioRow): string {
+  return JSON.stringify({
+    date: row.date ?? "",
+    kind: row.kind,
+    distanceM: row.distanceM ?? null,
+    durationSec: row.durationSec,
+    title: row.title ?? row.location ?? null,
+    intensity: row.intensity ?? null,
+    caloriesBurned: row.caloriesBurned ?? null,
+  });
+}
+
+/** Sync server CardioSession rows (from OpenBot/MCP or social cardio) into richie.activity.v1. */
+export function mergeServerCardioActivities(
+  rows: ServerCardioRow[],
+  opts?: { fromDate?: string },
+): number {
+  if (typeof window === "undefined") return 0;
+  let all = readAll();
+  let sigs: Record<string, string> = {};
+  try {
+    const raw = localStorage.getItem(scopedKey(SERVER_ACTIVITY_SIGS_KEY));
+    if (raw) sigs = JSON.parse(raw) as Record<string, string>;
+  } catch {
+    sigs = {};
+  }
+
+  const serverIds = new Set(rows.map((r) => r.id));
+  let changed = 0;
+  let sigsDirty = false;
+
+  for (const row of rows) {
+    if (!row.date) continue;
+    const nextSig = cardioRowSig(row);
+    const localIdx = all.findIndex((a) => a.id === row.id);
+    const mappedIntensity: Intensity =
+      row.intensity && row.intensity in MCP_INTENSITY_TO_LOCAL
+        ? MCP_INTENSITY_TO_LOCAL[row.intensity as McpIntensity]
+        : "sedang";
+    const entry: ActivityEntry = {
+      id: row.id,
+      date: row.date,
+      kind: mapCardioKindToActivityKey(row.kind),
+      ...(row.title || row.location ? { title: row.title ?? row.location ?? undefined } : {}),
+      minutes: Math.max(1, Math.round((row.durationSec / 60) * 10) / 10),
+      ...(typeof row.distanceM === "number" && row.distanceM > 0
+        ? { distanceKm: Math.round((row.distanceM / 1000) * 100) / 100 }
+        : {}),
+      ...(typeof row.caloriesBurned === "number"
+        ? { caloriesBurned: Math.round(row.caloriesBurned) }
+        : {}),
+      intensity: mappedIntensity,
+      serverSynced: true,
+      at: typeof row.startedAt === "number" ? row.startedAt : Date.now(),
+    };
+
+    if (localIdx >= 0) {
+      if (sigs[row.id] !== nextSig) {
+        all[localIdx] = entry;
+        sigs[row.id] = nextSig;
+        sigsDirty = true;
+        changed++;
+      }
+      continue;
+    }
+
+    all.push(entry);
+    sigs[row.id] = nextSig;
+    sigsDirty = true;
+    changed++;
+  }
+
+  if (opts?.fromDate) {
+    const kept: ActivityEntry[] = [];
+    for (const a of all) {
+      if (a.date >= opts.fromDate && sigs[a.id] && !serverIds.has(a.id)) {
+        delete sigs[a.id];
+        sigsDirty = true;
+        changed++;
+        continue;
+      }
+      kept.push(a);
+    }
+    all = kept;
+  }
+
+  if (sigsDirty) {
+    try {
+      localStorage.setItem(scopedKey(SERVER_ACTIVITY_SIGS_KEY), JSON.stringify(sigs));
+    } catch {}
+  }
+  if (changed > 0) writeAll(all);
+  return changed;
 }

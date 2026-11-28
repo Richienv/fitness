@@ -363,6 +363,7 @@ export type WorkoutSession = {
   startedAt: number;
   endedAt?: number;
   durationMin?: number;
+  caloriesBurned?: number;
   totalVolume?: number;
   completed: boolean;
   exercises: ExerciseLog[];
@@ -807,12 +808,18 @@ export async function pushLocalWorkoutsToDb(days = 14): Promise<{ pushed: number
 }
 
 const SEEN_SERVER_KEY = "richie.server.seenWorkouts.v1";
+const SERVER_WORKOUT_SIGS_KEY = "richie.server.workoutSigs.v1";
 
 type ServerWorkoutRow = {
   id: string;
   date: string;
   sessionType: string;
   totalVolume: number;
+  location?: string | null;
+  title?: string;
+  durationMin?: number;
+  caloriesBurned?: number;
+  exercises?: Array<{ name?: string; sets?: unknown }>;
   createdAt: number;
 };
 
@@ -833,33 +840,130 @@ const KNOWN_TYPES: SessionType[] = [
   "FEM_REST",
 ];
 
-/** Import Hermes-logged sessions as completed workouts so streaks and the
- * dashboard reflect them. Unknown types (e.g. CARDIO) are skipped locally —
- * the UI has no template for them; they still count in the API summaries. */
-export function mergeServerWorkouts(rows: ServerWorkoutRow[]): number {
+function coerceServerExercises(
+  raw: ServerWorkoutRow["exercises"],
+  fallbackAt: number,
+): ExerciseLog[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ExerciseLog[] = [];
+  for (const ex of raw) {
+    if (!ex || typeof ex.name !== "string" || !ex.name.trim()) continue;
+    const rawSets = Array.isArray(ex.sets) ? ex.sets : [];
+    const sets: SetLog[] = [];
+    for (let i = 0; i < rawSets.length; i++) {
+      const s = rawSets[i] as Record<string, unknown> | null;
+      if (!s || typeof s !== "object") continue;
+      if (typeof s.sets === "number" && s.sets > 0 && s.setNumber === undefined) {
+        const count = Math.min(30, Math.round(s.sets));
+        const reps = typeof s.reps === "number" ? s.reps : 10;
+        const weight = typeof s.weight === "number" ? s.weight : 0;
+        for (let n = 1; n <= count; n++) {
+          sets.push({ setNumber: n, weight, reps, loggedAt: fallbackAt });
+        }
+      } else {
+        sets.push({
+          setNumber: typeof s.setNumber === "number" ? s.setNumber : sets.length + 1,
+          weight: typeof s.weight === "number" ? s.weight : 0,
+          reps: typeof s.reps === "number" ? s.reps : 0,
+          loggedAt: typeof s.loggedAt === "number" ? s.loggedAt : fallbackAt,
+        });
+      }
+    }
+    out.push({ exerciseName: ex.name, sets });
+  }
+  return out;
+}
+
+function workoutServerSig(row: ServerWorkoutRow): string {
+  return JSON.stringify({
+    date: row.date,
+    sessionType: row.sessionType,
+    totalVolume: row.totalVolume ?? 0,
+    title: row.title ?? row.location ?? null,
+    durationMin: row.durationMin ?? null,
+    caloriesBurned: row.caloriesBurned ?? null,
+    exercises: row.exercises ?? [],
+  });
+}
+
+/** Import, update, and optionally prune server-synced workout sessions cleanly. */
+export function mergeServerWorkouts(
+  rows: ServerWorkoutRow[],
+  opts?: { fromDate?: string },
+): number {
   if (typeof window === "undefined") return 0;
   const seen = new Set(read<string[]>(SEEN_SERVER_KEY, []));
-  const all = getAllWorkouts();
+  const sigs = read<Record<string, string>>(SERVER_WORKOUT_SIGS_KEY, {});
+  let all = getAllWorkouts();
   for (const w of all) seen.add(w.id);
 
-  let added = 0;
+  const serverIds = new Set(rows.map((r) => r.id));
+  let changed = 0;
+  let sigsDirty = false;
+
   for (const row of rows) {
+    if (!KNOWN_TYPES.includes(row.sessionType as SessionType)) continue;
+    const nextSig = workoutServerSig(row);
+    const localIdx = all.findIndex((w) => w.id === row.id);
+    const title = row.title ?? row.location ?? undefined;
+    const exercises = coerceServerExercises(row.exercises, row.createdAt);
+
+    if (localIdx >= 0) {
+      const prevSig = sigs[row.id];
+      if (prevSig !== nextSig) {
+        all[localIdx] = {
+          ...all[localIdx],
+          date: row.date,
+          sessionType: row.sessionType as SessionType,
+          ...(title ? { customName: title } : {}),
+          ...(typeof row.durationMin === "number" ? { durationMin: row.durationMin } : {}),
+          ...(typeof row.caloriesBurned === "number" ? { caloriesBurned: row.caloriesBurned } : {}),
+          totalVolume: row.totalVolume,
+          ...(exercises.length > 0 ? { exercises } : {}),
+        };
+        sigs[row.id] = nextSig;
+        sigsDirty = true;
+        changed++;
+      }
+      continue;
+    }
+
     if (seen.has(row.id)) continue;
     seen.add(row.id);
-    if (!KNOWN_TYPES.includes(row.sessionType as SessionType)) continue;
     all.push({
       id: row.id,
       date: row.date,
       sessionType: row.sessionType as SessionType,
+      ...(title ? { customName: title } : {}),
       startedAt: row.createdAt,
       endedAt: row.createdAt,
+      ...(typeof row.durationMin === "number" ? { durationMin: row.durationMin } : {}),
+      ...(typeof row.caloriesBurned === "number" ? { caloriesBurned: row.caloriesBurned } : {}),
       totalVolume: row.totalVolume,
       completed: true,
-      exercises: [],
+      exercises,
     });
-    added++;
+    sigs[row.id] = nextSig;
+    sigsDirty = true;
+    changed++;
   }
-  if (added > 0) write(WORKOUTS_KEY, all);
+
+  if (opts?.fromDate) {
+    const kept: WorkoutSession[] = [];
+    for (const w of all) {
+      if (w.date >= opts.fromDate && sigs[w.id] && !serverIds.has(w.id)) {
+        delete sigs[w.id];
+        sigsDirty = true;
+        changed++;
+        continue;
+      }
+      kept.push(w);
+    }
+    all = kept;
+  }
+
+  if (changed > 0) write(WORKOUTS_KEY, all);
+  if (sigsDirty) write(SERVER_WORKOUT_SIGS_KEY, sigs);
   write(SEEN_SERVER_KEY, Array.from(seen));
-  return added;
+  return changed;
 }

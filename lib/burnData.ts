@@ -91,21 +91,39 @@ export function burnReader(): (date: string) => DayBurn {
   const healthDays = getAllHealthDays();
   return (date) => {
     const gym = workouts
-      .filter((w) => w.date === date && w.exercises.some((e) => e.sets.length > 0))
+      .filter(
+        (w) =>
+          w.date === date &&
+          (w.exercises.some((e) => e.sets.length > 0) ||
+            typeof w.caloriesBurned === "number" ||
+            typeof w.durationMin === "number"),
+      )
       .map((w) => {
         const b = workoutBurn(w, kg);
+        const kcal =
+          typeof w.caloriesBurned === "number"
+            ? w.caloriesBurned
+            : b.total > 0
+              ? b.total
+              : Math.round(((w.durationMin ?? 45) / 60) * 3.8 * kg);
         return {
           id: w.id,
           title: sessionTitle(w),
           completed: !!w.completed,
-          kcal: b.total,
+          kcal,
           tonnageKg: Math.round(b.breakdown.tonnageKg),
         };
       });
     const activities = allActivities
       .filter((a) => a.date === date)
       .sort((a, b) => a.at - b.at)
-      .map((a) => ({ ...a, kcal: activityKcal(a, kg) }));
+      .map((a) => ({
+        ...a,
+        kcal:
+          typeof a.caloriesBurned === "number"
+            ? a.caloriesBurned
+            : activityKcal(a, kg),
+      }));
     const health = healthDays[date] ?? null;
     const combined = combineDay(
       [
